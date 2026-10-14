@@ -1,0 +1,1150 @@
+import React, { useState, useEffect } from 'react';
+import { Card } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
+import { Badge } from '../../components/ui/Badge';
+import { DataTable, Column } from '../../components/ui/DataTable';
+import {
+  DollarSign,
+  FileText,
+  Plus,
+  Minus,
+  Lock,
+  Unlock,
+  Printer,
+  History,
+  AlertTriangle,
+  CheckCircle2,
+  Calendar,
+  X,
+  CreditCard,
+  Building2,
+  ArrowDownRight,
+  ArrowUpRight,
+} from 'lucide-react';
+import { toast } from 'sonner';
+import { useAuthStore } from '../../stores/authStore';
+import { FiscalReportModal, FiscalReportData } from './FiscalReportModal';
+
+interface CashRegister {
+  id: string;
+  branchId: string;
+  code: string;
+  name: string;
+  fiscalPrinterSerial?: string | null;
+  invoiceMode: string;
+  isActive: boolean;
+  activeShiftId?: string | null;
+  activeCashierName?: string | null;
+  hasActiveShift: boolean;
+}
+
+interface CurrentShiftSummary {
+  totalInvoices: number;
+  cashSalesUSD: number;
+  cashSalesVES: number;
+  pagomovilVES: number;
+  debitVES: number;
+  zelleUSD: number;
+  totalIGTFUSD: number;
+  inflowsUSD: number;
+  outflowsUSD: number;
+  inflowsVES: number;
+  outflowsVES: number;
+}
+
+interface CurrentShift {
+  id: string;
+  cashRegisterId: string;
+  cashRegisterCode: string;
+  cashRegisterName: string;
+  fiscalPrinterSerial: string;
+  invoiceMode: string;
+  branchId: string;
+  userId: string;
+  cashierName: string;
+  openedAt: string;
+  initialCashUSD: number;
+  initialCashVES: number;
+  expectedCashUSD: number;
+  expectedCashVES: number;
+  summary: CurrentShiftSummary;
+  status: string;
+  notes?: string | null;
+}
+
+interface FiscalReportItem {
+  id: string;
+  reportType: 'X' | 'Z';
+  zNumber?: number | null;
+  cashRegisterCode: string;
+  cashRegisterName: string;
+  cashierName: string;
+  reportDate: string;
+  invoicesCount: number;
+  firstInvoiceNumber: string;
+  lastInvoiceNumber: string;
+  baseExempt: number;
+  baseTaxableGeneral: number;
+  taxGeneral: number;
+  igtfAmount: number;
+  totalSales: number;
+  rawContent?: string;
+}
+
+const DEMO_REGISTERS: CashRegister[] = [
+  {
+    id: 'cr111111-1111-1111-1111-111111111111',
+    branchId: 'b1111111-1111-1111-1111-111111111111',
+    code: 'CAJA-01',
+    name: 'Caja Principal Entrada',
+    fiscalPrinterSerial: 'Z1B89201928',
+    invoiceMode: 'FISCAL_PRINTER',
+    isActive: true,
+    hasActiveShift: true,
+    activeShiftId: 'shift-demo-01',
+    activeCashierName: 'Administrador Demo',
+  },
+  {
+    id: 'cr222222-2222-2222-2222-222222222222',
+    branchId: 'b1111111-1111-1111-1111-111111111111',
+    code: 'CAJA-02',
+    name: 'Caja Rápida Express',
+    fiscalPrinterSerial: 'Z1B89201929',
+    invoiceMode: 'NORMAL_PRINTER',
+    isActive: true,
+    hasActiveShift: false,
+  },
+];
+
+const DEMO_CURRENT_SHIFT: CurrentShift = {
+  id: 'shift-demo-01',
+  cashRegisterId: 'cr111111-1111-1111-1111-111111111111',
+  cashRegisterCode: 'CAJA-01',
+  cashRegisterName: 'Caja Principal Entrada',
+  fiscalPrinterSerial: 'Z1B89201928',
+  invoiceMode: 'FISCAL_PRINTER',
+  branchId: 'b1111111-1111-1111-1111-111111111111',
+  userId: 'u1111111-1111-1111-1111-111111111111',
+  cashierName: 'Administrador Demo',
+  openedAt: new Date(Date.now() - 4 * 3600 * 1000).toISOString(),
+  initialCashUSD: 50.0,
+  initialCashVES: 1500.0,
+  expectedCashUSD: 284.5,
+  expectedCashVES: 6850.0,
+  summary: {
+    totalInvoices: 18,
+    cashSalesUSD: 244.5,
+    cashSalesVES: 5350.0,
+    pagomovilVES: 12400.0,
+    debitVES: 8900.0,
+    zelleUSD: 410.0,
+    totalIGTFUSD: 19.64,
+    inflowsUSD: 0,
+    outflowsUSD: 10.0,
+    inflowsVES: 0,
+    outflowsVES: 0,
+  },
+  status: 'OPEN',
+  notes: 'Turno regular matutino',
+};
+
+const DEMO_REPORTS: FiscalReportItem[] = [
+  {
+    id: 'fr-001',
+    reportType: 'Z',
+    zNumber: 142,
+    cashRegisterCode: 'CAJA-01',
+    cashRegisterName: 'Caja Principal Entrada',
+    cashierName: 'Administrador Demo',
+    reportDate: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
+    invoicesCount: 42,
+    firstInvoiceNumber: 'FACT-00010410',
+    lastInvoiceNumber: 'FACT-00010451',
+    baseExempt: 420.5,
+    baseTaxableGeneral: 1850.0,
+    taxGeneral: 296.0,
+    igtfAmount: 28.5,
+    totalSales: 2595.0,
+    rawContent: 'REPORTE FISCAL Z (CIERRE DIARIO)',
+  },
+  {
+    id: 'fr-002',
+    reportType: 'X',
+    zNumber: null,
+    cashRegisterCode: 'CAJA-01',
+    cashRegisterName: 'Caja Principal Entrada',
+    cashierName: 'Administrador Demo',
+    reportDate: new Date(Date.now() - 28 * 3600 * 1000).toISOString(),
+    invoicesCount: 22,
+    firstInvoiceNumber: 'FACT-00010410',
+    lastInvoiceNumber: 'FACT-00010431',
+    baseExempt: 180.0,
+    baseTaxableGeneral: 920.0,
+    taxGeneral: 147.2,
+    igtfAmount: 14.1,
+    totalSales: 1261.3,
+    rawContent: 'REPORTE FISCAL X (CORTE PARCIAL)',
+  },
+];
+
+export const CashRegisterView: React.FC = () => {
+  const { activeBranchId, token } = useAuthStore();
+  const [activeTab, setActiveTab] = useState<'SHIFT' | 'HISTORY'>('SHIFT');
+  const [loading, setLoading] = useState(false);
+
+  const [registers, setRegisters] = useState<CashRegister[]>(DEMO_REGISTERS);
+  const [currentShift, setCurrentShift] = useState<CurrentShift | null>(DEMO_CURRENT_SHIFT);
+  const [fiscalReports, setFiscalReports] = useState<FiscalReportItem[]>(DEMO_REPORTS);
+
+  // Modales
+  const [showOpenShiftModal, setShowOpenShiftModal] = useState(false);
+  const [showCloseShiftModal, setShowCloseShiftModal] = useState(false);
+  const [showMovementModal, setShowMovementModal] = useState(false);
+  const [showFiscalModal, setShowFiscalModal] = useState(false);
+  const [activeFiscalReport, setActiveFiscalReport] = useState<FiscalReportData | null>(null);
+
+  // Form State: Apertura de Turno
+  const [openRegisterId, setOpenRegisterId] = useState('');
+  const [openInitialUSD, setOpenInitialUSD] = useState<number>(0);
+  const [openInitialVES, setOpenInitialVES] = useState<number>(0);
+  const [openNotes, setOpenNotes] = useState('');
+
+  // Form State: Cierre de Turno
+  const [countedCashUSD, setCountedCashUSD] = useState<number>(0);
+  const [countedCashVES, setCountedCashVES] = useState<number>(0);
+  const [closeNotes, setCloseNotes] = useState('');
+
+  // Form State: Movimiento Manual
+  const [movementType, setMovementType] = useState<'INFLOW' | 'OUTFLOW'>('OUTFLOW');
+  const [movementCurrency, setMovementCurrency] = useState<'USD' | 'VES'>('USD');
+  const [movementAmount, setMovementAmount] = useState<number>(0);
+  const [movementReason, setMovementReason] = useState('');
+
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    fetchCurrentState();
+  }, [activeBranchId]);
+
+  const fetchCurrentState = async () => {
+    setLoading(true);
+    try {
+      const branchParam = activeBranchId ? `?branchId=${activeBranchId}` : '';
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+
+      // 1. Cajas
+      const regRes = await fetch(`/api/pos/registers${branchParam}`, { headers });
+      if (regRes.ok) {
+        const json = await regRes.json();
+        if (json.success && json.data) setRegisters(json.data);
+      }
+
+      // 2. Turno Actual
+      const shiftRes = await fetch(`/api/pos/shifts/current${branchParam}`, { headers });
+      if (shiftRes.ok) {
+        const json = await shiftRes.json();
+        if (json.success) {
+          setCurrentShift(json.data || null);
+          if (json.data) {
+            setCountedCashUSD(json.data.expectedCashUSD || 0);
+            setCountedCashVES(json.data.expectedCashVES || 0);
+          }
+        }
+      }
+
+      // 3. Historial de Reportes Fiscales
+      const repRes = await fetch(`/api/pos/fiscal-reports${branchParam}`, { headers });
+      if (repRes.ok) {
+        const json = await repRes.json();
+        if (json.success && json.data) setFiscalReports(json.data);
+      }
+    } catch {
+      // Fallback a DEMO
+      setRegisters(DEMO_REGISTERS);
+      setCurrentShift(DEMO_CURRENT_SHIFT);
+      setFiscalReports(DEMO_REPORTS);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Apertura de turno
+  const handleOpenShift = async () => {
+    if (!openRegisterId) {
+      toast.error('Debe seleccionar una caja registradora');
+      return;
+    }
+    const selectedRegister = registers.find((r) => r.id === openRegisterId);
+    if (selectedRegister?.hasActiveShift) {
+      toast.error(`La caja ${selectedRegister.code} ya tiene un turno abierto por ${selectedRegister.activeCashierName || 'otro cajero'}`);
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/pos/shifts/open', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          cashRegisterId: openRegisterId,
+          branchId: activeBranchId || selectedRegister?.branchId || 'b1111111-1111-1111-1111-111111111111',
+          initialCashUSD: Number(openInitialUSD) || 0,
+          initialCashVES: Number(openInitialVES) || 0,
+          notes: openNotes || null,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error?.message || json.message || 'Error al abrir el turno');
+      }
+
+      toast.success('Turno de caja abierto correctamente');
+      setShowOpenShiftModal(false);
+      fetchCurrentState();
+    } catch (err: any) {
+      toast.error(err.message || 'Error al abrir turno');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Cierre de turno
+  const handleCloseShift = async () => {
+    if (!currentShift) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/pos/shifts/close', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          shiftId: currentShift.id,
+          finalCashUSDCounted: Number(countedCashUSD) || 0,
+          finalCashVESCounted: Number(countedCashVES) || 0,
+          notes: closeNotes || null,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error?.message || 'Error al cerrar el turno');
+      }
+
+      toast.success('Turno cerrado exitosamente con arqueo registrado');
+      setShowCloseShiftModal(false);
+      fetchCurrentState();
+    } catch (err: any) {
+      toast.error(err.message || 'Error al cerrar turno');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Registrar Movimiento Manual
+  const handleRegisterMovement = async () => {
+    if (!currentShift) return;
+    if (movementAmount <= 0) {
+      toast.error('El monto del movimiento debe ser mayor a 0');
+      return;
+    }
+    if (!movementReason.trim()) {
+      toast.error('Debe indicar el motivo o concepto del movimiento');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/pos/shifts/movements', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          shiftId: currentShift.id,
+          type: movementType,
+          currency: movementCurrency,
+          amount: Number(movementAmount),
+          reason: movementReason.trim(),
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error?.message || 'Error al registrar movimiento');
+      }
+
+      toast.success('Movimiento registrado en caja');
+      setShowMovementModal(false);
+      setMovementAmount(0);
+      setMovementReason('');
+      fetchCurrentState();
+    } catch (err: any) {
+      toast.error(err.message || 'Error al registrar movimiento');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Generar Reporte X o Z
+  const handleGenerateFiscalReport = async (reportType: 'X' | 'Z') => {
+    if (!currentShift) {
+      toast.error('No hay un turno activo para emitir el reporte fiscal');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/pos/fiscal-reports', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          cashRegisterId: currentShift.cashRegisterId,
+          branchId: currentShift.branchId,
+          shiftId: currentShift.id,
+          reportType,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error?.message || 'Error al emitir reporte fiscal');
+      }
+
+      toast.success(
+        reportType === 'Z'
+          ? 'Reporte Z (Cierre Diario SENIAT) emitido y auditado'
+          : 'Reporte X (Corte Parcial) generado con éxito'
+      );
+
+      setActiveFiscalReport(json.data);
+      setShowFiscalModal(true);
+      fetchCurrentState();
+    } catch (err: any) {
+      toast.error(err.message || 'Error al generar reporte fiscal');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Cálculo de diferencia de arqueo en el modal de cierre
+  const diffUSD = currentShift ? Number((countedCashUSD - currentShift.expectedCashUSD).toFixed(2)) : 0;
+  const diffVES = currentShift ? Number((countedCashVES - currentShift.expectedCashVES).toFixed(2)) : 0;
+
+  // Columnas para el historial de reportes fiscales
+  const reportColumns: Column<FiscalReportItem>[] = [
+    {
+      header: 'Fecha / Hora',
+      accessorKey: 'reportDate',
+      cell: (r) => (
+        <div className="flex flex-col text-xs">
+          <span className="font-semibold text-neutral-800">
+            {new Date(r.reportDate).toLocaleDateString('es-VE')}
+          </span>
+          <span className="text-[11px] text-neutral-400">
+            {new Date(r.reportDate).toLocaleTimeString('es-VE')}
+          </span>
+        </div>
+      ),
+    },
+    {
+      header: 'Tipo',
+      accessorKey: 'reportType',
+      cell: (r) => (
+        <Badge variant={r.reportType === 'Z' ? 'danger' : 'info'}>
+          {r.reportType === 'Z' ? `Reporte Z ${r.zNumber ? `(Z-${r.zNumber.toString().padStart(4, '0')})` : ''}` : 'Reporte X'}
+        </Badge>
+      ),
+    },
+    {
+      header: 'Caja / Cajero',
+      cell: (r) => (
+        <div className="flex flex-col text-xs">
+          <span className="font-medium text-neutral-900">{r.cashRegisterCode}</span>
+          <span className="text-[11px] text-neutral-500">{r.cashierName}</span>
+        </div>
+      ),
+    },
+    {
+      header: 'Facturas',
+      cell: (r) => (
+        <div className="flex flex-col text-xs font-mono">
+          <span>{r.firstInvoiceNumber} al {r.lastInvoiceNumber}</span>
+          <span className="text-[10px] text-neutral-400">{r.invoicesCount} doc(s)</span>
+        </div>
+      ),
+    },
+    {
+      header: 'Base Imp. (16%)',
+      accessorKey: 'baseTaxableGeneral',
+      cell: (r) => <span className="font-mono text-xs">${r.baseTaxableGeneral.toFixed(2)}</span>,
+    },
+    {
+      header: 'IVA (16%)',
+      accessorKey: 'taxGeneral',
+      cell: (r) => <span className="font-mono text-xs">${r.taxGeneral.toFixed(2)}</span>,
+    },
+    {
+      header: 'IGTF (3%)',
+      accessorKey: 'igtfAmount',
+      cell: (r) => <span className="font-mono text-xs">${r.igtfAmount.toFixed(2)}</span>,
+    },
+    {
+      header: 'Total Ventas',
+      accessorKey: 'totalSales',
+      cell: (r) => <span className="font-mono font-bold text-xs text-neutral-900">${r.totalSales.toFixed(2)}</span>,
+    },
+    {
+      header: 'Acción',
+      cell: (r) => (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            setActiveFiscalReport({
+              reportType: r.reportType,
+              zNumber: r.zNumber,
+              cashRegisterCode: r.cashRegisterCode,
+              fiscalPrinterSerial: 'Z1B89201928',
+              reportDate: r.reportDate,
+              invoicesCount: r.invoicesCount,
+              firstInvoiceNumber: r.firstInvoiceNumber,
+              lastInvoiceNumber: r.lastInvoiceNumber,
+              baseExempt: r.baseExempt,
+              baseTaxableGeneral: r.baseTaxableGeneral,
+              taxGeneral: r.taxGeneral,
+              igtfAmount: r.igtfAmount,
+              totalSales: r.totalSales,
+              formattedText: r.rawContent,
+            });
+            setShowFiscalModal(true);
+          }}
+        >
+          <Printer className="w-3.5 h-3.5 mr-1" />
+          Ver Ticket
+        </Button>
+      ),
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-neutral-900 tracking-tight">
+              Cierre de Caja & Arqueo Fiscal (SENIAT)
+            </h1>
+            {currentShift ? (
+              <Badge variant="success">TURNO ABIERTO</Badge>
+            ) : (
+              <Badge variant="neutral">CAJA CERRADA</Badge>
+            )}
+          </div>
+          <p className="text-xs text-neutral-500 mt-1">
+            Arqueo de efectivo en divisas y bolívares, control de turnos y emisión de Reportes X / Z homologados.
+          </p>
+        </div>
+
+        {/* Botones de Acción Global */}
+        <div className="flex items-center gap-2">
+          {currentShift ? (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowMovementModal(true)}
+              >
+                <Plus className="w-4 h-4 mr-1.5" />
+                Movimiento de Caja
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={submitting}
+                onClick={() => handleGenerateFiscalReport('X')}
+              >
+                <Printer className="w-4 h-4 mr-1.5" />
+                Emitir Reporte X
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={submitting}
+                onClick={() => handleGenerateFiscalReport('Z')}
+                className="text-red-700 border-red-200 hover:bg-red-50"
+              >
+                <Printer className="w-4 h-4 mr-1.5" />
+                Reporte Z (SENIAT)
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setCountedCashUSD(currentShift.expectedCashUSD);
+                  setCountedCashVES(currentShift.expectedCashVES);
+                  setShowCloseShiftModal(true);
+                }}
+              >
+                <Lock className="w-4 h-4 mr-1.5" />
+                Arqueo & Cierre
+              </Button>
+            </>
+          ) : (
+            <Button
+              size="sm"
+              onClick={() => {
+                const available = registers.find((r) => !r.hasActiveShift);
+                if (available) {
+                  setOpenRegisterId(available.id);
+                } else if (registers.length > 0) {
+                  setOpenRegisterId(registers[0].id);
+                }
+                setShowOpenShiftModal(true);
+              }}
+            >
+              <Unlock className="w-4 h-4 mr-1.5" />
+              Abrir Turno de Caja
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b border-neutral-200 text-xs font-semibold gap-6">
+        <button
+          onClick={() => setActiveTab('SHIFT')}
+          className={`pb-2.5 transition-colors border-b-2 ${
+            activeTab === 'SHIFT'
+              ? 'border-sky-600 text-sky-600'
+              : 'border-transparent text-neutral-500 hover:text-neutral-800'
+          }`}
+        >
+          Estado del Turno & Arqueo en Vivo
+        </button>
+        <button
+          onClick={() => setActiveTab('HISTORY')}
+          className={`pb-2.5 transition-colors border-b-2 ${
+            activeTab === 'HISTORY'
+              ? 'border-sky-600 text-sky-600'
+              : 'border-transparent text-neutral-500 hover:text-neutral-800'
+          }`}
+        >
+          Historial de Reportes Fiscales (X / Z)
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="space-y-4">
+          <div className="h-28 bg-neutral-200 rounded-lg animate-pulse" />
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="h-24 bg-neutral-200 rounded-lg animate-pulse" />
+            <div className="h-24 bg-neutral-200 rounded-lg animate-pulse" />
+            <div className="h-24 bg-neutral-200 rounded-lg animate-pulse" />
+            <div className="h-24 bg-neutral-200 rounded-lg animate-pulse" />
+          </div>
+        </div>
+      ) : activeTab === 'SHIFT' ? (
+        currentShift ? (
+          <div className="space-y-6">
+            {/* Banner Informativo del Turno */}
+            <div className="bg-sky-50 border border-sky-200 rounded-lg p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-sky-600 text-white flex items-center justify-center font-bold">
+                  {currentShift.cashRegisterCode}
+                </div>
+                <div>
+                  <div className="font-bold text-neutral-900 text-sm">
+                    {currentShift.cashRegisterName}
+                  </div>
+                  <div className="text-neutral-600">
+                    Cajero: <span className="font-semibold">{currentShift.cashierName}</span> • Apertura:{' '}
+                    <span className="font-mono">{new Date(currentShift.openedAt).toLocaleTimeString('es-VE')}</span> • Serial Fiscal:{' '}
+                    <span className="font-mono">{currentShift.fiscalPrinterSerial}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 text-neutral-700">
+                <div>
+                  <span className="text-neutral-500">Saldo Inicial USD:</span>{' '}
+                  <span className="font-mono font-bold text-neutral-900">${currentShift.initialCashUSD.toFixed(2)}</span>
+                </div>
+                <div>
+                  <span className="text-neutral-500">Saldo Inicial Bs:</span>{' '}
+                  <span className="font-mono font-bold text-neutral-900">Bs. {currentShift.initialCashVES.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Tarjetas de Métricas de Recaudación */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Card className="p-4 space-y-1">
+                <span className="text-xs text-neutral-500">Efectivo en Divisas (Esperado)</span>
+                <div className="text-xl font-bold font-mono text-emerald-600">
+                  ${currentShift.expectedCashUSD.toFixed(2)}
+                </div>
+                <div className="text-[11px] text-neutral-400">
+                  Ventas: ${currentShift.summary.cashSalesUSD.toFixed(2)} • Salidas: -${currentShift.summary.outflowsUSD.toFixed(2)}
+                </div>
+              </Card>
+
+              <Card className="p-4 space-y-1">
+                <span className="text-xs text-neutral-500">Efectivo en Bolívares (Esperado)</span>
+                <div className="text-xl font-bold font-mono text-emerald-600">
+                  Bs. {currentShift.expectedCashVES.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                </div>
+                <div className="text-[11px] text-neutral-400">
+                  Ventas en Bs físico en caja
+                </div>
+              </Card>
+
+              <Card className="p-4 space-y-1">
+                <span className="text-xs text-neutral-500">Pagos Digitales en Bs</span>
+                <div className="text-xl font-bold font-mono text-sky-700">
+                  Bs. {(currentShift.summary.pagomovilVES + currentShift.summary.debitVES).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                </div>
+                <div className="text-[11px] text-neutral-400">
+                  Pago Móvil: Bs. {currentShift.summary.pagomovilVES.toFixed(2)} • Débito: Bs. {currentShift.summary.debitVES.toFixed(2)}
+                </div>
+              </Card>
+
+              <Card className="p-4 space-y-1">
+                <span className="text-xs text-neutral-500">Zelle / IGTF Divisas</span>
+                <div className="text-xl font-bold font-mono text-indigo-700">
+                  ${currentShift.summary.zelleUSD.toFixed(2)}
+                </div>
+                <div className="text-[11px] text-neutral-400">
+                  IGTF 3% recaudado: ${currentShift.summary.totalIGTFUSD.toFixed(2)}
+                </div>
+              </Card>
+            </div>
+
+            {/* Detalle de Métodos de Pago y Desglose */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Desglose por Método de Pago */}
+              <Card className="p-5 space-y-4">
+                <h3 className="text-sm font-bold text-neutral-900 border-b border-neutral-100 pb-2">
+                  Desglose por Método de Cobro en el Turno
+                </h3>
+                <div className="space-y-3 text-xs">
+                  <div className="flex items-center justify-between py-1.5 border-b border-neutral-50">
+                    <span className="text-neutral-600">Efectivo Divisas ($)</span>
+                    <span className="font-mono font-semibold">${currentShift.summary.cashSalesUSD.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1.5 border-b border-neutral-50">
+                    <span className="text-neutral-600">Efectivo Bolívares (Bs)</span>
+                    <span className="font-mono font-semibold">Bs. {currentShift.summary.cashSalesVES.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1.5 border-b border-neutral-50">
+                    <span className="text-neutral-600">Pago Móvil Bancario</span>
+                    <span className="font-mono font-semibold">Bs. {currentShift.summary.pagomovilVES.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1.5 border-b border-neutral-50">
+                    <span className="text-neutral-600">Tarjeta de Débito (Punto de Venta)</span>
+                    <span className="font-mono font-semibold">Bs. {currentShift.summary.debitVES.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1.5 border-b border-neutral-50">
+                    <span className="text-neutral-600">Transferencia / Zelle</span>
+                    <span className="font-mono font-semibold">${currentShift.summary.zelleUSD.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-neutral-200 font-bold text-neutral-900">
+                    <span>Documentos / Facturas Emitidas:</span>
+                    <span>{currentShift.summary.totalInvoices} operaciones</span>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Movimientos de Caja Registrados */}
+              <Card className="p-5 space-y-4">
+                <div className="flex items-center justify-between border-b border-neutral-100 pb-2">
+                  <h3 className="text-sm font-bold text-neutral-900">
+                    Movimientos Manuales (Entradas y Salidas)
+                  </h3>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowMovementModal(true)}
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1" />
+                    Registrar
+                  </Button>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <div className="flex items-center justify-between py-1.5 border-b border-neutral-50">
+                    <div className="flex items-center gap-2">
+                      <ArrowDownRight className="w-4 h-4 text-emerald-600" />
+                      <span>Entradas de Efectivo (USD)</span>
+                    </div>
+                    <span className="font-mono text-emerald-600">+${currentShift.summary.inflowsUSD.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1.5 border-b border-neutral-50">
+                    <div className="flex items-center gap-2">
+                      <ArrowUpRight className="w-4 h-4 text-amber-600" />
+                      <span>Salidas de Efectivo (USD)</span>
+                    </div>
+                    <span className="font-mono text-amber-600">-${currentShift.summary.outflowsUSD.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1.5 border-b border-neutral-50">
+                    <div className="flex items-center gap-2">
+                      <ArrowDownRight className="w-4 h-4 text-emerald-600" />
+                      <span>Entradas de Efectivo (VES)</span>
+                    </div>
+                    <span className="font-mono text-emerald-600">+Bs. {currentShift.summary.inflowsVES.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1.5 border-b border-neutral-50">
+                    <div className="flex items-center gap-2">
+                      <ArrowUpRight className="w-4 h-4 text-amber-600" />
+                      <span>Salidas de Efectivo (VES)</span>
+                    </div>
+                    <span className="font-mono text-amber-600">-Bs. {currentShift.summary.outflowsVES.toFixed(2)}</span>
+                  </div>
+                  <div className="p-3 bg-neutral-50 rounded-lg text-neutral-500 text-[11px] leading-relaxed">
+                    Nota: Los movimientos de caja afectan directamente el saldo teórico esperado en gaveta durante el arqueo final.
+                  </div>
+                </div>
+              </Card>
+            </div>
+          </div>
+        ) : (
+          <Card className="p-12 text-center flex flex-col items-center justify-center space-y-4">
+            <div className="w-12 h-12 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-400">
+              <Lock className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-neutral-900">No hay ningún turno de caja abierto</h3>
+              <p className="text-xs text-neutral-500 max-w-sm mt-1">
+                Para comenzar a facturar en el Punto de Venta y emitir tickets fiscales SENIAT, debes realizar la apertura de turno indicando el fondo de caja inicial.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => {
+                if (registers.length > 0) setOpenRegisterId(registers[0].id);
+                setShowOpenShiftModal(true);
+              }}
+            >
+              <Unlock className="w-4 h-4 mr-1.5" />
+              Abrir Turno de Caja Ahora
+            </Button>
+          </Card>
+        )
+      ) : (
+        /* Pestaña: Historial de Reportes Fiscales */
+        <Card className="p-4">
+          <DataTable
+            data={fiscalReports}
+            columns={reportColumns}
+            searchPlaceholder="Buscar por N° reporte, caja o cajero..."
+            searchKey="cashRegisterCode"
+          />
+        </Card>
+      )}
+
+      {/* Modal: Apertura de Turno */}
+      {showOpenShiftModal && (
+        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Unlock className="w-5 h-5 text-sky-600" />
+                <h3 className="text-sm font-bold text-neutral-900">Apertura de Turno de Caja</h3>
+              </div>
+              <button
+                onClick={() => setShowOpenShiftModal(false)}
+                className="text-neutral-400 hover:text-neutral-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-neutral-700 mb-1">Caja Registradora</label>
+                <select
+                  value={openRegisterId}
+                  onChange={(e) => setOpenRegisterId(e.target.value)}
+                  className="w-full h-9 px-3 border border-neutral-300 rounded-lg text-xs bg-white"
+                >
+                  <option value="">Seleccione una caja...</option>
+                  {registers.map((r) => (
+                    <option key={r.id} value={r.id} disabled={r.hasActiveShift}>
+                      {r.code} - {r.name} {r.hasActiveShift ? `(Ocupada por ${r.activeCashierName || 'otro cajero'})` : '(Disponible)'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-neutral-700 mb-1">Fondo Inicial USD ($)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={openInitialUSD}
+                    onChange={(e) => setOpenInitialUSD(parseFloat(e.target.value) || 0)}
+                    className="w-full h-9 px-3 border border-neutral-300 rounded-lg text-xs font-mono"
+                    placeholder="0.00"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-neutral-700 mb-1">Fondo Inicial VES (Bs)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={openInitialVES}
+                    onChange={(e) => setOpenInitialVES(parseFloat(e.target.value) || 0)}
+                    className="w-full h-9 px-3 border border-neutral-300 rounded-lg text-xs font-mono"
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-neutral-700 mb-1">Observaciones / Notas</label>
+                <input
+                  type="text"
+                  value={openNotes}
+                  onChange={(e) => setOpenNotes(e.target.value)}
+                  className="w-full h-9 px-3 border border-neutral-300 rounded-lg text-xs"
+                  placeholder="Ej: Turno mañana, billetes de baja denominación para cambio"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-neutral-100">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowOpenShiftModal(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                disabled={submitting || !openRegisterId}
+                onClick={handleOpenShift}
+              >
+                Abrir Turno
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Arqueo y Cierre de Turno */}
+      {showCloseShiftModal && currentShift && (
+        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-lg w-full p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Lock className="w-5 h-5 text-neutral-800" />
+                <h3 className="text-sm font-bold text-neutral-900">Arqueo y Cierre de Turno de Caja</h3>
+              </div>
+              <button
+                onClick={() => setShowCloseShiftModal(false)}
+                className="text-neutral-400 hover:text-neutral-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <p className="text-neutral-600">
+                Ingrese el conteo físico real de billetes en gaveta. El sistema contrastará contra el saldo teórico de ventas y movimientos registrados.
+              </p>
+
+              {/* Conteo USD */}
+              <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 space-y-2">
+                <div className="flex justify-between items-center font-semibold text-neutral-700">
+                  <span>Efectivo Divisas ($)</span>
+                  <span className="font-mono text-neutral-500">Esperado: ${currentShift.expectedCashUSD.toFixed(2)}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3 items-center">
+                  <div>
+                    <label className="text-[11px] text-neutral-500">Monto Contado ($):</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={countedCashUSD}
+                      onChange={(e) => setCountedCashUSD(parseFloat(e.target.value) || 0)}
+                      className="w-full h-9 px-3 border border-neutral-300 rounded-lg text-xs font-mono font-bold"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-neutral-500 block mb-1">Diferencia:</span>
+                    <Badge variant={diffUSD === 0 ? 'success' : diffUSD > 0 ? 'info' : 'danger'}>
+                      {diffUSD === 0 ? 'Cuadrado ($0.00)' : diffUSD > 0 ? `Sobrante +$${diffUSD.toFixed(2)}` : `Faltante -$${Math.abs(diffUSD).toFixed(2)}`}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              {/* Conteo VES */}
+              <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 space-y-2">
+                <div className="flex justify-between items-center font-semibold text-neutral-700">
+                  <span>Efectivo Bolívares (Bs)</span>
+                  <span className="font-mono text-neutral-500">Esperado: Bs. {currentShift.expectedCashVES.toFixed(2)}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3 items-center">
+                  <div>
+                    <label className="text-[11px] text-neutral-500">Monto Contado (Bs):</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={countedCashVES}
+                      onChange={(e) => setCountedCashVES(parseFloat(e.target.value) || 0)}
+                      className="w-full h-9 px-3 border border-neutral-300 rounded-lg text-xs font-mono font-bold"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-neutral-500 block mb-1">Diferencia:</span>
+                    <Badge variant={diffVES === 0 ? 'success' : diffVES > 0 ? 'info' : 'danger'}>
+                      {diffVES === 0 ? 'Cuadrado (Bs 0.00)' : diffVES > 0 ? `Sobrante +Bs ${diffVES.toFixed(2)}` : `Faltante -Bs ${Math.abs(diffVES).toFixed(2)}`}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-neutral-700 mb-1">Notas de Cierre</label>
+                <input
+                  type="text"
+                  value={closeNotes}
+                  onChange={(e) => setCloseNotes(e.target.value)}
+                  className="w-full h-9 px-3 border border-neutral-300 rounded-lg text-xs"
+                  placeholder="Justificación de sobrantes/faltantes o novedades en el turno"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-neutral-100">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCloseShiftModal(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                disabled={submitting}
+                onClick={handleCloseShift}
+              >
+                Confirmar Cierre de Turno
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Registrar Movimiento Manual */}
+      {showMovementModal && currentShift && (
+        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+              <div className="flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-sky-600" />
+                <h3 className="text-sm font-bold text-neutral-900">Registrar Movimiento de Caja</h3>
+              </div>
+              <button
+                onClick={() => setShowMovementModal(false)}
+                className="text-neutral-400 hover:text-neutral-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-neutral-700 mb-1">Tipo de Movimiento</label>
+                  <select
+                    value={movementType}
+                    onChange={(e) => setMovementType(e.target.value as any)}
+                    className="w-full h-9 px-3 border border-neutral-300 rounded-lg text-xs bg-white"
+                  >
+                    <option value="OUTFLOW">Salida de Efectivo</option>
+                    <option value="INFLOW">Entrada de Efectivo</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold text-neutral-700 mb-1">Moneda</label>
+                  <select
+                    value={movementCurrency}
+                    onChange={(e) => setMovementCurrency(e.target.value as any)}
+                    className="w-full h-9 px-3 border border-neutral-300 rounded-lg text-xs bg-white"
+                  >
+                    <option value="USD">Dólares ($)</option>
+                    <option value="VES">Bolívares (Bs)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-neutral-700 mb-1">Monto</label>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={movementAmount}
+                  onChange={(e) => setMovementAmount(parseFloat(e.target.value) || 0)}
+                  className="w-full h-9 px-3 border border-neutral-300 rounded-lg text-xs font-mono font-bold"
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-neutral-700 mb-1">Motivo / Justificación</label>
+                <input
+                  type="text"
+                  value={movementReason}
+                  onChange={(e) => setMovementReason(e.target.value)}
+                  className="w-full h-9 px-3 border border-neutral-300 rounded-lg text-xs"
+                  placeholder="Ej: Pago de flete / delivery, cambio de sencillo, etc."
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-neutral-100">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowMovementModal(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                disabled={submitting || movementAmount <= 0 || !movementReason.trim()}
+                onClick={handleRegisterMovement}
+              >
+                Guardar Movimiento
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Visor de Ticket Fiscal Térmico Emulado */}
+      <FiscalReportModal
+        isOpen={showFiscalModal}
+        data={activeFiscalReport}
+        onClose={() => setShowFiscalModal(false)}
+      />
+    </div>
+  );
+};

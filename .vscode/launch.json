@@ -1,0 +1,107 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "API: Depurar (Sin Redis)",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/apps/api",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "--import",
+        "tsx"
+      ],
+      "args": [
+        "${workspaceFolder}/apps/api/src/index.ts"
+      ],
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "NODE_ENV": "development",
+        "PORT": "3000",
+        "REDIS_ENABLED": "false",
+        "DISABLE_REDIS": "true",
+        "REDIS_HOST": "",
+        "REDIS_PORT": ""
+      },
+      "sourceMaps": true,
+      "restart": true,
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen"
+    },
+    {
+      "name": "API: Depurar con Watch (Sin Redis)",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/apps/api",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "exec",
+        "tsx",
+        "watch",
+        "--inspect=9229",
+        "src/index.ts"
+      ],
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "NODE_ENV": "development",
+        "PORT": "3000",
+        "REDIS_ENABLED": "false",
+        "DISABLE_REDIS": "true",
+        "REDIS_HOST": "",
+        "REDIS_PORT": ""
+      },
+      "restart": true,
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen"
+    },
+    {
+      "name": "API: Conectar Depurador (Attach 9229)",
+      "type": "node",
+      "request": "attach",
+      "port": 9229,
+      "restart": true,
+      "skipFiles": [
+        "<node_internals>/**"
+      ]
+    },
+    {
+      "name": "Vitest: Depurar Tests",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "exec",
+        "vitest",
+        "run",
+        "--threads=false"
+      ],
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "NODE_ENV": "test",
+        "REDIS_ENABLED": "false",
+        "DISABLE_REDIS": "true"
+      },
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Web: Depurar en Navegador (Chrome)",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}/apps/web"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Full Stack: API (Sin Redis) + Web Browser",
+      "configurations": [
+        "API: Depurar (Sin Redis)",
+        "Web: Depurar en Navegador (Chrome)"
+      ]
+    }
+  ]
+}

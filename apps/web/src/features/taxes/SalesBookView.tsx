@@ -1,0 +1,438 @@
+import React, { useState, useEffect } from 'react';
+import { Card } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
+import { Badge } from '../../components/ui/Badge';
+import {
+  BookOpen,
+  Calendar,
+  Download,
+  Search,
+  Building2,
+  DollarSign,
+  AlertCircle,
+  FileSpreadsheet,
+} from 'lucide-react';
+import { toast } from 'sonner';
+import { useAuthStore } from '../../stores/authStore';
+
+interface SalesBookItem {
+  rowNum: number;
+  invoiceId: string;
+  branchId: string;
+  branchName: string;
+  customerRif: string;
+  customerName: string;
+  invoiceNumber: string;
+  controlNumber: string;
+  emissionDate: string;
+  totalAmount: number;
+  baseExemptAmount: number;
+  baseTaxableAmount: number;
+  taxRate: number;
+  taxAmount: number;
+  igtfAmount: number;
+  ivaRetainedAmount: number;
+  fiscalPeriod: string;
+}
+
+interface SalesBookTotals {
+  totalSales: number;
+  totalExempt: number;
+  totalTaxable: number;
+  totalTax: number;
+  totalIgtf: number;
+  totalIvaRetained: number;
+}
+
+const DEMO_SALES_ITEMS: SalesBookItem[] = [
+  {
+    rowNum: 1,
+    invoiceId: 'si1',
+    branchId: 'b1',
+    branchName: 'Sucursal Principal Caracas',
+    customerRif: 'V-18222333',
+    customerName: 'Juan Carlos Mendoza',
+    invoiceNumber: 'FAC-000109',
+    controlNumber: '00-0010912',
+    emissionDate: '2026-09-18',
+    totalAmount: 116.00,
+    baseExemptAmount: 0.00,
+    baseTaxableAmount: 100.00,
+    taxRate: 16.00,
+    taxAmount: 16.00,
+    igtfAmount: 3.48,
+    ivaRetainedAmount: 0.00,
+    fiscalPeriod: '2026-09',
+  },
+  {
+    rowNum: 2,
+    invoiceId: 'si2',
+    branchId: 'b1',
+    branchName: 'Sucursal Principal Caracas',
+    customerRif: 'J-31999888-0',
+    customerName: 'INVERSIONES LA CASCADA C.A.',
+    invoiceNumber: 'FAC-000110',
+    controlNumber: '00-0010913',
+    emissionDate: '2026-09-22',
+    totalAmount: 850.00,
+    baseExemptAmount: 150.00,
+    baseTaxableAmount: 603.45,
+    taxRate: 16.00,
+    taxAmount: 96.55,
+    igtfAmount: 0.00,
+    ivaRetainedAmount: 72.41,
+    fiscalPeriod: '2026-09',
+  },
+];
+
+export const SalesBookView: React.FC = () => {
+  const { activeBranchId } = useAuthStore();
+  const now = new Date();
+  const currentPeriod = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
+  const [period, setPeriod] = useState(currentPeriod);
+  const [items, setItems] = useState<SalesBookItem[]>(DEMO_SALES_ITEMS);
+  const [totals, setTotals] = useState<SalesBookTotals>({
+    totalSales: 966.00,
+    totalExempt: 150.00,
+    totalTaxable: 703.45,
+    totalTax: 112.55,
+    totalIgtf: 3.48,
+    totalIvaRetained: 72.41,
+  });
+  const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    fetchSalesBook();
+  }, [period, activeBranchId]);
+
+  const fetchSalesBook = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.append('period', period);
+      if (activeBranchId) params.append('branchId', activeBranchId);
+
+      const res = await fetch(`/api/taxes/books/sales?${params.toString()}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          setItems(json.data.items || []);
+          if (json.data.totals) setTotals(json.data.totals);
+        }
+      }
+    } catch {
+      setItems(DEMO_SALES_ITEMS);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExportCSV = () => {
+    try {
+      const headers = [
+        'Operacion N°',
+        'Fecha Emision',
+        'RIF / Cedula Cliente',
+        'Nombre o Razon Social',
+        'Numero Factura',
+        'Numero Control Fiscal',
+        'Total Ventas',
+        'Ventas Exentas',
+        'Base Imponible',
+        'Alicuota',
+        'IVA Debito Fiscal',
+        'IGTF (3%)',
+        'IVA Retenido por Cliente',
+      ];
+
+      const rows = items.map((i) => [
+        i.rowNum,
+        i.emissionDate,
+        `"${i.customerRif}"`,
+        `"${i.customerName}"`,
+        `"${i.invoiceNumber}"`,
+        `"${i.controlNumber}"`,
+        i.totalAmount.toFixed(2),
+        i.baseExemptAmount.toFixed(2),
+        i.baseTaxableAmount.toFixed(2),
+        `${i.taxRate}%`,
+        i.taxAmount.toFixed(2),
+        i.igtfAmount.toFixed(2),
+        i.ivaRetainedAmount.toFixed(2),
+      ]);
+
+      const csvContent = [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `Libro_Ventas_SENIAT_${period.replace('-', '')}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success('Libro de Ventas exportado a CSV exitosamente');
+    } catch {
+      toast.error('Error al exportar Libro de Ventas');
+    }
+  };
+
+  const filteredItems = items.filter(
+    (i) =>
+      i.customerName.toLowerCase().includes(search.toLowerCase()) ||
+      i.customerRif.toLowerCase().includes(search.toLowerCase()) ||
+      i.invoiceNumber.toLowerCase().includes(search.toLowerCase()) ||
+      i.controlNumber.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-xl font-bold text-neutral-900 tracking-tight flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-sky-600" />
+            Libro Fiscal de Ventas (SENIAT)
+          </h1>
+          <p className="text-sm text-neutral-500">
+            Registro cronológico obligatorio de facturación según Art. 76-78 del Reglamento de la Ley del IVA
+          </p>
+        </div>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportCSV}
+            className="flex-1 sm:flex-none"
+          >
+            <FileSpreadsheet className="w-4 h-4 mr-1 text-emerald-600" />
+            Exportar CSV / Excel
+          </Button>
+        </div>
+      </div>
+
+      {/* Summary KPI Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <Card className="p-3 border-neutral-200">
+          <p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
+            Total Facturado
+          </p>
+          <p className="text-xl font-bold text-neutral-900 mt-1 font-mono">
+            ${totals.totalSales.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          </p>
+          <p className="text-[10px] text-neutral-500 mt-0.5">Ventas brutas mes</p>
+        </Card>
+
+        <Card className="p-3 border-neutral-200">
+          <p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
+            Ventas Exentas
+          </p>
+          <p className="text-xl font-bold text-neutral-700 mt-1 font-mono">
+            ${totals.totalExempt.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          </p>
+          <p className="text-[10px] text-neutral-500 mt-0.5">Sin impuesto</p>
+        </Card>
+
+        <Card className="p-3 border-neutral-200">
+          <p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
+            Base Imponible (16%)
+          </p>
+          <p className="text-xl font-bold text-sky-700 mt-1 font-mono">
+            ${totals.totalTaxable.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          </p>
+          <p className="text-[10px] text-neutral-500 mt-0.5">Sujeto a IVA</p>
+        </Card>
+
+        <Card className="p-3 border-neutral-200">
+          <p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
+            IVA Débito Fiscal
+          </p>
+          <p className="text-xl font-bold text-neutral-900 mt-1 font-mono">
+            ${totals.totalTax.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          </p>
+          <p className="text-[10px] text-neutral-500 mt-0.5">Impuesto facturado</p>
+        </Card>
+
+        <Card className="p-3 border-neutral-200">
+          <p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
+            IGTF Percibido (3%)
+          </p>
+          <p className="text-xl font-bold text-emerald-700 mt-1 font-mono">
+            ${totals.totalIgtf.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          </p>
+          <p className="text-[10px] text-neutral-500 mt-0.5">Pagos divisas efectivo</p>
+        </Card>
+
+        <Card className="p-3 border-neutral-200 bg-sky-50/50 border-sky-200">
+          <p className="text-[11px] font-semibold text-sky-800 uppercase tracking-wider">
+            IVA Retenido Cliente
+          </p>
+          <p className="text-xl font-bold text-sky-900 mt-1 font-mono">
+            ${totals.totalIvaRetained.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          </p>
+          <p className="text-[10px] text-sky-700 mt-0.5">Comprobantes recibidos</p>
+        </Card>
+      </div>
+
+      {/* Main Ledger Table Card */}
+      <Card className="border-neutral-200 overflow-hidden">
+        {/* Controls Bar */}
+        <div className="p-4 border-b border-neutral-200 bg-neutral-50/50 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 bg-white border border-neutral-200 rounded-lg px-2.5 py-1 text-xs text-neutral-600">
+              <Calendar className="w-3.5 h-3.5 text-neutral-400" />
+              <span>Mes / Período:</span>
+              <input
+                type="month"
+                value={period}
+                onChange={(e) => setPeriod(e.target.value)}
+                className="bg-transparent font-medium text-neutral-900 focus:outline-none"
+              />
+            </div>
+            <span className="text-xs text-neutral-500">
+              {filteredItems.length} facturas emitidas
+            </span>
+          </div>
+
+          <div className="relative w-full md:w-72">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+            <input
+              type="text"
+              placeholder="Buscar cliente, RIF o factura..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-1.5 text-xs border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
+            />
+          </div>
+        </div>
+
+        {/* Semantic Ledger Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs text-neutral-600">
+            <thead className="bg-neutral-50 border-b border-neutral-200 font-semibold text-neutral-500 uppercase tracking-wider">
+              <tr>
+                <th className="py-3 px-3 text-center">Op. N°</th>
+                <th className="py-3 px-3">Fecha</th>
+                <th className="py-3 px-3">RIF / Cédula</th>
+                <th className="py-3 px-3">Nombre o Razón Social</th>
+                <th className="py-3 px-3">N° Factura</th>
+                <th className="py-3 px-3">N° Control</th>
+                <th className="py-3 px-3 text-right">Total Ventas</th>
+                <th className="py-3 px-3 text-right">Exento</th>
+                <th className="py-3 px-3 text-right">Base Imponible</th>
+                <th className="py-3 px-3 text-right">Alíc.</th>
+                <th className="py-3 px-3 text-right">IVA Débito</th>
+                <th className="py-3 px-3 text-right">IGTF (3%)</th>
+                <th className="py-3 px-3 text-right">IVA Retenido</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-100">
+              {loading ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td className="py-3 px-3 text-center"><div className="h-4 bg-neutral-200 rounded w-6 mx-auto"></div></td>
+                    <td className="py-3 px-3"><div className="h-4 bg-neutral-200 rounded w-16"></div></td>
+                    <td className="py-3 px-3"><div className="h-4 bg-neutral-200 rounded w-20"></div></td>
+                    <td className="py-3 px-3"><div className="h-4 bg-neutral-200 rounded w-32"></div></td>
+                    <td className="py-3 px-3"><div className="h-4 bg-neutral-200 rounded w-20"></div></td>
+                    <td className="py-3 px-3"><div className="h-4 bg-neutral-200 rounded w-16"></div></td>
+                    <td className="py-3 px-3"><div className="h-4 bg-neutral-200 rounded w-16 ml-auto"></div></td>
+                    <td className="py-3 px-3"><div className="h-4 bg-neutral-200 rounded w-12 ml-auto"></div></td>
+                    <td className="py-3 px-3"><div className="h-4 bg-neutral-200 rounded w-16 ml-auto"></div></td>
+                    <td className="py-3 px-3"><div className="h-4 bg-neutral-200 rounded w-8 ml-auto"></div></td>
+                    <td className="py-3 px-3"><div className="h-4 bg-neutral-200 rounded w-14 ml-auto"></div></td>
+                    <td className="py-3 px-3"><div className="h-4 bg-neutral-200 rounded w-12 ml-auto"></div></td>
+                    <td className="py-3 px-3"><div className="h-4 bg-neutral-200 rounded w-14 ml-auto"></div></td>
+                  </tr>
+                ))
+              ) : filteredItems.length === 0 ? (
+                <tr>
+                  <td colSpan={13} className="py-12 text-center text-neutral-400">
+                    <AlertCircle className="w-8 h-8 mx-auto mb-2 text-neutral-300" />
+                    <p className="text-sm font-medium text-neutral-600">No hay facturas de venta registradas</p>
+                    <p className="text-xs text-neutral-400 mt-1">
+                      No se registraron ventas durante el período {period}
+                    </p>
+                  </td>
+                </tr>
+              ) : (
+                filteredItems.map((item) => (
+                  <tr key={item.invoiceId} className="hover:bg-neutral-50/70 transition-colors">
+                    <td className="py-3 px-3 text-center font-mono font-medium text-neutral-500">
+                      {item.rowNum}
+                    </td>
+                    <td className="py-3 px-3 text-neutral-900 whitespace-nowrap">
+                      {new Date(item.emissionDate).toLocaleDateString('es-VE')}
+                    </td>
+                    <td className="py-3 px-3 font-mono font-medium text-neutral-800">
+                      {item.customerRif}
+                    </td>
+                    <td className="py-3 px-3 font-medium text-neutral-900 max-w-[200px] truncate" title={item.customerName}>
+                      {item.customerName}
+                    </td>
+                    <td className="py-3 px-3 font-mono text-neutral-900">
+                      {item.invoiceNumber}
+                    </td>
+                    <td className="py-3 px-3 font-mono text-neutral-500">
+                      {item.controlNumber}
+                    </td>
+                    <td className="py-3 px-3 text-right font-mono font-semibold text-neutral-900">
+                      ${item.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="py-3 px-3 text-right font-mono text-neutral-600">
+                      ${item.baseExemptAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="py-3 px-3 text-right font-mono text-sky-800 font-medium">
+                      ${item.baseTaxableAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="py-3 px-3 text-right font-mono text-neutral-500">
+                      {item.taxRate}%
+                    </td>
+                    <td className="py-3 px-3 text-right font-mono text-neutral-900">
+                      ${item.taxAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="py-3 px-3 text-right font-mono text-emerald-700">
+                      ${item.igtfAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="py-3 px-3 text-right font-mono font-medium text-sky-700">
+                      ${item.ivaRetainedAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+            {/* Table Footer with Totals */}
+            {items.length > 0 && (
+              <tfoot className="bg-neutral-100 font-bold border-t-2 border-neutral-300 text-neutral-900">
+                <tr>
+                  <td colSpan={6} className="py-3 px-3 text-right uppercase text-[11px] tracking-wider">
+                    Totales del Período ({period}):
+                  </td>
+                  <td className="py-3 px-3 text-right font-mono">
+                    ${totals.totalSales.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </td>
+                  <td className="py-3 px-3 text-right font-mono">
+                    ${totals.totalExempt.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </td>
+                  <td className="py-3 px-3 text-right font-mono text-sky-800">
+                    ${totals.totalTaxable.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </td>
+                  <td></td>
+                  <td className="py-3 px-3 text-right font-mono">
+                    ${totals.totalTax.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </td>
+                  <td className="py-3 px-3 text-right font-mono text-emerald-700">
+                    ${totals.totalIgtf.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </td>
+                  <td className="py-3 px-3 text-right font-mono text-sky-700">
+                    ${totals.totalIvaRetained.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </Card>
+    </div>
+  );
+};
