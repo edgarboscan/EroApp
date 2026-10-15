@@ -5,6 +5,7 @@ import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Plus, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatMoneyUSD, formatNumber } from '../../utils/formatters';
 
 interface ProductItem {
   id: string;
@@ -131,12 +132,12 @@ export const ProductCatalog: React.FC = () => {
     {
       header: 'Costo ($)',
       accessorKey: 'costPrice',
-      cell: (row) => `$${row.costPrice.toFixed(2)}`,
+      cell: (row) => formatMoneyUSD(row.costPrice),
     },
     {
       header: 'Base ($)',
       accessorKey: 'basePrice',
-      cell: (row) => `$${row.basePrice.toFixed(2)}`,
+      cell: (row) => formatMoneyUSD(row.basePrice),
     },
     {
       header: 'IVA',
@@ -148,13 +149,13 @@ export const ProductCatalog: React.FC = () => {
     },
     {
       header: 'PVP Final ($)',
-      cell: (row) => <span className="font-bold text-neutral-900">${row.finalPrice.toFixed(2)}</span>,
+      cell: (row) => <span className="font-bold text-neutral-900">{formatMoneyUSD(row.finalPrice)}</span>,
     },
     {
       header: 'Stock',
       cell: (row) => (
         <span className={`font-semibold ${row.currentStock <= 20 ? 'text-red-600' : 'text-neutral-900'}`}>
-          {row.currentStock} UND
+          {formatNumber(row.currentStock, { maximumFractionDigits: 0 })} UND
         </span>
       ),
     },

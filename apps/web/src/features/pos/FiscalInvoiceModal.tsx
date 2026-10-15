@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '../../components/ui/Button';
 import { Printer, Copy, Check, X, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatMoneyUSD, formatMoneyVES, formatExchangeRate } from '../../utils/formatters';
 
 export interface FiscalInvoiceTicketData {
   invoiceId: string;
@@ -37,9 +38,15 @@ interface FiscalInvoiceModalProps {
   isOpen: boolean;
   data: FiscalInvoiceTicketData | null;
   onClose: () => void;
+  isFiscal?: boolean;
 }
 
-export const FiscalInvoiceModal: React.FC<FiscalInvoiceModalProps> = ({ isOpen, data, onClose }) => {
+export const FiscalInvoiceModal: React.FC<FiscalInvoiceModalProps> = ({
+  isOpen,
+  data,
+  onClose,
+  isFiscal = true,
+}) => {
   const [copied, setCopied] = useState(false);
 
   if (!isOpen || !data) return null;
@@ -49,10 +56,11 @@ export const FiscalInvoiceModal: React.FC<FiscalInvoiceModalProps> = ({ isOpen, 
   };
 
   const handleCopy = () => {
-    const text = `FACTURA FISCAL N° ${data.invoiceNumber}\nCONTROL: ${data.controlNumber}\nCLIENTE: ${data.customerName} (${data.customerRif})\nTOTAL: $${data.totalUSD.toFixed(2)} (Bs. ${data.totalVES.toFixed(2)})`;
+    const title = isFiscal ? 'FACTURA FISCAL' : 'TICKET DE VENTA';
+    const text = `${title} N° ${data.invoiceNumber}\nCONTROL: ${data.controlNumber}\nCLIENTE: ${data.customerName} (${data.customerRif})\nTOTAL: ${formatMoneyUSD(data.totalUSD)} (${formatMoneyVES(data.totalVES)})`;
     navigator.clipboard.writeText(text);
     setCopied(true);
-    toast.success('Detalle de factura copiado al portapapeles');
+    toast.success('Detalle del ticket copiado al portapapeles');
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -60,13 +68,15 @@ export const FiscalInvoiceModal: React.FC<FiscalInvoiceModalProps> = ({ isOpen, 
     <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg max-w-md w-full shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-neutral-200">
         {/* Header */}
-        <div className="p-4 border-b border-neutral-200 flex items-center justify-between bg-emerald-50">
+        <div className={`p-4 border-b border-neutral-200 flex items-center justify-between ${isFiscal ? 'bg-emerald-50' : 'bg-sky-50'}`}>
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+            <CheckCircle2 className={`w-5 h-5 ${isFiscal ? 'text-emerald-600' : 'text-sky-600'}`} />
             <div>
-              <h3 className="text-sm font-bold text-neutral-900">Venta Facturada con Éxito</h3>
+              <h3 className="text-sm font-bold text-neutral-900">
+                {isFiscal ? 'Factura Fiscal Homologada SENIAT' : 'Ticket de Venta (No Fiscal)'}
+              </h3>
               <p className="text-xs text-neutral-600 font-mono">
-                Factura: {data.invoiceNumber} • Control: {data.controlNumber}
+                {isFiscal ? 'Factura' : 'Comprobante'}: {data.invoiceNumber} • Control: {data.controlNumber}
               </p>
             </div>
           </div>
@@ -93,7 +103,7 @@ export const FiscalInvoiceModal: React.FC<FiscalInvoiceModalProps> = ({ isOpen, 
             {/* Invoice Info */}
             <div className="space-y-1 py-1 border-b border-dashed border-neutral-300">
               <div className="flex justify-between font-bold">
-                <span>FACTURA SENIAT:</span>
+                <span>{isFiscal ? 'FACTURA SENIAT:' : 'TICKET N°:'}</span>
                 <span>{data.invoiceNumber}</span>
               </div>
               <div className="flex justify-between">
@@ -144,8 +154,8 @@ export const FiscalInvoiceModal: React.FC<FiscalInvoiceModalProps> = ({ isOpen, 
                     </span>
                   </div>
                   <div className="col-span-2 text-center">{it.quantity}</div>
-                  <div className="col-span-2 text-right">${it.unitPrice.toFixed(2)}</div>
-                  <div className="col-span-2 text-right font-semibold">${it.total.toFixed(2)}</div>
+                  <div className="col-span-2 text-right">{formatMoneyUSD(it.unitPrice)}</div>
+                  <div className="col-span-2 text-right font-semibold">{formatMoneyUSD(it.total)}</div>
                 </div>
               ))}
             </div>
@@ -155,30 +165,30 @@ export const FiscalInvoiceModal: React.FC<FiscalInvoiceModalProps> = ({ isOpen, 
               {data.baseExempt > 0 && (
                 <div className="flex justify-between">
                   <span>EXENTO (E):</span>
-                  <span>${data.baseExempt.toFixed(2)}</span>
+                  <span>{formatMoneyUSD(data.baseExempt)}</span>
                 </div>
               )}
               <div className="flex justify-between">
                 <span>BASE IMPONIBLE (G 16%):</span>
-                <span>${data.baseTaxable.toFixed(2)}</span>
+                <span>{formatMoneyUSD(data.baseTaxable)}</span>
               </div>
               <div className="flex justify-between">
                 <span>IVA (16%):</span>
-                <span>${data.taxAmount.toFixed(2)}</span>
+                <span>{formatMoneyUSD(data.taxAmount)}</span>
               </div>
               {data.igtfAmount > 0 && (
                 <div className="flex justify-between text-indigo-700 font-semibold">
                   <span>IGTF (3% DIVISAS):</span>
-                  <span>${data.igtfAmount.toFixed(2)}</span>
+                  <span>{formatMoneyUSD(data.igtfAmount)}</span>
                 </div>
               )}
               <div className="border-t-2 border-neutral-800 pt-1.5 flex justify-between font-bold text-xs">
                 <span>TOTAL A PAGAR:</span>
-                <span>${data.totalUSD.toFixed(2)}</span>
+                <span>{formatMoneyUSD(data.totalUSD)}</span>
               </div>
               <div className="flex justify-between text-neutral-500 text-[10px]">
-                <span>TASA BCV: Bs. {data.exchangeRate.toFixed(2)}</span>
-                <span>Bs. {data.totalVES.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span>TASA BCV: {formatExchangeRate(data.exchangeRate)}</span>
+                <span>{formatMoneyVES(data.totalVES)}</span>
               </div>
             </div>
 
@@ -188,16 +198,25 @@ export const FiscalInvoiceModal: React.FC<FiscalInvoiceModalProps> = ({ isOpen, 
               {data.payments.map((p, idx) => (
                 <div key={idx} className="flex justify-between text-[10px]">
                   <span>{p.method}:</span>
-                  <span>${p.amountUSD.toFixed(2)} {p.amountVES > 0 ? `(Bs. ${p.amountVES.toFixed(2)})` : ''}</span>
+                  <span>{formatMoneyUSD(p.amountUSD)} {p.amountVES > 0 ? `(${formatMoneyVES(p.amountVES)})` : ''}</span>
                 </div>
               ))}
             </div>
 
-            {/* Fiscal Footer */}
+            {/* Footer */}
             <div className="border-t border-dashed border-neutral-300 pt-3 text-center space-y-0.5 text-[9px] text-neutral-500">
               <div className="font-bold">GRACIAS POR SU COMPRA</div>
-              <div>DOCUMENTO EMITIDO BAJO FORMATO FISCAL HOMOLOGADO</div>
-              <div className="text-[8px]">PROV. SENIAT SNAT/2011/00071</div>
+              {isFiscal ? (
+                <>
+                  <div>DOCUMENTO EMITIDO BAJO FORMATO FISCAL HOMOLOGADO</div>
+                  <div className="text-[8px]">PROV. SENIAT SNAT/2011/00071</div>
+                </>
+              ) : (
+                <>
+                  <div>COMPROBANTE NO FISCAL - CONTROL INTERNO</div>
+                  <div className="text-[8px]">TICKET DE ENTREGA / VENTA AL PÚBLICO</div>
+                </>
+              )}
             </div>
           </div>
         </div>

@@ -19,7 +19,7 @@ import {
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/authStore';
 import { WithholdingVoucherModal, WithholdingVoucherData } from './WithholdingVoucherModal';
-import { STANDARD_ISLR_CONCEPTS } from '@ero/shared';
+import { STANDARD_ISLR_CONCEPTS, formatMoneyUSD } from '@ero/shared';
 
 interface WithholdingItem {
   id: string;
@@ -411,7 +411,7 @@ export const WithholdingsView: React.FC = () => {
             </Badge>
           </div>
           <p className="text-2xl font-bold text-neutral-900 mt-2 font-mono">
-            ${totalIvaRetained.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatMoneyUSD(totalIvaRetained)}
           </p>
           <p className="text-xs text-neutral-500 mt-1">Acumulado en período seleccionado</p>
         </Card>
@@ -426,7 +426,7 @@ export const WithholdingsView: React.FC = () => {
             </Badge>
           </div>
           <p className="text-2xl font-bold text-neutral-900 mt-2 font-mono">
-            ${totalIslrRetained.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatMoneyUSD(totalIslrRetained)}
           </p>
           <p className="text-xs text-neutral-500 mt-1">Servicios, fletes y honorarios</p>
         </Card>
@@ -436,7 +436,7 @@ export const WithholdingsView: React.FC = () => {
             Total Retenido SENIAT
           </p>
           <p className="text-2xl font-bold text-white mt-2 font-mono">
-            ${totalRetained.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatMoneyUSD(totalRetained)}
           </p>
           <p className="text-xs text-neutral-400 mt-1">Pasivo fiscal por enterar al fisco</p>
         </Card>
@@ -605,13 +605,13 @@ export const WithholdingsView: React.FC = () => {
                       <p className="text-[10px] text-neutral-400">Ctrl: {item.controlNumber}</p>
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-neutral-900">
-                      ${item.taxableBaseAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      {formatMoneyUSD(item.taxableBaseAmount)}
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-neutral-600">
                       {item.type === 'IVA' ? `${item.retainedPercentage}%` : `${item.ratePercentage}%`}
                     </td>
                     <td className="py-3 px-4 text-right font-mono font-semibold text-neutral-900">
-                      ${item.retainedAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      {formatMoneyUSD(item.retainedAmount)}
                     </td>
                     <td className="py-3 px-4 text-center">
                       {item.status === 'ANNULLED' ? (
@@ -738,13 +738,13 @@ export const WithholdingsView: React.FC = () => {
                   <div>
                     <span className="text-neutral-500">Base Imponible:</span>{' '}
                     <span className="font-mono font-semibold text-neutral-800">
-                      ${selectedInvoice.baseTaxableAmount.toFixed(2)}
+                      {formatMoneyUSD(selectedInvoice.baseTaxableAmount)}
                     </span>
                   </div>
                   <div>
                     <span className="text-neutral-500">Monto IVA:</span>{' '}
                     <span className="font-mono font-semibold text-neutral-800">
-                      ${selectedInvoice.taxAmount.toFixed(2)}
+                      {formatMoneyUSD(selectedInvoice.taxAmount)}
                     </span>
                   </div>
                 </div>
@@ -863,10 +863,9 @@ export const WithholdingsView: React.FC = () => {
                 <div>
                   <p className="text-[11px] text-neutral-400">Total Impuesto a Retener</p>
                   <p className="text-lg font-bold font-mono">
-                    $
                     {emitType === 'IVA'
-                      ? previewIvaRetained.toLocaleString('en-US', { minimumFractionDigits: 2 })
-                      : previewIslrRetained.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      ? formatMoneyUSD(previewIvaRetained)
+                      : formatMoneyUSD(previewIslrRetained)}
                   </p>
                 </div>
                 <Badge variant="neutral" className="text-[10px]">

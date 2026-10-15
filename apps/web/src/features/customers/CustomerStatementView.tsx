@@ -14,6 +14,7 @@ import {
   Building2,
   CheckCircle2,
 } from 'lucide-react';
+import { formatMoneyUSD } from '../../utils/formatters';
 
 export const CustomerStatementView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -155,7 +156,7 @@ export const CustomerStatementView: React.FC = () => {
         <Card className="p-4">
           <div className="text-xs text-neutral-500 font-medium">Límite de Crédito</div>
           <div className="text-2xl font-bold text-neutral-900 mt-1">
-            ${customer.creditLimit.toFixed(2)}
+            {formatMoneyUSD(customer.creditLimit)}
           </div>
           <div className="text-[11px] text-neutral-400 mt-1">
             Plazo de pago: {customer.paymentTermsDays} días
@@ -165,7 +166,7 @@ export const CustomerStatementView: React.FC = () => {
         <Card className="p-4">
           <div className="text-xs text-neutral-500 font-medium">Saldo Deudor Actual</div>
           <div className="text-2xl font-bold text-amber-700 mt-1">
-            ${customer.currentBalance.toFixed(2)}
+            {formatMoneyUSD(customer.currentBalance)}
           </div>
           <div className="text-[11px] text-neutral-400 mt-1">
             {customer.currentBalance > 0 ? 'Facturas pendientes por cobrar' : 'Al día'}
@@ -175,7 +176,7 @@ export const CustomerStatementView: React.FC = () => {
         <Card className="p-4">
           <div className="text-xs text-neutral-500 font-medium">Crédito Disponible</div>
           <div className="text-2xl font-bold text-emerald-700 mt-1">
-            ${Math.max(0, customer.availableCredit).toFixed(2)}
+            {formatMoneyUSD(Math.max(0, customer.availableCredit))}
           </div>
           <div className="text-[11px] text-neutral-400 mt-1">
             Margen para nuevas compras
@@ -253,13 +254,13 @@ export const CustomerStatementView: React.FC = () => {
                         )}
                       </td>
                       <td className="py-3 px-4 text-right font-medium text-neutral-900">
-                        ${inv.totalAmount.toFixed(2)}
+                        {formatMoneyUSD(inv.totalAmount)}
                       </td>
                       <td className="py-3 px-4 text-right text-emerald-700 font-medium">
-                        ${(inv.receivable?.amountPaid ?? inv.totalAmount).toFixed(2)}
+                        {formatMoneyUSD(inv.receivable?.amountPaid ?? inv.totalAmount)}
                       </td>
                       <td className="py-3 px-4 text-right font-mono font-bold text-neutral-900">
-                        ${(inv.receivable?.amountBalance ?? 0).toFixed(2)}
+                        {formatMoneyUSD(inv.receivable?.amountBalance ?? 0)}
                       </td>
                       <td className="py-3 px-4 text-center">
                         <Badge

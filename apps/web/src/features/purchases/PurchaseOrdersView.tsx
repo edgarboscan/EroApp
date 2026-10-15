@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/authStore';
+import { formatMoneyUSD, formatMoneyVES, formatExchangeRate } from '../../utils/formatters';
 
 interface PurchaseOrderRecord {
   id: string;
@@ -346,10 +347,10 @@ export const PurchaseOrdersView: React.FC = () => {
       cell: (item) => (
         <div className="text-right">
           <p className="text-xs font-semibold text-neutral-900">
-            ${item.totalAmount.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+            {formatMoneyUSD(item.totalAmount)}
           </p>
           <p className="text-[10px] text-neutral-500">
-            Bs. {(item.totalAmount * item.exchangeRate).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+            {formatMoneyVES(item.totalAmount * item.exchangeRate)}
           </p>
         </div>
       ),
@@ -434,7 +435,7 @@ export const PurchaseOrdersView: React.FC = () => {
             </div>
           </div>
           <p className="text-2xl font-bold text-emerald-700 mt-2">
-            ${totalAmountUSD.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+            {formatMoneyUSD(totalAmountUSD)}
           </p>
           <p className="text-[10px] text-neutral-400 mt-0.5">Total adquisiciones valorizadas</p>
         </Card>
@@ -625,7 +626,7 @@ export const PurchaseOrdersView: React.FC = () => {
                             </select>
                           </td>
                           <td className="py-2 px-3 text-right font-medium text-neutral-900">
-                            ${item.subtotal.toFixed(2)}
+                            {formatMoneyUSD(item.subtotal)}
                           </td>
                           <td className="py-2 px-3 text-center">
                             <button
@@ -661,19 +662,19 @@ export const PurchaseOrdersView: React.FC = () => {
                 <div className="bg-neutral-50 rounded-lg p-4 border border-neutral-200 space-y-2">
                   <div className="flex justify-between text-xs text-neutral-600">
                     <span>Subtotal Base Imponible:</span>
-                    <span className="font-semibold">${orderSubtotal.toFixed(2)}</span>
+                    <span className="font-semibold">{formatMoneyUSD(orderSubtotal)}</span>
                   </div>
                   <div className="flex justify-between text-xs text-neutral-600">
                     <span>IVA Estimado:</span>
-                    <span className="font-semibold">${orderTax.toFixed(2)}</span>
+                    <span className="font-semibold">{formatMoneyUSD(orderTax)}</span>
                   </div>
                   <div className="pt-2 border-t border-neutral-200 flex justify-between items-baseline">
                     <span className="text-sm font-bold text-neutral-900">Total Orden (USD):</span>
-                    <span className="text-base font-bold text-sky-700">${orderTotalUSD.toFixed(2)}</span>
+                    <span className="text-base font-bold text-sky-700">{formatMoneyUSD(orderTotalUSD)}</span>
                   </div>
                   <div className="flex justify-between text-[11px] text-neutral-500">
                     <span>Equivalente en Bolívares (BCV):</span>
-                    <span className="font-medium">Bs. {orderTotalVES.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span>
+                    <span className="font-medium">{formatMoneyVES(orderTotalVES)}</span>
                   </div>
                 </div>
               </div>
@@ -746,13 +747,13 @@ export const PurchaseOrdersView: React.FC = () => {
               )}
 
               <div className="border-t border-neutral-200 pt-3 flex justify-between items-center">
-                <span className="text-xs text-neutral-500">Tasa de cambio: Bs. {viewingOrder.exchangeRate.toFixed(2)}/USD</span>
+                <span className="text-xs text-neutral-500">Tasa de cambio: {formatExchangeRate(viewingOrder.exchangeRate)}/USD</span>
                 <div className="text-right">
                   <p className="text-lg font-bold text-neutral-900">
-                    Total: ${viewingOrder.totalAmount.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                    Total: {formatMoneyUSD(viewingOrder.totalAmount)}
                   </p>
                   <p className="text-xs text-neutral-500">
-                    Bs. {(viewingOrder.totalAmount * viewingOrder.exchangeRate).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                    {formatMoneyVES(viewingOrder.totalAmount * viewingOrder.exchangeRate)}
                   </p>
                 </div>
               </div>

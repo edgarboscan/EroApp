@@ -29,6 +29,7 @@ export const createCollectionSchema = z.object({
     'ZELLE',
     'TRANSFER',
   ]),
+  bankAccountId: z.string().optional().nullable(),
   exchangeRate: z.number().positive().default(1),
   referenceNumber: z.string().optional(),
   notes: z.string().optional(),

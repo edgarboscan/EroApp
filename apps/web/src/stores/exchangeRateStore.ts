@@ -16,13 +16,29 @@ export interface ExchangeRateRecord extends ExchangeRateData {
   notes?: string | null;
 }
 
+export interface BcvLiveData {
+  bcvRate: number;
+  bcvEffectiveDate: string;
+  bcvFormattedDate?: string;
+  currentSystemRate: number;
+  difference: number;
+  needsUpdate: boolean;
+  source: string;
+  fetchedAt: string;
+}
+
 interface ExchangeRateState extends ExchangeRateData {
   isLoading: boolean;
   history: ExchangeRateRecord[];
   isHistoryLoading: boolean;
+  bcvLiveData: BcvLiveData | null;
+  isBcvChecking: boolean;
+  isBcvSyncing: boolean;
   fetchRate: () => Promise<void>;
   fetchHistory: () => Promise<void>;
   updateRate: (newRate: number, source?: string, notes?: string) => Promise<boolean>;
+  checkBcvLiveRate: () => Promise<BcvLiveData | null>;
+  syncWithBcv: () => Promise<boolean>;
 }
 
 const STORAGE_KEY = 'ero_erp_exchange_rate';
@@ -165,5 +181,76 @@ export const useExchangeRateStore = create<ExchangeRateState>((set, get) => ({
     }
 
     return true;
+  },
+
+  bcvLiveData: null,
+  isBcvChecking: false,
+  isBcvSyncing: false,
+
+  checkBcvLiveRate: async () => {
+    const token = useAuthStore.getState().token;
+    if (!token) return null;
+
+    try {
+      set({ isBcvChecking: true });
+      const res = await fetch('/api/config/exchange-rate/bcv-live', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          const data: BcvLiveData = json.data;
+          set({ bcvLiveData: data });
+          return data;
+        }
+      }
+    } catch {
+      // ignore network errors
+    } finally {
+      set({ isBcvChecking: false });
+    }
+    return null;
+  },
+
+  syncWithBcv: async () => {
+    const token = useAuthStore.getState().token;
+    if (!token) return false;
+
+    try {
+      set({ isBcvSyncing: true });
+      const res = await fetch('/api/config/exchange-rate/sync-bcv', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error?.message || 'Error al sincronizar con el BCV');
+      }
+
+      if (json.data) {
+        const syncedData: ExchangeRateData = json.data;
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(syncedData));
+        } catch {}
+        set({
+          ...syncedData,
+          bcvLiveData: get().bcvLiveData
+            ? { ...get().bcvLiveData!, needsUpdate: false, difference: 0 }
+            : null,
+        });
+      }
+
+      // Refrescar historial
+      get().fetchHistory();
+      return true;
+    } catch (err: any) {
+      throw err;
+    } finally {
+      set({ isBcvSyncing: false });
+    }
   },
 }));

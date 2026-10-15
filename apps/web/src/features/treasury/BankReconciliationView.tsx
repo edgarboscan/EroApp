@@ -17,6 +17,7 @@ import {
   Check,
   RefreshCw,
 } from 'lucide-react';
+import { formatNumber, formatCurrency } from '@ero/shared';
 
 interface BankAccount {
   id: string;
@@ -41,11 +42,17 @@ export const BankReconciliationView: React.FC = () => {
   const navigate = useNavigate();
   const { token } = useAuthStore();
 
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+  const defaultPeriodStart = `${currentYear}-${currentMonth}-01`;
+  const defaultPeriodEnd = now.toISOString().slice(0, 10);
+
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState('');
-  const [periodStart, setPeriodStart] = useState('2026-09-01');
-  const [periodEnd, setPeriodEnd] = useState('2026-09-30');
-  const [statementEndingBalance, setStatementEndingBalance] = useState<number>(45850.0);
+  const [periodStart, setPeriodStart] = useState(defaultPeriodStart);
+  const [periodEnd, setPeriodEnd] = useState(defaultPeriodEnd);
+  const [statementEndingBalance, setStatementEndingBalance] = useState<number>(0);
   const [csvText, setCsvText] = useState(DEMO_EXTRACT_CSV);
   const [parsedLines, setParsedLines] = useState<StatementLine[]>([]);
   const [bookMovements, setBookMovements] = useState<any[]>([]);
@@ -182,9 +189,26 @@ export const BankReconciliationView: React.FC = () => {
   }, []);
 
   const activeAccount = accounts.find((a) => a.id === selectedAccountId);
+
+  useEffect(() => {
+    if (activeAccount) {
+      setStatementEndingBalance(activeAccount.currentBalance);
+    }
+  }, [activeAccount?.id, activeAccount?.currentBalance]);
+
   const bookBalance = activeAccount ? activeAccount.currentBalance : 0;
   const difference = Number((statementEndingBalance - bookBalance).toFixed(2));
   const isBalanced = Math.abs(difference) < 0.01;
+
+  const addMovementToCsv = (m: any) => {
+    const dateStr = (m.movementDate || '').slice(0, 10) || new Date().toISOString().slice(0, 10);
+    const refStr = m.referenceNumber || `REF-${m.id.slice(0, 6)}`;
+    const conceptStr = (m.concept || 'Movimiento').replace(/,/g, ' ');
+    const amountStr = Number(m.amount).toFixed(2);
+    const newLine = `${dateStr}, ${refStr}, ${conceptStr}, ${amountStr}`;
+    setCsvText((prev) => (prev ? `${prev.trim()}\n${newLine}` : newLine));
+    toast.success(`Movimiento ${refStr} agregado al extracto CSV`);
+  };
 
   const handleReconcile = async () => {
     if (parsedLines.length === 0) {
@@ -313,8 +337,7 @@ export const BankReconciliationView: React.FC = () => {
             Saldo en Libros ERP
           </p>
           <p className="text-2xl font-bold font-mono text-neutral-900 mt-1">
-            {activeAccount?.currency}{' '}
-            {bookBalance.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+            {formatCurrency(bookBalance, activeAccount?.currency || 'VES')}
           </p>
           <span className="text-[11px] text-neutral-400">Registrado en el sistema</span>
         </Card>
@@ -324,8 +347,7 @@ export const BankReconciliationView: React.FC = () => {
             Saldo según Extracto Bancario
           </p>
           <p className="text-2xl font-bold font-mono text-neutral-900 mt-1">
-            {activeAccount?.currency}{' '}
-            {statementEndingBalance.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+            {formatCurrency(statementEndingBalance, activeAccount?.currency || 'VES')}
           </p>
           <span className="text-[11px] text-neutral-400">Declarado por el banco</span>
         </Card>
@@ -345,8 +367,7 @@ export const BankReconciliationView: React.FC = () => {
                   isBalanced ? 'text-emerald-700' : 'text-red-700'
                 }`}
               >
-                {activeAccount?.currency}{' '}
-                {difference.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                {formatCurrency(difference, activeAccount?.currency || 'VES')}
               </p>
               <span className="text-[11px] text-neutral-500">
                 {isBalanced ? 'Conciliación exacta' : 'Partida pendiente o error'}
@@ -366,6 +387,80 @@ export const BankReconciliationView: React.FC = () => {
           </div>
         </Card>
       </div>
+
+      {/* Movimientos en Libros Registrados en este Período */}
+      <Card className="border-neutral-200 overflow-hidden">
+        <div className="p-4 border-b border-neutral-200 flex justify-between items-center">
+          <div>
+            <h2 className="text-sm font-semibold text-neutral-900 flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-sky-600" />
+              Movimientos en Libros de la Cuenta (Cierres POS, Cobros y Depósitos)
+            </h2>
+            <p className="text-[11px] text-neutral-500 mt-0.5">
+              Partidas registradas en el ERP pendientes de conciliar contra el extracto bancario
+            </p>
+          </div>
+          <span className="text-xs text-neutral-500 font-mono">
+            {bookMovements.length} movimientos
+          </span>
+        </div>
+
+        <div className="overflow-x-auto max-h-56">
+          <table className="w-full text-left text-xs text-neutral-600">
+            <thead className="bg-neutral-50 border-b border-neutral-200 text-[10px] uppercase font-semibold text-neutral-500 sticky top-0">
+              <tr>
+                <th className="py-2.5 px-3">Fecha</th>
+                <th className="py-2.5 px-3">Referencia</th>
+                <th className="py-2.5 px-3">Concepto ERP</th>
+                <th className="py-2.5 px-3 text-right">Monto</th>
+                <th className="py-2.5 px-3 text-center">Estado ERP</th>
+                <th className="py-2.5 px-3 text-right">Acción</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-100">
+              {bookMovements.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-4 text-neutral-400">
+                    No hay movimientos en libros registrados para este período y cuenta.
+                  </td>
+                </tr>
+              ) : (
+                bookMovements.map((m) => (
+                  <tr key={m.id} className="hover:bg-neutral-50">
+                    <td className="py-2 px-3 font-mono">{(m.movementDate || '').slice(0, 10)}</td>
+                    <td className="py-2 px-3 font-mono font-semibold text-neutral-800">
+                      {m.referenceNumber || '—'}
+                    </td>
+                    <td className="py-2 px-3 text-neutral-700 truncate max-w-xs">{m.concept}</td>
+                    <td
+                      className={`py-2 px-3 text-right font-mono font-semibold ${
+                        m.amount > 0 ? 'text-emerald-600' : 'text-red-600'
+                      }`}
+                    >
+                      {m.amount > 0 ? '+' : ''}
+                      {formatNumber(m.amount)}
+                    </td>
+                    <td className="py-2 px-3 text-center">
+                      <Badge variant={m.isReconciled ? 'success' : 'neutral'}>
+                        {m.isReconciled ? 'Conciliado' : 'Pendiente'}
+                      </Badge>
+                    </td>
+                    <td className="py-2 px-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => addMovementToCsv(m)}
+                        className="text-[11px] text-sky-600 hover:text-sky-800 font-medium underline cursor-pointer"
+                      >
+                        Pasar a Extracto
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
 
       {/* CSV Parser / Paste Section */}
       <Card className="p-4 border-neutral-200 space-y-3">
@@ -451,13 +546,13 @@ export const BankReconciliationView: React.FC = () => {
                         }`}
                       >
                         {line.amount > 0 ? '+' : ''}
-                        {line.amount.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                        {formatNumber(line.amount)}
                       </td>
                       <td className="py-3 px-4 text-center text-xs">
                         {match ? (
                           <span className="text-emerald-700 font-medium">
-                            Coincide con {match.referenceNumber || 'Movimiento'} ($
-                            {match.amount.toFixed(2)})
+                            Coincide con {match.referenceNumber || 'Movimiento'} (
+                            {formatCurrency(match.amount, activeAccount?.currency || 'USD')})
                           </span>
                         ) : (
                           <span className="text-neutral-400">Sin coincidencia directa</span>

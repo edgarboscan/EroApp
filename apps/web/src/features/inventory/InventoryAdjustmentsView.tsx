@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/authStore';
+import { formatMoneyUSD } from '../../utils/formatters';
 
 interface AdjustmentRecord {
   id: string;
@@ -286,7 +287,7 @@ export const InventoryAdjustmentsView: React.FC = () => {
         const val = Number(a.total_cost_impact);
         return (
           <span className={`font-mono font-bold text-xs ${val >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-            {val >= 0 ? `+$${val.toFixed(2)}` : `-$${Math.abs(val).toFixed(2)}`}
+            {val >= 0 ? `+${formatMoneyUSD(val)}` : `-${formatMoneyUSD(Math.abs(val))}`}
           </span>
         );
       },
@@ -357,7 +358,7 @@ export const InventoryAdjustmentsView: React.FC = () => {
         <Card className="p-4 space-y-1">
           <span className="text-xs text-neutral-500">Impacto Neto en Costo</span>
           <div className="text-2xl font-bold font-mono text-amber-700">
-            ${adjustments.reduce((sum, a) => sum + Number(a.total_cost_impact), 0).toFixed(2)}
+            {formatMoneyUSD(adjustments.reduce((sum, a) => sum + Number(a.total_cost_impact), 0))}
           </div>
           <div className="text-[11px] text-neutral-400">Afectación neta de valor</div>
         </Card>
@@ -494,7 +495,7 @@ export const InventoryAdjustmentsView: React.FC = () => {
                       <div>
                         <div className="font-semibold text-neutral-900">{it.productName}</div>
                         <div className="text-[11px] text-neutral-500 font-mono">
-                          {it.sku} • Costo: ${it.unitCost.toFixed(2)}
+                          {it.sku} • Costo: {formatMoneyUSD(it.unitCost)}
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
@@ -502,7 +503,7 @@ export const InventoryAdjustmentsView: React.FC = () => {
                           {it.movementType === 'ADJUST_IN' ? `+${it.quantity}` : `-${it.quantity}`}
                         </Badge>
                         <span className="font-mono font-bold text-xs">
-                          ${(it.quantity * it.unitCost).toFixed(2)}
+                          {formatMoneyUSD(it.quantity * it.unitCost)}
                         </span>
                         <button
                           onClick={() => handleRemoveItem(idx)}

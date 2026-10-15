@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '../../components/ui/Button';
 import { Printer, Copy, Check, X, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatMoneyUSD } from '../../utils/formatters';
 
 export interface FiscalReportData {
   id?: string;
@@ -144,26 +145,26 @@ export const FiscalReportModal: React.FC<FiscalReportModalProps> = ({ data, isOp
             <div className="space-y-1.5">
               <div className="flex justify-between">
                 <span>VENTAS EXENTAS (E):</span>
-                <span>${data.baseExempt.toFixed(2)}</span>
+                <span>{formatMoneyUSD(data.baseExempt)}</span>
               </div>
               <div className="flex justify-between">
                 <span>BASE IMPONIBLE (G 16%):</span>
-                <span>${data.baseTaxableGeneral.toFixed(2)}</span>
+                <span>{formatMoneyUSD(data.baseTaxableGeneral)}</span>
               </div>
               <div className="flex justify-between font-medium">
                 <span>IMPUESTO IVA (16%):</span>
-                <span>${data.taxGeneral.toFixed(2)}</span>
+                <span>{formatMoneyUSD(data.taxGeneral)}</span>
               </div>
               <div className="flex justify-between font-medium">
                 <span>IMPUESTO IGTF (3% DIVISAS):</span>
-                <span>${data.igtfAmount.toFixed(2)}</span>
+                <span>{formatMoneyUSD(data.igtfAmount)}</span>
               </div>
             </div>
 
             {/* Total */}
             <div className="border-t-2 border-neutral-800 pt-2 flex justify-between font-bold text-xs">
               <span>TOTAL VENTAS BRUTAS:</span>
-              <span>${data.totalSales.toFixed(2)}</span>
+              <span>{formatMoneyUSD(data.totalSales)}</span>
             </div>
 
             {/* Fiscal Footer */}

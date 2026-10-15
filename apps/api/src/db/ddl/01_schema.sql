@@ -638,6 +638,27 @@ CREATE TABLE `sales_invoice_items` (
   CONSTRAINT `fk_sii_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+-- 9.00 MEDIOS Y FORMAS DE PAGO (CONFIGURABLES)
+DROP TABLE IF EXISTS `payment_methods`;
+CREATE TABLE `payment_methods` (
+  `id` CHAR(36) NOT NULL,
+  `company_id` CHAR(36) NOT NULL,
+  `code` VARCHAR(30) NOT NULL,
+  `name` VARCHAR(100) NOT NULL,
+  `currency` ENUM('USD', 'VES') NOT NULL DEFAULT 'VES',
+  `type` ENUM('CASH', 'CARD', 'ELECTRONIC', 'CREDIT', 'OTHER') NOT NULL DEFAULT 'OTHER',
+  `applies_igtf` TINYINT(1) NOT NULL DEFAULT 0,
+  `requires_reference` TINYINT(1) NOT NULL DEFAULT 0,
+  `requires_bank_account` TINYINT(1) NOT NULL DEFAULT 0,
+  `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+  `display_order` INT NOT NULL DEFAULT 0,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_pm_code` (`company_id`, `code`),
+  CONSTRAINT `fk_pm_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 DROP TABLE IF EXISTS `sales_payments`;
 CREATE TABLE `sales_payments` (
   `id` CHAR(36) NOT NULL,

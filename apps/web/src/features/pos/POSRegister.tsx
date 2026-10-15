@@ -23,11 +23,26 @@ import {
   RotateCcw,
   Loader2,
   ListChecks,
+  Printer,
+  SlidersHorizontal,
+  Settings2,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/authStore';
 import { useExchangeRateStore } from '../../stores/exchangeRateStore';
 import { FiscalInvoiceModal, FiscalInvoiceTicketData } from './FiscalInvoiceModal';
+import { PaymentMethodsModal } from './PaymentMethodsModal';
+import {
+  formatNumber,
+  formatCurrency,
+  formatMoneyUSD,
+  formatMoneyVES,
+  formatExchangeRate,
+  formatPercent,
+  parseFormattedNumber,
+  PaymentMethod,
+} from '@ero/shared';
 
 interface ProductItem {
   id: string;
@@ -52,7 +67,8 @@ interface CartItem {
 }
 
 interface PaymentEntry {
-  method: 'CASH_VES' | 'CASH_USD' | 'PAGO_MOVIL' | 'DEBIT_CARD' | 'CREDIT_CARD' | 'ZELLE';
+  method: string;
+  methodName?: string;
   amountUSD: number;
   amountVES: number;
   exchangeRate: number;
@@ -118,18 +134,29 @@ export const POSRegister: React.FC = () => {
   // Modal de Pago
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
-  const [currentMethod, setCurrentMethod] = useState<PaymentEntry['method']>('CASH_USD');
+  const [currentMethod, setCurrentMethod] = useState<string>('CASH_USD');
+  const [availablePaymentMethods, setAvailablePaymentMethods] = useState<PaymentMethod[]>([]);
+  const [isPaymentMethodsModalOpen, setIsPaymentMethodsModalOpen] = useState(false);
+  const [paymentCurrencyMode, setPaymentCurrencyMode] = useState<'USD' | 'VES'>('USD');
   const [paymentAmountInput, setPaymentAmountInput] = useState<string>('');
   const [paymentRefInput, setPaymentRefInput] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Modal de Ticket Fiscal Emitido
+  // Modal de Ticket Fiscal Emitido / Ticket de Venta
   const [invoiceTicketData, setInvoiceTicketData] = useState<FiscalInvoiceTicketData | null>(null);
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+  const [showPrintPromptModal, setShowPrintPromptModal] = useState(false);
+
+  // Determinar si la caja activa opera con impresora fiscal
+  const isFiscal = useMemo(() => {
+    if (!activeShift) return false;
+    return activeShift.invoiceMode === 'fiscal_printer';
+  }, [activeShift]);
 
   useEffect(() => {
     checkCurrentShift();
     fetchProducts();
+    fetchPaymentMethods();
   }, [activeBranchId]);
 
   // Búsqueda debounced de clientes (300ms)
@@ -178,7 +205,10 @@ export const POSRegister: React.FC = () => {
       setActiveShift({
         id: 'shift-demo-01',
         cashRegisterCode: 'CAJA-01',
+        cashRegisterName: 'Caja Principal Entrada',
         cashierName: user?.fullName || 'Cajero Demo',
+        invoiceMode: 'fiscal_printer',
+        fiscalPrinterSerial: 'Z5A8812341',
       });
     } finally {
       setLoadingShift(false);
@@ -214,6 +244,32 @@ export const POSRegister: React.FC = () => {
     } catch {
       setProducts(DEFAULT_PRODUCTS);
     }
+  };
+
+  const fetchPaymentMethods = async () => {
+    try {
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const res = await fetch('/api/pos/payment-methods', { headers });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          setAvailablePaymentMethods(json.data);
+          return;
+        }
+      }
+    } catch {
+      // fallback to standards below
+    }
+    setAvailablePaymentMethods([
+      { id: '1', code: 'CASH_USD', name: 'Efectivo Divisas ($)', currency: 'USD', type: 'CASH', appliesIGTF: true, requiresReference: false, requiresBankAccount: false, isActive: true, displayOrder: 1 },
+      { id: '2', code: 'DEBIT_CARD', name: 'Punto de Venta / Débito (Bs)', currency: 'VES', type: 'CARD', appliesIGTF: false, requiresReference: true, requiresBankAccount: false, isActive: true, displayOrder: 2 },
+      { id: '3', code: 'CREDIT_CARD', name: 'Punto de Venta / Crédito (Bs)', currency: 'VES', type: 'CARD', appliesIGTF: false, requiresReference: true, requiresBankAccount: false, isActive: true, displayOrder: 3 },
+      { id: '4', code: 'PAGO_MOVIL', name: 'Pago Móvil (Bs)', currency: 'VES', type: 'ELECTRONIC', appliesIGTF: false, requiresReference: true, requiresBankAccount: false, isActive: true, displayOrder: 4 },
+      { id: '5', code: 'ZELLE', name: 'Zelle / Transferencia USD', currency: 'USD', type: 'ELECTRONIC', appliesIGTF: true, requiresReference: true, requiresBankAccount: false, isActive: true, displayOrder: 5 },
+      { id: '6', code: 'CASH_VES', name: 'Efectivo Bolívares (Bs)', currency: 'VES', type: 'CASH', appliesIGTF: false, requiresReference: false, requiresBankAccount: false, isActive: true, displayOrder: 6 },
+      { id: '7', code: 'BIOPAGO', name: 'Biopago BDV (Bs)', currency: 'VES', type: 'CARD', appliesIGTF: false, requiresReference: true, requiresBankAccount: false, isActive: true, displayOrder: 7 },
+      { id: '8', code: 'CASHEA', name: 'Cashea / Financiamiento', currency: 'USD', type: 'CREDIT', appliesIGTF: false, requiresReference: true, requiresBankAccount: false, isActive: true, displayOrder: 8 },
+    ]);
   };
 
   const handleSelectCustomer = (c: any) => {
@@ -396,20 +452,26 @@ export const POSRegister: React.FC = () => {
   const remainingVES = Number((remainingUSD * exchangeRateBCV).toFixed(2));
 
   // Agregar forma de pago
-  const handleAddPayment = (method: PaymentEntry['method'], amountUSD: number, ref?: string) => {
+  const handleAddPayment = (method: string, amount: number, isAmountInVES = false, ref?: string) => {
+    let amountUSD = amount;
+    if (isAmountInVES) {
+      amountUSD = Number((amount / exchangeRateBCV).toFixed(2));
+    }
     if (amountUSD <= 0) return;
 
     // Si ya se cubrió el valor de la mercancía (subtotal previo a IGTF), los pagos subsiguientes
     // corresponden a la liquidación del IGTF. Por principio de no doble tributación (COT Art. 3),
     // no se aplica IGTF sobre el pago del propio impuesto IGTF.
     const isPayingOnlyIGTF = totalPaidUSD >= subtotalBeforeIGTF && totalIGTFUSD > 0;
-    const appliesIGTF = !isPayingOnlyIGTF && (method === 'CASH_USD' || method === 'ZELLE');
+    const methodConfig = availablePaymentMethods.find((m) => m.code === method);
+    const appliesIGTF = !isPayingOnlyIGTF && (methodConfig ? methodConfig.appliesIGTF : (method === 'CASH_USD' || method === 'ZELLE'));
     const igtfAmountUSD = appliesIGTF ? Number((amountUSD * 0.03).toFixed(2)) : 0;
     const amountVES = Number((amountUSD * exchangeRateBCV).toFixed(2));
     const igtfAmountVES = Number((igtfAmountUSD * exchangeRateBCV).toFixed(2));
 
     const newPayment: PaymentEntry = {
       method,
+      methodName: methodConfig?.name || method,
       amountUSD,
       amountVES,
       exchangeRate: exchangeRateBCV,
@@ -435,7 +497,7 @@ export const POSRegister: React.FC = () => {
       return;
     }
     if (remainingUSD > 0.01) {
-      toast.error(`Falta pagar $${remainingUSD.toFixed(2)} para completar el total`);
+      toast.error(`Falta pagar ${formatMoneyUSD(remainingUSD)} para completar el total`);
       return;
     }
 
@@ -449,7 +511,7 @@ export const POSRegister: React.FC = () => {
         customerDocNumber: customerDocNumber.trim(),
         customerName: customerName.trim(),
         customerAddress: customerAddress.trim() || 'Caracas, Venezuela',
-        invoiceMode: 'FISCAL_PRINTER',
+        invoiceMode: isFiscal ? 'fiscal_printer' : 'normal_printer',
         currency: 'USD',
         exchangeRate: exchangeRateBCV,
         items: cart.map((item) => ({
@@ -494,9 +556,13 @@ export const POSRegister: React.FC = () => {
         throw new Error(json.error?.message || 'Error al procesar la venta');
       }
 
-      toast.success('¡Factura fiscal emitida y registrada en memoria fiscal!');
+      if (isFiscal) {
+        toast.success('¡Factura fiscal emitida y registrada en memoria fiscal!');
+      } else {
+        toast.success('¡Venta registrada exitosamente!');
+      }
 
-      // Preparar datos para el ticket fiscal impreso
+      // Preparar datos para el ticket impreso
       setInvoiceTicketData({
         invoiceId: json.data.invoiceId,
         invoiceNumber: json.data.invoiceNumber || 'FACT-00010452',
@@ -531,7 +597,13 @@ export const POSRegister: React.FC = () => {
       setCart([]);
       setPayments([]);
       setIsPaymentModalOpen(false);
-      setIsInvoiceModalOpen(true);
+
+      // Si es fiscal, abrir directamente el comprobante fiscal; si no, preguntar si desea imprimir ticket
+      if (isFiscal) {
+        setIsInvoiceModalOpen(true);
+      } else {
+        setShowPrintPromptModal(true);
+      }
     } catch (err: any) {
       toast.error(err.message || 'Error al procesar venta');
     } finally {
@@ -564,6 +636,38 @@ export const POSRegister: React.FC = () => {
           </div>
         )}
 
+        {/* Banner de Caja Activa y Modalidad Fiscal */}
+        {activeShift && (
+          <div className="bg-white border border-neutral-200 rounded-lg p-2.5 flex items-center justify-between text-xs shadow-xs">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-neutral-900">
+                {activeShift.cashRegisterCode || 'CAJA-01'}
+              </span>
+              <span className="text-neutral-300">•</span>
+              <span className="text-neutral-600 font-medium">
+                {activeShift.cashRegisterName || 'Punto de Venta'}
+              </span>
+              <span className="text-neutral-300">•</span>
+              <span className="text-neutral-500">
+                Cajero: <strong className="text-neutral-700">{activeShift.cashierName || user?.fullName}</strong>
+              </span>
+            </div>
+            <div>
+              {isFiscal ? (
+                <Badge variant="success" className="font-mono text-[10px] flex items-center gap-1">
+                  <Printer className="w-3 h-3" />
+                  Impresora Fiscal {activeShift.fiscalPrinterSerial ? `[${activeShift.fiscalPrinterSerial}]` : 'Conectada'}
+                </Badge>
+              ) : (
+                <Badge variant="neutral" className="text-[10px] flex items-center gap-1">
+                  <Printer className="w-3 h-3" />
+                  Modo No Fiscal (Ticket Estándar)
+                </Badge>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Barra de Búsqueda Rápida / Código de Barras */}
         <div className="relative">
           <Search className="w-4 h-4 absolute left-3 top-3.5 text-neutral-400" />
@@ -590,7 +694,7 @@ export const POSRegister: React.FC = () => {
               Catálogo de Productos ({filteredProducts.length})
             </h2>
             <span className="text-[11px] text-neutral-400 font-mono">
-              Tasa BCV: Bs. {exchangeRateBCV.toFixed(2)}
+              Tasa BCV: Bs. {formatExchangeRate(exchangeRateBCV, 2)}
             </span>
           </div>
 
@@ -611,9 +715,9 @@ export const POSRegister: React.FC = () => {
                   </span>
                   <div className="mt-auto pt-2 flex items-baseline justify-between">
                     <div>
-                      <div className="text-sm font-bold text-neutral-900">${p.priceUSD.toFixed(2)}</div>
+                      <div className="text-sm font-bold text-neutral-900">{formatMoneyUSD(p.priceUSD)}</div>
                       <div className="text-[10px] font-mono text-neutral-500">
-                        Bs. {priceVES.toFixed(2)}
+                        {formatMoneyVES(priceVES)}
                       </div>
                     </div>
                     <Badge variant={p.taxRatePercent === 0 ? 'neutral' : 'info'}>
@@ -808,7 +912,7 @@ export const POSRegister: React.FC = () => {
                 <div className="flex-1 pr-2">
                   <div className="text-xs font-semibold text-neutral-800">{item.name}</div>
                   <div className="text-[11px] text-neutral-500 font-mono">
-                    ${item.unitPrice.toFixed(2)} c/u • {item.taxRatePercent === 0 ? 'Exento' : `IVA ${item.taxRatePercent}%`}
+                    {formatMoneyUSD(item.unitPrice)} c/u • {item.taxRatePercent === 0 ? 'Exento' : `IVA ${formatPercent(item.taxRatePercent, 0)}`}
                   </div>
                 </div>
 
@@ -829,7 +933,7 @@ export const POSRegister: React.FC = () => {
                 </div>
 
                 <div className="w-16 text-right font-mono font-bold text-xs text-neutral-900 pl-2">
-                  ${item.total.toFixed(2)}
+                  {formatMoneyUSD(item.total)}
                 </div>
 
                 <button
@@ -847,23 +951,23 @@ export const POSRegister: React.FC = () => {
         <div className="p-4 border-t border-neutral-200 bg-neutral-50 space-y-2 text-xs">
           <div className="flex justify-between text-neutral-600">
             <span>Base Exenta:</span>
-            <span className="font-mono">${baseExempt.toFixed(2)}</span>
+            <span className="font-mono">{formatMoneyUSD(baseExempt)}</span>
           </div>
           <div className="flex justify-between text-neutral-600">
             <span>Base Imponible (16%):</span>
-            <span className="font-mono">${baseTaxable.toFixed(2)}</span>
+            <span className="font-mono">{formatMoneyUSD(baseTaxable)}</span>
           </div>
           <div className="flex justify-between text-neutral-600">
             <span>IVA (16%):</span>
-            <span className="font-mono">${taxAmount.toFixed(2)}</span>
+            <span className="font-mono">{formatMoneyUSD(taxAmount)}</span>
           </div>
 
           <div className="border-t border-neutral-300 pt-2 flex items-baseline justify-between">
             <span className="text-sm font-bold text-neutral-900">Total a Pagar:</span>
             <div className="text-right">
-              <div className="text-xl font-bold font-mono text-sky-700">${subtotalBeforeIGTF.toFixed(2)}</div>
+              <div className="text-xl font-bold font-mono text-sky-700">{formatMoneyUSD(subtotalBeforeIGTF)}</div>
               <div className="text-xs font-mono text-neutral-500">
-                Bs. {(subtotalBeforeIGTF * exchangeRateBCV).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                {formatMoneyVES(subtotalBeforeIGTF * exchangeRateBCV)}
               </div>
             </div>
           </div>
@@ -918,12 +1022,23 @@ export const POSRegister: React.FC = () => {
                 <CreditCard className="w-5 h-5 text-sky-600" />
                 <h3 className="text-sm font-bold text-neutral-900">Cobro Multi-Moneda & Fiscal</h3>
               </div>
-              <button
-                onClick={() => setIsPaymentModalOpen(false)}
-                className="text-neutral-400 hover:text-neutral-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPaymentMethodsModalOpen(true)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium text-neutral-700 hover:text-sky-700 hover:bg-sky-50 rounded-lg border border-neutral-300 transition-colors cursor-pointer"
+                  title="Configurar y crear métodos de pago"
+                >
+                  <Settings2 className="w-3.5 h-3.5 text-sky-600" />
+                  <span>Gestionar Medios</span>
+                </button>
+                <button
+                  onClick={() => setIsPaymentModalOpen(false)}
+                  className="text-neutral-400 hover:text-neutral-600 cursor-pointer p-1"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             {/* Totalizador & Pendiente */}
@@ -931,19 +1046,19 @@ export const POSRegister: React.FC = () => {
               <div>
                 <span className="text-neutral-500 block">Total a Pagar:</span>
                 <span className="text-base font-bold font-mono text-neutral-900">
-                  ${finalTotalUSD.toFixed(2)}
+                  {formatMoneyUSD(finalTotalUSD)}
                 </span>
                 <span className="text-[10px] text-neutral-500 font-mono block">
-                  Bs. {finalTotalVES.toFixed(2)}
+                  {formatMoneyVES(finalTotalVES)}
                 </span>
               </div>
               <div>
                 <span className="text-neutral-500 block">Restante por Pagar:</span>
                 <span className={`text-base font-bold font-mono ${remainingUSD <= 0.01 ? 'text-emerald-600' : 'text-red-600'}`}>
-                  ${remainingUSD.toFixed(2)}
+                  {formatMoneyUSD(remainingUSD)}
                 </span>
                 <span className="text-[10px] text-neutral-500 font-mono block">
-                  Bs. {remainingVES.toFixed(2)}
+                  {formatMoneyVES(remainingVES)}
                 </span>
               </div>
             </div>
@@ -957,36 +1072,48 @@ export const POSRegister: React.FC = () => {
                     Diferencia IGTF (3%) por cancelar:
                   </span>
                   <span className="font-mono text-indigo-800 font-extrabold text-sm">
-                    ${remainingUSD.toFixed(2)} <span className="text-[11px] font-normal text-indigo-600">(Bs. {remainingVES.toFixed(2)})</span>
+                    {formatMoneyUSD(remainingUSD)} <span className="text-[11px] font-normal text-indigo-600">({formatMoneyVES(remainingVES)})</span>
                   </span>
                 </div>
                 <p className="text-[11px] text-indigo-800 leading-tight">
                   Seleccione el método de pago para liquidar la diferencia remanente:
                 </p>
-                <div className="grid grid-cols-2 gap-1.5 pt-0.5">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    type="button"
-                    onClick={() => {
-                      setCurrentMethod('PAGO_MOVIL');
-                      handleAddPayment('PAGO_MOVIL', remainingUSD, paymentRefInput);
-                    }}
-                    className="text-[11px] h-8 px-2 border-indigo-300 text-indigo-900 bg-white hover:bg-indigo-100 justify-start"
-                  >
-                    Pago Móvil (Bs. {remainingVES.toFixed(2)})
-                  </Button>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 pt-0.5">
                   <Button
                     size="sm"
                     variant="outline"
                     type="button"
                     onClick={() => {
                       setCurrentMethod('DEBIT_CARD');
-                      handleAddPayment('DEBIT_CARD', remainingUSD, paymentRefInput);
+                      handleAddPayment('DEBIT_CARD', remainingUSD, false, paymentRefInput);
                     }}
                     className="text-[11px] h-8 px-2 border-indigo-300 text-indigo-900 bg-white hover:bg-indigo-100 justify-start"
                   >
-                    Punto Débito (Bs. {remainingVES.toFixed(2)})
+                    Punto Débito ({formatMoneyVES(remainingVES)})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    type="button"
+                    onClick={() => {
+                      setCurrentMethod('CREDIT_CARD');
+                      handleAddPayment('CREDIT_CARD', remainingUSD, false, paymentRefInput);
+                    }}
+                    className="text-[11px] h-8 px-2 border-indigo-300 text-indigo-900 bg-white hover:bg-indigo-100 justify-start"
+                  >
+                    Punto Crédito ({formatMoneyVES(remainingVES)})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    type="button"
+                    onClick={() => {
+                      setCurrentMethod('PAGO_MOVIL');
+                      handleAddPayment('PAGO_MOVIL', remainingUSD, false, paymentRefInput);
+                    }}
+                    className="text-[11px] h-8 px-2 border-indigo-300 text-indigo-900 bg-white hover:bg-indigo-100 justify-start"
+                  >
+                    Pago Móvil ({formatMoneyVES(remainingVES)})
                   </Button>
                   <Button
                     size="sm"
@@ -994,11 +1121,11 @@ export const POSRegister: React.FC = () => {
                     type="button"
                     onClick={() => {
                       setCurrentMethod('CASH_VES');
-                      handleAddPayment('CASH_VES', remainingUSD);
+                      handleAddPayment('CASH_VES', remainingUSD, false);
                     }}
                     className="text-[11px] h-8 px-2 border-indigo-300 text-indigo-900 bg-white hover:bg-indigo-100 justify-start"
                   >
-                    Efectivo Bolívares
+                    Efectivo Bs ({formatMoneyVES(remainingVES)})
                   </Button>
                   <Button
                     size="sm"
@@ -1006,73 +1133,174 @@ export const POSRegister: React.FC = () => {
                     type="button"
                     onClick={() => {
                       setCurrentMethod('CASH_USD');
-                      handleAddPayment('CASH_USD', remainingUSD);
+                      handleAddPayment('CASH_USD', remainingUSD, false);
                     }}
                     className="text-[11px] h-8 px-2 border-indigo-300 text-indigo-900 bg-white hover:bg-indigo-100 justify-start"
                   >
-                    Efectivo Divisas (${remainingUSD.toFixed(2)})
+                    Efectivo $ ({formatMoneyUSD(remainingUSD)})
                   </Button>
                 </div>
               </div>
             )}
 
+            {/* Accesos Rápidos de Cobro (1-click para pagar saldo completo con método predilecto) */}
+            <div className="p-2.5 bg-neutral-50 rounded-lg border border-neutral-200 space-y-1.5">
+              <span className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider block">
+                Cobro Rápido Total:
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentMethod('DEBIT_CARD');
+                    handleAddPayment('DEBIT_CARD', remainingUSD, false, paymentRefInput);
+                  }}
+                  disabled={remainingUSD <= 0.01}
+                  className="px-2.5 py-1 text-xs font-semibold rounded bg-sky-100 text-sky-800 hover:bg-sky-200 transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  Punto Débito ({formatMoneyVES(remainingVES)})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentMethod('CREDIT_CARD');
+                    handleAddPayment('CREDIT_CARD', remainingUSD, false, paymentRefInput);
+                  }}
+                  disabled={remainingUSD <= 0.01}
+                  className="px-2.5 py-1 text-xs font-semibold rounded bg-indigo-100 text-indigo-800 hover:bg-indigo-200 transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  Punto Crédito ({formatMoneyVES(remainingVES)})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentMethod('PAGO_MOVIL');
+                    handleAddPayment('PAGO_MOVIL', remainingUSD, false, paymentRefInput);
+                  }}
+                  disabled={remainingUSD <= 0.01}
+                  className="px-2.5 py-1 text-xs font-semibold rounded bg-amber-100 text-amber-800 hover:bg-amber-200 transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  Pago Móvil ({formatMoneyVES(remainingVES)})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentMethod('CASH_USD');
+                    handleAddPayment('CASH_USD', remainingUSD, false);
+                  }}
+                  disabled={remainingUSD <= 0.01}
+                  className="px-2.5 py-1 text-xs font-semibold rounded bg-emerald-100 text-emerald-800 hover:bg-emerald-200 transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  Efectivo $ ({formatMoneyUSD(remainingUSD)})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentMethod('CASH_VES');
+                    handleAddPayment('CASH_VES', remainingUSD, false);
+                  }}
+                  disabled={remainingUSD <= 0.01}
+                  className="px-2.5 py-1 text-xs font-semibold rounded bg-neutral-200 text-neutral-800 hover:bg-neutral-300 transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  Efectivo Bs ({formatMoneyVES(remainingVES)})
+                </button>
+              </div>
+            </div>
+
             {/* Formulario de Agregar Pago */}
             <div className="space-y-3 text-xs border border-neutral-200 p-3 rounded-lg bg-neutral-50/40">
-              <span className="font-semibold text-neutral-800 block">Agregar Forma de Pago:</span>
-              <div className="grid grid-cols-2 gap-3">
+              <span className="font-semibold text-neutral-800 block">Agregar Forma de Pago Personalizada:</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-neutral-600 mb-1">Método</label>
+                  <label className="block text-neutral-600 mb-1">Medio de Pago</label>
                   <select
                     value={currentMethod}
-                    onChange={(e) => setCurrentMethod(e.target.value as any)}
-                    className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs bg-white"
+                    onChange={(e) => {
+                      const m = e.target.value;
+                      setCurrentMethod(m);
+                      const conf = availablePaymentMethods.find((c) => c.code === m);
+                      if (conf && conf.currency === 'VES') {
+                        setPaymentCurrencyMode('VES');
+                      } else if (conf && conf.currency === 'USD') {
+                        setPaymentCurrencyMode('USD');
+                      }
+                    }}
+                    className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs bg-white font-medium focus-visible:ring-2 focus-visible:ring-sky-500"
                   >
-                    <option value="CASH_USD">Efectivo Divisas ($) [+3% IGTF]</option>
-                    <option value="PAGO_MOVIL">Pago Móvil (Bs)</option>
-                    <option value="DEBIT_CARD">Punto de Venta / Débito (Bs)</option>
-                    <option value="ZELLE">Zelle / Transferencia USD [+3% IGTF]</option>
-                    <option value="CASH_VES">Efectivo Bolívares (Bs)</option>
+                    {availablePaymentMethods
+                      .filter((m) => m.isActive)
+                      .map((m) => (
+                        <option key={m.code} value={m.code}>
+                          {m.name} {m.appliesIGTF ? '[+3% IGTF]' : ''}
+                        </option>
+                      ))}
                   </select>
                 </div>
                 <div>
                   <div className="flex justify-between items-center mb-1">
-                    <label className="text-neutral-600">Monto en Dólares ($)</label>
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-neutral-600">Monto</label>
+                      <button
+                        type="button"
+                        onClick={() => setPaymentCurrencyMode((prev) => (prev === 'USD' ? 'VES' : 'USD'))}
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-neutral-100 hover:bg-sky-100 text-sky-800 transition-colors cursor-pointer"
+                        title="Cambiar moneda de entrada"
+                      >
+                        <ArrowLeftRight className="w-2.5 h-2.5" />
+                        {paymentCurrencyMode === 'USD' ? 'USD ($)' : 'Bs (VES)'}
+                      </button>
+                    </div>
                     <span className="text-[10px] text-neutral-400 font-mono">
-                      Equiv: Bs. {(((parseFloat(paymentAmountInput) || remainingUSD)) * exchangeRateBCV).toFixed(2)}
+                      {paymentCurrencyMode === 'USD' ? (
+                        <>Equiv: {formatMoneyVES(((parseFormattedNumber(paymentAmountInput) || remainingUSD)) * exchangeRateBCV)}</>
+                      ) : (
+                        <>Equiv: {formatMoneyUSD(((parseFormattedNumber(paymentAmountInput) || remainingVES)) / exchangeRateBCV)}</>
+                      )}
                     </span>
                   </div>
                   <input
-                    type="number"
-                    step="0.01"
-                    min="0"
+                    type="text"
                     value={paymentAmountInput}
                     onChange={(e) => setPaymentAmountInput(e.target.value)}
-                    placeholder={remainingUSD > 0 ? remainingUSD.toFixed(2) : '0.00'}
-                    className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs font-mono font-bold"
+                    placeholder={
+                      paymentCurrencyMode === 'USD'
+                        ? (remainingUSD > 0 ? remainingUSD.toFixed(2) : '0.00')
+                        : (remainingVES > 0 ? remainingVES.toFixed(2) : '0.00')
+                    }
+                    className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs font-mono font-bold focus-visible:ring-2 focus-visible:ring-sky-500"
                   />
                 </div>
               </div>
 
-              {(currentMethod === 'PAGO_MOVIL' || currentMethod === 'DEBIT_CARD' || currentMethod === 'ZELLE') && (
-                <div>
-                  <label className="block text-neutral-600 mb-1">Número de Referencia Bancaria</label>
-                  <input
-                    type="text"
-                    value={paymentRefInput}
-                    onChange={(e) => setPaymentRefInput(e.target.value)}
-                    placeholder="Últimos 4 o 6 dígitos de la confirmación"
-                    className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs font-mono"
-                  />
-                </div>
-              )}
+              {(() => {
+                const conf = availablePaymentMethods.find((m) => m.code === currentMethod);
+                const showRef = conf ? conf.requiresReference : ['PAGO_MOVIL', 'DEBIT_CARD', 'CREDIT_CARD', 'ZELLE'].includes(currentMethod);
+                if (!showRef) return null;
+                return (
+                  <div>
+                    <label className="block text-neutral-600 mb-1">
+                      Número de Referencia / Lote Bancario {conf?.requiresReference && <span className="text-red-500">*</span>}
+                    </label>
+                    <input
+                      type="text"
+                      value={paymentRefInput}
+                      onChange={(e) => setPaymentRefInput(e.target.value)}
+                      placeholder="Últimos 4 o 6 dígitos del lote o confirmación"
+                      className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs font-mono focus-visible:ring-2 focus-visible:ring-sky-500"
+                    />
+                  </div>
+                );
+              })()}
 
               <div className="flex gap-2 pt-1">
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => {
-                    const amt = parseFloat(paymentAmountInput) || remainingUSD;
-                    handleAddPayment(currentMethod, amt, paymentRefInput);
+                    const parsed = parseFormattedNumber(paymentAmountInput);
+                    const isVES = paymentCurrencyMode === 'VES';
+                    const amt = parsed > 0 ? parsed : (isVES ? remainingVES : remainingUSD);
+                    handleAddPayment(currentMethod, amt, isVES, paymentRefInput);
                   }}
                   disabled={remainingUSD <= 0.01 && !paymentAmountInput}
                 >
@@ -1080,15 +1308,20 @@ export const POSRegister: React.FC = () => {
                   Agregar Pago
                 </Button>
 
-                {/* Botón Rápido: Pagar Todo con este método */}
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => handleAddPayment(currentMethod, remainingUSD, paymentRefInput)}
+                  onClick={() => {
+                    if (paymentCurrencyMode === 'VES') {
+                      handleAddPayment(currentMethod, remainingVES, true, paymentRefInput);
+                    } else {
+                      handleAddPayment(currentMethod, remainingUSD, false, paymentRefInput);
+                    }
+                  }}
                   disabled={remainingUSD <= 0.01}
                   className="text-sky-700 border-sky-300 hover:bg-sky-50"
                 >
-                  Pagar Restante Total (${remainingUSD.toFixed(2)} / Bs. {remainingVES.toFixed(2)})
+                  Pagar Restante Total ({formatMoneyUSD(remainingUSD)} / {formatMoneyVES(remainingVES)})
                 </Button>
               </div>
             </div>
@@ -1110,7 +1343,7 @@ export const POSRegister: React.FC = () => {
                       className="flex items-center justify-between p-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs"
                     >
                       <div>
-                        <span className="font-semibold text-neutral-800">{p.method}</span>
+                        <span className="font-semibold text-neutral-800">{p.methodName || p.method}</span>
                         {p.referenceNumber && (
                           <span className="font-mono text-[11px] text-neutral-500 ml-1.5">
                             Ref: {p.referenceNumber}
@@ -1118,12 +1351,13 @@ export const POSRegister: React.FC = () => {
                         )}
                         {p.appliesIGTF && (
                           <span className="text-[10px] text-indigo-600 block">
-                            +IGTF 3%: ${p.igtfAmountUSD.toFixed(2)}
+                            +IGTF 3%: {formatMoneyUSD(p.igtfAmountUSD)}
                           </span>
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold">${p.amountUSD.toFixed(2)}</span>
+                        <span className="font-mono font-bold">{formatMoneyUSD(p.amountUSD)}</span>
+                        <span className="font-mono text-neutral-400 text-[10px]">({formatMoneyVES(p.amountVES)})</span>
                         <button
                           onClick={() => removePayment(idx)}
                           className="text-neutral-400 hover:text-red-500 p-1"
@@ -1302,12 +1536,63 @@ export const POSRegister: React.FC = () => {
         </div>
       )}
 
-      {/* Modal de Ticket Fiscal Emitido */}
+      {/* Modal de Ticket Fiscal Emitido / Ticket de Venta */}
       <FiscalInvoiceModal
         isOpen={isInvoiceModalOpen}
         data={invoiceTicketData}
         onClose={() => setIsInvoiceModalOpen(false)}
+        isFiscal={isFiscal}
       />
+
+      {/* Modal de Pregunta: ¿Desea imprimir un ticket de venta? (Modo No Fiscal) */}
+      {showPrintPromptModal && (
+        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-sm w-full p-5 shadow-2xl space-y-4 border border-neutral-200">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center shrink-0">
+                <Printer className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-neutral-900">
+                  ¿Desea imprimir un ticket de venta?
+                </h3>
+                <p className="text-xs text-neutral-500">
+                  Venta completada en modo no fiscal
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 text-xs text-neutral-600 space-y-1">
+              <p>
+                La venta ha sido registrada exitosamente y el inventario fue actualizado.
+              </p>
+              <p className="text-[11px] text-neutral-500">
+                ¿Desea imprimir el comprobante de entrega para el cliente o continuar con la siguiente transacción?
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPrintPromptModal(false)}
+              >
+                No Imprimir
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setShowPrintPromptModal(false);
+                  setIsInvoiceModalOpen(true);
+                }}
+              >
+                <Printer className="w-4 h-4 mr-1.5" />
+                Imprimir Ticket
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal: Verificación y Auditoría del Carrito de Compras */}
       {isCartReviewModalOpen && (
@@ -1322,7 +1607,7 @@ export const POSRegister: React.FC = () => {
                     Verificación Detallada del Carrito de Compras
                   </h3>
                   <p className="text-xs text-neutral-500">
-                    {cart.length} líneas de producto • {cart.reduce((s, i) => s + i.quantity, 0)} unidades • Tasa BCV: Bs. {exchangeRateBCV.toFixed(2)}
+                    {cart.length} líneas de producto • {cart.reduce((s, i) => s + i.quantity, 0)} unidades • Tasa BCV: Bs. {formatExchangeRate(exchangeRateBCV, 2)}
                   </p>
                 </div>
               </div>
@@ -1390,21 +1675,21 @@ export const POSRegister: React.FC = () => {
                                 </button>
                               </div>
                             </td>
-                            <td className="py-2 px-3 text-right font-mono">${item.unitPrice.toFixed(2)}</td>
+                            <td className="py-2 px-3 text-right font-mono">{formatMoneyUSD(item.unitPrice)}</td>
                             <td className="py-2 px-3 text-right font-mono text-neutral-500">
-                              Bs. {unitPriceVES.toFixed(2)}
+                              {formatMoneyVES(unitPriceVES)}
                             </td>
                             <td className="py-2 px-3 text-center">
                               <Badge variant={item.taxRatePercent === 0 ? 'neutral' : 'info'}>
                                 {item.taxRatePercent === 0 ? 'Exento' : `${item.taxRatePercent}%`}
                               </Badge>
                             </td>
-                            <td className="py-2 px-3 text-right font-mono">${item.subtotal.toFixed(2)}</td>
+                            <td className="py-2 px-3 text-right font-mono">{formatMoneyUSD(item.subtotal)}</td>
                             <td className="py-2 px-3 text-right font-mono font-bold text-neutral-900">
-                              ${item.total.toFixed(2)}
+                              {formatMoneyUSD(item.total)}
                             </td>
                             <td className="py-2 px-3 text-right font-mono font-semibold text-sky-700">
-                              Bs. {totalVES.toFixed(2)}
+                              {formatMoneyVES(totalVES)}
                             </td>
                             <td className="py-2 px-3 text-center">
                               <button
@@ -1431,37 +1716,37 @@ export const POSRegister: React.FC = () => {
                 <div>
                   <span className="text-neutral-500 block">Base Exenta:</span>
                   <span className="font-mono font-bold text-neutral-900 text-sm">
-                    ${baseExempt.toFixed(2)}
+                    {formatMoneyUSD(baseExempt)}
                   </span>
                   <span className="text-[10px] text-neutral-400 font-mono block">
-                    Bs. {(baseExempt * exchangeRateBCV).toFixed(2)}
+                    {formatMoneyVES(baseExempt * exchangeRateBCV)}
                   </span>
                 </div>
                 <div>
                   <span className="text-neutral-500 block">Base Imponible (16%):</span>
                   <span className="font-mono font-bold text-neutral-900 text-sm">
-                    ${baseTaxable.toFixed(2)}
+                    {formatMoneyUSD(baseTaxable)}
                   </span>
                   <span className="text-[10px] text-neutral-400 font-mono block">
-                    Bs. {(baseTaxable * exchangeRateBCV).toFixed(2)}
+                    {formatMoneyVES(baseTaxable * exchangeRateBCV)}
                   </span>
                 </div>
                 <div>
                   <span className="text-neutral-500 block">IVA Acumulado:</span>
                   <span className="font-mono font-bold text-neutral-900 text-sm">
-                    ${taxAmount.toFixed(2)}
+                    {formatMoneyUSD(taxAmount)}
                   </span>
                   <span className="text-[10px] text-neutral-400 font-mono block">
-                    Bs. {(taxAmount * exchangeRateBCV).toFixed(2)}
+                    {formatMoneyVES(taxAmount * exchangeRateBCV)}
                   </span>
                 </div>
                 <div className="bg-white p-2.5 rounded-lg border border-sky-200">
                   <span className="text-sky-800 font-semibold block">Total General:</span>
                   <span className="font-mono font-extrabold text-sky-700 text-base">
-                    ${subtotalBeforeIGTF.toFixed(2)}
+                    {formatMoneyUSD(subtotalBeforeIGTF)}
                   </span>
                   <span className="text-xs text-sky-900 font-mono block font-semibold">
-                    Bs. {(subtotalBeforeIGTF * exchangeRateBCV).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                    {formatMoneyVES(subtotalBeforeIGTF * exchangeRateBCV)}
                   </span>
                 </div>
               </div>
@@ -1506,13 +1791,20 @@ export const POSRegister: React.FC = () => {
                   }}
                 >
                   <CreditCard className="w-4 h-4 mr-1.5" />
-                  Proceder al Cobro (${subtotalBeforeIGTF.toFixed(2)})
+                  Proceder al Cobro ({formatMoneyUSD(subtotalBeforeIGTF)})
                 </Button>
               </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* Modal de Configuración y Gestión de Métodos de Pago */}
+      <PaymentMethodsModal
+        isOpen={isPaymentMethodsModalOpen}
+        onClose={() => setIsPaymentMethodsModalOpen(false)}
+        onMethodsUpdated={fetchPaymentMethods}
+      />
     </div>
   );
 };

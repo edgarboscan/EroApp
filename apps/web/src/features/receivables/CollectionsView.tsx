@@ -12,7 +12,23 @@ import {
   DollarSign,
   AlertCircle,
   Receipt,
+  Building2,
 } from 'lucide-react';
+import {
+  formatNumber,
+  formatCurrency,
+  formatMoneyUSD,
+  formatMoneyVES,
+  formatExchangeRate,
+} from '@ero/shared';
+
+interface BankAccountOption {
+  id: string;
+  bankName: string;
+  accountNumber: string;
+  currency: 'USD' | 'VES';
+  currentBalance: number;
+}
 
 interface ReceivableOption {
   id: string;
@@ -69,6 +85,8 @@ export const CollectionsView: React.FC = () => {
   const [receivables, setReceivables] = useState<ReceivableOption[]>(DEMO_PENDING_RECEIVABLES);
   const [selectedReceivableId, setSelectedReceivableId] = useState<string>(initialReceivableId);
   const [paymentMethod, setPaymentMethod] = useState<'CASH_USD' | 'CASH_VES' | 'PAGO_MOVIL' | 'DEBIT_CARD' | 'ZELLE' | 'TRANSFER'>('PAGO_MOVIL');
+  const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>([]);
+  const [selectedBankAccountId, setSelectedBankAccountId] = useState<string>('');
   const [amount, setAmount] = useState<number>(0);
   const [referenceNumber, setReferenceNumber] = useState('');
   const [notes, setNotes] = useState('');
@@ -95,7 +113,29 @@ export const CollectionsView: React.FC = () => {
       }
     };
 
+    const fetchBankAccounts = async () => {
+      try {
+        const res = await fetch('/api/treasury/accounts', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.data)) {
+            setBankAccounts(json.data);
+            // Pre-seleccionar cuenta bancaria VES por defecto si el método inicial es PAGO_MOVIL
+            const vesAcc = json.data.find((a: BankAccountOption) => a.currency === 'VES');
+            if (vesAcc) {
+              setSelectedBankAccountId(vesAcc.id);
+            }
+          }
+        }
+      } catch {
+        // Ignorar
+      }
+    };
+
     fetchReceivables();
+    fetchBankAccounts();
   }, [activeBranchId, token]);
 
   const selectedReceivable = receivables.find((r) => r.id === selectedReceivableId) || receivables[0];
@@ -122,7 +162,7 @@ export const CollectionsView: React.FC = () => {
     }
 
     if (amount > selectedReceivable.amountBalance + 0.01) {
-      toast.error(`El monto no puede superar el saldo pendiente ($${selectedReceivable.amountBalance.toFixed(2)})`);
+      toast.error(`El monto no puede superar el saldo pendiente (${formatMoneyUSD(selectedReceivable.amountBalance)})`);
       return;
     }
 
@@ -140,6 +180,7 @@ export const CollectionsView: React.FC = () => {
           amount,
           currency: 'USD',
           paymentMethod,
+          bankAccountId: selectedBankAccountId || undefined,
           exchangeRate: exchangeRateBCV,
           referenceNumber: referenceNumber.trim() || undefined,
           notes: notes.trim() || undefined,
@@ -151,11 +192,11 @@ export const CollectionsView: React.FC = () => {
         throw new Error(json.error?.message || 'Error al procesar cobranza');
       }
 
-      toast.success('Cobranza registrada exitosamente y saldo actualizado');
+      toast.success('Cobranza registrada exitosamente y fondos acreditados en Tesorería');
       navigate('/receivables');
     } catch {
       // Fallback local
-      toast.success(`Cobranza de $${amount.toFixed(2)} aplicada exitosamente (modo local)`);
+      toast.success(`Cobranza de ${formatMoneyUSD(amount)} aplicada exitosamente (modo local)`);
       setTimeout(() => {
         navigate('/receivables');
       }, 500);
@@ -200,7 +241,7 @@ export const CollectionsView: React.FC = () => {
             >
               {receivables.map((r) => (
                 <option key={r.id} value={r.id}>
-                  {r.invoiceNumber} — {r.customerName} (Saldo: ${r.amountBalance.toFixed(2)})
+                  {r.invoiceNumber} — {r.customerName} (Saldo: {formatMoneyUSD(r.amountBalance)})
                 </option>
               ))}
             </select>
@@ -221,19 +262,19 @@ export const CollectionsView: React.FC = () => {
               <div>
                 <span className="text-neutral-500 block">Monto Original:</span>
                 <span className="font-semibold text-neutral-900 block font-mono">
-                  ${selectedReceivable.amountTotal.toFixed(2)}
+                  {formatMoneyUSD(selectedReceivable.amountTotal)}
                 </span>
               </div>
               <div>
                 <span className="text-neutral-500 block">Abonado Previo:</span>
                 <span className="font-semibold text-emerald-700 block font-mono">
-                  ${selectedReceivable.amountPaid.toFixed(2)}
+                  {formatMoneyUSD(selectedReceivable.amountPaid)}
                 </span>
               </div>
               <div>
                 <span className="text-neutral-500 block">Saldo Pendiente:</span>
                 <span className="font-bold text-amber-700 block font-mono text-sm">
-                  ${selectedReceivable.amountBalance.toFixed(2)}
+                  {formatMoneyUSD(selectedReceivable.amountBalance)}
                 </span>
               </div>
             </div>
@@ -269,6 +310,31 @@ export const CollectionsView: React.FC = () => {
             </div>
           </div>
 
+          {/* Cuenta Bancaria de Destino (Tesorería) */}
+          <div className="p-3.5 bg-sky-50/50 rounded-lg border border-sky-100 space-y-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <label className="text-xs font-semibold text-neutral-800 flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-sky-600" />
+                Cuenta Bancaria Receptora (Tesorería)
+              </label>
+              <span className="text-[10px] text-neutral-500">
+                Se reflejará en el libro de banco para conciliación bancaria
+              </span>
+            </div>
+            <select
+              value={selectedBankAccountId}
+              onChange={(e) => setSelectedBankAccountId(e.target.value)}
+              className="w-full h-10 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500"
+            >
+              <option value="">-- Sin acreditar a banco (Caja Chica / Efectivo en Custodia) --</option>
+              {bankAccounts.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.bankName} - {b.accountNumber.slice(-4)} ({b.currency}) • Saldo actual: {formatCurrency(b.currentBalance, b.currency)}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Montos y Referencia */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -293,7 +359,7 @@ export const CollectionsView: React.FC = () => {
                 required
               />
               <div className="text-[11px] text-neutral-500 mt-1 font-mono">
-                Equivalente BCV: Bs. {amountVES.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Tasa: {exchangeRateBCV.toFixed(2)})
+                Equivalente BCV: {formatMoneyVES(amountVES)} (Tasa: {formatExchangeRate(exchangeRateBCV, 2)})
               </div>
             </div>
 

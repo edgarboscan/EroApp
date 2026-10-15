@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/authStore';
+import { formatMoneyUSD } from '../../utils/formatters';
 
 interface ARCVVoucher {
   id: string;
@@ -186,7 +187,7 @@ export const ARCVReportView: React.FC = () => {
             Base Imponible Acumulada
           </p>
           <p className="text-2xl font-bold text-sky-800 mt-2 font-mono">
-            ${totalAccumulatedBase.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatMoneyUSD(totalAccumulatedBase)}
           </p>
           <p className="text-xs text-neutral-500 mt-1">Servicios y honorarios</p>
         </Card>
@@ -196,7 +197,7 @@ export const ARCVReportView: React.FC = () => {
             Total ISLR Retenido Anual
           </p>
           <p className="text-2xl font-bold text-white mt-2 font-mono">
-            ${totalAccumulatedRetained.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatMoneyUSD(totalAccumulatedRetained)}
           </p>
           <p className="text-xs text-neutral-400 mt-1">Enterado al SENIAT</p>
         </Card>
@@ -288,14 +289,14 @@ export const ARCVReportView: React.FC = () => {
                       <div className="text-right">
                         <p className="text-[10px] text-neutral-500 uppercase font-semibold">Base Acumulada</p>
                         <p className="text-sm font-mono font-medium text-neutral-800">
-                          ${sup.totalTaxableBase.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          {formatMoneyUSD(sup.totalTaxableBase)}
                         </p>
                       </div>
 
                       <div className="text-right">
                         <p className="text-[10px] text-neutral-500 uppercase font-semibold">ISLR Retenido</p>
                         <p className="text-sm font-mono font-bold text-sky-800">
-                          ${sup.totalIslrRetained.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          {formatMoneyUSD(sup.totalIslrRetained)}
                         </p>
                       </div>
 
@@ -356,11 +357,11 @@ export const ARCVReportView: React.FC = () => {
                                   {v.conceptCode} - {v.conceptDescription}
                                 </td>
                                 <td className="py-2 px-3 text-right font-mono">
-                                  ${v.taxableBaseAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                  {formatMoneyUSD(v.taxableBaseAmount)}
                                 </td>
                                 <td className="py-2 px-3 text-right font-mono">{v.ratePercentage}%</td>
                                 <td className="py-2 px-3 text-right font-mono font-semibold text-sky-800">
-                                  ${v.islrRetainedAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                  {formatMoneyUSD(v.islrRetainedAmount)}
                                 </td>
                               </tr>
                             ))}
@@ -448,11 +449,11 @@ export const ARCVReportView: React.FC = () => {
                       </td>
                       <td className="border border-neutral-300 p-2">{v.conceptDescription}</td>
                       <td className="border border-neutral-300 p-2 text-right font-mono">
-                        ${v.taxableBaseAmount.toFixed(2)}
+                        {formatMoneyUSD(v.taxableBaseAmount)}
                       </td>
                       <td className="border border-neutral-300 p-2 text-right font-mono">{v.ratePercentage}%</td>
                       <td className="border border-neutral-300 p-2 text-right font-mono font-bold bg-neutral-100">
-                        ${v.islrRetainedAmount.toFixed(2)}
+                        {formatMoneyUSD(v.islrRetainedAmount)}
                       </td>
                     </tr>
                   ))}
@@ -463,11 +464,11 @@ export const ARCVReportView: React.FC = () => {
                       Totales Anuales Acumulados:
                     </td>
                     <td className="border border-neutral-300 p-2 text-right font-mono text-sky-800">
-                      ${selectedSupplierForPrint.totalTaxableBase.toFixed(2)}
+                      {formatMoneyUSD(selectedSupplierForPrint.totalTaxableBase)}
                     </td>
                     <td className="border border-neutral-300 p-2"></td>
                     <td className="border border-neutral-300 p-2 text-right font-mono font-bold text-sky-900 bg-neutral-200">
-                      ${selectedSupplierForPrint.totalIslrRetained.toFixed(2)}
+                      {formatMoneyUSD(selectedSupplierForPrint.totalIslrRetained)}
                     </td>
                   </tr>
                 </tfoot>

@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/authStore';
+import { formatMoneyUSD, formatMoneyVES } from '../../utils/formatters';
 
 interface GoodsReceiptRecord {
   id: string;
@@ -303,10 +304,10 @@ export const GoodsReceiptsView: React.FC = () => {
       cell: (item) => (
         <div className="text-right">
           <p className="text-xs font-semibold text-neutral-900">
-            ${item.totalCost.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+            {formatMoneyUSD(item.totalCost)}
           </p>
           <p className="text-[10px] text-neutral-500">
-            Bs. {(item.totalCost * item.exchangeRate).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+            {formatMoneyVES(item.totalCost * item.exchangeRate)}
           </p>
         </div>
       ),
@@ -395,7 +396,7 @@ export const GoodsReceiptsView: React.FC = () => {
             </div>
           </div>
           <p className="text-2xl font-bold text-sky-700 mt-2">
-            ${receipts.reduce((acc, r) => acc + r.totalCost, 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+            {formatMoneyUSD(receipts.reduce((acc, r) => acc + r.totalCost, 0))}
           </p>
           <p className="text-[10px] text-neutral-400 mt-0.5">Costo total incorporado al inventario</p>
         </Card>
@@ -554,7 +555,7 @@ export const GoodsReceiptsView: React.FC = () => {
                             />
                           </td>
                           <td className="py-2 px-3 text-right font-medium text-neutral-900">
-                            ${item.totalCost.toFixed(2)}
+                            {formatMoneyUSD(item.totalCost)}
                           </td>
                           <td className="py-2 px-3 text-center">
                             <button
@@ -583,7 +584,7 @@ export const GoodsReceiptsView: React.FC = () => {
               {/* Botones */}
               <div className="flex items-center justify-between pt-3 border-t border-neutral-200">
                 <span className="text-sm font-bold text-neutral-900">
-                  Total Recepción: ${totalReceiptCost.toFixed(2)}
+                  Total Recepción: {formatMoneyUSD(totalReceiptCost)}
                 </span>
                 <div className="flex items-center gap-3">
                   <Button
@@ -631,7 +632,7 @@ export const GoodsReceiptsView: React.FC = () => {
                 <p className="font-semibold text-neutral-900">{invoicingReceipt.supplierName}</p>
                 <p className="text-neutral-500">{invoicingReceipt.supplierRif}</p>
                 <p className="text-neutral-700 mt-1">
-                  Monto a Facturar: <strong>${invoicingReceipt.totalCost.toFixed(2)} USD</strong> (Bs. {(invoicingReceipt.totalCost * invoicingReceipt.exchangeRate).toFixed(2)})
+                  Monto a Facturar: <strong>{formatMoneyUSD(invoicingReceipt.totalCost)} USD</strong> ({formatMoneyVES(invoicingReceipt.totalCost * invoicingReceipt.exchangeRate)})
                 </p>
               </div>
 

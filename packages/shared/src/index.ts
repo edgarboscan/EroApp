@@ -13,3 +13,4 @@ export * from './schemas/sales';
 export * from './schemas/config';
 export * from './lib/fiscal-ve';
 export * from './lib/inventory-costing';
+export * from './lib/formatters';

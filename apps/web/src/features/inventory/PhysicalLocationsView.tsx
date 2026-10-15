@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Card } from '../../components/ui/Card';
 import { DataTable, Column } from '../../components/ui/DataTable';
 import { toast } from 'sonner';
+import { formatNumber } from '../../utils/formatters';
 
 interface LocationRow {
   aisle: string;
@@ -77,7 +78,7 @@ export const PhysicalLocationsView: React.FC = () => {
     {
       header: 'Stock Actual',
       accessorKey: 'currentStock',
-      cell: (row) => <span className="font-bold text-neutral-900">{row.currentStock} UND</span>,
+      cell: (row) => <span className="font-bold text-neutral-900">{formatNumber(row.currentStock, { maximumFractionDigits: 0 })} UND</span>,
     },
   ];
 

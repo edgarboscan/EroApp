@@ -8,6 +8,7 @@ import {
   isSuperAdminRole,
 } from '@ero/shared';
 import { ConfigService } from './config.service';
+import { BcvService } from './bcv.service';
 import { authenticate, AppEnv } from '../../middleware/auth';
 import { authorize } from '../../middleware/rbac';
 
@@ -286,5 +287,91 @@ configRouter.put('/exchange-rate', authenticate, async (c) => {
     return c.json({ success: true, data: result });
   } catch (error: any) {
     return c.json({ success: false, error: { code: 'RATE_UPDATE_ERROR', message: error.message } }, 400);
+  }
+});
+
+// ==========================================
+// 6.1 Consulta y Sincronización en Vivo del BCV
+// ==========================================
+configRouter.get('/exchange-rate/bcv-live', authenticate, async (c) => {
+  const user = c.get('user');
+  try {
+    const bcvData = await BcvService.getOfficialRate();
+    const currentRateData = await ConfigService.getExchangeRate(user.companyId);
+
+    const difference = Number((bcvData.rate - currentRateData.rate).toFixed(4));
+    const needsUpdate = Math.abs(difference) > 0.0001;
+
+    return c.json({
+      success: true,
+      data: {
+        bcvRate: bcvData.rate,
+        bcvEffectiveDate: bcvData.effectiveDate,
+        bcvFormattedDate: bcvData.formattedDate,
+        currentSystemRate: currentRateData.rate,
+        difference,
+        needsUpdate,
+        source: bcvData.source,
+        fetchedAt: bcvData.fetchedAt,
+      },
+    });
+  } catch (error: any) {
+    return c.json(
+      { success: false, error: { code: 'BCV_FETCH_ERROR', message: error.message } },
+      502
+    );
+  }
+});
+
+configRouter.post('/exchange-rate/sync-bcv', authenticate, async (c) => {
+  const user = c.get('user');
+  const isSuperAdmin = isSuperAdminRole(user.role);
+  const hasRatePerm =
+    user.permissions.includes('pricing.exchange_rate') ||
+    user.permissions.includes('pricing.bulk_update') ||
+    user.permissions.includes('config.write');
+
+  if (!isSuperAdmin && !hasRatePerm) {
+    return c.json(
+      {
+        success: false,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'No cuenta con permisos autorizados para sincronizar la tasa de cambio oficial',
+        },
+      },
+      403
+    );
+  }
+
+  try {
+    const bcvData = await BcvService.getOfficialRate();
+    const notes = 'Sincronización automática desde la página oficial del Banco Central de Venezuela (BCV)';
+
+    const result = await ConfigService.updateExchangeRate(
+      user.companyId,
+      {
+        rate: bcvData.rate,
+        source: bcvData.source,
+        effectiveDate: bcvData.effectiveDate,
+        notes,
+      },
+      user.sub,
+      user.username
+    );
+
+    return c.json({
+      success: true,
+      data: {
+        ...result,
+        bcvFormattedDate: bcvData.formattedDate,
+        notes,
+      },
+    });
+  } catch (error: any) {
+    return c.json(
+      { success: false, error: { code: 'BCV_SYNC_ERROR', message: error.message } },
+      500
+    );
   }
 });

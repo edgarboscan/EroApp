@@ -3,6 +3,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Check, ArrowRight, ArrowLeft, CheckCircle, Download } from 'lucide-react';
+import { formatMoneyUSD } from '../../utils/formatters';
 
 export const BulkPriceUpdateWizard: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(1);
@@ -302,12 +303,12 @@ export const BulkPriceUpdateWizard: React.FC = () => {
                       <div className="font-semibold text-neutral-900">{it.name}</div>
                       <div className="text-[10px] text-neutral-400 font-mono">{it.sku}</div>
                     </td>
-                    <td className="py-2.5 px-3 text-neutral-600">${it.oldCost.toFixed(2)}</td>
-                    <td className="py-2.5 px-3 text-neutral-600">${it.oldBase.toFixed(2)}</td>
+                    <td className="py-2.5 px-3 text-neutral-600">{formatMoneyUSD(it.oldCost)}</td>
+                    <td className="py-2.5 px-3 text-neutral-600">{formatMoneyUSD(it.oldBase)}</td>
                     <td className="py-2.5 px-3 text-neutral-600">{it.taxRate}%</td>
-                    <td className="py-2.5 px-3 text-neutral-600">${it.oldFinal.toFixed(2)}</td>
-                    <td className="py-2.5 px-3 font-bold text-sky-700">${it.newBase.toFixed(2)}</td>
-                    <td className="py-2.5 px-3 font-bold text-sky-700">${it.newFinal.toFixed(2)}</td>
+                    <td className="py-2.5 px-3 text-neutral-600">{formatMoneyUSD(it.oldFinal)}</td>
+                    <td className="py-2.5 px-3 font-bold text-sky-700">{formatMoneyUSD(it.newBase)}</td>
+                    <td className="py-2.5 px-3 font-bold text-sky-700">{formatMoneyUSD(it.newFinal)}</td>
                     <td className="py-2.5 px-3 text-right font-medium text-emerald-600">{it.diff}</td>
                   </tr>
                 ))}

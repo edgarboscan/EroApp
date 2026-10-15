@@ -15,6 +15,7 @@ import {
   Truck,
   Building2,
 } from 'lucide-react';
+import { formatMoneyUSD } from '../../utils/formatters';
 
 interface AgingItem {
   payableId: string;
@@ -189,7 +190,7 @@ export const PayablesAgingView: React.FC = () => {
             Total Deuda CxP
           </p>
           <p className="text-lg font-bold text-neutral-900 mt-1 font-mono">
-            ${totals.grandTotal.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+            {formatMoneyUSD(totals.grandTotal)}
           </p>
           <span className="text-[10px] text-neutral-400">Compromisos vigentes</span>
         </Card>
@@ -199,7 +200,7 @@ export const PayablesAgingView: React.FC = () => {
             Corriente (Al Día)
           </p>
           <p className="text-lg font-bold text-emerald-700 mt-1 font-mono">
-            ${totals.current.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+            {formatMoneyUSD(totals.current)}
           </p>
           <span className="text-[10px] text-neutral-400">Por vencer</span>
         </Card>
@@ -209,7 +210,7 @@ export const PayablesAgingView: React.FC = () => {
             1 - 30 Días
           </p>
           <p className="text-lg font-bold text-amber-700 mt-1 font-mono">
-            ${totals.days1_30.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+            {formatMoneyUSD(totals.days1_30)}
           </p>
           <span className="text-[10px] text-neutral-400">Vencimiento reciente</span>
         </Card>
@@ -219,7 +220,7 @@ export const PayablesAgingView: React.FC = () => {
             31 - 60 Días
           </p>
           <p className="text-lg font-bold text-orange-700 mt-1 font-mono">
-            ${totals.days31_60.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+            {formatMoneyUSD(totals.days31_60)}
           </p>
           <span className="text-[10px] text-neutral-400">Mora moderada</span>
         </Card>
@@ -229,7 +230,7 @@ export const PayablesAgingView: React.FC = () => {
             61 - 90 Días
           </p>
           <p className="text-lg font-bold text-red-700 mt-1 font-mono">
-            ${totals.days61_90.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+            {formatMoneyUSD(totals.days61_90)}
           </p>
           <span className="text-[10px] text-neutral-400">Mora crítica</span>
         </Card>
@@ -239,7 +240,7 @@ export const PayablesAgingView: React.FC = () => {
             + 90 Días
           </p>
           <p className="text-lg font-bold text-red-800 mt-1 font-mono">
-            ${totals.days90Plus.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+            {formatMoneyUSD(totals.days90Plus)}
           </p>
           <span className="text-[10px] text-red-500 font-semibold">Excedida</span>
         </Card>
@@ -352,13 +353,13 @@ export const PayablesAgingView: React.FC = () => {
                       )}
                     </td>
                     <td className="py-3 px-4 text-right font-medium font-mono text-neutral-900">
-                      ${item.amountTotal.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                      {formatMoneyUSD(item.amountTotal)}
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-xs text-emerald-600">
-                      ${item.amountPaid.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                      {formatMoneyUSD(item.amountPaid)}
                     </td>
                     <td className="py-3 px-4 text-right font-bold font-mono text-red-600">
-                      ${item.amountBalance.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                      {formatMoneyUSD(item.amountBalance)}
                     </td>
                     <td className="py-3 px-4 text-right">
                       <Button

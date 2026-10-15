@@ -18,8 +18,24 @@ export const posCartItemSchema = z.object({
 
 export type POSCartItem = z.infer<typeof posCartItemSchema>;
 
+export const paymentMethodSchema = z.object({
+  id: z.string().optional(),
+  code: z.string().min(1).max(30),
+  name: z.string().min(1).max(100),
+  currency: z.enum(['USD', 'VES']).default('VES'),
+  type: z.enum(['CASH', 'CARD', 'ELECTRONIC', 'CREDIT', 'OTHER']).default('OTHER'),
+  appliesIGTF: z.boolean().default(false),
+  requiresReference: z.boolean().default(false),
+  requiresBankAccount: z.boolean().default(false),
+  isActive: z.boolean().default(true),
+  displayOrder: z.number().int().default(0),
+});
+
+export type PaymentMethod = z.infer<typeof paymentMethodSchema>;
+export type PaymentMethodInput = z.infer<typeof paymentMethodSchema>;
+
 export const posPaymentSchema = z.object({
-  method: z.enum(['CASH_VES', 'CASH_USD', 'PAGO_MOVIL', 'DEBIT_CARD', 'CREDIT_CARD', 'ZELLE', 'CRYPTO', 'CREDIT']),
+  method: z.string().min(1).max(30),
   amountVES: z.number().min(0),
   amountUSD: z.number().min(0),
   exchangeRate: z.number().positive(),
@@ -32,6 +48,16 @@ export const posPaymentSchema = z.object({
 
 export type POSPayment = z.infer<typeof posPaymentSchema>;
 
+const normalizeInvoiceMode = (val: unknown) => {
+  if (typeof val === 'string') {
+    const l = val.toLowerCase().trim();
+    if (l === 'fiscal_printer' || l === 'normal_printer' || l === 'fiscal_email' || l === 'normal_email') {
+      return l;
+    }
+  }
+  return val;
+};
+
 export const posSaleSubmitSchema = z.object({
   branchId: z.string().min(1),
   warehouseId: z.string().min(1),
@@ -41,7 +67,7 @@ export const posSaleSubmitSchema = z.object({
   customerName: z.string().min(2).max(150).default('CONSUMIDOR FINAL'),
   customerAddress: z.string().max(255).optional().nullable(),
   
-  invoiceMode: z.nativeEnum(POS_INVOICE_MODES).default(POS_INVOICE_MODES.NORMAL_PRINTER),
+  invoiceMode: z.preprocess(normalizeInvoiceMode, z.nativeEnum(POS_INVOICE_MODES)).default(POS_INVOICE_MODES.NORMAL_PRINTER),
   currency: z.enum(['USD', 'VES']).default('USD'),
   exchangeRate: z.number().positive(),
   
@@ -67,7 +93,10 @@ export const cashRegisterSchema = z.object({
   code: z.string().min(1).max(20),
   name: z.string().min(1).max(100),
   fiscalPrinterSerial: z.string().max(50).optional().nullable(),
-  invoiceMode: z.nativeEnum(POS_INVOICE_MODES).default(POS_INVOICE_MODES.NORMAL_PRINTER),
+  invoiceMode: z.preprocess(normalizeInvoiceMode, z.nativeEnum(POS_INVOICE_MODES)).default(POS_INVOICE_MODES.NORMAL_PRINTER),
+  defaultBankAccountIdVES: z.string().optional().nullable(),
+  defaultBankAccountIdUSD: z.string().optional().nullable(),
+  isActive: z.boolean().optional().default(true),
 });
 
 export type CashRegisterInput = z.infer<typeof cashRegisterSchema>;
@@ -87,6 +116,12 @@ export const closeCashShiftSchema = z.object({
   finalCashUSDCounted: z.number().min(0),
   finalCashVESCounted: z.number().min(0),
   notes: z.string().max(255).optional().nullable(),
+  depositBankAccountIdVES: z.string().optional().nullable(),
+  depositAmountVES: z.number().min(0).optional().default(0),
+  depositReferenceVES: z.string().max(100).optional().nullable(),
+  depositBankAccountIdUSD: z.string().optional().nullable(),
+  depositAmountUSD: z.number().min(0).optional().default(0),
+  depositReferenceUSD: z.string().max(100).optional().nullable(),
 });
 
 export type CloseCashShiftInput = z.infer<typeof closeCashShiftSchema>;

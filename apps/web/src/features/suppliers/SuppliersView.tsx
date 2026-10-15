@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { toast } from 'sonner';
+import { formatMoneyUSD } from '../../utils/formatters';
 import {
   Truck,
   Search,
@@ -287,7 +288,7 @@ export const SuppliersView: React.FC = () => {
                 Deuda Total CxP
               </p>
               <p className="text-2xl font-bold text-red-600 mt-1">
-                ${totalBalance.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                {formatMoneyUSD(totalBalance)}
               </p>
             </div>
             <div className="p-2 bg-red-50 rounded-lg text-red-600">
@@ -426,11 +427,11 @@ export const SuppliersView: React.FC = () => {
                     <td className="py-3 px-4 text-right">
                       {sup.currentBalance > 0 ? (
                         <span className="font-bold text-red-600 font-mono">
-                          ${sup.currentBalance.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                          {formatMoneyUSD(sup.currentBalance)}
                         </span>
                       ) : (
                         <span className="text-emerald-600 font-mono text-xs font-semibold">
-                          Solvente ($0)
+                          Solvente ({formatMoneyUSD(0)})
                         </span>
                       )}
                     </td>

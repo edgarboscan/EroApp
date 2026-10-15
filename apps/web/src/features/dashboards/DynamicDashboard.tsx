@@ -4,6 +4,7 @@ import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { useAuthStore, isSuperAdminRole } from '../../stores/authStore';
 import { toast } from 'sonner';
+import { formatMoneyUSD, formatMoneyVES, formatNumber } from '../../utils/formatters';
 import {
   DollarSign,
   TrendingUp,
@@ -344,28 +345,28 @@ export const DynamicDashboard: React.FC = () => {
   }, [selectedBranch]);
 
   const kpiSales = useMemo(() => ({
-    totalUSD: (4850.5 * multiplier).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-    totalVES: (179468.5 * multiplier).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-    countInvoices: Math.round(42 * multiplier),
+    totalUSD: formatMoneyUSD(4850.5 * multiplier),
+    totalVES: formatMoneyVES(179468.5 * multiplier),
+    countInvoices: formatNumber(Math.round(42 * multiplier), { maximumFractionDigits: 2 }),
   }), [multiplier]);
 
   const kpiTicket = useMemo(() => ({
-    avgTicketUSD: (115.48 * (0.95 + multiplier * 0.05)).toFixed(2),
+    avgTicketUSD: formatMoneyUSD(115.48 * (0.95 + multiplier * 0.05)),
   }), [multiplier]);
 
   const kpiTax = useMemo(() => ({
-    totalIVA: (776.08 * multiplier).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-    totalIGTF: (145.51 * multiplier).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    totalIVA: formatMoneyUSD(776.08 * multiplier),
+    totalIGTF: formatMoneyUSD(145.51 * multiplier),
   }), [multiplier]);
 
   const kpiCxc = useMemo(() => ({
-    totalPendingUSD: (19900 * multiplier).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-    overdueUSD: (3200 * multiplier).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    totalPendingUSD: formatMoneyUSD(19900 * multiplier),
+    overdueUSD: formatMoneyUSD(3200 * multiplier),
   }), [multiplier]);
 
   const kpiPurchases = useMemo(() => ({
-    totalUSD: (12400 * multiplier).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-    ordersCount: Math.round(8 * multiplier),
+    totalUSD: formatMoneyUSD(12400 * multiplier),
+    ordersCount: formatNumber(Math.round(8 * multiplier), { maximumFractionDigits: 2 }),
   }), [multiplier]);
 
   const cxcData = useMemo(() => [
@@ -428,9 +429,9 @@ export const DynamicDashboard: React.FC = () => {
               </div>
             </div>
             <div className="mt-3">
-              <div className="text-2xl font-bold text-neutral-900">${kpiSales.totalUSD}</div>
+              <div className="text-2xl font-bold text-neutral-900">{kpiSales.totalUSD}</div>
               <div className="text-xs text-neutral-500 mt-1">
-                Bs. {kpiSales.totalVES} • <span className="font-semibold text-neutral-700">{kpiSales.countInvoices}</span> facturas
+                {kpiSales.totalVES} • <span className="font-semibold text-neutral-700">{kpiSales.countInvoices}</span> facturas
               </div>
             </div>
           </Card>
@@ -447,7 +448,7 @@ export const DynamicDashboard: React.FC = () => {
               </div>
             </div>
             <div className="mt-3">
-              <div className="text-2xl font-bold text-neutral-900">${kpiTicket.avgTicketUSD}</div>
+              <div className="text-2xl font-bold text-neutral-900">{kpiTicket.avgTicketUSD}</div>
               <div className="text-xs text-emerald-600 font-medium mt-1">
                 +8.5% comparado con la semana anterior
               </div>
@@ -485,9 +486,9 @@ export const DynamicDashboard: React.FC = () => {
               </div>
             </div>
             <div className="mt-3">
-              <div className="text-2xl font-bold text-neutral-900">${kpiTax.totalIVA}</div>
+              <div className="text-2xl font-bold text-neutral-900">{kpiTax.totalIVA}</div>
               <div className="text-xs text-neutral-500 mt-1">
-                IGTF generado: <span className="font-semibold text-neutral-700">${kpiTax.totalIGTF}</span>
+                IGTF generado: <span className="font-semibold text-neutral-700">{kpiTax.totalIGTF}</span>
               </div>
             </div>
           </Card>
@@ -504,9 +505,9 @@ export const DynamicDashboard: React.FC = () => {
               </div>
             </div>
             <div className="mt-3">
-              <div className="text-2xl font-bold text-neutral-900">${kpiCxc.totalPendingUSD}</div>
+              <div className="text-2xl font-bold text-neutral-900">{kpiCxc.totalPendingUSD}</div>
               <div className="text-xs text-neutral-500 mt-1">
-                Vencido: <span className="font-semibold text-red-600">${kpiCxc.overdueUSD}</span>
+                Vencido: <span className="font-semibold text-red-600">{kpiCxc.overdueUSD}</span>
               </div>
             </div>
           </Card>
@@ -523,7 +524,7 @@ export const DynamicDashboard: React.FC = () => {
               </div>
             </div>
             <div className="mt-3">
-              <div className="text-2xl font-bold text-neutral-900">${kpiPurchases.totalUSD}</div>
+              <div className="text-2xl font-bold text-neutral-900">{kpiPurchases.totalUSD}</div>
               <div className="text-xs text-neutral-500 mt-1">
                 En <span className="font-semibold text-neutral-700">{kpiPurchases.ordersCount}</span> órdenes de compra
               </div>
@@ -577,7 +578,7 @@ export const DynamicDashboard: React.FC = () => {
                 <div key={idx} className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.color }} />
                   <span className="text-neutral-600">{d.name}:</span>
-                  <span className="font-semibold text-neutral-900">${d.value.toLocaleString()}</span>
+                  <span className="font-semibold text-neutral-900">{formatMoneyUSD(d.value)}</span>
                 </div>
               ))}
             </div>
@@ -658,7 +659,7 @@ export const DynamicDashboard: React.FC = () => {
                       <td className="py-2.5 px-3 font-mono font-bold text-neutral-900">{tx.number}</td>
                       <td className="py-2.5 px-3 text-neutral-500 font-mono">{tx.time}</td>
                       <td className="py-2.5 px-3 text-neutral-700 font-medium">{tx.customer}</td>
-                      <td className="py-2.5 px-3 text-right font-bold text-neutral-900">${tx.amount}</td>
+                      <td className="py-2.5 px-3 text-right font-bold text-neutral-900">{formatMoneyUSD(Number(tx.amount))}</td>
                       <td className="py-2.5 px-3 text-center">
                         <Badge variant="success">EMITIDA</Badge>
                       </td>

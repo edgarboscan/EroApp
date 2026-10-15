@@ -37,9 +37,12 @@ import {
   Coins,
   Edit2,
   Lock,
+  RefreshCw,
 } from 'lucide-react';
 import { useExchangeRateStore } from '../stores/exchangeRateStore';
+import { BcvRateAutoSyncModal } from '../components/BcvRateAutoSyncModal';
 import { toast } from 'sonner';
+import { formatExchangeRate, formatMoneyVES } from '@ero/shared';
 
 interface NavSubItem {
   label: string;
@@ -72,8 +75,12 @@ export const MainLayout: React.FC = () => {
   const updateRate = useExchangeRateStore((s) => s.updateRate);
   const fetchRate = useExchangeRateStore((s) => s.fetchRate);
   const fetchHistory = useExchangeRateStore((s) => s.fetchHistory);
+  const bcvLiveData = useExchangeRateStore((s) => s.bcvLiveData);
+  const checkBcvLiveRate = useExchangeRateStore((s) => s.checkBcvLiveRate);
+  const isBcvChecking = useExchangeRateStore((s) => s.isBcvChecking);
 
   const [showRateModal, setShowRateModal] = useState(false);
+  const [showBcvPromptModal, setShowBcvPromptModal] = useState(false);
   const [activeRateTab, setActiveRateTab] = useState<'update' | 'history'>('update');
   const [formRate, setFormRate] = useState(rate.toString());
   const [formSource, setFormSource] = useState(source);
@@ -95,6 +102,41 @@ export const MainLayout: React.FC = () => {
     hasPermission('pricing', 'bulk_update') ||
     hasPermission('config', 'write');
 
+  // Tarea automática: verifica periódicamente el BCV siempre que el usuario tenga permitido cambiar la tasa
+  useEffect(() => {
+    if (!canEditRate) return;
+
+    const today = new Date().toISOString().split('T')[0];
+    const dismissedKey = `ero_bcv_prompt_dismissed_${today}`;
+
+    const checkRate = async () => {
+      if (sessionStorage.getItem(dismissedKey)) return;
+
+      try {
+        const data = await checkBcvLiveRate();
+        if (data && data.needsUpdate) {
+          setShowBcvPromptModal(true);
+        }
+      } catch {
+        // Ignorar fallas silenciosas de red
+      }
+    };
+
+    const initialTimer = setTimeout(checkRate, 2500);
+    const interval = setInterval(checkRate, 30 * 60 * 1000);
+
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(interval);
+    };
+  }, [canEditRate, checkBcvLiveRate]);
+
+  const handleDismissBcvPrompt = () => {
+    const today = new Date().toISOString().split('T')[0];
+    sessionStorage.setItem(`ero_bcv_prompt_dismissed_${today}`, 'true');
+    setShowBcvPromptModal(false);
+  };
+
   const handleSaveRate = async (e: React.FormEvent) => {
     e.preventDefault();
     const parsed = parseFloat(formRate);
@@ -105,7 +147,7 @@ export const MainLayout: React.FC = () => {
     setIsUpdatingRate(true);
     try {
       await updateRate(parsed, formSource, formNotes);
-      toast.success(`Tasa oficial actualizada a Bs. ${parsed.toFixed(4)} por USD`);
+      toast.success(`Tasa oficial actualizada a Bs. ${formatExchangeRate(parsed, 4)} por USD`);
       setShowRateModal(false);
       setFormNotes('');
     } catch (err: any) {
@@ -464,7 +506,7 @@ export const MainLayout: React.FC = () => {
             <div className="flex items-center gap-1.5 bg-neutral-100 px-3 py-1.5 rounded-lg border border-neutral-200">
               <Coins className="w-3.5 h-3.5 text-neutral-500" />
               <span className="font-semibold text-neutral-700">BCV:</span>
-              <span className="font-mono font-bold text-neutral-900">Bs. {rate.toFixed(2)}</span>
+              <span className="font-mono font-bold text-neutral-900">Bs. {formatExchangeRate(rate, 2)}</span>
               <button
                 type="button"
                 onClick={() => {
@@ -562,6 +604,39 @@ export const MainLayout: React.FC = () => {
             <div className="p-5 overflow-y-auto flex-1">
               {activeRateTab === 'update' && canEditRate ? (
                 <form onSubmit={handleSaveRate} className="space-y-4">
+                  {/* Sincronización Directa BCV */}
+                  <div className="flex items-center justify-between p-3 bg-sky-50/70 border border-sky-100 rounded-lg">
+                    <div>
+                      <span className="text-xs font-semibold text-neutral-800 block">
+                        Sincronización Oficial BCV
+                      </span>
+                      <span className="text-[11px] text-neutral-500">
+                        Consultar portal oficial en tiempo real
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const data = await checkBcvLiveRate();
+                        if (data) {
+                          setFormRate(data.bcvRate.toString());
+                          setFormSource(data.source);
+                          setFormNotes(
+                            `Sincronizado desde portal oficial del BCV (${data.bcvFormattedDate || data.bcvEffectiveDate})`
+                          );
+                          toast.success(`Tasa obtenida del BCV: Bs. ${formatExchangeRate(data.bcvRate, 4)}`);
+                        } else {
+                          toast.error('No se pudo obtener la tasa del BCV en este momento');
+                        }
+                      }}
+                      disabled={isBcvChecking}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-sky-700 bg-white border border-sky-200 rounded-lg hover:bg-sky-50 focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-50 transition-colors cursor-pointer"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isBcvChecking ? 'animate-spin' : ''}`} />
+                      <span>{isBcvChecking ? 'Consultando...' : 'Obtener del BCV'}</span>
+                    </button>
+                  </div>
+
                   <div>
                     <label className="block text-xs font-semibold text-neutral-700 mb-1">
                       Tasa de Cambio Oficial (Bs. por 1 USD) *
@@ -678,7 +753,7 @@ export const MainLayout: React.FC = () => {
                                 {h.effectiveDate}
                               </td>
                               <td className="py-2 px-3 text-right font-mono font-bold text-neutral-900">
-                                Bs. {Number(h.rate).toFixed(4)}
+                                Bs. {formatExchangeRate(h.rate, 4)}
                               </td>
                               <td className="py-2 px-3 text-neutral-600 text-[11px] truncate max-w-[120px]">
                                 {h.source}
@@ -708,6 +783,13 @@ export const MainLayout: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Modal de Pregunta Automática para Sincronizar Tasa BCV */}
+      <BcvRateAutoSyncModal
+        isOpen={showBcvPromptModal}
+        bcvData={bcvLiveData}
+        onClose={handleDismissBcvPrompt}
+      />
     </div>
   );
 };

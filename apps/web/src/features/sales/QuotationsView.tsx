@@ -21,6 +21,13 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/authStore';
+import {
+  formatNumber,
+  formatCurrency,
+  formatMoneyUSD,
+  formatMoneyVES,
+  formatExchangeRate,
+} from '@ero/shared';
 
 interface QuotationRecord {
   id: string;
@@ -366,11 +373,11 @@ export const QuotationsView: React.FC = () => {
       accessorKey: 'totalAmount',
       cell: (item) => (
         <div className="text-right">
-          <p className="text-xs font-semibold text-neutral-900">
-            ${item.totalAmount.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+          <p className="text-xs font-semibold text-neutral-900 font-mono">
+            {formatMoneyUSD(item.totalAmount)}
           </p>
-          <p className="text-[10px] text-neutral-500">
-            Bs. {(item.totalAmount * item.exchangeRate).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+          <p className="text-[10px] text-neutral-500 font-mono">
+            {formatMoneyVES(item.totalAmount * item.exchangeRate)}
           </p>
         </div>
       ),
@@ -457,8 +464,8 @@ export const QuotationsView: React.FC = () => {
               <DollarSign className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-emerald-700 mt-2">
-            ${quotations.reduce((acc, q) => acc + q.totalAmount, 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+          <p className="text-2xl font-bold text-emerald-700 mt-2 font-mono">
+            {formatMoneyUSD(quotations.reduce((acc, q) => acc + q.totalAmount, 0))}
           </p>
           <p className="text-[10px] text-neutral-400 mt-0.5">Volumen de ventas presupuestado</p>
         </Card>
@@ -660,8 +667,8 @@ export const QuotationsView: React.FC = () => {
                               className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-2 py-1.5 text-neutral-800"
                             />
                           </td>
-                          <td className="py-2 px-3 text-right font-medium text-neutral-900">
-                            ${item.subtotal.toFixed(2)}
+                          <td className="py-2 px-3 text-right font-medium text-neutral-900 font-mono">
+                            {formatMoneyUSD(item.subtotal)}
                           </td>
                           <td className="py-2 px-3 text-center">
                             <button
@@ -697,19 +704,19 @@ export const QuotationsView: React.FC = () => {
                 <div className="bg-neutral-50 rounded-lg p-4 border border-neutral-200 space-y-2">
                   <div className="flex justify-between text-xs text-neutral-600">
                     <span>Subtotal Base Imponible:</span>
-                    <span className="font-semibold">${subtotalSum.toFixed(2)}</span>
+                    <span className="font-semibold font-mono">{formatMoneyUSD(subtotalSum)}</span>
                   </div>
                   <div className="flex justify-between text-xs text-neutral-600">
                     <span>IVA Estimado:</span>
-                    <span className="font-semibold">${taxSum.toFixed(2)}</span>
+                    <span className="font-semibold font-mono">{formatMoneyUSD(taxSum)}</span>
                   </div>
                   <div className="pt-2 border-t border-neutral-200 flex justify-between items-baseline">
                     <span className="text-sm font-bold text-neutral-900">Total Presupuesto (USD):</span>
-                    <span className="text-base font-bold text-sky-700">${totalUSD.toFixed(2)}</span>
+                    <span className="text-base font-bold text-sky-700 font-mono">{formatMoneyUSD(totalUSD)}</span>
                   </div>
                   <div className="flex justify-between text-[11px] text-neutral-500">
                     <span>Equivalente en Bolívares (BCV):</span>
-                    <span className="font-medium">Bs. {totalVES.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span>
+                    <span className="font-medium font-mono">{formatMoneyVES(totalVES)}</span>
                   </div>
                 </div>
               </div>
@@ -759,7 +766,7 @@ export const QuotationsView: React.FC = () => {
                 <p className="font-semibold text-neutral-900">{invoicingQuotation.customerName}</p>
                 <p className="text-neutral-500">{invoicingQuotation.customerDoc}</p>
                 <p className="text-neutral-700 mt-1">
-                  Monto Total: <strong>${invoicingQuotation.totalAmount.toFixed(2)} USD</strong> (Bs. {(invoicingQuotation.totalAmount * invoicingQuotation.exchangeRate).toFixed(2)})
+                  Monto Total: <strong>{formatMoneyUSD(invoicingQuotation.totalAmount)}</strong> ({formatMoneyVES(invoicingQuotation.totalAmount * invoicingQuotation.exchangeRate)})
                 </p>
               </div>
 
@@ -877,13 +884,13 @@ export const QuotationsView: React.FC = () => {
               )}
 
               <div className="pt-3 border-t border-neutral-200 flex justify-between items-baseline">
-                <span className="text-xs text-neutral-500">Tasa: Bs. {viewingQuotation.exchangeRate.toFixed(2)}/USD</span>
+                <span className="text-xs text-neutral-500">Tasa: Bs. {formatExchangeRate(viewingQuotation.exchangeRate, 2)}/USD</span>
                 <div className="text-right">
-                  <p className="text-lg font-bold text-neutral-900">
-                    Total: ${viewingQuotation.totalAmount.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                  <p className="text-lg font-bold text-neutral-900 font-mono">
+                    Total: {formatMoneyUSD(viewingQuotation.totalAmount)}
                   </p>
-                  <p className="text-xs text-neutral-500">
-                    Bs. {(viewingQuotation.totalAmount * viewingQuotation.exchangeRate).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                  <p className="text-xs text-neutral-500 font-mono">
+                    {formatMoneyVES(viewingQuotation.totalAmount * viewingQuotation.exchangeRate)}
                   </p>
                 </div>
               </div>

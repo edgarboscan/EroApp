@@ -150,9 +150,10 @@ export class ReceivablesService {
     return withTransaction(async (conn) => {
       // 1. Obtener la cuenta por cobrar
       const [receivables] = await conn.query(
-        `SELECT r.*, si.branch_id, si.customer_id
+        `SELECT r.*, si.branch_id, si.customer_id, si.invoice_number, c.name as customer_name
          FROM receivables r
          INNER JOIN sales_invoices si ON r.invoice_id = si.id
+         INNER JOIN customers c ON r.customer_id = c.id
          INNER JOIN branches b ON r.branch_id = b.id
          WHERE r.id = ? AND b.company_id = ? FOR UPDATE`,
         [data.receivableId, companyId]
@@ -203,6 +204,41 @@ export class ReceivablesService {
         ]
       );
 
+      // 3.1 Si se especificó cuenta bancaria de destino, reflejar en tesorería
+      let bankMovementId: string | null = null;
+      if (data.bankAccountId) {
+        const [accRows]: any = await conn.query(
+          `SELECT id, currency, current_balance FROM bank_accounts WHERE id = ? AND company_id = ? FOR UPDATE`,
+          [data.bankAccountId, companyId]
+        );
+        if (accRows && accRows.length > 0) {
+          const acc = accRows[0];
+          const depositAmount = acc.currency === 'VES' ? Number(amountVES.toFixed(2)) : Number(amountUSD.toFixed(2));
+          const newBal = Number((Number(acc.current_balance) + depositAmount).toFixed(2));
+          await conn.query(
+            `UPDATE bank_accounts SET current_balance = ? WHERE id = ?`,
+            [newBal, acc.id]
+          );
+
+          bankMovementId = crypto.randomUUID();
+          await conn.query(
+            `INSERT INTO bank_movements (
+              id, account_id, user_id, movement_type, amount, balance_after,
+              movement_date, reference_number, concept, is_reconciled
+            ) VALUES (?, ?, ?, 'DEPOSIT', ?, ?, NOW(), ?, ?, 0)`,
+            [
+              bankMovementId,
+              acc.id,
+              _userId,
+              depositAmount,
+              newBal,
+              data.referenceNumber || null,
+              `Cobro CxC Factura ${rec.invoice_number || rec.id.slice(0, 8)} - ${rec.customer_name} (${data.paymentMethod})`,
+            ]
+          );
+        }
+      }
+
       // 4. Si la factura se saldó por completo, actualizar sales_invoices.status
       if (isPaidInFull) {
         await conn.query(
@@ -219,6 +255,7 @@ export class ReceivablesService {
         remainingBalance: Math.max(0, balance - data.amount),
         status: newStatus,
         isPaidInFull,
+        bankMovementId,
       };
     });
   }

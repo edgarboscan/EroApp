@@ -5,33 +5,133 @@ import {
   CloseCashShiftInput,
   CashMovementInput,
   GenerateFiscalReportInput,
+  CashRegisterInput,
+  PaymentMethodInput,
 } from '@ero/shared';
 import crypto from 'crypto';
 
 export class POSService {
   /**
-   * Obtiene el listado de cajas registradoras de una sucursal
+   * Obtiene todos los métodos de pago configurados para la empresa
    */
-  static async getCashRegisters(companyId: string, branchId: string) {
+  static async getPaymentMethods(companyId: string, onlyActive = true) {
+    let sql = `SELECT * FROM payment_methods WHERE company_id = ?`;
+    const params: any[] = [companyId];
+    if (onlyActive) {
+      sql += ` AND is_active = 1`;
+    }
+    sql += ` ORDER BY display_order ASC, name ASC`;
+    const rows = await query<any>(sql, params);
+    return rows.map((r) => ({
+      id: r.id,
+      companyId: r.company_id,
+      code: r.code,
+      name: r.name,
+      currency: r.currency,
+      type: r.type,
+      appliesIGTF: Boolean(r.applies_igtf),
+      requiresReference: Boolean(r.requires_reference),
+      requiresBankAccount: Boolean(r.requires_bank_account),
+      isActive: Boolean(r.is_active),
+      displayOrder: Number(r.display_order),
+    }));
+  }
+
+  /**
+   * Crea un nuevo método de pago para la empresa
+   */
+  static async createPaymentMethod(companyId: string, data: PaymentMethodInput) {
+    const id = data.id || crypto.randomUUID();
+    const code = (data.code || '').trim().toUpperCase().replace(/\s+/g, '_');
+    await query(
+      `INSERT INTO payment_methods (
+        id, company_id, code, name, currency, type, applies_igtf, requires_reference, requires_bank_account, is_active, display_order
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        companyId,
+        code,
+        data.name.trim(),
+        data.currency || 'VES',
+        data.type || 'OTHER',
+        data.appliesIGTF ? 1 : 0,
+        data.requiresReference ? 1 : 0,
+        data.requiresBankAccount ? 1 : 0,
+        data.isActive !== undefined ? (data.isActive ? 1 : 0) : 1,
+        data.displayOrder || 0,
+      ]
+    );
+    return { id, companyId, ...data, code };
+  }
+
+  /**
+   * Actualiza un método de pago
+   */
+  static async updatePaymentMethod(id: string, companyId: string, data: Partial<PaymentMethodInput>) {
+    const fields: string[] = [];
+    const values: any[] = [];
+    if (data.name !== undefined) { fields.push('name = ?'); values.push(data.name.trim()); }
+    if (data.currency !== undefined) { fields.push('currency = ?'); values.push(data.currency); }
+    if (data.type !== undefined) { fields.push('type = ?'); values.push(data.type); }
+    if (data.appliesIGTF !== undefined) { fields.push('applies_igtf = ?'); values.push(data.appliesIGTF ? 1 : 0); }
+    if (data.requiresReference !== undefined) { fields.push('requires_reference = ?'); values.push(data.requiresReference ? 1 : 0); }
+    if (data.requiresBankAccount !== undefined) { fields.push('requires_bank_account = ?'); values.push(data.requiresBankAccount ? 1 : 0); }
+    if (data.isActive !== undefined) { fields.push('is_active = ?'); values.push(data.isActive ? 1 : 0); }
+    if (data.displayOrder !== undefined) { fields.push('display_order = ?'); values.push(data.displayOrder); }
+    if (fields.length === 0) return { id, companyId };
+
+    values.push(id, companyId);
+    await query(
+      `UPDATE payment_methods SET ${fields.join(', ')} WHERE id = ? AND company_id = ?`,
+      values
+    );
+    return { id, companyId, ...data };
+  }
+
+  /**
+   * Desactiva / elimina un método de pago
+   */
+  static async deletePaymentMethod(id: string, companyId: string) {
+    await query(
+      `UPDATE payment_methods SET is_active = 0 WHERE id = ? AND company_id = ?`,
+      [id, companyId]
+    );
+    return { success: true, id };
+  }
+
+  /**
+   * Obtiene el listado de cajas registradoras de una sucursal o de toda la empresa
+   */
+  static async getCashRegisters(companyId: string, branchId?: string) {
+    const params: any[] = [companyId];
+    let branchFilter = '';
+    if (branchId) {
+      branchFilter = 'AND cr.branch_id = ?';
+      params.push(branchId);
+    }
+
     const rows = await query<any>(
-      `SELECT cr.id, cr.branch_id, cr.code, cr.name, cr.fiscal_printer_serial,
-              cr.invoice_mode, cr.is_active,
+      `SELECT cr.id, cr.branch_id, b.name as branch_name, cr.code, cr.name, cr.fiscal_printer_serial,
+              cr.invoice_mode, cr.default_bank_account_ves_id, cr.default_bank_account_usd_id, cr.is_active,
               (SELECT cs.id FROM cash_shifts cs WHERE cs.cash_register_id = cr.id AND cs.status = 'OPEN' LIMIT 1) as active_shift_id,
               (SELECT u.full_name FROM cash_shifts cs INNER JOIN users u ON cs.user_id = u.id WHERE cs.cash_register_id = cr.id AND cs.status = 'OPEN' LIMIT 1) as active_cashier_name
        FROM cash_registers cr
        INNER JOIN branches b ON cr.branch_id = b.id
-       WHERE b.company_id = ? AND cr.branch_id = ? AND cr.is_active = 1
-       ORDER BY cr.code ASC`,
-      [companyId, branchId]
+       WHERE b.company_id = ? ${branchFilter} AND cr.is_active = 1
+       ORDER BY b.name ASC, cr.code ASC`,
+      params
     );
 
     return rows.map((r) => ({
       id: r.id,
       branchId: r.branch_id,
+      branchName: r.branch_name,
       code: r.code,
       name: r.name,
       fiscalPrinterSerial: r.fiscal_printer_serial,
       invoiceMode: r.invoice_mode,
+      defaultBankAccountIdVES: r.default_bank_account_ves_id || null,
+      defaultBankAccountIdUSD: r.default_bank_account_usd_id || null,
       isActive: Boolean(r.is_active),
       activeShiftId: r.active_shift_id || null,
       activeCashierName: r.active_cashier_name || null,
@@ -40,12 +140,151 @@ export class POSService {
   }
 
   /**
+   * Crea una nueva caja registradora configurando si es fiscal o no
+   */
+  static async createCashRegister(companyId: string, input: CashRegisterInput) {
+    // Validar sucursal
+    const branchRows = await query<any>(
+      `SELECT id FROM branches WHERE id = ? AND company_id = ?`,
+      [input.branchId, companyId]
+    );
+    if (branchRows.length === 0) {
+      throw new Error('La sucursal seleccionada no existe o no pertenece a la empresa');
+    }
+
+    const code = input.code.trim().toUpperCase();
+    const existing = await query<any>(
+      `SELECT id FROM cash_registers WHERE branch_id = ? AND code = ?`,
+      [input.branchId, code]
+    );
+    if (existing.length > 0) {
+      throw new Error(`Ya existe una caja con el código "${code}" en esta sucursal`);
+    }
+
+    const id = crypto.randomUUID();
+    const name = input.name.trim();
+    const invoiceMode = input.invoiceMode === 'fiscal_printer' ? 'fiscal_printer' : 'normal_printer';
+    const fiscalPrinterSerial = invoiceMode === 'fiscal_printer'
+      ? (input.fiscalPrinterSerial?.trim() || null)
+      : null;
+
+    await query(
+      `INSERT INTO cash_registers (
+        id, branch_id, code, name, fiscal_printer_serial, invoice_mode,
+        default_bank_account_ves_id, default_bank_account_usd_id, is_active
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+      [
+        id,
+        input.branchId,
+        code,
+        name,
+        fiscalPrinterSerial,
+        invoiceMode,
+        input.defaultBankAccountIdVES || null,
+        input.defaultBankAccountIdUSD || null,
+      ]
+    );
+
+    return {
+      id,
+      branchId: input.branchId,
+      code,
+      name,
+      fiscalPrinterSerial,
+      invoiceMode,
+      defaultBankAccountIdVES: input.defaultBankAccountIdVES || null,
+      defaultBankAccountIdUSD: input.defaultBankAccountIdUSD || null,
+      isActive: true,
+    };
+  }
+
+  /**
+   * Actualiza una caja registradora existente (nombre, código, modo fiscal, serial)
+   */
+  static async updateCashRegister(companyId: string, id: string, input: Partial<CashRegisterInput>) {
+    const rows = await query<any>(
+      `SELECT cr.* FROM cash_registers cr
+       INNER JOIN branches b ON cr.branch_id = b.id
+       WHERE cr.id = ? AND b.company_id = ?`,
+      [id, companyId]
+    );
+    if (rows.length === 0) {
+      throw new Error('Caja registradora no encontrada');
+    }
+
+    const current = rows[0];
+    const code = input.code !== undefined ? input.code.trim().toUpperCase() : current.code;
+    const name = input.name !== undefined ? input.name.trim() : current.name;
+    const invoiceMode = input.invoiceMode !== undefined
+      ? (input.invoiceMode === 'fiscal_printer' ? 'fiscal_printer' : 'normal_printer')
+      : current.invoice_mode;
+    const fiscalPrinterSerial = invoiceMode === 'fiscal_printer'
+      ? (input.fiscalPrinterSerial !== undefined ? input.fiscalPrinterSerial?.trim() || null : current.fiscal_printer_serial)
+      : null;
+    const defaultBankAccountIdVES = input.defaultBankAccountIdVES !== undefined
+      ? (input.defaultBankAccountIdVES || null)
+      : current.default_bank_account_ves_id;
+    const defaultBankAccountIdUSD = input.defaultBankAccountIdUSD !== undefined
+      ? (input.defaultBankAccountIdUSD || null)
+      : current.default_bank_account_usd_id;
+    const isActive = input.isActive !== undefined ? (input.isActive ? 1 : 0) : current.is_active;
+
+    await query(
+      `UPDATE cash_registers
+       SET code = ?, name = ?, fiscal_printer_serial = ?, invoice_mode = ?,
+           default_bank_account_ves_id = ?, default_bank_account_usd_id = ?, is_active = ?
+       WHERE id = ?`,
+      [code, name, fiscalPrinterSerial, invoiceMode, defaultBankAccountIdVES, defaultBankAccountIdUSD, isActive, id]
+    );
+
+    return {
+      id,
+      branchId: current.branch_id,
+      code,
+      name,
+      fiscalPrinterSerial,
+      invoiceMode,
+      defaultBankAccountIdVES,
+      defaultBankAccountIdUSD,
+      isActive: Boolean(isActive),
+    };
+  }
+
+  /**
+   * Desactiva / Elimina una caja registradora
+   */
+  static async deleteCashRegister(companyId: string, id: string) {
+    const rows = await query<any>(
+      `SELECT cr.* FROM cash_registers cr
+       INNER JOIN branches b ON cr.branch_id = b.id
+       WHERE cr.id = ? AND b.company_id = ?`,
+      [id, companyId]
+    );
+    if (rows.length === 0) {
+      throw new Error('Caja registradora no encontrada');
+    }
+
+    const openShifts = await query<any>(
+      `SELECT id FROM cash_shifts WHERE cash_register_id = ? AND status = 'OPEN'`,
+      [id]
+    );
+    if (openShifts.length > 0) {
+      throw new Error('No se puede desactivar la caja porque posee un turno actualmente abierto');
+    }
+
+    await query(`UPDATE cash_registers SET is_active = 0 WHERE id = ?`, [id]);
+    return { success: true };
+  }
+
+  /**
    * Obtiene el turno de caja actualmente abierto para el usuario o sucursal
    */
   static async getCurrentShift(companyId: string, userId: string, branchId: string) {
     const rows = await query<any>(
       `SELECT cs.*, cr.code as cash_register_code, cr.name as cash_register_name,
-              cr.fiscal_printer_serial, cr.invoice_mode, u.full_name as cashier_name
+              cr.fiscal_printer_serial, cr.invoice_mode,
+              cr.default_bank_account_ves_id, cr.default_bank_account_usd_id,
+              u.full_name as cashier_name
        FROM cash_shifts cs
        INNER JOIN cash_registers cr ON cs.cash_register_id = cr.id
        INNER JOIN branches b ON cs.branch_id = b.id
@@ -85,7 +324,10 @@ export class POSService {
     let cashSalesVES = 0;
     let pagomovilVES = 0;
     let debitVES = 0;
+    let creditVES = 0;
     let zelleUSD = 0;
+    let otherVES = 0;
+    let otherUSD = 0;
     let totalIGTFUSD = 0;
     let totalInvoices = 0;
 
@@ -95,12 +337,22 @@ export class POSService {
       totalIGTFUSD += Number(p.igtf_usd);
       totalInvoices += Number(p.tx_count);
 
-      if (p.method === 'CASH_USD') cashSalesUSD += u;
-      else if (p.method === 'CASH_VES') cashSalesVES += v;
-      else if (p.method === 'PAGO_MOVIL') pagomovilVES += v;
-      else if (p.method === 'DEBIT_CARD') debitVES += v;
-      else if (p.method === 'ZELLE') zelleUSD += u;
+      const m = String(p.method || '').toUpperCase().trim();
+      if (m === 'CASH_USD') cashSalesUSD += u;
+      else if (m === 'CASH_VES') cashSalesVES += v;
+      else if (m === 'PAGO_MOVIL') pagomovilVES += v;
+      else if (m === 'DEBIT_CARD') debitVES += v;
+      else if (m === 'CREDIT_CARD') creditVES += v;
+      else if (m === 'ZELLE') zelleUSD += u;
+      else {
+        if (v > 0) otherVES += v;
+        else if (u > 0) otherUSD += u;
+      }
     }
+
+    const posBatchVES = Number((debitVES + creditVES).toFixed(2));
+    const totalCollectedVES = Number((cashSalesVES + debitVES + creditVES + pagomovilVES + otherVES).toFixed(2));
+    const totalCollectedUSD = Number((cashSalesUSD + zelleUSD + otherUSD).toFixed(2));
 
     let inflowsUSD = 0;
     let outflowsUSD = 0;
@@ -131,6 +383,8 @@ export class POSService {
       cashRegisterName: shift.cash_register_name,
       fiscalPrinterSerial: shift.fiscal_printer_serial,
       invoiceMode: shift.invoice_mode,
+      defaultBankAccountIdVES: shift.default_bank_account_ves_id || null,
+      defaultBankAccountIdUSD: shift.default_bank_account_usd_id || null,
       branchId: shift.branch_id,
       userId: shift.user_id,
       cashierName: shift.cashier_name,
@@ -145,7 +399,13 @@ export class POSService {
         cashSalesVES: Number(cashSalesVES.toFixed(2)),
         pagomovilVES: Number(pagomovilVES.toFixed(2)),
         debitVES: Number(debitVES.toFixed(2)),
+        creditVES: Number(creditVES.toFixed(2)),
+        posBatchVES: Number(posBatchVES.toFixed(2)),
         zelleUSD: Number(zelleUSD.toFixed(2)),
+        otherVES: Number(otherVES.toFixed(2)),
+        otherUSD: Number(otherUSD.toFixed(2)),
+        totalCollectedVES: Number(totalCollectedVES.toFixed(2)),
+        totalCollectedUSD: Number(totalCollectedUSD.toFixed(2)),
         totalIGTFUSD: Number(totalIGTFUSD.toFixed(2)),
         inflowsUSD: Number(inflowsUSD.toFixed(2)),
         outflowsUSD: Number(outflowsUSD.toFixed(2)),
@@ -239,10 +499,33 @@ export class POSService {
 
       let cashSalesUSD = 0;
       let cashSalesVES = 0;
+      let pagomovilVES = 0;
+      let debitVES = 0;
+      let creditVES = 0;
+      let zelleUSD = 0;
+      let otherVES = 0;
+      let otherUSD = 0;
+
       for (const p of paymentRows) {
-        if (p.method === 'CASH_USD') cashSalesUSD += Number(p.total_usd);
-        else if (p.method === 'CASH_VES') cashSalesVES += Number(p.total_ves);
+        const u = Number(p.total_usd);
+        const v = Number(p.total_ves);
+        const m = String(p.method || '').toUpperCase().trim();
+
+        if (m === 'CASH_USD') cashSalesUSD += u;
+        else if (m === 'CASH_VES') cashSalesVES += v;
+        else if (m === 'PAGO_MOVIL') pagomovilVES += v;
+        else if (m === 'DEBIT_CARD') debitVES += v;
+        else if (m === 'CREDIT_CARD') creditVES += v;
+        else if (m === 'ZELLE') zelleUSD += u;
+        else {
+          if (v > 0) otherVES += v;
+          else if (u > 0) otherUSD += u;
+        }
       }
+
+      const posBatchVES = Number((debitVES + creditVES).toFixed(2));
+      const totalCollectedVES = Number((cashSalesVES + debitVES + creditVES + pagomovilVES + otherVES).toFixed(2));
+      const totalCollectedUSD = Number((cashSalesUSD + zelleUSD + otherUSD).toFixed(2));
 
       const [movementRows]: any = await conn.query(
         `SELECT type, currency, SUM(amount) as total_amount
@@ -276,6 +559,73 @@ export class POSService {
       const diffUSD = Number((data.finalCashUSDCounted - expectedUSD).toFixed(2));
       const diffVES = Number((data.finalCashVESCounted - expectedVES).toFixed(2));
 
+      // 1. Si se especificó depósito de efectivo VES en cuenta bancaria de tesorería
+      let depositMovementVESId: string | null = null;
+      if (data.depositBankAccountIdVES && data.depositAmountVES && data.depositAmountVES > 0) {
+        const [accRows]: any = await conn.query(
+          `SELECT id, current_balance, currency FROM bank_accounts WHERE id = ? FOR UPDATE`,
+          [data.depositBankAccountIdVES]
+        );
+        if (accRows && accRows.length > 0) {
+          const acc = accRows[0];
+          const newBal = Number((Number(acc.current_balance) + data.depositAmountVES).toFixed(2));
+          await conn.query(
+            `UPDATE bank_accounts SET current_balance = ? WHERE id = ?`,
+            [newBal, acc.id]
+          );
+          depositMovementVESId = crypto.randomUUID();
+          await conn.query(
+            `INSERT INTO bank_movements (
+              id, account_id, user_id, movement_type, amount, balance_after,
+              movement_date, reference_number, concept, is_reconciled
+            ) VALUES (?, ?, ?, 'DEPOSIT', ?, ?, NOW(), ?, ?, 0)`,
+            [
+              depositMovementVESId,
+              acc.id,
+              userId,
+              data.depositAmountVES,
+              newBal,
+              data.depositReferenceVES || null,
+              `Depósito Cierre Caja VES (${shift.cash_register_code}) - Turno #${shift.id.slice(0, 8)}`,
+            ]
+          );
+        }
+      }
+
+      // 2. Si se especificó depósito de divisas USD en cuenta bancaria de tesorería
+      let depositMovementUSDId: string | null = null;
+      if (data.depositBankAccountIdUSD && data.depositAmountUSD && data.depositAmountUSD > 0) {
+        const [accRows]: any = await conn.query(
+          `SELECT id, current_balance, currency FROM bank_accounts WHERE id = ? FOR UPDATE`,
+          [data.depositBankAccountIdUSD]
+        );
+        if (accRows && accRows.length > 0) {
+          const acc = accRows[0];
+          const newBal = Number((Number(acc.current_balance) + data.depositAmountUSD).toFixed(2));
+          await conn.query(
+            `UPDATE bank_accounts SET current_balance = ? WHERE id = ?`,
+            [newBal, acc.id]
+          );
+          depositMovementUSDId = crypto.randomUUID();
+          await conn.query(
+            `INSERT INTO bank_movements (
+              id, account_id, user_id, movement_type, amount, balance_after,
+              movement_date, reference_number, concept, is_reconciled
+            ) VALUES (?, ?, ?, 'DEPOSIT', ?, ?, NOW(), ?, ?, 0)`,
+            [
+              depositMovementUSDId,
+              acc.id,
+              userId,
+              data.depositAmountUSD,
+              newBal,
+              data.depositReferenceUSD || null,
+              `Depósito Custodia USD Cierre Caja (${shift.cash_register_code}) - Turno #${shift.id.slice(0, 8)}`,
+            ]
+          );
+        }
+      }
+
+      // 3. Actualizar el turno de caja con arqueo y datos de depósitos
       await conn.query(
         `UPDATE cash_shifts SET
           closed_at = CURRENT_TIMESTAMP(),
@@ -285,6 +635,12 @@ export class POSService {
           final_cash_ves_counted = ?,
           difference_usd = ?,
           difference_ves = ?,
+          deposit_bank_account_ves_id = ?,
+          deposit_amount_ves = ?,
+          deposit_reference_ves = ?,
+          deposit_bank_account_usd_id = ?,
+          deposit_amount_usd = ?,
+          deposit_reference_usd = ?,
           status = 'CLOSED',
           notes = ?
          WHERE id = ?`,
@@ -295,6 +651,12 @@ export class POSService {
           data.finalCashVESCounted,
           diffUSD,
           diffVES,
+          data.depositBankAccountIdVES || null,
+          data.depositAmountVES || 0,
+          data.depositReferenceVES || null,
+          data.depositBankAccountIdUSD || null,
+          data.depositAmountUSD || 0,
+          data.depositReferenceUSD || null,
           data.notes || null,
           shift.id,
         ]
@@ -310,6 +672,23 @@ export class POSService {
         finalCashVESExpected: expectedVES,
         differenceUSD: diffUSD,
         differenceVES: diffVES,
+        depositMovementVESId,
+        depositMovementUSDId,
+        depositAmountVES: data.depositAmountVES || 0,
+        depositAmountUSD: data.depositAmountUSD || 0,
+        summary: {
+          cashSalesUSD,
+          cashSalesVES,
+          pagomovilVES,
+          debitVES,
+          creditVES,
+          posBatchVES,
+          zelleUSD,
+          otherVES,
+          otherUSD,
+          totalCollectedVES,
+          totalCollectedUSD,
+        },
       };
     });
   }

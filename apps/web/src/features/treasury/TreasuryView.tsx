@@ -21,6 +21,7 @@ import {
   Building2,
   Calendar,
 } from 'lucide-react';
+import { formatNumber, formatCurrency, formatMoneyUSD, formatMoneyVES, parseFormattedNumber } from '@ero/shared';
 
 interface BankAccount {
   id: string;
@@ -442,7 +443,7 @@ export const TreasuryView: React.FC = () => {
                 Disponible en Divisas
               </p>
               <p className="text-2xl font-bold text-sky-600 mt-1 font-mono">
-                ${totalUsd.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                {formatMoneyUSD(totalUsd)}
               </p>
               <span className="text-[11px] text-neutral-400">Cuentas Custodia USD</span>
             </div>
@@ -459,7 +460,7 @@ export const TreasuryView: React.FC = () => {
                 Disponible en Bolívares
               </p>
               <p className="text-2xl font-bold text-emerald-700 mt-1 font-mono">
-                Bs. {totalVes.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                {formatMoneyVES(totalVes)}
               </p>
               <span className="text-[11px] text-neutral-400">Banca Nacional VES</span>
             </div>
@@ -563,8 +564,7 @@ export const TreasuryView: React.FC = () => {
                       Saldo en Libros
                     </span>
                     <span className="text-lg font-bold font-mono text-neutral-900">
-                      {acc.currency === 'USD' ? '$' : 'Bs.'}{' '}
-                      {acc.currentBalance.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                      {formatCurrency(acc.currentBalance, acc.currency)}
                     </span>
                   </div>
                   {acc.pendingReconciliationsCount > 0 && (
@@ -672,10 +672,10 @@ export const TreasuryView: React.FC = () => {
                         }`}
                       >
                         {isPositive ? '+' : ''}
-                        {m.amount.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                        {formatNumber(m.amount)}
                       </td>
                       <td className="py-3 px-4 text-right font-mono text-xs font-medium text-neutral-700">
-                        {m.balanceAfter.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                        {formatNumber(m.balanceAfter)}
                       </td>
                       <td className="py-3 px-4 text-center">
                         <Badge variant={m.isReconciled ? 'success' : 'warning'}>
@@ -846,7 +846,7 @@ export const TreasuryView: React.FC = () => {
                 >
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id}>
-                      {a.bankName} - {a.currency} (${a.currentBalance.toFixed(2)})
+                      {a.bankName} - {a.currency} ({formatCurrency(a.currentBalance, a.currency)})
                     </option>
                   ))}
                 </select>
@@ -876,11 +876,11 @@ export const TreasuryView: React.FC = () => {
 
                 <Input
                   label="Monto"
-                  type="number"
-                  step="0.01"
-                  value={movementForm.amount}
+                  type="text"
+                  placeholder="0,00"
+                  value={movementForm.amount === 0 ? '' : movementForm.amount}
                   onChange={(e) =>
-                    setMovementForm({ ...movementForm, amount: Number(e.target.value) })
+                    setMovementForm({ ...movementForm, amount: parseFormattedNumber(e.target.value) })
                   }
                   required
                 />
@@ -954,7 +954,7 @@ export const TreasuryView: React.FC = () => {
                 >
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id}>
-                      {a.bankName} ({a.currency}) - Disp: {a.currency} {a.currentBalance.toFixed(2)}
+                      {a.bankName} ({a.currency}) - Disp: {formatCurrency(a.currentBalance, a.currency)}
                     </option>
                   ))}
                 </select>
@@ -983,21 +983,21 @@ export const TreasuryView: React.FC = () => {
               <div className="grid grid-cols-2 gap-3">
                 <Input
                   label="Monto a Transferir"
-                  type="number"
-                  step="0.01"
-                  value={transferForm.amount}
+                  type="text"
+                  placeholder="0,00"
+                  value={transferForm.amount === 0 ? '' : transferForm.amount}
                   onChange={(e) =>
-                    setTransferForm({ ...transferForm, amount: Number(e.target.value) })
+                    setTransferForm({ ...transferForm, amount: parseFormattedNumber(e.target.value) })
                   }
                   required
                 />
                 <Input
                   label="Tasa de Cambio BCV"
-                  type="number"
-                  step="0.01"
-                  value={transferForm.exchangeRate}
+                  type="text"
+                  placeholder="0,00"
+                  value={transferForm.exchangeRate === 0 ? '' : transferForm.exchangeRate}
                   onChange={(e) =>
-                    setTransferForm({ ...transferForm, exchangeRate: Number(e.target.value) })
+                    setTransferForm({ ...transferForm, exchangeRate: parseFormattedNumber(e.target.value) })
                   }
                   required
                 />

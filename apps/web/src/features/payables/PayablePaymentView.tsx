@@ -5,6 +5,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { toast } from 'sonner';
+import { formatMoneyUSD, formatMoneyVES } from '../../utils/formatters';
 import {
   ArrowLeft,
   DollarSign,
@@ -238,11 +239,11 @@ export const PayablePaymentView: React.FC = () => {
               </div>
               <div>
                 <span className="text-neutral-400 block font-medium">Total Factura:</span>
-                <span className="font-semibold text-neutral-900 font-mono">${activePayable.amountTotal.toFixed(2)}</span>
+                <span className="font-semibold text-neutral-900 font-mono">{formatMoneyUSD(activePayable.amountTotal)}</span>
               </div>
               <div>
                 <span className="text-neutral-400 block font-medium">Saldo Pendiente:</span>
-                <span className="font-bold text-red-600 font-mono text-sm">${activePayable.amountBalance.toFixed(2)}</span>
+                <span className="font-bold text-red-600 font-mono text-sm">{formatMoneyUSD(activePayable.amountBalance)}</span>
               </div>
             </div>
           )}
@@ -308,9 +309,9 @@ export const PayablePaymentView: React.FC = () => {
           <div className="p-3 bg-sky-50/70 border border-sky-200 rounded-lg flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs text-sky-900 gap-2">
             <span>Conversión Oficial BCV:</span>
             <div className="font-mono font-bold space-x-3">
-              <span>USD: ${equivalentUSD.toFixed(2)}</span>
+              <span>USD: {formatMoneyUSD(equivalentUSD)}</span>
               <span>•</span>
-              <span>VES: Bs. {equivalentVES.toFixed(2)}</span>
+              <span>VES: {formatMoneyVES(equivalentVES)}</span>
             </div>
           </div>
         </Card>

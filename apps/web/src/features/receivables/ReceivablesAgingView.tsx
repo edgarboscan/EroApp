@@ -16,6 +16,7 @@ import {
   TrendingDown,
   Clock,
 } from 'lucide-react';
+import { formatMoneyUSD } from '@ero/shared';
 
 interface AgingItem {
   receivableId: string;
@@ -172,37 +173,37 @@ export const ReceivablesAgingView: React.FC = () => {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <Card className="p-3 bg-white">
           <span className="text-[11px] font-semibold text-neutral-500 block">Total Cartera</span>
-          <div className="text-lg font-bold text-neutral-900 mt-1">${grandTotal.toFixed(2)}</div>
+          <div className="text-lg font-bold text-neutral-900 mt-1">{formatMoneyUSD(grandTotal)}</div>
           <span className="text-[10px] text-neutral-400 font-mono mt-0.5 block">{items.length} facturas</span>
         </Card>
 
         <Card className="p-3 bg-white border-l-4 border-l-emerald-500">
           <span className="text-[11px] font-semibold text-emerald-800 block">Corriente</span>
-          <div className="text-lg font-bold text-emerald-700 mt-1">${currentTotal.toFixed(2)}</div>
+          <div className="text-lg font-bold text-emerald-700 mt-1">{formatMoneyUSD(currentTotal)}</div>
           <span className="text-[10px] text-neutral-400 mt-0.5 block">No vencidas</span>
         </Card>
 
         <Card className="p-3 bg-white border-l-4 border-l-sky-500">
           <span className="text-[11px] font-semibold text-sky-800 block">1 a 30 Días</span>
-          <div className="text-lg font-bold text-sky-700 mt-1">${days1_30Total.toFixed(2)}</div>
+          <div className="text-lg font-bold text-sky-700 mt-1">{formatMoneyUSD(days1_30Total)}</div>
           <span className="text-[10px] text-neutral-400 mt-0.5 block">Mora leve</span>
         </Card>
 
         <Card className="p-3 bg-white border-l-4 border-l-amber-500">
           <span className="text-[11px] font-semibold text-amber-800 block">31 a 60 Días</span>
-          <div className="text-lg font-bold text-amber-700 mt-1">${days31_60Total.toFixed(2)}</div>
+          <div className="text-lg font-bold text-amber-700 mt-1">{formatMoneyUSD(days31_60Total)}</div>
           <span className="text-[10px] text-neutral-400 mt-0.5 block">Mora media</span>
         </Card>
 
         <Card className="p-3 bg-white border-l-4 border-l-orange-500">
           <span className="text-[11px] font-semibold text-orange-800 block">61 a 90 Días</span>
-          <div className="text-lg font-bold text-orange-700 mt-1">${days61_90Total.toFixed(2)}</div>
+          <div className="text-lg font-bold text-orange-700 mt-1">{formatMoneyUSD(days61_90Total)}</div>
           <span className="text-[10px] text-neutral-400 mt-0.5 block">Mora alta</span>
         </Card>
 
         <Card className="p-3 bg-white border-l-4 border-l-red-500">
           <span className="text-[11px] font-semibold text-red-800 block">+90 Días</span>
-          <div className="text-lg font-bold text-red-700 mt-1">${days90PlusTotal.toFixed(2)}</div>
+          <div className="text-lg font-bold text-red-700 mt-1">{formatMoneyUSD(days90PlusTotal)}</div>
           <span className="text-[10px] text-red-500 font-semibold mt-0.5 block">Crítico</span>
         </Card>
       </div>
@@ -287,11 +288,11 @@ export const ReceivablesAgingView: React.FC = () => {
                           <Badge variant="success">Al día</Badge>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-right text-neutral-600">
-                        ${it.amountTotal.toFixed(2)}
+                      <td className="py-3 px-4 text-right text-neutral-600 font-mono">
+                        {formatMoneyUSD(it.amountTotal)}
                       </td>
                       <td className="py-3 px-4 text-right font-mono font-bold text-neutral-900">
-                        ${it.amountBalance.toFixed(2)}
+                        {formatMoneyUSD(it.amountBalance)}
                       </td>
                       <td className="py-3 px-4 text-center">
                         <Button

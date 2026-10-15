@@ -24,6 +24,7 @@ import {
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/authStore';
 import { FiscalReportModal, FiscalReportData } from './FiscalReportModal';
+import { formatNumber, formatCurrency, formatMoneyUSD, formatMoneyVES, parseFormattedNumber } from '@ero/shared';
 
 interface CashRegister {
   id: string;
@@ -32,6 +33,8 @@ interface CashRegister {
   name: string;
   fiscalPrinterSerial?: string | null;
   invoiceMode: string;
+  defaultBankAccountIdVES?: string | null;
+  defaultBankAccountIdUSD?: string | null;
   isActive: boolean;
   activeShiftId?: string | null;
   activeCashierName?: string | null;
@@ -44,7 +47,13 @@ interface CurrentShiftSummary {
   cashSalesVES: number;
   pagomovilVES: number;
   debitVES: number;
+  creditVES?: number;
+  posBatchVES?: number;
   zelleUSD: number;
+  otherVES?: number;
+  otherUSD?: number;
+  totalCollectedVES?: number;
+  totalCollectedUSD?: number;
   totalIGTFUSD: number;
   inflowsUSD: number;
   outflowsUSD: number;
@@ -59,6 +68,8 @@ interface CurrentShift {
   cashRegisterName: string;
   fiscalPrinterSerial: string;
   invoiceMode: string;
+  defaultBankAccountIdVES?: string | null;
+  defaultBankAccountIdUSD?: string | null;
   branchId: string;
   userId: string;
   cashierName: string;
@@ -70,6 +81,15 @@ interface CurrentShift {
   summary: CurrentShiftSummary;
   status: string;
   notes?: string | null;
+}
+
+interface BankAccountOption {
+  id: string;
+  bankName: string;
+  accountNumber: string;
+  currency: 'USD' | 'VES';
+  currentBalance: number;
+  description?: string;
 }
 
 interface FiscalReportItem {
@@ -98,7 +118,7 @@ const DEMO_REGISTERS: CashRegister[] = [
     code: 'CAJA-01',
     name: 'Caja Principal Entrada',
     fiscalPrinterSerial: 'Z1B89201928',
-    invoiceMode: 'FISCAL_PRINTER',
+    invoiceMode: 'fiscal_printer',
     isActive: true,
     hasActiveShift: true,
     activeShiftId: 'shift-demo-01',
@@ -110,7 +130,7 @@ const DEMO_REGISTERS: CashRegister[] = [
     code: 'CAJA-02',
     name: 'Caja Rápida Express',
     fiscalPrinterSerial: 'Z1B89201929',
-    invoiceMode: 'NORMAL_PRINTER',
+    invoiceMode: 'normal_printer',
     isActive: true,
     hasActiveShift: false,
   },
@@ -122,7 +142,7 @@ const DEMO_CURRENT_SHIFT: CurrentShift = {
   cashRegisterCode: 'CAJA-01',
   cashRegisterName: 'Caja Principal Entrada',
   fiscalPrinterSerial: 'Z1B89201928',
-  invoiceMode: 'FISCAL_PRINTER',
+  invoiceMode: 'fiscal_printer',
   branchId: 'b1111111-1111-1111-1111-111111111111',
   userId: 'u1111111-1111-1111-1111-111111111111',
   cashierName: 'Administrador Demo',
@@ -209,10 +229,21 @@ export const CashRegisterView: React.FC = () => {
   const [openInitialVES, setOpenInitialVES] = useState<number>(0);
   const [openNotes, setOpenNotes] = useState('');
 
-  // Form State: Cierre de Turno
+  // Form State: Cierre de Turno y Depósito a Bancos
   const [countedCashUSD, setCountedCashUSD] = useState<number>(0);
   const [countedCashVES, setCountedCashVES] = useState<number>(0);
   const [closeNotes, setCloseNotes] = useState('');
+
+  // Cuentas Bancarias de Tesorería para Depósito
+  const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>([]);
+  const [depositBankAccountIdVES, setDepositBankAccountIdVES] = useState<string>('');
+  const [depositAmountVES, setDepositAmountVES] = useState<number>(0);
+  const [depositAmountVESInput, setDepositAmountVESInput] = useState<string>('0');
+  const [depositReferenceVES, setDepositReferenceVES] = useState<string>('');
+  const [depositBankAccountIdUSD, setDepositBankAccountIdUSD] = useState<string>('');
+  const [depositAmountUSD, setDepositAmountUSD] = useState<number>(0);
+  const [depositAmountUSDInput, setDepositAmountUSDInput] = useState<string>('0');
+  const [depositReferenceUSD, setDepositReferenceUSD] = useState<string>('');
 
   // Form State: Movimiento Manual
   const [movementType, setMovementType] = useState<'INFLOW' | 'OUTFLOW'>('OUTFLOW');
@@ -246,8 +277,23 @@ export const CashRegisterView: React.FC = () => {
         if (json.success) {
           setCurrentShift(json.data || null);
           if (json.data) {
-            setCountedCashUSD(json.data.expectedCashUSD || 0);
-            setCountedCashVES(json.data.expectedCashVES || 0);
+            const expUSD = json.data.expectedCashUSD || 0;
+            const expVES = json.data.expectedCashVES || 0;
+            const posVES = json.data.summary?.posBatchVES || ((json.data.summary?.debitVES || 0) + (json.data.summary?.creditVES || 0));
+            const totalVES = json.data.summary?.totalCollectedVES || (expVES + posVES + (json.data.summary?.pagomovilVES || 0));
+            setCountedCashUSD(expUSD);
+            setCountedCashVES(expVES);
+            setDepositAmountUSD(expUSD);
+            setDepositAmountUSDInput(String(expUSD));
+            const initDepositVES = expVES > 0 ? expVES : (posVES > 0 ? posVES : totalVES);
+            setDepositAmountVES(initDepositVES);
+            setDepositAmountVESInput(String(initDepositVES));
+            if (json.data.defaultBankAccountIdVES) {
+              setDepositBankAccountIdVES(json.data.defaultBankAccountIdVES);
+            }
+            if (json.data.defaultBankAccountIdUSD) {
+              setDepositBankAccountIdUSD(json.data.defaultBankAccountIdUSD);
+            }
           }
         }
       }
@@ -257,6 +303,15 @@ export const CashRegisterView: React.FC = () => {
       if (repRes.ok) {
         const json = await repRes.json();
         if (json.success && json.data) setFiscalReports(json.data);
+      }
+
+      // 4. Cuentas Bancarias de Tesorería para Depósitos
+      const accRes = await fetch('/api/treasury/accounts', { headers });
+      if (accRes.ok) {
+        const json = await accRes.json();
+        if (json.success && Array.isArray(json.data)) {
+          setBankAccounts(json.data);
+        }
       }
     } catch {
       // Fallback a DEMO
@@ -327,6 +382,12 @@ export const CashRegisterView: React.FC = () => {
           finalCashUSDCounted: Number(countedCashUSD) || 0,
           finalCashVESCounted: Number(countedCashVES) || 0,
           notes: closeNotes || null,
+          depositBankAccountIdVES: depositBankAccountIdVES || null,
+          depositAmountVES: Number(depositAmountVES) || 0,
+          depositReferenceVES: depositReferenceVES.trim() || null,
+          depositBankAccountIdUSD: depositBankAccountIdUSD || null,
+          depositAmountUSD: Number(depositAmountUSD) || 0,
+          depositReferenceUSD: depositReferenceUSD.trim() || null,
         }),
       });
 
@@ -335,7 +396,7 @@ export const CashRegisterView: React.FC = () => {
         throw new Error(json.error?.message || 'Error al cerrar el turno');
       }
 
-      toast.success('Turno cerrado exitosamente con arqueo registrado');
+      toast.success('Turno cerrado exitosamente con arqueo y depósitos registrados en tesorería');
       setShowCloseShiftModal(false);
       fetchCurrentState();
     } catch (err: any) {
@@ -485,22 +546,22 @@ export const CashRegisterView: React.FC = () => {
     {
       header: 'Base Imp. (16%)',
       accessorKey: 'baseTaxableGeneral',
-      cell: (r) => <span className="font-mono text-xs">${r.baseTaxableGeneral.toFixed(2)}</span>,
+      cell: (r) => <span className="font-mono text-xs">{formatMoneyUSD(r.baseTaxableGeneral)}</span>,
     },
     {
       header: 'IVA (16%)',
       accessorKey: 'taxGeneral',
-      cell: (r) => <span className="font-mono text-xs">${r.taxGeneral.toFixed(2)}</span>,
+      cell: (r) => <span className="font-mono text-xs">{formatMoneyUSD(r.taxGeneral)}</span>,
     },
     {
       header: 'IGTF (3%)',
       accessorKey: 'igtfAmount',
-      cell: (r) => <span className="font-mono text-xs">${r.igtfAmount.toFixed(2)}</span>,
+      cell: (r) => <span className="font-mono text-xs">{formatMoneyUSD(r.igtfAmount)}</span>,
     },
     {
       header: 'Total Ventas',
       accessorKey: 'totalSales',
-      cell: (r) => <span className="font-mono font-bold text-xs text-neutral-900">${r.totalSales.toFixed(2)}</span>,
+      cell: (r) => <span className="font-mono font-bold text-xs text-neutral-900">{formatMoneyUSD(r.totalSales)}</span>,
     },
     {
       header: 'Acción',
@@ -589,8 +650,17 @@ export const CashRegisterView: React.FC = () => {
               <Button
                 size="sm"
                 onClick={() => {
-                  setCountedCashUSD(currentShift.expectedCashUSD);
-                  setCountedCashVES(currentShift.expectedCashVES);
+                  const expUSD = currentShift.expectedCashUSD || 0;
+                  const expVES = currentShift.expectedCashVES || 0;
+                  const posVES = currentShift.summary?.posBatchVES || ((currentShift.summary?.debitVES || 0) + (currentShift.summary?.creditVES || 0));
+                  const totalVES = currentShift.summary?.totalCollectedVES || (expVES + posVES + (currentShift.summary?.pagomovilVES || 0));
+                  setCountedCashUSD(expUSD);
+                  setCountedCashVES(expVES);
+                  setDepositAmountUSD(expUSD);
+                  setDepositAmountUSDInput(String(expUSD));
+                  const initVES = expVES > 0 ? expVES : (posVES > 0 ? posVES : totalVES);
+                  setDepositAmountVES(initVES);
+                  setDepositAmountVESInput(String(initVES));
                   setShowCloseShiftModal(true);
                 }}
               >
@@ -676,11 +746,11 @@ export const CashRegisterView: React.FC = () => {
               <div className="flex items-center gap-4 text-neutral-700">
                 <div>
                   <span className="text-neutral-500">Saldo Inicial USD:</span>{' '}
-                  <span className="font-mono font-bold text-neutral-900">${currentShift.initialCashUSD.toFixed(2)}</span>
+                  <span className="font-mono font-bold text-neutral-900">{formatMoneyUSD(currentShift.initialCashUSD)}</span>
                 </div>
                 <div>
                   <span className="text-neutral-500">Saldo Inicial Bs:</span>{' '}
-                  <span className="font-mono font-bold text-neutral-900">Bs. {currentShift.initialCashVES.toFixed(2)}</span>
+                  <span className="font-mono font-bold text-neutral-900">{formatMoneyVES(currentShift.initialCashVES)}</span>
                 </div>
               </div>
             </div>
@@ -690,17 +760,17 @@ export const CashRegisterView: React.FC = () => {
               <Card className="p-4 space-y-1">
                 <span className="text-xs text-neutral-500">Efectivo en Divisas (Esperado)</span>
                 <div className="text-xl font-bold font-mono text-emerald-600">
-                  ${currentShift.expectedCashUSD.toFixed(2)}
+                  {formatMoneyUSD(currentShift.expectedCashUSD)}
                 </div>
                 <div className="text-[11px] text-neutral-400">
-                  Ventas: ${currentShift.summary.cashSalesUSD.toFixed(2)} • Salidas: -${currentShift.summary.outflowsUSD.toFixed(2)}
+                  Ventas: {formatMoneyUSD(currentShift.summary.cashSalesUSD)} • Salidas: -{formatMoneyUSD(currentShift.summary.outflowsUSD)}
                 </div>
               </Card>
 
               <Card className="p-4 space-y-1">
                 <span className="text-xs text-neutral-500">Efectivo en Bolívares (Esperado)</span>
                 <div className="text-xl font-bold font-mono text-emerald-600">
-                  Bs. {currentShift.expectedCashVES.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                  {formatMoneyVES(currentShift.expectedCashVES)}
                 </div>
                 <div className="text-[11px] text-neutral-400">
                   Ventas en Bs físico en caja
@@ -710,20 +780,20 @@ export const CashRegisterView: React.FC = () => {
               <Card className="p-4 space-y-1">
                 <span className="text-xs text-neutral-500">Pagos Digitales en Bs</span>
                 <div className="text-xl font-bold font-mono text-sky-700">
-                  Bs. {(currentShift.summary.pagomovilVES + currentShift.summary.debitVES).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                  {formatMoneyVES(currentShift.summary.pagomovilVES + currentShift.summary.debitVES)}
                 </div>
                 <div className="text-[11px] text-neutral-400">
-                  Pago Móvil: Bs. {currentShift.summary.pagomovilVES.toFixed(2)} • Débito: Bs. {currentShift.summary.debitVES.toFixed(2)}
+                  Pago Móvil: {formatMoneyVES(currentShift.summary.pagomovilVES)} • Débito: {formatMoneyVES(currentShift.summary.debitVES)}
                 </div>
               </Card>
 
               <Card className="p-4 space-y-1">
                 <span className="text-xs text-neutral-500">Zelle / IGTF Divisas</span>
                 <div className="text-xl font-bold font-mono text-indigo-700">
-                  ${currentShift.summary.zelleUSD.toFixed(2)}
+                  {formatMoneyUSD(currentShift.summary.zelleUSD)}
                 </div>
                 <div className="text-[11px] text-neutral-400">
-                  IGTF 3% recaudado: ${currentShift.summary.totalIGTFUSD.toFixed(2)}
+                  IGTF 3% recaudado: {formatMoneyUSD(currentShift.summary.totalIGTFUSD)}
                 </div>
               </Card>
             </div>
@@ -735,30 +805,55 @@ export const CashRegisterView: React.FC = () => {
                 <h3 className="text-sm font-bold text-neutral-900 border-b border-neutral-100 pb-2">
                   Desglose por Método de Cobro en el Turno
                 </h3>
-                <div className="space-y-3 text-xs">
+                <div className="space-y-2.5 text-xs">
                   <div className="flex items-center justify-between py-1.5 border-b border-neutral-50">
                     <span className="text-neutral-600">Efectivo Divisas ($)</span>
-                    <span className="font-mono font-semibold">${currentShift.summary.cashSalesUSD.toFixed(2)}</span>
+                    <span className="font-mono font-semibold">{formatMoneyUSD(currentShift.summary.cashSalesUSD)}</span>
                   </div>
                   <div className="flex items-center justify-between py-1.5 border-b border-neutral-50">
-                    <span className="text-neutral-600">Efectivo Bolívares (Bs)</span>
-                    <span className="font-mono font-semibold">Bs. {currentShift.summary.cashSalesVES.toFixed(2)}</span>
+                    <span className="text-neutral-600">Efectivo Bolívares (Bs en Gaveta)</span>
+                    <span className="font-mono font-semibold text-emerald-700">{formatMoneyVES(currentShift.summary.cashSalesVES)}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1.5 border-b border-neutral-50">
+                    <span className="text-neutral-600">Punto de Venta - Tarjeta de Débito</span>
+                    <span className="font-mono font-semibold">{formatMoneyVES(currentShift.summary.debitVES)}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1.5 border-b border-neutral-50">
+                    <span className="text-neutral-600">Punto de Venta - Tarjeta de Crédito</span>
+                    <span className="font-mono font-semibold">{formatMoneyVES(currentShift.summary.creditVES || 0)}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1.5 border-b border-neutral-50 bg-sky-50/60 px-2 rounded">
+                    <span className="font-bold text-sky-900">Lote Consolidado Punto de Venta (POS):</span>
+                    <span className="font-mono font-bold text-sky-800">
+                      {formatMoneyVES(currentShift.summary.posBatchVES || ((currentShift.summary.debitVES || 0) + (currentShift.summary.creditVES || 0)))}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between py-1.5 border-b border-neutral-50">
                     <span className="text-neutral-600">Pago Móvil Bancario</span>
-                    <span className="font-mono font-semibold">Bs. {currentShift.summary.pagomovilVES.toFixed(2)}</span>
+                    <span className="font-mono font-semibold">{formatMoneyVES(currentShift.summary.pagomovilVES)}</span>
                   </div>
                   <div className="flex items-center justify-between py-1.5 border-b border-neutral-50">
-                    <span className="text-neutral-600">Tarjeta de Débito (Punto de Venta)</span>
-                    <span className="font-mono font-semibold">Bs. {currentShift.summary.debitVES.toFixed(2)}</span>
+                    <span className="text-neutral-600">Transferencia / Zelle ($)</span>
+                    <span className="font-mono font-semibold">{formatMoneyUSD(currentShift.summary.zelleUSD)}</span>
                   </div>
-                  <div className="flex items-center justify-between py-1.5 border-b border-neutral-50">
-                    <span className="text-neutral-600">Transferencia / Zelle</span>
-                    <span className="font-mono font-semibold">${currentShift.summary.zelleUSD.toFixed(2)}</span>
-                  </div>
+                  {((currentShift.summary.otherVES || 0) > 0 || (currentShift.summary.otherUSD || 0) > 0) && (
+                    <div className="flex items-center justify-between py-1.5 border-b border-neutral-50">
+                      <span className="text-neutral-600">Otros Medios de Pago</span>
+                      <span className="font-mono font-semibold">
+                        {(currentShift.summary.otherVES || 0) > 0 ? formatMoneyVES(currentShift.summary.otherVES) : ''}
+                        {(currentShift.summary.otherUSD || 0) > 0 ? ` ${formatMoneyUSD(currentShift.summary.otherUSD)}` : ''}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between pt-2 border-t border-neutral-200 font-bold text-neutral-900">
+                    <span>Total Recaudado en Bolívares (VES):</span>
+                    <span className="font-mono text-indigo-700 font-extrabold text-sm">
+                      {formatMoneyVES(currentShift.summary.totalCollectedVES || (currentShift.summary.cashSalesVES + (currentShift.summary.posBatchVES || 0) + currentShift.summary.pagomovilVES))}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between pt-1 border-t border-neutral-100 font-medium text-neutral-600">
                     <span>Documentos / Facturas Emitidas:</span>
-                    <span>{currentShift.summary.totalInvoices} operaciones</span>
+                    <span className="font-mono font-semibold">{currentShift.summary.totalInvoices} operaciones</span>
                   </div>
                 </div>
               </Card>
@@ -785,28 +880,28 @@ export const CashRegisterView: React.FC = () => {
                       <ArrowDownRight className="w-4 h-4 text-emerald-600" />
                       <span>Entradas de Efectivo (USD)</span>
                     </div>
-                    <span className="font-mono text-emerald-600">+${currentShift.summary.inflowsUSD.toFixed(2)}</span>
+                    <span className="font-mono text-emerald-600">+{formatMoneyUSD(currentShift.summary.inflowsUSD)}</span>
                   </div>
                   <div className="flex items-center justify-between py-1.5 border-b border-neutral-50">
                     <div className="flex items-center gap-2">
                       <ArrowUpRight className="w-4 h-4 text-amber-600" />
                       <span>Salidas de Efectivo (USD)</span>
                     </div>
-                    <span className="font-mono text-amber-600">-${currentShift.summary.outflowsUSD.toFixed(2)}</span>
+                    <span className="font-mono text-amber-600">-{formatMoneyUSD(currentShift.summary.outflowsUSD)}</span>
                   </div>
                   <div className="flex items-center justify-between py-1.5 border-b border-neutral-50">
                     <div className="flex items-center gap-2">
                       <ArrowDownRight className="w-4 h-4 text-emerald-600" />
                       <span>Entradas de Efectivo (VES)</span>
                     </div>
-                    <span className="font-mono text-emerald-600">+Bs. {currentShift.summary.inflowsVES.toFixed(2)}</span>
+                    <span className="font-mono text-emerald-600">+{formatMoneyVES(currentShift.summary.inflowsVES)}</span>
                   </div>
                   <div className="flex items-center justify-between py-1.5 border-b border-neutral-50">
                     <div className="flex items-center gap-2">
                       <ArrowUpRight className="w-4 h-4 text-amber-600" />
                       <span>Salidas de Efectivo (VES)</span>
                     </div>
-                    <span className="font-mono text-amber-600">-Bs. {currentShift.summary.outflowsVES.toFixed(2)}</span>
+                    <span className="font-mono text-amber-600">-{formatMoneyVES(currentShift.summary.outflowsVES)}</span>
                   </div>
                   <div className="p-3 bg-neutral-50 rounded-lg text-neutral-500 text-[11px] leading-relaxed">
                     Nota: Los movimientos de caja afectan directamente el saldo teórico esperado en gaveta durante el arqueo final.
@@ -945,8 +1040,8 @@ export const CashRegisterView: React.FC = () => {
 
       {/* Modal: Arqueo y Cierre de Turno */}
       {showCloseShiftModal && currentShift && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-lg w-full p-6 shadow-xl space-y-4">
+        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-xl w-full p-6 shadow-xl space-y-4 my-8 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
               <div className="flex items-center gap-2">
                 <Lock className="w-5 h-5 text-neutral-800" />
@@ -954,7 +1049,7 @@ export const CashRegisterView: React.FC = () => {
               </div>
               <button
                 onClick={() => setShowCloseShiftModal(false)}
-                className="text-neutral-400 hover:text-neutral-600"
+                className="text-neutral-400 hover:text-neutral-600 focus-visible:ring-2 focus-visible:ring-sky-500 rounded-lg p-1"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -969,7 +1064,7 @@ export const CashRegisterView: React.FC = () => {
               <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 space-y-2">
                 <div className="flex justify-between items-center font-semibold text-neutral-700">
                   <span>Efectivo Divisas ($)</span>
-                  <span className="font-mono text-neutral-500">Esperado: ${currentShift.expectedCashUSD.toFixed(2)}</span>
+                  <span className="font-mono text-neutral-500">Esperado: {formatMoneyUSD(currentShift.expectedCashUSD)}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-3 items-center">
                   <div>
@@ -979,14 +1074,18 @@ export const CashRegisterView: React.FC = () => {
                       step="0.01"
                       min="0"
                       value={countedCashUSD}
-                      onChange={(e) => setCountedCashUSD(parseFloat(e.target.value) || 0)}
-                      className="w-full h-9 px-3 border border-neutral-300 rounded-lg text-xs font-mono font-bold"
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        setCountedCashUSD(val);
+                        setDepositAmountUSD(val);
+                      }}
+                      className="w-full h-9 px-3 border border-neutral-300 rounded-lg text-xs font-mono font-bold focus-visible:ring-2 focus-visible:ring-sky-500"
                     />
                   </div>
                   <div>
                     <span className="text-[11px] text-neutral-500 block mb-1">Diferencia:</span>
                     <Badge variant={diffUSD === 0 ? 'success' : diffUSD > 0 ? 'info' : 'danger'}>
-                      {diffUSD === 0 ? 'Cuadrado ($0.00)' : diffUSD > 0 ? `Sobrante +$${diffUSD.toFixed(2)}` : `Faltante -$${Math.abs(diffUSD).toFixed(2)}`}
+                      {diffUSD === 0 ? `Cuadrado (${formatMoneyUSD(0)})` : diffUSD > 0 ? `Sobrante +${formatMoneyUSD(diffUSD)}` : `Faltante -${formatMoneyUSD(Math.abs(diffUSD))}`}
                     </Badge>
                   </div>
                 </div>
@@ -996,7 +1095,7 @@ export const CashRegisterView: React.FC = () => {
               <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 space-y-2">
                 <div className="flex justify-between items-center font-semibold text-neutral-700">
                   <span>Efectivo Bolívares (Bs)</span>
-                  <span className="font-mono text-neutral-500">Esperado: Bs. {currentShift.expectedCashVES.toFixed(2)}</span>
+                  <span className="font-mono text-neutral-500">Esperado: {formatMoneyVES(currentShift.expectedCashVES)}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-3 items-center">
                   <div>
@@ -1006,15 +1105,208 @@ export const CashRegisterView: React.FC = () => {
                       step="0.01"
                       min="0"
                       value={countedCashVES}
-                      onChange={(e) => setCountedCashVES(parseFloat(e.target.value) || 0)}
-                      className="w-full h-9 px-3 border border-neutral-300 rounded-lg text-xs font-mono font-bold"
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        setCountedCashVES(val);
+                        setDepositAmountVES(val);
+                      }}
+                      className="w-full h-9 px-3 border border-neutral-300 rounded-lg text-xs font-mono font-bold focus-visible:ring-2 focus-visible:ring-sky-500"
                     />
                   </div>
                   <div>
                     <span className="text-[11px] text-neutral-500 block mb-1">Diferencia:</span>
                     <Badge variant={diffVES === 0 ? 'success' : diffVES > 0 ? 'info' : 'danger'}>
-                      {diffVES === 0 ? 'Cuadrado (Bs 0.00)' : diffVES > 0 ? `Sobrante +Bs ${diffVES.toFixed(2)}` : `Faltante -Bs ${Math.abs(diffVES).toFixed(2)}`}
+                      {diffVES === 0 ? `Cuadrado (${formatMoneyVES(0)})` : diffVES > 0 ? `Sobrante +${formatMoneyVES(diffVES)}` : `Faltante -${formatMoneyVES(Math.abs(diffVES))}`}
                     </Badge>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECCIÓN: Depósito a Bancos / Tesorería */}
+              <div className="p-3.5 bg-sky-50/60 rounded-lg border border-sky-200 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-sky-600" />
+                  <span className="font-bold text-neutral-900 text-xs">
+                    Depósito a Bancos / Tesorería (Cierre de Caja y Punto de Venta)
+                  </span>
+                </div>
+                <p className="text-[11px] text-neutral-600 leading-relaxed">
+                  Establezca el banco y la cuenta de destino para depositar la recaudación. Al confirmar el cierre, los fondos se reflejarán automáticamente en Tesorería y quedarán listos para la conciliación bancaria.
+                </p>
+
+                {/* Depósito en Bolívares (VES) */}
+                <div className="p-2.5 bg-white rounded-lg border border-neutral-200 space-y-2">
+                  {(() => {
+                    const posBatchVES = currentShift.summary?.posBatchVES || ((currentShift.summary?.debitVES || 0) + (currentShift.summary?.creditVES || 0));
+                    const totalVES = currentShift.summary?.totalCollectedVES || (currentShift.expectedCashVES + posBatchVES + (currentShift.summary?.pagomovilVES || 0));
+                    return (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 font-semibold text-neutral-800 text-[11px]">
+                        <span>Depósito en Bolívares (VES)</span>
+                        <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                          <span className="text-neutral-500 font-normal">Sugerir:</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDepositAmountVES(countedCashVES);
+                              setDepositAmountVESInput(String(countedCashVES));
+                            }}
+                            className="px-2 py-0.5 rounded bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-medium cursor-pointer"
+                            title="Depositar efectivo físico en gaveta"
+                          >
+                            Efectivo ({formatMoneyVES(countedCashVES)})
+                          </button>
+                          {posBatchVES > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDepositAmountVES(posBatchVES);
+                                setDepositAmountVESInput(String(posBatchVES));
+                              }}
+                              className="px-2 py-0.5 rounded bg-sky-100 hover:bg-sky-200 text-sky-800 font-semibold cursor-pointer"
+                              title="Depositar lote consolidado de puntos de venta"
+                            >
+                              Lote POS ({formatMoneyVES(posBatchVES)})
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDepositAmountVES(totalVES);
+                              setDepositAmountVESInput(String(totalVES));
+                            }}
+                            className="px-2 py-0.5 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-semibold cursor-pointer"
+                            title="Depositar recaudación total en bolívares"
+                          >
+                            Total Recaudado ({formatMoneyVES(totalVES)})
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="sm:col-span-2">
+                      <label className="text-[10px] text-neutral-500 block mb-0.5">Banco y Cuenta Receptora (VES):</label>
+                      <select
+                        value={depositBankAccountIdVES}
+                        onChange={(e) => setDepositBankAccountIdVES(e.target.value)}
+                        className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs bg-white focus-visible:ring-2 focus-visible:ring-sky-500"
+                      >
+                        <option value="">-- Sin depósito bancario VES --</option>
+                        {bankAccounts
+                          .filter((a) => a.currency === 'VES')
+                          .map((a) => (
+                            <option key={a.id} value={a.id}>
+                              {a.bankName} - {a.accountNumber.slice(-4)} (Saldo: {formatMoneyVES(a.currentBalance)})
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-neutral-500 block mb-0.5">Monto Depósito (Bs):</label>
+                      <input
+                        type="text"
+                        value={depositAmountVESInput}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setDepositAmountVESInput(val);
+                          setDepositAmountVES(parseFormattedNumber(val));
+                        }}
+                        className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs font-mono font-bold focus-visible:ring-2 focus-visible:ring-sky-500"
+                        placeholder="0,00"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-neutral-500 block mb-0.5">Nro. de Referencia / Comprobante de Depósito VES:</label>
+                    <input
+                      type="text"
+                      value={depositReferenceVES}
+                      onChange={(e) => setDepositReferenceVES(e.target.value)}
+                      className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs focus-visible:ring-2 focus-visible:ring-sky-500"
+                      placeholder="Ej: DEP-892019 o Lote Punto 0192"
+                    />
+                  </div>
+                </div>
+
+                {/* Depósito en Divisas (USD) */}
+                <div className="p-2.5 bg-white rounded-lg border border-neutral-200 space-y-2">
+                  {(() => {
+                    const totalUSD = currentShift.summary?.totalCollectedUSD || (currentShift.expectedCashUSD + (currentShift.summary?.zelleUSD || 0));
+                    return (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 font-semibold text-neutral-800 text-[11px]">
+                        <span>Depósito en Divisas (USD)</span>
+                        <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                          <span className="text-neutral-500 font-normal">Sugerir:</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDepositAmountUSD(countedCashUSD);
+                              setDepositAmountUSDInput(String(countedCashUSD));
+                            }}
+                            className="px-2 py-0.5 rounded bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-medium cursor-pointer"
+                            title="Depositar efectivo físico en gaveta"
+                          >
+                            Efectivo ({formatMoneyUSD(countedCashUSD)})
+                          </button>
+                          {totalUSD > countedCashUSD && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDepositAmountUSD(totalUSD);
+                                setDepositAmountUSDInput(String(totalUSD));
+                              }}
+                              className="px-2 py-0.5 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-semibold cursor-pointer"
+                              title="Depositar recaudación total en divisas"
+                            >
+                              Total Recaudado ({formatMoneyUSD(totalUSD)})
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="sm:col-span-2">
+                      <label className="text-[10px] text-neutral-500 block mb-0.5">Cuenta Custodia / Divisas USD:</label>
+                      <select
+                        value={depositBankAccountIdUSD}
+                        onChange={(e) => setDepositBankAccountIdUSD(e.target.value)}
+                        className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs bg-white focus-visible:ring-2 focus-visible:ring-sky-500"
+                      >
+                        <option value="">-- Sin depósito bancario USD --</option>
+                        {bankAccounts
+                          .filter((a) => a.currency === 'USD')
+                          .map((a) => (
+                            <option key={a.id} value={a.id}>
+                              {a.bankName} - {a.accountNumber.slice(-4)} (Saldo: {formatMoneyUSD(a.currentBalance)})
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-neutral-500 block mb-0.5">Monto Depósito ($):</label>
+                      <input
+                        type="text"
+                        value={depositAmountUSDInput}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setDepositAmountUSDInput(val);
+                          setDepositAmountUSD(parseFormattedNumber(val));
+                        }}
+                        className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs font-mono font-bold focus-visible:ring-2 focus-visible:ring-sky-500"
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-neutral-500 block mb-0.5">Nro. de Referencia / Comprobante de Depósito USD:</label>
+                    <input
+                      type="text"
+                      value={depositReferenceUSD}
+                      onChange={(e) => setDepositReferenceUSD(e.target.value)}
+                      className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs focus-visible:ring-2 focus-visible:ring-sky-500"
+                      placeholder="Ej: DEP-USD-00219"
+                    />
                   </div>
                 </div>
               </div>
@@ -1025,7 +1317,7 @@ export const CashRegisterView: React.FC = () => {
                   type="text"
                   value={closeNotes}
                   onChange={(e) => setCloseNotes(e.target.value)}
-                  className="w-full h-9 px-3 border border-neutral-300 rounded-lg text-xs"
+                  className="w-full h-9 px-3 border border-neutral-300 rounded-lg text-xs focus-visible:ring-2 focus-visible:ring-sky-500"
                   placeholder="Justificación de sobrantes/faltantes o novedades en el turno"
                 />
               </div>
@@ -1044,7 +1336,7 @@ export const CashRegisterView: React.FC = () => {
                 disabled={submitting}
                 onClick={handleCloseShift}
               >
-                Confirmar Cierre de Turno
+                Confirmar Cierre y Depósito
               </Button>
             </div>
           </div>

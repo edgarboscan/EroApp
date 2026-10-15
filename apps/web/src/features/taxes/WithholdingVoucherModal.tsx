@@ -1,6 +1,7 @@
 import React from 'react';
 import { Button } from '../../components/ui/Button';
 import { Printer, X, FileText } from 'lucide-react';
+import { formatMoneyUSD } from '@ero/shared';
 
 export interface WithholdingVoucherData {
   id: string;
@@ -163,17 +164,17 @@ export const WithholdingVoucherModal: React.FC<Props> = ({ voucher, onClose }) =
                   <td className="border border-neutral-300 p-2 text-center">
                     {new Date(voucher.invoiceDate).toLocaleDateString('es-VE')}
                   </td>
-                  <td className="border border-neutral-300 p-2 text-right">
-                    ${voucher.totalInvoiceAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  <td className="border border-neutral-300 p-2 text-right font-mono">
+                    {formatMoneyUSD(voucher.totalInvoiceAmount)}
                   </td>
-                  <td className="border border-neutral-300 p-2 text-right">
-                    ${voucher.taxableBaseAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  <td className="border border-neutral-300 p-2 text-right font-mono">
+                    {formatMoneyUSD(voucher.taxableBaseAmount)}
                   </td>
                   {isIVA ? (
                     <>
                       <td className="border border-neutral-300 p-2 text-right">{voucher.taxRate || 16}%</td>
-                      <td className="border border-neutral-300 p-2 text-right">
-                        ${(voucher.taxAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      <td className="border border-neutral-300 p-2 text-right font-mono">
+                        {formatMoneyUSD(voucher.taxAmount || 0)}
                       </td>
                       <td className="border border-neutral-300 p-2 text-right">{voucher.retainedPercentage || 75}%</td>
                     </>
@@ -186,7 +187,7 @@ export const WithholdingVoucherModal: React.FC<Props> = ({ voucher, onClose }) =
                     </>
                   )}
                   <td className="border border-neutral-300 p-2 text-right bg-neutral-100 font-bold font-mono text-neutral-900">
-                    ${voucher.retainedAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    {formatMoneyUSD(voucher.retainedAmount)}
                   </td>
                 </tr>
               </tbody>

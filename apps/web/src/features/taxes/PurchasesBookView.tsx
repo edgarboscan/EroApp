@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/authStore';
+import { formatMoneyUSD } from '@ero/shared';
 
 interface PurchasesBookItem {
   rowNum: number;
@@ -219,7 +220,7 @@ export const PurchasesBookView: React.FC = () => {
             Total Compras
           </p>
           <p className="text-xl font-bold text-neutral-900 mt-1 font-mono">
-            ${totals.totalPurchases.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatMoneyUSD(totals.totalPurchases)}
           </p>
           <p className="text-[10px] text-neutral-500 mt-0.5">Incluye base + IVA</p>
         </Card>
@@ -229,7 +230,7 @@ export const PurchasesBookView: React.FC = () => {
             Compras Exentas
           </p>
           <p className="text-xl font-bold text-neutral-700 mt-1 font-mono">
-            ${totals.totalExempt.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatMoneyUSD(totals.totalExempt)}
           </p>
           <p className="text-[10px] text-neutral-500 mt-0.5">Alícuota 0%</p>
         </Card>
@@ -239,7 +240,7 @@ export const PurchasesBookView: React.FC = () => {
             Base Imponible (16%)
           </p>
           <p className="text-xl font-bold text-sky-700 mt-1 font-mono">
-            ${totals.totalTaxable.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatMoneyUSD(totals.totalTaxable)}
           </p>
           <p className="text-[10px] text-neutral-500 mt-0.5">Sujeto a crédito fiscal</p>
         </Card>
@@ -249,7 +250,7 @@ export const PurchasesBookView: React.FC = () => {
             IVA Crédito Fiscal
           </p>
           <p className="text-xl font-bold text-neutral-900 mt-1 font-mono">
-            ${totals.totalTax.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatMoneyUSD(totals.totalTax)}
           </p>
           <p className="text-[10px] text-neutral-500 mt-0.5">Deducible en declaración</p>
         </Card>
@@ -259,7 +260,7 @@ export const PurchasesBookView: React.FC = () => {
             IVA Retenido Proveedor
           </p>
           <p className="text-xl font-bold text-sky-900 mt-1 font-mono">
-            ${totals.totalIvaRetained.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatMoneyUSD(totals.totalIvaRetained)}
           </p>
           <p className="text-[10px] text-sky-700 mt-0.5">Retenido al 75% o 100%</p>
         </Card>
@@ -368,22 +369,22 @@ export const PurchasesBookView: React.FC = () => {
                       {item.controlNumber}
                     </td>
                     <td className="py-3 px-3 text-right font-mono font-semibold text-neutral-900">
-                      ${item.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      {formatMoneyUSD(item.totalAmount)}
                     </td>
                     <td className="py-3 px-3 text-right font-mono text-neutral-600">
-                      ${item.baseExemptAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      {formatMoneyUSD(item.baseExemptAmount)}
                     </td>
                     <td className="py-3 px-3 text-right font-mono text-sky-800 font-medium">
-                      ${item.baseTaxableAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      {formatMoneyUSD(item.baseTaxableAmount)}
                     </td>
                     <td className="py-3 px-3 text-right font-mono text-neutral-500">
                       {item.taxRate}%
                     </td>
                     <td className="py-3 px-3 text-right font-mono text-neutral-900">
-                      ${item.taxAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      {formatMoneyUSD(item.taxAmount)}
                     </td>
                     <td className="py-3 px-3 text-right font-mono font-medium text-sky-700">
-                      ${item.ivaRetainedAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      {formatMoneyUSD(item.ivaRetainedAmount)}
                     </td>
                     <td className="py-3 px-3 text-center font-mono text-neutral-600">
                       {item.withholdingVoucherNumber ? (
@@ -404,20 +405,20 @@ export const PurchasesBookView: React.FC = () => {
                     Totales del Período ({period}):
                   </td>
                   <td className="py-3 px-3 text-right font-mono">
-                    ${totals.totalPurchases.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    {formatMoneyUSD(totals.totalPurchases)}
                   </td>
                   <td className="py-3 px-3 text-right font-mono">
-                    ${totals.totalExempt.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    {formatMoneyUSD(totals.totalExempt)}
                   </td>
                   <td className="py-3 px-3 text-right font-mono text-sky-800">
-                    ${totals.totalTaxable.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    {formatMoneyUSD(totals.totalTaxable)}
                   </td>
                   <td></td>
                   <td className="py-3 px-3 text-right font-mono">
-                    ${totals.totalTax.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    {formatMoneyUSD(totals.totalTax)}
                   </td>
                   <td className="py-3 px-3 text-right font-mono text-sky-700">
-                    ${totals.totalIvaRetained.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    {formatMoneyUSD(totals.totalIvaRetained)}
                   </td>
                   <td></td>
                 </tr>

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/authStore';
+import { formatMoneyUSD } from '../../utils/formatters';
 
 interface TransferRecord {
   id: string;
@@ -299,7 +300,7 @@ export const InventoryTransfersView: React.FC = () => {
       cell: (t) => (
         <div className="flex flex-col text-xs font-mono">
           <span className="font-bold text-neutral-800">{t.total_items} prod(s)</span>
-          <span className="text-[11px] text-neutral-500">${Number(t.total_cost).toFixed(2)}</span>
+          <span className="text-[11px] text-neutral-500">{formatMoneyUSD(Number(t.total_cost))}</span>
         </div>
       ),
     },
@@ -392,11 +393,11 @@ export const InventoryTransfersView: React.FC = () => {
         <Card className="p-4 space-y-1">
           <span className="text-xs text-neutral-500">Valor en Tránsito ($)</span>
           <div className="text-2xl font-bold font-mono text-sky-700">
-            $
-            {transfers
-              .filter((t) => t.status === 'IN_TRANSIT')
-              .reduce((sum, t) => sum + Number(t.total_cost), 0)
-              .toFixed(2)}
+            {formatMoneyUSD(
+              transfers
+                .filter((t) => t.status === 'IN_TRANSIT')
+                .reduce((sum, t) => sum + Number(t.total_cost), 0)
+            )}
           </div>
           <div className="text-[11px] text-neutral-400">Capital circulando entre almacenes</div>
         </Card>

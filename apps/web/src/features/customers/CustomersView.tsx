@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { toast } from 'sonner';
+import { formatMoneyUSD } from '../../utils/formatters';
 import {
   Users,
   Search,
@@ -270,7 +271,7 @@ export const CustomersView: React.FC = () => {
                   <td className="py-3 px-4">
                     {c.creditEnabled ? (
                       <div>
-                        <div className="font-semibold text-neutral-800">${c.creditLimit.toFixed(2)}</div>
+                        <div className="font-semibold text-neutral-800">{formatMoneyUSD(c.creditLimit)}</div>
                         <div className="text-[10px] text-neutral-500">{c.paymentTermsDays} días plazo</div>
                       </div>
                     ) : (
@@ -283,7 +284,7 @@ export const CustomersView: React.FC = () => {
                         c.currentBalance > 0 ? 'text-amber-700' : 'text-emerald-700'
                       }`}
                     >
-                      ${c.currentBalance.toFixed(2)}
+                      {formatMoneyUSD(c.currentBalance)}
                     </span>
                     {c.pendingInvoicesCount > 0 && (
                       <div className="text-[10px] text-neutral-400">

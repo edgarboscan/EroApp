@@ -18,6 +18,7 @@ import {
   Phone,
   Mail,
 } from 'lucide-react';
+import { formatMoneyUSD, formatMoneyVES } from '../../utils/formatters';
 
 export const SupplierStatementView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -180,7 +181,7 @@ export const SupplierStatementView: React.FC = () => {
                 Deuda Total Pendiente
               </p>
               <p className="text-2xl font-bold text-red-600 mt-1">
-                ${supplier?.currentBalance?.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                {formatMoneyUSD(supplier?.currentBalance || 0)}
               </p>
             </div>
             <div className="p-2 bg-red-50 rounded-lg text-red-600">
@@ -196,7 +197,7 @@ export const SupplierStatementView: React.FC = () => {
                 Límite de Crédito Otorgado
               </p>
               <p className="text-2xl font-bold text-neutral-900 mt-1">
-                ${supplier?.creditLimit?.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                {formatMoneyUSD(supplier?.creditLimit || 0)}
               </p>
             </div>
             <div className="p-2 bg-neutral-100 rounded-lg text-neutral-600">
@@ -290,15 +291,15 @@ export const SupplierStatementView: React.FC = () => {
                       )}
                     </td>
                     <td className="py-3 px-4 text-right font-medium text-neutral-900 font-mono">
-                      ${inv.totalAmount.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                      {formatMoneyUSD(inv.totalAmount)}
                     </td>
                     <td className="py-3 px-4 text-right text-emerald-600 font-mono text-xs">
-                      ${inv.amountPaid.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                      {formatMoneyUSD(inv.amountPaid)}
                     </td>
                     <td className="py-3 px-4 text-right font-bold font-mono">
                       {inv.amountBalance > 0 ? (
                         <span className="text-red-600">
-                          ${inv.amountBalance.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                          {formatMoneyUSD(inv.amountBalance)}
                         </span>
                       ) : (
                         <span className="text-emerald-600 text-xs">Saldado</span>
@@ -393,10 +394,10 @@ export const SupplierStatementView: React.FC = () => {
                       {p.referenceNumber || '-'}
                     </td>
                     <td className="py-3 px-4 text-right font-semibold text-neutral-900 font-mono">
-                      ${p.amountUsd.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                      {formatMoneyUSD(p.amountUsd)}
                     </td>
                     <td className="py-3 px-4 text-right text-xs text-neutral-600 font-mono">
-                      Bs. {p.amountVes.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                      {formatMoneyVES(p.amountVes)}
                     </td>
                     <td className="py-3 px-4 text-xs text-neutral-500">{p.notes || '-'}</td>
                   </tr>

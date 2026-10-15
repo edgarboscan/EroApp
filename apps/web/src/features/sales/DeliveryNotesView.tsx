@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/authStore';
+import { formatMoneyUSD, formatMoneyVES } from '@ero/shared';
 
 interface DeliveryNoteRecord {
   id: string;
@@ -304,12 +305,12 @@ export const DeliveryNotesView: React.FC = () => {
       header: 'Monto Total',
       accessorKey: 'totalAmount',
       cell: (item) => (
-        <div className="text-right">
+        <div className="text-right font-mono">
           <p className="text-xs font-semibold text-neutral-900">
-            ${item.totalAmount.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+            {formatMoneyUSD(item.totalAmount)}
           </p>
           <p className="text-[10px] text-neutral-500">
-            Bs. {(item.totalAmount * item.exchangeRate).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+            {formatMoneyVES(item.totalAmount * item.exchangeRate)}
           </p>
         </div>
       ),
@@ -397,8 +398,8 @@ export const DeliveryNotesView: React.FC = () => {
               <DollarSign className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-sky-700 mt-2">
-            ${deliveries.reduce((acc, d) => acc + d.totalAmount, 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+          <p className="text-2xl font-bold text-sky-700 mt-2 font-mono">
+            {formatMoneyUSD(deliveries.reduce((acc, d) => acc + d.totalAmount, 0))}
           </p>
           <p className="text-[10px] text-neutral-400 mt-0.5">Mercancía salida del inventario</p>
         </Card>
@@ -556,8 +557,8 @@ export const DeliveryNotesView: React.FC = () => {
                               className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-2.5 py-1.5 text-neutral-800"
                             />
                           </td>
-                          <td className="py-2 px-3 text-right font-medium text-neutral-900">
-                            ${item.total.toFixed(2)}
+                          <td className="py-2 px-3 text-right font-medium text-neutral-900 font-mono">
+                            {formatMoneyUSD(item.total)}
                           </td>
                           <td className="py-2 px-3 text-center">
                             <button
@@ -585,8 +586,8 @@ export const DeliveryNotesView: React.FC = () => {
 
               {/* Botones */}
               <div className="flex items-center justify-between pt-3 border-t border-neutral-200">
-                <span className="text-sm font-bold text-neutral-900">
-                  Total Despacho: ${totalDeliveryAmount.toFixed(2)}
+                <span className="text-sm font-bold text-neutral-900 font-mono">
+                  Total Despacho: {formatMoneyUSD(totalDeliveryAmount)}
                 </span>
                 <div className="flex items-center gap-3">
                   <Button
@@ -634,7 +635,7 @@ export const DeliveryNotesView: React.FC = () => {
                 <p className="font-semibold text-neutral-900">{invoicingDelivery.customerName}</p>
                 <p className="text-neutral-500">{invoicingDelivery.customerDoc}</p>
                 <p className="text-neutral-700 mt-1">
-                  Monto a Facturar: <strong>${invoicingDelivery.totalAmount.toFixed(2)} USD</strong> (Bs. {(invoicingDelivery.totalAmount * invoicingDelivery.exchangeRate).toFixed(2)})
+                  Monto a Facturar: <strong>{formatMoneyUSD(invoicingDelivery.totalAmount)}</strong> ({formatMoneyVES(invoicingDelivery.totalAmount * invoicingDelivery.exchangeRate)})
                 </p>
               </div>
 

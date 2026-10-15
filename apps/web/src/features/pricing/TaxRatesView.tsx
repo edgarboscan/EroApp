@@ -5,6 +5,7 @@ import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { Edit } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatPercent } from '../../utils/formatters';
 
 interface TaxRate {
   id: string;
@@ -57,7 +58,7 @@ export const TaxRatesView: React.FC = () => {
                 <span className="text-xs font-mono text-neutral-400">{t.code}</span>
               </div>
               <h3 className="text-sm font-bold text-neutral-900">{t.name}</h3>
-              <div className="text-3xl font-black text-sky-700 mt-3">{t.rate.toFixed(2)}%</div>
+              <div className="text-3xl font-black text-sky-700 mt-3">{formatPercent(t.rate)}</div>
             </div>
 
             <div className="pt-4 mt-4 border-t border-neutral-100 flex justify-end">

@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/authStore';
+import { formatMoneyUSD, formatNumber } from '../../utils/formatters';
 
 interface KardexMovement {
   id: string;
@@ -363,7 +364,7 @@ export const KardexView: React.FC = () => {
         const isEntry = ['IN', 'ADJUST_IN', 'TRANSFER_IN', 'PURCHASE'].includes(m.movementType);
         return (
           <span className={`font-mono font-bold text-xs ${isEntry ? 'text-emerald-600' : 'text-neutral-800'}`}>
-            {isEntry ? `+${m.quantity}` : `-${m.quantity}`} {m.unitOfMeasure}
+            {isEntry ? `+${formatNumber(m.quantity)}` : `-${formatNumber(m.quantity)}`} {m.unitOfMeasure}
           </span>
         );
       },
@@ -371,20 +372,20 @@ export const KardexView: React.FC = () => {
     {
       header: 'Costo Unit.',
       accessorKey: 'unitCost',
-      cell: (m) => <span className="font-mono text-xs">${m.unitCost.toFixed(2)}</span>,
+      cell: (m) => <span className="font-mono text-xs">{formatMoneyUSD(m.unitCost)}</span>,
     },
     {
       header: 'Costo Total',
       accessorKey: 'totalCost',
-      cell: (m) => <span className="font-mono font-bold text-xs">${m.totalCost.toFixed(2)}</span>,
+      cell: (m) => <span className="font-mono font-bold text-xs">{formatMoneyUSD(m.totalCost)}</span>,
     },
     {
       header: 'Saldo Stock',
       cell: (m) => (
         <div className="flex items-center gap-1.5 font-mono text-xs">
-          <span className="text-neutral-400">{m.previousStock}</span>
+          <span className="text-neutral-400">{formatNumber(m.previousStock)}</span>
           <span className="text-neutral-300">→</span>
-          <span className="font-bold text-neutral-900">{m.newStock}</span>
+          <span className="font-bold text-neutral-900">{formatNumber(m.newStock)}</span>
         </div>
       ),
     },
@@ -492,19 +493,19 @@ export const KardexView: React.FC = () => {
 
         <Card className="p-4 space-y-1">
           <span className="text-xs text-neutral-500">Unidades Ingresadas</span>
-          <div className="text-2xl font-bold font-mono text-emerald-600">+{totalInQty}</div>
+          <div className="text-2xl font-bold font-mono text-emerald-600">+{formatNumber(totalInQty)}</div>
           <div className="text-[11px] text-neutral-400">Compras, traslados y ajustes +</div>
         </Card>
 
         <Card className="p-4 space-y-1">
           <span className="text-xs text-neutral-500">Unidades Salientes</span>
-          <div className="text-2xl font-bold font-mono text-amber-600">-{totalOutQty}</div>
+          <div className="text-2xl font-bold font-mono text-amber-600">-{formatNumber(totalOutQty)}</div>
           <div className="text-[11px] text-neutral-400">Ventas, traslados y mermas -</div>
         </Card>
 
         <Card className="p-4 space-y-1">
           <span className="text-xs text-neutral-500">Costo Acumulado Registrado</span>
-          <div className="text-2xl font-bold font-mono text-sky-700">${totalCostValue.toFixed(2)}</div>
+          <div className="text-2xl font-bold font-mono text-sky-700">{formatMoneyUSD(totalCostValue)}</div>
           <div className="text-[11px] text-neutral-400">Valoración total transacciones</div>
         </Card>
       </div>
