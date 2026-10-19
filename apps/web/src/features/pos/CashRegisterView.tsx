@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -25,6 +25,7 @@ import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/authStore';
 import { FiscalReportModal, FiscalReportData } from './FiscalReportModal';
 import { formatNumber, formatCurrency, formatMoneyUSD, formatMoneyVES, parseFormattedNumber } from '@ero/shared';
+import { PdfViewerModal } from '../../components/ui/PdfViewerModal';
 
 interface CashRegister {
   id: string;
@@ -33,6 +34,8 @@ interface CashRegister {
   name: string;
   fiscalPrinterSerial?: string | null;
   invoiceMode: string;
+  warehouseId?: string | null;
+  warehouseName?: string | null;
   defaultBankAccountIdVES?: string | null;
   defaultBankAccountIdUSD?: string | null;
   isActive: boolean;
@@ -66,7 +69,7 @@ interface CurrentShift {
   cashRegisterId: string;
   cashRegisterCode: string;
   cashRegisterName: string;
-  fiscalPrinterSerial: string;
+  fiscalPrinterSerial?: string | null;
   invoiceMode: string;
   defaultBankAccountIdVES?: string | null;
   defaultBankAccountIdUSD?: string | null;
@@ -111,110 +114,34 @@ interface FiscalReportItem {
   rawContent?: string;
 }
 
-const DEMO_REGISTERS: CashRegister[] = [
-  {
-    id: 'cr111111-1111-1111-1111-111111111111',
-    branchId: 'b1111111-1111-1111-1111-111111111111',
-    code: 'CAJA-01',
-    name: 'Caja Principal Entrada',
-    fiscalPrinterSerial: 'Z1B89201928',
-    invoiceMode: 'fiscal_printer',
-    isActive: true,
-    hasActiveShift: true,
-    activeShiftId: 'shift-demo-01',
-    activeCashierName: 'Administrador Demo',
-  },
-  {
-    id: 'cr222222-2222-2222-2222-222222222222',
-    branchId: 'b1111111-1111-1111-1111-111111111111',
-    code: 'CAJA-02',
-    name: 'Caja Rápida Express',
-    fiscalPrinterSerial: 'Z1B89201929',
-    invoiceMode: 'normal_printer',
-    isActive: true,
-    hasActiveShift: false,
-  },
-];
-
-const DEMO_CURRENT_SHIFT: CurrentShift = {
-  id: 'shift-demo-01',
-  cashRegisterId: 'cr111111-1111-1111-1111-111111111111',
-  cashRegisterCode: 'CAJA-01',
-  cashRegisterName: 'Caja Principal Entrada',
-  fiscalPrinterSerial: 'Z1B89201928',
-  invoiceMode: 'fiscal_printer',
-  branchId: 'b1111111-1111-1111-1111-111111111111',
-  userId: 'u1111111-1111-1111-1111-111111111111',
-  cashierName: 'Administrador Demo',
-  openedAt: new Date(Date.now() - 4 * 3600 * 1000).toISOString(),
-  initialCashUSD: 50.0,
-  initialCashVES: 1500.0,
-  expectedCashUSD: 284.5,
-  expectedCashVES: 6850.0,
-  summary: {
-    totalInvoices: 18,
-    cashSalesUSD: 244.5,
-    cashSalesVES: 5350.0,
-    pagomovilVES: 12400.0,
-    debitVES: 8900.0,
-    zelleUSD: 410.0,
-    totalIGTFUSD: 19.64,
-    inflowsUSD: 0,
-    outflowsUSD: 10.0,
-    inflowsVES: 0,
-    outflowsVES: 0,
-  },
-  status: 'OPEN',
-  notes: 'Turno regular matutino',
-};
-
-const DEMO_REPORTS: FiscalReportItem[] = [
-  {
-    id: 'fr-001',
-    reportType: 'Z',
-    zNumber: 142,
-    cashRegisterCode: 'CAJA-01',
-    cashRegisterName: 'Caja Principal Entrada',
-    cashierName: 'Administrador Demo',
-    reportDate: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
-    invoicesCount: 42,
-    firstInvoiceNumber: 'FACT-00010410',
-    lastInvoiceNumber: 'FACT-00010451',
-    baseExempt: 420.5,
-    baseTaxableGeneral: 1850.0,
-    taxGeneral: 296.0,
-    igtfAmount: 28.5,
-    totalSales: 2595.0,
-    rawContent: 'REPORTE FISCAL Z (CIERRE DIARIO)',
-  },
-  {
-    id: 'fr-002',
-    reportType: 'X',
-    zNumber: null,
-    cashRegisterCode: 'CAJA-01',
-    cashRegisterName: 'Caja Principal Entrada',
-    cashierName: 'Administrador Demo',
-    reportDate: new Date(Date.now() - 28 * 3600 * 1000).toISOString(),
-    invoicesCount: 22,
-    firstInvoiceNumber: 'FACT-00010410',
-    lastInvoiceNumber: 'FACT-00010431',
-    baseExempt: 180.0,
-    baseTaxableGeneral: 920.0,
-    taxGeneral: 147.2,
-    igtfAmount: 14.1,
-    totalSales: 1261.3,
-    rawContent: 'REPORTE FISCAL X (CORTE PARCIAL)',
-  },
-];
-
 export const CashRegisterView: React.FC = () => {
   const { activeBranchId, token } = useAuthStore();
   const [activeTab, setActiveTab] = useState<'SHIFT' | 'HISTORY'>('SHIFT');
   const [loading, setLoading] = useState(false);
 
-  const [registers, setRegisters] = useState<CashRegister[]>(DEMO_REGISTERS);
-  const [currentShift, setCurrentShift] = useState<CurrentShift | null>(DEMO_CURRENT_SHIFT);
-  const [fiscalReports, setFiscalReports] = useState<FiscalReportItem[]>(DEMO_REPORTS);
+  const [registers, setRegisters] = useState<CashRegister[]>([]);
+  const [currentShift, setCurrentShift] = useState<CurrentShift | null>(null);
+  const [fiscalReports, setFiscalReports] = useState<FiscalReportItem[]>([]);
+
+  // Determinar si la caja activa (o la sucursal) opera en modalidad fiscal
+  const isFiscal = useMemo(() => {
+    if (currentShift) {
+      return (
+        currentShift.invoiceMode === 'fiscal_printer' ||
+        Boolean(currentShift.fiscalPrinterSerial && currentShift.fiscalPrinterSerial.trim())
+      );
+    }
+    return registers.some(
+      (r) => r.invoiceMode === 'fiscal_printer' || Boolean(r.fiscalPrinterSerial && r.fiscalPrinterSerial.trim())
+    );
+  }, [currentShift, registers]);
+
+  // Si la caja no es fiscal y estaba en la pestaña de historial fiscal, regresar a turno
+  useEffect(() => {
+    if (!isFiscal && activeTab === 'HISTORY') {
+      setActiveTab('SHIFT');
+    }
+  }, [isFiscal, activeTab]);
 
   // Modales
   const [showOpenShiftModal, setShowOpenShiftModal] = useState(false);
@@ -222,6 +149,16 @@ export const CashRegisterView: React.FC = () => {
   const [showMovementModal, setShowMovementModal] = useState(false);
   const [showFiscalModal, setShowFiscalModal] = useState(false);
   const [activeFiscalReport, setActiveFiscalReport] = useState<FiscalReportData | null>(null);
+  const [pdfModal, setPdfModal] = useState<{
+    isOpen: boolean;
+    endpoint: string | null;
+    title: string;
+    filename?: string;
+  }>({
+    isOpen: false,
+    endpoint: null,
+    title: '',
+  });
 
   // Form State: Apertura de Turno
   const [openRegisterId, setOpenRegisterId] = useState('');
@@ -257,6 +194,19 @@ export const CashRegisterView: React.FC = () => {
     fetchCurrentState();
   }, [activeBranchId]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (showFiscalModal) setShowFiscalModal(false);
+        else if (showMovementModal) setShowMovementModal(false);
+        else if (showCloseShiftModal) setShowCloseShiftModal(false);
+        else if (showOpenShiftModal) setShowOpenShiftModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showFiscalModal, showMovementModal, showCloseShiftModal, showOpenShiftModal]);
+
   const fetchCurrentState = async () => {
     setLoading(true);
     try {
@@ -264,18 +214,24 @@ export const CashRegisterView: React.FC = () => {
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
 
       // 1. Cajas
+      let currentRegs: CashRegister[] = [];
       const regRes = await fetch(`/api/pos/registers${branchParam}`, { headers });
       if (regRes.ok) {
         const json = await regRes.json();
-        if (json.success && json.data) setRegisters(json.data);
+        if (json.success && json.data) {
+          currentRegs = json.data;
+          setRegisters(currentRegs);
+        }
       }
 
       // 2. Turno Actual
+      let currShift: CurrentShift | null = null;
       const shiftRes = await fetch(`/api/pos/shifts/current${branchParam}`, { headers });
       if (shiftRes.ok) {
         const json = await shiftRes.json();
         if (json.success) {
-          setCurrentShift(json.data || null);
+          currShift = json.data || null;
+          setCurrentShift(currShift);
           if (json.data) {
             const expUSD = json.data.expectedCashUSD || 0;
             const expVES = json.data.expectedCashVES || 0;
@@ -298,11 +254,19 @@ export const CashRegisterView: React.FC = () => {
         }
       }
 
-      // 3. Historial de Reportes Fiscales
-      const repRes = await fetch(`/api/pos/fiscal-reports${branchParam}`, { headers });
-      if (repRes.ok) {
-        const json = await repRes.json();
-        if (json.success && json.data) setFiscalReports(json.data);
+      // 3. Historial de Reportes Fiscales (solo si la caja/turno es fiscal)
+      const isShiftFiscal = currShift
+        ? (currShift.invoiceMode === 'fiscal_printer' || Boolean(currShift.fiscalPrinterSerial && currShift.fiscalPrinterSerial.trim()))
+        : currentRegs.some((r) => r.invoiceMode === 'fiscal_printer' || Boolean(r.fiscalPrinterSerial && r.fiscalPrinterSerial.trim()));
+
+      if (isShiftFiscal) {
+        const repRes = await fetch(`/api/pos/fiscal-reports${branchParam}`, { headers });
+        if (repRes.ok) {
+          const json = await repRes.json();
+          if (json.success && json.data) setFiscalReports(json.data);
+        }
+      } else {
+        setFiscalReports([]);
       }
 
       // 4. Cuentas Bancarias de Tesorería para Depósitos
@@ -314,10 +278,9 @@ export const CashRegisterView: React.FC = () => {
         }
       }
     } catch {
-      // Fallback a DEMO
-      setRegisters(DEMO_REGISTERS);
-      setCurrentShift(DEMO_CURRENT_SHIFT);
-      setFiscalReports(DEMO_REPORTS);
+      setRegisters([]);
+      setCurrentShift(null);
+      setFiscalReports([]);
     } finally {
       setLoading(false);
     }
@@ -396,9 +359,18 @@ export const CashRegisterView: React.FC = () => {
         throw new Error(json.error?.message || 'Error al cerrar el turno');
       }
 
+      const closedShiftId = currentShift.id;
       toast.success('Turno cerrado exitosamente con arqueo y depósitos registrados en tesorería');
       setShowCloseShiftModal(false);
       fetchCurrentState();
+
+      // Abrir inmediatamente el comprobante PDF de Cierre y Arqueo de Caja resultante
+      setPdfModal({
+        isOpen: true,
+        endpoint: `/api/pos/shifts/${closedShiftId}/pdf`,
+        title: 'Acta Oficial de Cierre y Arqueo de Caja',
+        filename: `cierre_caja_${closedShiftId}.pdf`,
+      });
     } catch (err: any) {
       toast.error(err.message || 'Error al cerrar turno');
     } finally {
@@ -456,6 +428,10 @@ export const CashRegisterView: React.FC = () => {
   const handleGenerateFiscalReport = async (reportType: 'X' | 'Z') => {
     if (!currentShift) {
       toast.error('No hay un turno activo para emitir el reporte fiscal');
+      return;
+    }
+    if (!isFiscal) {
+      toast.error('Esta caja registradora no está configurada como fiscal');
       return;
     }
 
@@ -566,32 +542,51 @@ export const CashRegisterView: React.FC = () => {
     {
       header: 'Acción',
       cell: (r) => (
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => {
-            setActiveFiscalReport({
-              reportType: r.reportType,
-              zNumber: r.zNumber,
-              cashRegisterCode: r.cashRegisterCode,
-              fiscalPrinterSerial: 'Z1B89201928',
-              reportDate: r.reportDate,
-              invoicesCount: r.invoicesCount,
-              firstInvoiceNumber: r.firstInvoiceNumber,
-              lastInvoiceNumber: r.lastInvoiceNumber,
-              baseExempt: r.baseExempt,
-              baseTaxableGeneral: r.baseTaxableGeneral,
-              taxGeneral: r.taxGeneral,
-              igtfAmount: r.igtfAmount,
-              totalSales: r.totalSales,
-              formattedText: r.rawContent,
-            });
-            setShowFiscalModal(true);
-          }}
-        >
-          <Printer className="w-3.5 h-3.5 mr-1" />
-          Ver Ticket
-        </Button>
+        <div className="flex items-center gap-1.5">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              setPdfModal({
+                isOpen: true,
+                endpoint: `/api/pos/shifts/${r.id}/pdf`,
+                title: `Acta Fiscal de Caja (${r.reportType})`,
+                filename: `acta_fiscal_${r.reportType}_${r.id}.pdf`,
+              })
+            }
+            title="Descargar o Ver Acta en PDF"
+            className="h-8 px-2 text-xs text-sky-700 hover:text-sky-800"
+          >
+            <FileText className="w-3.5 h-3.5 mr-1 text-sky-600" />
+            PDF
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setActiveFiscalReport({
+                reportType: r.reportType,
+                zNumber: r.zNumber,
+                cashRegisterCode: r.cashRegisterCode,
+                fiscalPrinterSerial: 'Z1B89201928',
+                reportDate: r.reportDate,
+                invoicesCount: r.invoicesCount,
+                firstInvoiceNumber: r.firstInvoiceNumber,
+                lastInvoiceNumber: r.lastInvoiceNumber,
+                baseExempt: r.baseExempt,
+                baseTaxableGeneral: r.baseTaxableGeneral,
+                taxGeneral: r.taxGeneral,
+                igtfAmount: r.igtfAmount,
+                totalSales: r.totalSales,
+                formattedText: r.rawContent,
+              });
+              setShowFiscalModal(true);
+            }}
+          >
+            <Printer className="w-3.5 h-3.5 mr-1" />
+            Ver Ticket
+          </Button>
+        </div>
       ),
     },
   ];
@@ -603,16 +598,21 @@ export const CashRegisterView: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-neutral-900 tracking-tight">
-              Cierre de Caja & Arqueo Fiscal (SENIAT)
+              {isFiscal ? 'Cierre de Caja & Arqueo Fiscal (SENIAT)' : 'Cierre de Caja & Arqueo'}
             </h1>
             {currentShift ? (
               <Badge variant="success">TURNO ABIERTO</Badge>
             ) : (
               <Badge variant="neutral">CAJA CERRADA</Badge>
             )}
+            {!isFiscal && currentShift && (
+              <Badge variant="neutral" className="text-xs">NO FISCAL</Badge>
+            )}
           </div>
           <p className="text-xs text-neutral-500 mt-1">
-            Arqueo de efectivo en divisas y bolívares, control de turnos y emisión de Reportes X / Z homologados.
+            {isFiscal
+              ? 'Arqueo de efectivo en divisas y bolívares, control de turnos y emisión de Reportes X / Z homologados.'
+              : 'Arqueo de efectivo en divisas y bolívares y control de turnos de caja.'}
           </p>
         </div>
 
@@ -628,25 +628,29 @@ export const CashRegisterView: React.FC = () => {
                 <Plus className="w-4 h-4 mr-1.5" />
                 Movimiento de Caja
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={submitting}
-                onClick={() => handleGenerateFiscalReport('X')}
-              >
-                <Printer className="w-4 h-4 mr-1.5" />
-                Emitir Reporte X
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={submitting}
-                onClick={() => handleGenerateFiscalReport('Z')}
-                className="text-red-700 border-red-200 hover:bg-red-50"
-              >
-                <Printer className="w-4 h-4 mr-1.5" />
-                Reporte Z (SENIAT)
-              </Button>
+              {isFiscal && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={submitting}
+                    onClick={() => handleGenerateFiscalReport('X')}
+                  >
+                    <Printer className="w-4 h-4 mr-1.5" />
+                    Emitir Reporte X
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={submitting}
+                    onClick={() => handleGenerateFiscalReport('Z')}
+                    className="text-red-700 border-red-200 hover:bg-red-50"
+                  >
+                    <Printer className="w-4 h-4 mr-1.5" />
+                    Reporte Z (SENIAT)
+                  </Button>
+                </>
+              )}
               <Button
                 size="sm"
                 onClick={() => {
@@ -666,6 +670,22 @@ export const CashRegisterView: React.FC = () => {
               >
                 <Lock className="w-4 h-4 mr-1.5" />
                 Arqueo & Cierre
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  setPdfModal({
+                    isOpen: true,
+                    endpoint: `/api/pos/shifts/${currentShift.id}/pdf`,
+                    title: `Acta de Caja - Turno ${currentShift.cashRegisterCode}`,
+                    filename: `acta_caja_${currentShift.cashRegisterCode}.pdf`,
+                  })
+                }
+                title="Ver / Imprimir Acta Oficial de Caja en PDF"
+              >
+                <FileText className="w-4 h-4 mr-1.5 text-sky-600" />
+                Acta PDF
               </Button>
             </>
           ) : (
@@ -688,29 +708,31 @@ export const CashRegisterView: React.FC = () => {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-neutral-200 text-xs font-semibold gap-6">
-        <button
-          onClick={() => setActiveTab('SHIFT')}
-          className={`pb-2.5 transition-colors border-b-2 ${
-            activeTab === 'SHIFT'
-              ? 'border-sky-600 text-sky-600'
-              : 'border-transparent text-neutral-500 hover:text-neutral-800'
-          }`}
-        >
-          Estado del Turno & Arqueo en Vivo
-        </button>
-        <button
-          onClick={() => setActiveTab('HISTORY')}
-          className={`pb-2.5 transition-colors border-b-2 ${
-            activeTab === 'HISTORY'
-              ? 'border-sky-600 text-sky-600'
-              : 'border-transparent text-neutral-500 hover:text-neutral-800'
-          }`}
-        >
-          Historial de Reportes Fiscales (X / Z)
-        </button>
-      </div>
+      {/* Tabs (Solo se muestra selector si la caja es fiscal para poder acceder a su historial) */}
+      {isFiscal && (
+        <div className="flex border-b border-neutral-200 text-xs font-semibold gap-6">
+          <button
+            onClick={() => setActiveTab('SHIFT')}
+            className={`pb-2.5 transition-colors border-b-2 ${
+              activeTab === 'SHIFT'
+                ? 'border-sky-600 text-sky-600'
+                : 'border-transparent text-neutral-500 hover:text-neutral-800'
+            }`}
+          >
+            Estado del Turno & Arqueo en Vivo
+          </button>
+          <button
+            onClick={() => setActiveTab('HISTORY')}
+            className={`pb-2.5 transition-colors border-b-2 ${
+              activeTab === 'HISTORY'
+                ? 'border-sky-600 text-sky-600'
+                : 'border-transparent text-neutral-500 hover:text-neutral-800'
+            }`}
+          >
+            Historial de Reportes Fiscales (X / Z)
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div className="space-y-4">
@@ -737,8 +759,17 @@ export const CashRegisterView: React.FC = () => {
                   </div>
                   <div className="text-neutral-600">
                     Cajero: <span className="font-semibold">{currentShift.cashierName}</span> • Apertura:{' '}
-                    <span className="font-mono">{new Date(currentShift.openedAt).toLocaleTimeString('es-VE')}</span> • Serial Fiscal:{' '}
-                    <span className="font-mono">{currentShift.fiscalPrinterSerial}</span>
+                    <span className="font-mono">{new Date(currentShift.openedAt).toLocaleTimeString('es-VE')}</span>
+                    {isFiscal ? (
+                      <>
+                        {' '}• Serial Fiscal:{' '}
+                        <span className="font-mono">{currentShift.fiscalPrinterSerial || 'N/A'}</span>
+                      </>
+                    ) : (
+                      <>
+                        {' '}• Modalidad: <span className="font-medium text-neutral-700">No Fiscal</span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -918,7 +949,9 @@ export const CashRegisterView: React.FC = () => {
             <div>
               <h3 className="text-base font-bold text-neutral-900">No hay ningún turno de caja abierto</h3>
               <p className="text-xs text-neutral-500 max-w-sm mt-1">
-                Para comenzar a facturar en el Punto de Venta y emitir tickets fiscales SENIAT, debes realizar la apertura de turno indicando el fondo de caja inicial.
+                {isFiscal
+                  ? 'Para comenzar a facturar en el Punto de Venta y emitir tickets fiscales SENIAT, debes realizar la apertura de turno indicando el fondo de caja inicial.'
+                  : 'Para comenzar a facturar en el Punto de Venta, debes realizar la apertura de turno indicando el fondo de caja inicial.'}
               </p>
             </div>
             <Button
@@ -947,22 +980,26 @@ export const CashRegisterView: React.FC = () => {
 
       {/* Modal: Apertura de Turno */}
       {showOpenShiftModal && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-md w-full p-6 shadow-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-md w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
+            {/* Header (Pinned) */}
+            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
               <div className="flex items-center gap-2">
                 <Unlock className="w-5 h-5 text-sky-600" />
                 <h3 className="text-sm font-bold text-neutral-900">Apertura de Turno de Caja</h3>
               </div>
               <button
+                type="button"
                 onClick={() => setShowOpenShiftModal(false)}
-                className="text-neutral-400 hover:text-neutral-600"
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
+                title="Cerrar modal (Esc)"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
+            {/* Body (Scrollable) */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3 text-xs">
               <div>
                 <label className="block font-semibold text-neutral-700 mb-1">Caja Registradora</label>
                 <select
@@ -971,12 +1008,20 @@ export const CashRegisterView: React.FC = () => {
                   className="w-full h-9 px-3 border border-neutral-300 rounded-lg text-xs bg-white"
                 >
                   <option value="">Seleccione una caja...</option>
-                  {registers.map((r) => (
-                    <option key={r.id} value={r.id} disabled={r.hasActiveShift}>
-                      {r.code} - {r.name} {r.hasActiveShift ? `(Ocupada por ${r.activeCashierName || 'otro cajero'})` : '(Disponible)'}
-                    </option>
-                  ))}
+                  {registers.map((r) => {
+                    const isRegFiscal = r.invoiceMode === 'fiscal_printer' || Boolean(r.fiscalPrinterSerial && r.fiscalPrinterSerial.trim());
+                    return (
+                      <option key={r.id} value={r.id} disabled={r.hasActiveShift}>
+                        {r.code} - {r.name} ({isRegFiscal ? 'Fiscal' : 'No Fiscal'}) [Almacén: {r.warehouseName || 'Principal'}] {r.hasActiveShift ? `(Ocupada por ${r.activeCashierName || 'otro cajero'})` : '(Disponible)'}
+                      </option>
+                    );
+                  })}
                 </select>
+                {openRegisterId && (
+                  <p className="text-[11px] text-neutral-500 mt-1">
+                    Almacén de descarga de stock: <strong>{registers.find((r) => r.id === openRegisterId)?.warehouseName || 'Almacén Principal'}</strong>
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1018,7 +1063,8 @@ export const CashRegisterView: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-3 border-t border-neutral-100">
+            {/* Footer (Pinned) */}
+            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
               <Button
                 variant="outline"
                 size="sm"
@@ -1040,22 +1086,26 @@ export const CashRegisterView: React.FC = () => {
 
       {/* Modal: Arqueo y Cierre de Turno */}
       {showCloseShiftModal && currentShift && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg max-w-xl w-full p-6 shadow-xl space-y-4 my-8 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-xl w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
+            {/* Header (Pinned) */}
+            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
               <div className="flex items-center gap-2">
                 <Lock className="w-5 h-5 text-neutral-800" />
                 <h3 className="text-sm font-bold text-neutral-900">Arqueo y Cierre de Turno de Caja</h3>
               </div>
               <button
+                type="button"
                 onClick={() => setShowCloseShiftModal(false)}
-                className="text-neutral-400 hover:text-neutral-600 focus-visible:ring-2 focus-visible:ring-sky-500 rounded-lg p-1"
+                className="text-neutral-400 hover:text-neutral-600 focus-visible:ring-2 focus-visible:ring-sky-500 rounded-lg p-1 hover:bg-neutral-100 cursor-pointer"
+                title="Cerrar modal (Esc)"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-4 text-xs">
+            {/* Body (Scrollable) */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
               <p className="text-neutral-600">
                 Ingrese el conteo físico real de billetes en gaveta. El sistema contrastará contra el saldo teórico de ventas y movimientos registrados.
               </p>
@@ -1323,7 +1373,8 @@ export const CashRegisterView: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-3 border-t border-neutral-100">
+            {/* Footer (Pinned) */}
+            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
               <Button
                 variant="outline"
                 size="sm"
@@ -1345,22 +1396,26 @@ export const CashRegisterView: React.FC = () => {
 
       {/* Modal: Registrar Movimiento Manual */}
       {showMovementModal && currentShift && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-md w-full p-6 shadow-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-md w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
+            {/* Header (Pinned) */}
+            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
               <div className="flex items-center gap-2">
                 <DollarSign className="w-5 h-5 text-sky-600" />
                 <h3 className="text-sm font-bold text-neutral-900">Registrar Movimiento de Caja</h3>
               </div>
               <button
+                type="button"
                 onClick={() => setShowMovementModal(false)}
-                className="text-neutral-400 hover:text-neutral-600"
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
+                title="Cerrar modal (Esc)"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
+            {/* Body (Scrollable) */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-neutral-700 mb-1">Tipo de Movimiento</label>
@@ -1411,7 +1466,8 @@ export const CashRegisterView: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-3 border-t border-neutral-100">
+            {/* Footer (Pinned) */}
+            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
               <Button
                 variant="outline"
                 size="sm"
@@ -1432,10 +1488,21 @@ export const CashRegisterView: React.FC = () => {
       )}
 
       {/* Modal: Visor de Ticket Fiscal Térmico Emulado */}
-      <FiscalReportModal
-        isOpen={showFiscalModal}
-        data={activeFiscalReport}
-        onClose={() => setShowFiscalModal(false)}
+      {isFiscal && (
+        <FiscalReportModal
+          isOpen={showFiscalModal}
+          data={activeFiscalReport}
+          onClose={() => setShowFiscalModal(false)}
+        />
+      )}
+
+      {/* Modal: Visor / Descarga PDF Acta Oficial de Caja */}
+      <PdfViewerModal
+        isOpen={pdfModal.isOpen}
+        onClose={() => setPdfModal((prev) => ({ ...prev, isOpen: false }))}
+        title={pdfModal.title}
+        endpoint={pdfModal.endpoint}
+        filename={pdfModal.filename}
       />
     </div>
   );

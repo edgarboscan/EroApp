@@ -39,77 +39,14 @@ interface AgingItem {
   days90Plus: number;
 }
 
-const DEMO_AGING: AgingItem[] = [
-  {
-    receivableId: 'r1',
-    branchId: 'b1',
-    branchName: 'Sucursal Principal Caracas',
-    customerId: 'c1',
-    customerDoc: 'J-30999888-1',
-    customerName: 'INVERSIONES EL SOL DE CARACAS C.A.',
-    invoiceNumber: 'FACT-001042',
-    invoiceDate: '2026-09-15',
-    dueDate: '2026-10-15',
-    daysOverdue: -16,
-    amountTotal: 1420.50,
-    amountPaid: 0.00,
-    amountBalance: 1420.50,
-    currentDue: 1420.50,
-    days1_30: 0,
-    days31_60: 0,
-    days61_90: 0,
-    days90Plus: 0,
-  },
-  {
-    receivableId: 'r2',
-    branchId: 'b1',
-    branchName: 'Sucursal Principal Caracas',
-    customerId: 'c2',
-    customerDoc: 'J-40111222-3',
-    customerName: 'SUMINISTROS Y ALIMENTOS INDUSTRIALES S.A.',
-    invoiceNumber: 'FACT-000950',
-    invoiceDate: '2026-08-10',
-    dueDate: '2026-08-25',
-    daysOverdue: 35,
-    amountTotal: 1200.00,
-    amountPaid: 350.00,
-    amountBalance: 850.00,
-    currentDue: 0,
-    days1_30: 0,
-    days31_60: 850.00,
-    days61_90: 0,
-    days90Plus: 0,
-  },
-  {
-    receivableId: 'r3',
-    branchId: 'b1',
-    branchName: 'Sucursal Principal Caracas',
-    customerId: 'c4',
-    customerDoc: 'J-50123456-7',
-    customerName: 'COMERCIALIZADORA DEL CENTRO C.A.',
-    invoiceNumber: 'FACT-000810',
-    invoiceDate: '2026-06-15',
-    dueDate: '2026-06-30',
-    daysOverdue: 91,
-    amountTotal: 620.00,
-    amountPaid: 0.00,
-    amountBalance: 620.00,
-    currentDue: 0,
-    days1_30: 0,
-    days31_60: 0,
-    days61_90: 0,
-    days90Plus: 620.00,
-  },
-];
-
 export const ReceivablesAgingView: React.FC = () => {
   const navigate = useNavigate();
   const token = useAuthStore((state) => state.token);
   const activeBranchId = useAuthStore((state) => state.activeBranchId);
 
-  const [items, setItems] = useState<AgingItem[]>(DEMO_AGING);
+  const [items, setItems] = useState<AgingItem[]>([]);
   const [search, setSearch] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchAging = async () => {
@@ -124,9 +61,11 @@ export const ReceivablesAgingView: React.FC = () => {
         const json = await response.json();
         if (json.success && json.data && Array.isArray(json.data.items)) {
           setItems(json.data.items);
+        } else {
+          setItems([]);
         }
       } catch {
-        // Fallback a demo data
+        setItems([]);
       } finally {
         setIsLoading(false);
       }

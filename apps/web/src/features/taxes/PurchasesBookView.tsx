@@ -15,6 +15,7 @@ import {
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/authStore';
 import { formatMoneyUSD } from '@ero/shared';
+import { PdfViewerModal } from '../../components/ui/PdfViewerModal';
 
 interface PurchasesBookItem {
   rowNum: number;
@@ -45,64 +46,22 @@ interface PurchasesBookTotals {
   totalIvaRetained: number;
 }
 
-const DEMO_PURCHASES_ITEMS: PurchasesBookItem[] = [
-  {
-    rowNum: 1,
-    invoiceId: 'pi1',
-    branchId: 'b1',
-    branchName: 'Sucursal Principal Caracas',
-    supplierId: 's1',
-    supplierRif: 'J-30555666-0',
-    supplierName: 'ALIMENTOS POLAR COMERCIAL C.A.',
-    invoiceNumber: 'FACT-POLAR-9812',
-    controlNumber: '00-0981234',
-    emissionDate: '2026-09-14',
-    totalAmount: 1254.80,
-    baseExemptAmount: 350.00,
-    baseTaxableAmount: 780.00,
-    taxRate: 16.00,
-    taxAmount: 124.80,
-    ivaRetainedAmount: 93.60,
-    withholdingVoucherNumber: '20260900000001',
-    fiscalPeriod: '2026-09',
-  },
-  {
-    rowNum: 2,
-    invoiceId: 'pi2',
-    branchId: 'b1',
-    branchName: 'Sucursal Principal Caracas',
-    supplierId: 's2',
-    supplierRif: 'J-00033322-1',
-    supplierName: 'MONDELEZ VENEZUELA C.A.',
-    invoiceNumber: 'FACT-MDLZ-4410',
-    controlNumber: '00-0044102',
-    emissionDate: '2026-08-15',
-    totalAmount: 1740.00,
-    baseExemptAmount: 0.00,
-    baseTaxableAmount: 1500.00,
-    taxRate: 16.00,
-    taxAmount: 240.00,
-    ivaRetainedAmount: 0.00,
-    withholdingVoucherNumber: '',
-    fiscalPeriod: '2026-08',
-  },
-];
-
 export const PurchasesBookView: React.FC = () => {
   const { activeBranchId } = useAuthStore();
   const now = new Date();
   const currentPeriod = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
   const [period, setPeriod] = useState(currentPeriod);
-  const [items, setItems] = useState<PurchasesBookItem[]>(DEMO_PURCHASES_ITEMS);
+  const [items, setItems] = useState<PurchasesBookItem[]>([]);
   const [totals, setTotals] = useState<PurchasesBookTotals>({
-    totalPurchases: 2994.80,
-    totalExempt: 350.00,
-    totalTaxable: 2280.00,
-    totalTax: 364.80,
-    totalIvaRetained: 93.60,
+    totalPurchases: 0,
+    totalExempt: 0,
+    totalTaxable: 0,
+    totalTax: 0,
+    totalIvaRetained: 0,
   });
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const [showPdfModal, setShowPdfModal] = useState(false);
 
   useEffect(() => {
     fetchPurchasesBook();
@@ -121,10 +80,14 @@ export const PurchasesBookView: React.FC = () => {
         if (json.success && json.data) {
           setItems(json.data.items || []);
           if (json.data.totals) setTotals(json.data.totals);
+        } else {
+          setItems([]);
         }
+      } else {
+        setItems([]);
       }
     } catch {
-      setItems(DEMO_PURCHASES_ITEMS);
+      setItems([]);
     } finally {
       setLoading(false);
     }
@@ -209,6 +172,14 @@ export const PurchasesBookView: React.FC = () => {
           >
             <FileSpreadsheet className="w-4 h-4 mr-1 text-emerald-600" />
             Exportar CSV / Excel
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => setShowPdfModal(true)}
+            className="flex-1 sm:flex-none"
+          >
+            <Download className="w-4 h-4 mr-1" />
+            Ver / Descargar PDF
           </Button>
         </div>
       </div>
@@ -427,6 +398,16 @@ export const PurchasesBookView: React.FC = () => {
           </table>
         </div>
       </Card>
+
+      {/* Modal Visor / Descarga PDF Libro de Compras SENIAT */}
+      <PdfViewerModal
+        isOpen={showPdfModal}
+        onClose={() => setShowPdfModal(false)}
+        title={`Libro Fiscal de Compras SENIAT - ${period}`}
+        subtitle="Formato oficial apaisado según Providencias Administrativas SENIAT"
+        endpoint={`/api/taxes/books/purchases?period=${period}${activeBranchId ? `&branchId=${activeBranchId}` : ''}&format=pdf`}
+        filename={`Libro_Compras_SENIAT_${period.replace('-', '')}.pdf`}
+      />
     </div>
   );
 };

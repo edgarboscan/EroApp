@@ -21,6 +21,7 @@ import {
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/authStore';
 import { formatMoneyUSD, formatNumber } from '../../utils/formatters';
+import { PdfViewerModal } from '../../components/ui/PdfViewerModal';
 
 interface KardexMovement {
   id: string;
@@ -64,159 +65,10 @@ interface StockAlert {
   suggestedReorderQuantity: number;
 }
 
-const DEMO_MOVEMENTS: KardexMovement[] = [
-  {
-    id: 'm1',
-    branchId: 'b1111111-1111-1111-1111-111111111111',
-    branchName: 'Sucursal Principal Caracas',
-    warehouseId: 'w1111111-1111-1111-1111-111111111111',
-    warehouseName: 'Almacén Central Mayorista',
-    productId: 'p1',
-    sku: 'HAR-PAN-01',
-    productName: 'Harina PAN Blanca 1Kg',
-    unitOfMeasure: 'UND',
-    movementType: 'PURCHASE',
-    quantity: 500,
-    unitCost: 1.15,
-    totalCost: 575.0,
-    previousStock: 120,
-    newStock: 620,
-    referenceDocument: 'FC-POLAR-9812',
-    reason: 'Recepción orden de compra proveedor',
-    createdAt: '2026-09-28T09:30:00Z',
-    userName: 'Administrador Demo',
-  },
-  {
-    id: 'm2',
-    branchId: 'b1111111-1111-1111-1111-111111111111',
-    branchName: 'Sucursal Principal Caracas',
-    warehouseId: 'w1111111-1111-1111-1111-111111111111',
-    warehouseName: 'Almacén Central Mayorista',
-    productId: 'p1',
-    sku: 'HAR-PAN-01',
-    productName: 'Harina PAN Blanca 1Kg',
-    unitOfMeasure: 'UND',
-    movementType: 'TRANSFER_OUT',
-    quantity: 150,
-    unitCost: 1.15,
-    totalCost: 172.5,
-    previousStock: 620,
-    newStock: 470,
-    referenceDocument: 'TRS-202609-0001',
-    reason: 'Traslado a tienda piso de venta',
-    createdAt: '2026-09-28T14:15:00Z',
-    userName: 'Administrador Demo',
-  },
-  {
-    id: 'm3',
-    branchId: 'b1111111-1111-1111-1111-111111111111',
-    branchName: 'Sucursal Principal Caracas',
-    warehouseId: 'w2222222-2222-2222-2222-222222222222',
-    warehouseName: 'Depósito Piso de Venta',
-    productId: 'p1',
-    sku: 'HAR-PAN-01',
-    productName: 'Harina PAN Blanca 1Kg',
-    unitOfMeasure: 'UND',
-    movementType: 'TRANSFER_IN',
-    quantity: 150,
-    unitCost: 1.15,
-    totalCost: 172.5,
-    previousStock: 25,
-    newStock: 175,
-    referenceDocument: 'TRS-202609-0001',
-    reason: 'Recepción de mercancía trasladada',
-    createdAt: '2026-09-28T14:45:00Z',
-    userName: 'Administrador Demo',
-  },
-  {
-    id: 'm4',
-    branchId: 'b1111111-1111-1111-1111-111111111111',
-    branchName: 'Sucursal Principal Caracas',
-    warehouseId: 'w2222222-2222-2222-2222-222222222222',
-    warehouseName: 'Depósito Piso de Venta',
-    productId: 'p1',
-    sku: 'HAR-PAN-01',
-    productName: 'Harina PAN Blanca 1Kg',
-    unitOfMeasure: 'UND',
-    movementType: 'SALE',
-    quantity: 12,
-    unitCost: 1.15,
-    totalCost: 13.8,
-    previousStock: 175,
-    newStock: 163,
-    referenceDocument: 'FACT-00010450',
-    reason: 'Venta por caja POS',
-    createdAt: '2026-09-29T10:20:00Z',
-    userName: 'Cajero POS',
-  },
-  {
-    id: 'm5',
-    branchId: 'b1111111-1111-1111-1111-111111111111',
-    branchName: 'Sucursal Principal Caracas',
-    warehouseId: 'w2222222-2222-2222-2222-222222222222',
-    warehouseName: 'Depósito Piso de Venta',
-    productId: 'p2',
-    sku: 'LEC-POL-01',
-    productName: 'Leche en Polvo Completa 1Kg',
-    unitOfMeasure: 'UND',
-    movementType: 'ADJUST_OUT',
-    quantity: 2,
-    unitCost: 7.5,
-    totalCost: 15.0,
-    previousStock: 8,
-    newStock: 6,
-    referenceDocument: 'AJU-202609-0001',
-    reason: 'Empaque roto por manipulación (Merma)',
-    createdAt: '2026-09-29T11:00:00Z',
-    userName: 'Administrador Demo',
-  },
-];
-
-const DEMO_ALERTS: StockAlert[] = [
-  {
-    productId: 'p2',
-    sku: 'LEC-POL-01',
-    productName: 'Leche en Polvo Completa 1Kg',
-    unitOfMeasure: 'UND',
-    warehouseId: 'w2222222-2222-2222-2222-222222222222',
-    warehouseName: 'Depósito Piso de Venta',
-    branchId: 'b1111111-1111-1111-1111-111111111111',
-    branchName: 'Sucursal Principal Caracas',
-    minStock: 15,
-    maxStock: 80,
-    costPrice: 7.5,
-    basePrice: 9.2,
-    currentStock: 6,
-    reservedStock: 0,
-    availableStock: 6,
-    status: 'CRITICAL_LOW',
-    suggestedReorderQuantity: 74,
-  },
-  {
-    productId: 'p8',
-    sku: 'CAF-FAM-01',
-    productName: 'Café Fama de América 500g',
-    unitOfMeasure: 'UND',
-    warehouseId: 'w2222222-2222-2222-2222-222222222222',
-    warehouseName: 'Depósito Piso de Venta',
-    branchId: 'b1111111-1111-1111-1111-111111111111',
-    branchName: 'Sucursal Principal Caracas',
-    minStock: 20,
-    maxStock: 100,
-    costPrice: 3.2,
-    basePrice: 4.2,
-    currentStock: 0,
-    reservedStock: 0,
-    availableStock: 0,
-    status: 'OUT_OF_STOCK',
-    suggestedReorderQuantity: 100,
-  },
-];
-
 export const KardexView: React.FC = () => {
   const { activeBranchId, activeWarehouseId, token } = useAuthStore();
-  const [movements, setMovements] = useState<KardexMovement[]>(DEMO_MOVEMENTS);
-  const [stockAlerts, setStockAlerts] = useState<StockAlert[]>(DEMO_ALERTS);
+  const [movements, setMovements] = useState<KardexMovement[]>([]);
+  const [stockAlerts, setStockAlerts] = useState<StockAlert[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Filtros
@@ -224,6 +76,7 @@ export const KardexView: React.FC = () => {
   const [search, setSearch] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [showPdfModal, setShowPdfModal] = useState(false);
 
   useEffect(() => {
     fetchKardexData();
@@ -244,12 +97,16 @@ export const KardexView: React.FC = () => {
       const res = await fetch(`/api/inventory/kardex?${params.toString()}`, { headers });
       if (res.ok) {
         const json = await res.json();
-        if (json.success && json.data?.movements) {
-          setMovements(json.data.movements.length > 0 ? json.data.movements : DEMO_MOVEMENTS);
+        if (json.success && Array.isArray(json.data?.movements)) {
+          setMovements(json.data.movements);
+        } else {
+          setMovements([]);
         }
+      } else {
+        setMovements([]);
       }
     } catch {
-      setMovements(DEMO_MOVEMENTS);
+      setMovements([]);
     } finally {
       setLoading(false);
     }
@@ -266,11 +123,15 @@ export const KardexView: React.FC = () => {
       if (res.ok) {
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
-          setStockAlerts(json.data.length > 0 ? json.data : DEMO_ALERTS);
+          setStockAlerts(json.data);
+        } else {
+          setStockAlerts([]);
         }
+      } else {
+        setStockAlerts([]);
       }
     } catch {
-      setStockAlerts(DEMO_ALERTS);
+      setStockAlerts([]);
     }
   };
 
@@ -449,10 +310,16 @@ export const KardexView: React.FC = () => {
           </p>
         </div>
 
-        <Button size="sm" variant="outline" onClick={handleExportCSV}>
-          <Download className="w-4 h-4 mr-1.5" />
-          Exportar CSV
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={handleExportCSV}>
+            <Download className="w-4 h-4 mr-1.5" />
+            Exportar CSV
+          </Button>
+          <Button size="sm" onClick={() => setShowPdfModal(true)}>
+            <Download className="w-4 h-4 mr-1.5" />
+            Ver / Descargar PDF
+          </Button>
+        </div>
       </div>
 
       {/* Banner de Alertas de Stock Crítico */}
@@ -576,6 +443,16 @@ export const KardexView: React.FC = () => {
           />
         )}
       </Card>
+
+      {/* Modal Visor / Descarga PDF Kardex Valorizado */}
+      <PdfViewerModal
+        isOpen={showPdfModal}
+        onClose={() => setShowPdfModal(false)}
+        title="Kardex Valorizado de Inventario"
+        subtitle="Movimientos cronológicos con valoración ponderada y saldo físico continuo"
+        endpoint={`/api/inventory/kardex?format=pdf${activeBranchId ? `&branchId=${activeBranchId}` : ''}${activeWarehouseId ? `&warehouseId=${activeWarehouseId}` : ''}${selectedType !== 'ALL' ? `&movementType=${selectedType}` : ''}${startDate ? `&startDate=${startDate}` : ''}${endDate ? `&endDate=${endDate}` : ''}`}
+        filename={`kardex_inventario_${new Date().toISOString().slice(0, 10)}.pdf`}
+      />
     </div>
   );
 };

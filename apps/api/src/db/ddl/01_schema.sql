@@ -124,6 +124,8 @@ CREATE TABLE `users` (
   `is_2fa_enabled` TINYINT(1) NOT NULL DEFAULT 0,
   `two_factor_secret` VARCHAR(100) DEFAULT NULL,
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+  `all_branches` TINYINT(1) NOT NULL DEFAULT 1,
+  `can_switch_warehouses` TINYINT(1) NOT NULL DEFAULT 1,
   `last_login_at` DATETIME DEFAULT NULL,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -299,7 +301,7 @@ CREATE TABLE `products` (
 DROP TABLE IF EXISTS `product_locations`;
 CREATE TABLE `product_locations` (
   `id` CHAR(36) NOT NULL,
-  `product_id` CHAR(36) NOT NULL,
+  `product_id` CHAR(36) DEFAULT NULL,
   `warehouse_id` CHAR(36) NOT NULL,
   `aisle` VARCHAR(30) DEFAULT NULL,       -- Pasillo
   `shelf` VARCHAR(30) DEFAULT NULL,       -- Estante
@@ -790,11 +792,13 @@ CREATE TABLE `cash_registers` (
   `name` VARCHAR(100) NOT NULL, -- ej: 'Caja Principal Piso de Venta'
   `fiscal_printer_serial` VARCHAR(50) DEFAULT NULL, -- ej: 'Z5A1234567'
   `invoice_mode` VARCHAR(30) NOT NULL DEFAULT 'normal_printer',
+  `warehouse_id` CHAR(36) DEFAULT NULL,
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_cr_branch_code` (`branch_id`, `code`),
-  CONSTRAINT `fk_cr_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE RESTRICT
+  CONSTRAINT `fk_cr_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_cr_warehouse` FOREIGN KEY (`warehouse_id`) REFERENCES `warehouses` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 DROP TABLE IF EXISTS `cash_shifts`;
@@ -1328,8 +1332,12 @@ CREATE TABLE `business_rules` (
   `require_approval_discount` TINYINT(1) NOT NULL DEFAULT 1,
   `max_discount_allowed` DECIMAL(5,2) NOT NULL DEFAULT 10.00,
   `pos_invoice_mode` ENUM('normal_printer', 'fiscal_printer', 'electronic') NOT NULL DEFAULT 'normal_printer',
+  `sales_invoice_mode` ENUM('fiscal_printer', 'free_form', 'no_fiscal') NOT NULL DEFAULT 'free_form',
   `tax_affects_final_price` TINYINT(1) NOT NULL DEFAULT 1,
   `enforce_credit_limit` TINYINT(1) NOT NULL DEFAULT 1,
+  `require_approval_credit_exceeded` TINYINT(1) NOT NULL DEFAULT 1,
+  `allow_negative_stock` TINYINT(1) NOT NULL DEFAULT 1,
+  `require_approval_negative_stock` TINYINT(1) NOT NULL DEFAULT 1,
   `retention_period_years` INT NOT NULL DEFAULT 5,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

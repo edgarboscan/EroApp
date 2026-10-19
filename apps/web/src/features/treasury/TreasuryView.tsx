@@ -22,6 +22,7 @@ import {
   Calendar,
 } from 'lucide-react';
 import { formatNumber, formatCurrency, formatMoneyUSD, formatMoneyVES, parseFormattedNumber } from '@ero/shared';
+import { useEscapeKey } from '../../components/ui/Modal';
 
 interface BankAccount {
   id: string;
@@ -56,91 +57,7 @@ interface BankOption {
   name: string;
 }
 
-const DEMO_BANKS: BankOption[] = [
-  { id: 'b1', code: '0134', name: 'Banesco Banco Universal' },
-  { id: 'b2', code: '0105', name: 'Banco Mercantil' },
-  { id: 'b3', code: '0172', name: 'Bancamiga Banco Universal' },
-  { id: 'b4', code: '0102', name: 'Banco de Venezuela' },
-  { id: 'b5', code: '0108', name: 'BBVA Provincial' },
-];
 
-const DEMO_ACCOUNTS: BankAccount[] = [
-  {
-    id: 'ba1',
-    bankId: 'b1',
-    bankCode: '0134',
-    bankName: 'Banesco Banco Universal',
-    branchName: 'Sucursal Principal Caracas',
-    accountNumber: '01340012345678901234',
-    accountType: 'CURRENT',
-    currency: 'VES',
-    description: 'Banesco Operativa Principal (Bolívares)',
-    currentBalance: 45850.0,
-    isActive: true,
-    pendingReconciliationsCount: 1,
-  },
-  {
-    id: 'ba2',
-    bankId: 'b3',
-    bankCode: '0172',
-    bankName: 'Bancamiga Banco Universal',
-    branchName: 'Sucursal Principal Caracas',
-    accountNumber: '01720098765432109876',
-    accountType: 'CUSTODY_USD',
-    currency: 'USD',
-    description: 'Bancamiga Cuenta Custodia / Moneda Extranjera',
-    currentBalance: 12450.0,
-    isActive: true,
-    pendingReconciliationsCount: 1,
-  },
-];
-
-const DEMO_MOVEMENTS: BankMovement[] = [
-  {
-    id: 'm1',
-    accountId: 'ba1',
-    movementType: 'DEPOSIT',
-    amount: 50000.0,
-    balanceAfter: 50000.0,
-    movementDate: '2026-09-20T10:30:00Z',
-    referenceNumber: 'DEP-001092',
-    concept: 'Aporte inicial de capital de trabajo',
-    isReconciled: true,
-  },
-  {
-    id: 'm2',
-    accountId: 'ba1',
-    movementType: 'FEE',
-    amount: -4150.0,
-    balanceAfter: 45850.0,
-    movementDate: '2026-09-25T16:00:00Z',
-    referenceNumber: 'COM-000841',
-    concept: 'Mantenimiento de cuenta y comisión IGTF mensual',
-    isReconciled: true,
-  },
-  {
-    id: 'm3',
-    accountId: 'ba2',
-    movementType: 'DEPOSIT',
-    amount: 15000.0,
-    balanceAfter: 15000.0,
-    movementDate: '2026-09-18T14:00:00Z',
-    referenceNumber: 'DEP-USD-0021',
-    concept: 'Apertura y fondo de custodia en divisas',
-    isReconciled: true,
-  },
-  {
-    id: 'm4',
-    accountId: 'ba2',
-    movementType: 'WITHDRAWAL',
-    amount: -2550.0,
-    balanceAfter: 12450.0,
-    movementDate: '2026-09-28T11:20:00Z',
-    referenceNumber: 'EGR-USD-0044',
-    concept: 'Pago a proveedores y flete marítimo',
-    isReconciled: false,
-  },
-];
 
 export const TreasuryView: React.FC = () => {
   const navigate = useNavigate();
@@ -157,6 +74,12 @@ export const TreasuryView: React.FC = () => {
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [isMovementModalOpen, setIsMovementModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+
+  useEscapeKey(() => {
+    if (isTransferModalOpen) setIsTransferModalOpen(false);
+    else if (isMovementModalOpen) setIsMovementModalOpen(false);
+    else if (isAccountModalOpen) setIsAccountModalOpen(false);
+  }, Boolean(isTransferModalOpen || isMovementModalOpen || isAccountModalOpen));
 
   // Form: Nueva Cuenta
   const [accountForm, setAccountForm] = useState({
@@ -215,19 +138,17 @@ export const TreasuryView: React.FC = () => {
           }
         }
       } else {
-        fallbackDemo();
+        setAccounts([]);
+        setBanks([]);
+        setMovements([]);
       }
     } catch {
-      fallbackDemo();
+      setAccounts([]);
+      setBanks([]);
+      setMovements([]);
     } finally {
       setLoading(false);
     }
-  };
-
-  const fallbackDemo = () => {
-    setAccounts(DEMO_ACCOUNTS);
-    setBanks(DEMO_BANKS);
-    setMovements(DEMO_MOVEMENTS);
   };
 
   useEffect(() => {
@@ -693,109 +614,118 @@ export const TreasuryView: React.FC = () => {
 
       {/* Modal: Crear Cuenta Bancaria */}
       {isAccountModalOpen && (
-        <div className="fixed inset-0 bg-neutral-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6 shadow-xl border border-neutral-200">
-            <div className="flex justify-between items-center mb-4 border-b border-neutral-100 pb-3">
-              <h2 className="text-base font-bold text-neutral-900 flex items-center gap-2">
+        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-md w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
+            {/* Header (Pinned) */}
+            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
+              <div className="flex items-center gap-2">
                 <Building2 className="w-5 h-5 text-sky-600" />
-                Registrar Cuenta Bancaria
-              </h2>
+                <div>
+                  <h2 className="text-base font-bold text-neutral-900">Registrar Cuenta Bancaria</h2>
+                  <p className="text-[11px] text-neutral-500">Gestión de cuentas corrientes, custodia y saldos</p>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsAccountModalOpen(false)}
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg"
+                title="Cerrar modal (Esc)"
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateAccount} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-neutral-700 mb-1">
-                  Institución Bancaria
-                </label>
-                <select
-                  value={accountForm.bankId}
-                  onChange={(e) => setAccountForm({ ...accountForm, bankId: e.target.value })}
-                  className="w-full h-10 px-3 text-sm border border-neutral-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  required
-                >
-                  <option value="">Selecciona un banco</option>
-                  {banks.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.code} - {b.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <Input
-                label="Número de Cuenta (20 dígitos)"
-                placeholder="01340000000000000000"
-                maxLength={20}
-                value={accountForm.accountNumber}
-                onChange={(e) => setAccountForm({ ...accountForm, accountNumber: e.target.value })}
-                required
-              />
-
-              <div className="grid grid-cols-2 gap-3">
+            <form onSubmit={handleCreateAccount} className="flex-1 flex flex-col overflow-hidden">
+              {/* Body (Scrollable) */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
                 <div>
                   <label className="block text-xs font-medium text-neutral-700 mb-1">
-                    Tipo de Cuenta
+                    Institución Bancaria
                   </label>
                   <select
-                    value={accountForm.accountType}
-                    onChange={(e) =>
-                      setAccountForm({
-                        ...accountForm,
-                        accountType: e.target.value as any,
-                      })
-                    }
-                    className="w-full h-10 px-3 text-sm border border-neutral-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    value={accountForm.bankId}
+                    onChange={(e) => setAccountForm({ ...accountForm, bankId: e.target.value })}
+                    className="w-full h-10 px-3 text-xs border border-neutral-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    required
                   >
-                    <option value="CURRENT">Corriente</option>
-                    <option value="SAVINGS">Ahorros</option>
-                    <option value="CUSTODY_USD">Custodia Divisas</option>
+                    <option value="">Selecciona un banco</option>
+                    {banks.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.code} - {b.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-neutral-700 mb-1">Moneda</label>
-                  <select
-                    value={accountForm.currency}
-                    onChange={(e) =>
-                      setAccountForm({
-                        ...accountForm,
-                        currency: e.target.value as any,
-                      })
-                    }
-                    className="w-full h-10 px-3 text-sm border border-neutral-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  >
-                    <option value="VES">Bolívares (VES)</option>
-                    <option value="USD">Dólares (USD)</option>
-                  </select>
+                <Input
+                  label="Número de Cuenta (20 dígitos)"
+                  placeholder="01340000000000000000"
+                  maxLength={20}
+                  value={accountForm.accountNumber}
+                  onChange={(e) => setAccountForm({ ...accountForm, accountNumber: e.target.value })}
+                  required
+                />
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-neutral-700 mb-1">
+                      Tipo de Cuenta
+                    </label>
+                    <select
+                      value={accountForm.accountType}
+                      onChange={(e) =>
+                        setAccountForm({
+                          ...accountForm,
+                          accountType: e.target.value as any,
+                        })
+                      }
+                      className="w-full h-10 px-3 text-xs border border-neutral-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    >
+                      <option value="CURRENT">Corriente</option>
+                      <option value="SAVINGS">Ahorros</option>
+                      <option value="CUSTODY_USD">Custodia Divisas</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-neutral-700 mb-1">Moneda</label>
+                    <select
+                      value={accountForm.currency}
+                      onChange={(e) =>
+                        setAccountForm({
+                          ...accountForm,
+                          currency: e.target.value as any,
+                        })
+                      }
+                      className="w-full h-10 px-3 text-xs border border-neutral-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    >
+                      <option value="VES">Bolívares (VES)</option>
+                      <option value="USD">Dólares (USD)</option>
+                    </select>
+                  </div>
                 </div>
+
+                <Input
+                  label="Descripción o Alias"
+                  placeholder="Ej. Banesco Operativa Principal"
+                  value={accountForm.description}
+                  onChange={(e) => setAccountForm({ ...accountForm, description: e.target.value })}
+                  required
+                />
+
+                <Input
+                  label="Saldo Inicial en Libros"
+                  type="number"
+                  step="0.01"
+                  value={accountForm.initialBalance}
+                  onChange={(e) =>
+                    setAccountForm({ ...accountForm, initialBalance: Number(e.target.value) })
+                  }
+                />
               </div>
 
-              <Input
-                label="Descripción o Alias"
-                placeholder="Ej. Banesco Operativa Principal"
-                value={accountForm.description}
-                onChange={(e) => setAccountForm({ ...accountForm, description: e.target.value })}
-                required
-              />
-
-              <Input
-                label="Saldo Inicial en Libros"
-                type="number"
-                step="0.01"
-                value={accountForm.initialBalance}
-                onChange={(e) =>
-                  setAccountForm({ ...accountForm, initialBalance: Number(e.target.value) })
-                }
-              />
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-neutral-100">
+              {/* Footer (Pinned) */}
+              <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
                 <Button
                   variant="outline"
                   size="sm"
@@ -815,95 +745,104 @@ export const TreasuryView: React.FC = () => {
 
       {/* Modal: Registrar Movimiento */}
       {isMovementModalOpen && (
-        <div className="fixed inset-0 bg-neutral-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6 shadow-xl border border-neutral-200">
-            <div className="flex justify-between items-center mb-4 border-b border-neutral-100 pb-3">
-              <h2 className="text-base font-bold text-neutral-900 flex items-center gap-2">
+        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-md w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
+            {/* Header (Pinned) */}
+            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
+              <div className="flex items-center gap-2">
                 <DollarSign className="w-5 h-5 text-sky-600" />
-                Registrar Movimiento Bancario
-              </h2>
+                <div>
+                  <h2 className="text-base font-bold text-neutral-900">Registrar Movimiento Bancario</h2>
+                  <p className="text-[11px] text-neutral-500">Ingreso o egreso manual fuera de ventas/compras</p>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsMovementModalOpen(false)}
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg"
+                title="Cerrar modal (Esc)"
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleRegisterMovement} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-neutral-700 mb-1">
-                  Cuenta Bancaria
-                </label>
-                <select
-                  value={movementForm.accountId}
-                  onChange={(e) =>
-                    setMovementForm({ ...movementForm, accountId: e.target.value })
-                  }
-                  className="w-full h-10 px-3 text-sm border border-neutral-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  required
-                >
-                  {accounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.bankName} - {a.currency} ({formatCurrency(a.currentBalance, a.currency)})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+            <form onSubmit={handleRegisterMovement} className="flex-1 flex flex-col overflow-hidden">
+              {/* Body (Scrollable) */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
                 <div>
                   <label className="block text-xs font-medium text-neutral-700 mb-1">
-                    Tipo de Operación
+                    Cuenta Bancaria
                   </label>
                   <select
-                    value={movementForm.movementType}
+                    value={movementForm.accountId}
                     onChange={(e) =>
-                      setMovementForm({
-                        ...movementForm,
-                        movementType: e.target.value as any,
-                      })
+                      setMovementForm({ ...movementForm, accountId: e.target.value })
                     }
-                    className="w-full h-10 px-3 text-sm border border-neutral-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    className="w-full h-10 px-3 text-xs border border-neutral-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    required
                   >
-                    <option value="DEPOSIT">Depósito / Ingreso (+)</option>
-                    <option value="WITHDRAWAL">Retiro / Egreso (-)</option>
-                    <option value="FEE">Comisión Bancaria (-)</option>
-                    <option value="TAX_DEBIT">Débito Fiscal IGTF (-)</option>
+                    {accounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.bankName} - {a.currency} ({formatCurrency(a.currentBalance, a.currency)})
+                      </option>
+                    ))}
                   </select>
                 </div>
 
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-neutral-700 mb-1">
+                      Tipo de Operación
+                    </label>
+                    <select
+                      value={movementForm.movementType}
+                      onChange={(e) =>
+                        setMovementForm({
+                          ...movementForm,
+                          movementType: e.target.value as any,
+                        })
+                      }
+                      className="w-full h-10 px-3 text-xs border border-neutral-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    >
+                      <option value="DEPOSIT">Depósito / Ingreso (+)</option>
+                      <option value="WITHDRAWAL">Retiro / Egreso (-)</option>
+                      <option value="FEE">Comisión Bancaria (-)</option>
+                      <option value="TAX_DEBIT">Débito Fiscal IGTF (-)</option>
+                    </select>
+                  </div>
+
+                  <Input
+                    label="Monto"
+                    type="text"
+                    placeholder="0,00"
+                    value={movementForm.amount === 0 ? '' : movementForm.amount}
+                    onChange={(e) =>
+                      setMovementForm({ ...movementForm, amount: parseFormattedNumber(e.target.value) })
+                    }
+                    required
+                  />
+                </div>
+
                 <Input
-                  label="Monto"
-                  type="text"
-                  placeholder="0,00"
-                  value={movementForm.amount === 0 ? '' : movementForm.amount}
+                  label="Referencia Bancaria"
+                  placeholder="Ej. REF-10928374"
+                  value={movementForm.referenceNumber}
                   onChange={(e) =>
-                    setMovementForm({ ...movementForm, amount: parseFormattedNumber(e.target.value) })
+                    setMovementForm({ ...movementForm, referenceNumber: e.target.value })
                   }
+                />
+
+                <Input
+                  label="Concepto"
+                  placeholder="Ej. Cobro de servicios bancarios o aporte de caja"
+                  value={movementForm.concept}
+                  onChange={(e) => setMovementForm({ ...movementForm, concept: e.target.value })}
                   required
                 />
               </div>
 
-              <Input
-                label="Referencia Bancaria"
-                placeholder="Ej. REF-10928374"
-                value={movementForm.referenceNumber}
-                onChange={(e) =>
-                  setMovementForm({ ...movementForm, referenceNumber: e.target.value })
-                }
-              />
-
-              <Input
-                label="Concepto"
-                placeholder="Ej. Cobro de servicios bancarios o aporte de caja"
-                value={movementForm.concept}
-                onChange={(e) => setMovementForm({ ...movementForm, concept: e.target.value })}
-                required
-              />
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-neutral-100">
+              {/* Footer (Pinned) */}
+              <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
                 <Button
                   variant="outline"
                   size="sm"
@@ -923,104 +862,113 @@ export const TreasuryView: React.FC = () => {
 
       {/* Modal: Transferencia entre Cuentas */}
       {isTransferModalOpen && (
-        <div className="fixed inset-0 bg-neutral-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6 shadow-xl border border-neutral-200">
-            <div className="flex justify-between items-center mb-4 border-b border-neutral-100 pb-3">
-              <h2 className="text-base font-bold text-neutral-900 flex items-center gap-2">
+        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-md w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
+            {/* Header (Pinned) */}
+            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
+              <div className="flex items-center gap-2">
                 <ArrowRightLeft className="w-5 h-5 text-sky-600" />
-                Transferir entre Cuentas Propias
-              </h2>
+                <div>
+                  <h2 className="text-base font-bold text-neutral-900">Transferir entre Cuentas Propias</h2>
+                  <p className="text-[11px] text-neutral-500">Traspaso de fondos interbancario o cambio de divisa</p>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsTransferModalOpen(false)}
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg"
+                title="Cerrar modal (Esc)"
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleTransfer} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-neutral-700 mb-1">
-                  Cuenta de Origen (Débito)
-                </label>
-                <select
-                  value={transferForm.originAccountId}
-                  onChange={(e) =>
-                    setTransferForm({ ...transferForm, originAccountId: e.target.value })
-                  }
-                  className="w-full h-10 px-3 text-sm border border-neutral-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  required
-                >
-                  {accounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.bankName} ({a.currency}) - Disp: {formatCurrency(a.currentBalance, a.currency)}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <form onSubmit={handleTransfer} className="flex-1 flex flex-col overflow-hidden">
+              {/* Body (Scrollable) */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
+                <div>
+                  <label className="block text-xs font-medium text-neutral-700 mb-1">
+                    Cuenta de Origen (Débito)
+                  </label>
+                  <select
+                    value={transferForm.originAccountId}
+                    onChange={(e) =>
+                      setTransferForm({ ...transferForm, originAccountId: e.target.value })
+                    }
+                    className="w-full h-10 px-3 text-xs border border-neutral-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    required
+                  >
+                    {accounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.bankName} ({a.currency}) - Disp: {formatCurrency(a.currentBalance, a.currency)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-              <div>
-                <label className="block text-xs font-medium text-neutral-700 mb-1">
-                  Cuenta de Destino (Crédito)
-                </label>
-                <select
-                  value={transferForm.destinationAccountId}
-                  onChange={(e) =>
-                    setTransferForm({ ...transferForm, destinationAccountId: e.target.value })
-                  }
-                  className="w-full h-10 px-3 text-sm border border-neutral-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  required
-                >
-                  {accounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.bankName} ({a.currency})
-                    </option>
-                  ))}
-                </select>
-              </div>
+                <div>
+                  <label className="block text-xs font-medium text-neutral-700 mb-1">
+                    Cuenta de Destino (Crédito)
+                  </label>
+                  <select
+                    value={transferForm.destinationAccountId}
+                    onChange={(e) =>
+                      setTransferForm({ ...transferForm, destinationAccountId: e.target.value })
+                    }
+                    className="w-full h-10 px-3 text-xs border border-neutral-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    required
+                  >
+                    {accounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.bankName} ({a.currency})
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-              <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    label="Monto a Transferir"
+                    type="text"
+                    placeholder="0,00"
+                    value={transferForm.amount === 0 ? '' : transferForm.amount}
+                    onChange={(e) =>
+                      setTransferForm({ ...transferForm, amount: parseFormattedNumber(e.target.value) })
+                    }
+                    required
+                  />
+                  <Input
+                    label="Tasa de Cambio BCV"
+                    type="text"
+                    placeholder="0,00"
+                    value={transferForm.exchangeRate === 0 ? '' : transferForm.exchangeRate}
+                    onChange={(e) =>
+                      setTransferForm({ ...transferForm, exchangeRate: parseFormattedNumber(e.target.value) })
+                    }
+                    required
+                  />
+                </div>
+
                 <Input
-                  label="Monto a Transferir"
-                  type="text"
-                  placeholder="0,00"
-                  value={transferForm.amount === 0 ? '' : transferForm.amount}
+                  label="Referencia de la Operación"
+                  placeholder="Ej. TRF-009988"
+                  value={transferForm.referenceNumber}
                   onChange={(e) =>
-                    setTransferForm({ ...transferForm, amount: parseFormattedNumber(e.target.value) })
+                    setTransferForm({ ...transferForm, referenceNumber: e.target.value })
                   }
+                />
+
+                <Input
+                  label="Concepto"
+                  placeholder="Ej. Venta de divisas para pago de nómina"
+                  value={transferForm.concept}
+                  onChange={(e) => setTransferForm({ ...transferForm, concept: e.target.value })}
                   required
                 />
-                <Input
-                  label="Tasa de Cambio BCV"
-                  type="text"
-                  placeholder="0,00"
-                  value={transferForm.exchangeRate === 0 ? '' : transferForm.exchangeRate}
-                  onChange={(e) =>
-                    setTransferForm({ ...transferForm, exchangeRate: parseFormattedNumber(e.target.value) })
-                  }
-                  required
-                />
               </div>
 
-              <Input
-                label="Referencia de la Operación"
-                placeholder="Ej. TRF-009988"
-                value={transferForm.referenceNumber}
-                onChange={(e) =>
-                  setTransferForm({ ...transferForm, referenceNumber: e.target.value })
-                }
-              />
-
-              <Input
-                label="Concepto"
-                placeholder="Ej. Venta de divisas para pago de nómina"
-                value={transferForm.concept}
-                onChange={(e) => setTransferForm({ ...transferForm, concept: e.target.value })}
-                required
-              />
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-neutral-100">
+              {/* Footer (Pinned) */}
+              <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
                 <Button
                   variant="outline"
                   size="sm"

@@ -15,6 +15,7 @@ import {
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/authStore';
 import { formatMoneyUSD } from '@ero/shared';
+import { PdfViewerModal } from '../../components/ui/PdfViewerModal';
 
 interface SalesBookItem {
   rowNum: number;
@@ -45,63 +46,23 @@ interface SalesBookTotals {
   totalIvaRetained: number;
 }
 
-const DEMO_SALES_ITEMS: SalesBookItem[] = [
-  {
-    rowNum: 1,
-    invoiceId: 'si1',
-    branchId: 'b1',
-    branchName: 'Sucursal Principal Caracas',
-    customerRif: 'V-18222333',
-    customerName: 'Juan Carlos Mendoza',
-    invoiceNumber: 'FAC-000109',
-    controlNumber: '00-0010912',
-    emissionDate: '2026-09-18',
-    totalAmount: 116.00,
-    baseExemptAmount: 0.00,
-    baseTaxableAmount: 100.00,
-    taxRate: 16.00,
-    taxAmount: 16.00,
-    igtfAmount: 3.48,
-    ivaRetainedAmount: 0.00,
-    fiscalPeriod: '2026-09',
-  },
-  {
-    rowNum: 2,
-    invoiceId: 'si2',
-    branchId: 'b1',
-    branchName: 'Sucursal Principal Caracas',
-    customerRif: 'J-31999888-0',
-    customerName: 'INVERSIONES LA CASCADA C.A.',
-    invoiceNumber: 'FAC-000110',
-    controlNumber: '00-0010913',
-    emissionDate: '2026-09-22',
-    totalAmount: 850.00,
-    baseExemptAmount: 150.00,
-    baseTaxableAmount: 603.45,
-    taxRate: 16.00,
-    taxAmount: 96.55,
-    igtfAmount: 0.00,
-    ivaRetainedAmount: 72.41,
-    fiscalPeriod: '2026-09',
-  },
-];
-
 export const SalesBookView: React.FC = () => {
   const { activeBranchId } = useAuthStore();
   const now = new Date();
   const currentPeriod = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
   const [period, setPeriod] = useState(currentPeriod);
-  const [items, setItems] = useState<SalesBookItem[]>(DEMO_SALES_ITEMS);
+  const [items, setItems] = useState<SalesBookItem[]>([]);
   const [totals, setTotals] = useState<SalesBookTotals>({
-    totalSales: 966.00,
-    totalExempt: 150.00,
-    totalTaxable: 703.45,
-    totalTax: 112.55,
-    totalIgtf: 3.48,
-    totalIvaRetained: 72.41,
+    totalSales: 0,
+    totalExempt: 0,
+    totalTaxable: 0,
+    totalTax: 0,
+    totalIgtf: 0,
+    totalIvaRetained: 0,
   });
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const [showPdfModal, setShowPdfModal] = useState(false);
 
   useEffect(() => {
     fetchSalesBook();
@@ -120,10 +81,14 @@ export const SalesBookView: React.FC = () => {
         if (json.success && json.data) {
           setItems(json.data.items || []);
           if (json.data.totals) setTotals(json.data.totals);
+        } else {
+          setItems([]);
         }
+      } else {
+        setItems([]);
       }
     } catch {
-      setItems(DEMO_SALES_ITEMS);
+      setItems([]);
     } finally {
       setLoading(false);
     }
@@ -208,6 +173,14 @@ export const SalesBookView: React.FC = () => {
           >
             <FileSpreadsheet className="w-4 h-4 mr-1 text-emerald-600" />
             Exportar CSV / Excel
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => setShowPdfModal(true)}
+            className="flex-1 sm:flex-none"
+          >
+            <Download className="w-4 h-4 mr-1" />
+            Ver / Descargar PDF
           </Button>
         </div>
       </div>
@@ -434,6 +407,16 @@ export const SalesBookView: React.FC = () => {
           </table>
         </div>
       </Card>
+
+      {/* Modal Visor / Descarga PDF Libro de Ventas SENIAT */}
+      <PdfViewerModal
+        isOpen={showPdfModal}
+        onClose={() => setShowPdfModal(false)}
+        title={`Libro Fiscal de Ventas SENIAT - ${period}`}
+        subtitle="Formato oficial apaisado según Providencias Administrativas SENIAT"
+        endpoint={`/api/taxes/books/sales?period=${period}${activeBranchId ? `&branchId=${activeBranchId}` : ''}&format=pdf`}
+        filename={`Libro_Ventas_SENIAT_${period.replace('-', '')}.pdf`}
+      />
     </div>
   );
 };

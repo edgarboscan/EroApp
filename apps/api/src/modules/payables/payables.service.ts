@@ -367,4 +367,53 @@ export class PayablesService {
       };
     });
   }
+
+  /**
+   * Obtiene los datos detallados de un pago a proveedor para emisión de Comprobante / Recibo de Pago
+   */
+  static async getPaymentById(companyId: string, paymentId: string) {
+    const rows = await query<any>(
+      `SELECT pp.*, pi.invoice_number, pi.total_amount_usd as invoice_total_usd,
+              s.name as supplier_name, s.rif as supplier_rif,
+              s.phone as supplier_phone, s.fiscal_address as supplier_address,
+              p.amount_total, p.amount_paid as current_amount_paid,
+              COALESCE(bnk.name, ba.description) as bank_name
+       FROM purchase_payments pp
+       INNER JOIN purchase_invoices pi ON pp.invoice_id = pi.id
+       INNER JOIN suppliers s ON pi.supplier_id = s.id
+       INNER JOIN branches b ON pi.branch_id = b.id
+       LEFT JOIN payables p ON pp.payable_id = p.id
+       LEFT JOIN bank_movements bm ON bm.reference_number = pp.reference_number AND bm.movement_type = 'WITHDRAWAL'
+       LEFT JOIN bank_accounts ba ON bm.account_id = ba.id
+       LEFT JOIN banks bnk ON ba.bank_id = bnk.id
+       WHERE pp.id = ? AND b.company_id = ?`,
+      [paymentId, companyId]
+    );
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    const row = rows[0];
+    const remainingBalance = row.amount_total ? Math.max(0, Number(row.amount_total) - Number(row.current_amount_paid)) : 0;
+
+    return {
+      receiptNumber: `PAG-${row.id.slice(0, 8).toUpperCase()}`,
+      date: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
+      supplierName: row.supplier_name,
+      supplierRif: row.supplier_rif,
+      supplierPhone: row.supplier_phone || undefined,
+      supplierAddress: row.supplier_address || undefined,
+      invoiceNumber: row.invoice_number,
+      invoiceTotalUSD: Number(row.invoice_total_usd || row.amount_total || 0),
+      amountPaidUSD: Number(row.amount_usd || 0),
+      amountPaidVES: Number(row.amount_ves || 0),
+      remainingBalanceUSD: Number(remainingBalance.toFixed(2)),
+      paymentMethod: row.method,
+      referenceNumber: row.reference_number || undefined,
+      bankName: row.bank_name || undefined,
+      notes: row.notes || undefined,
+      exchangeRate: Number(row.exchange_rate || 1),
+    };
+  }
 }

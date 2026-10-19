@@ -3,6 +3,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { DataTable, Column } from '../../components/ui/DataTable';
+import { useEscapeKey } from '../../components/ui/Modal';
 import {
   Truck,
   ArrowRightLeft,
@@ -15,10 +16,15 @@ import {
   Clock,
   CheckCircle2,
   AlertTriangle,
+  Search,
+  FileText,
 } from 'lucide-react';
+import { ProductSearchModal } from '../../components/search';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/authStore';
 import { formatMoneyUSD } from '../../utils/formatters';
+import { showConfirmQuestion } from '../../lib/sweetalert';
+import { PdfViewerModal } from '../../components/ui/PdfViewerModal';
 
 interface TransferRecord {
   id: string;
@@ -45,42 +51,9 @@ interface NewTransferItem {
   notes?: string;
 }
 
-const DEMO_TRANSFERS: TransferRecord[] = [
-  {
-    id: 'tr-01',
-    transfer_number: 'TRS-202609-0001',
-    status: 'IN_TRANSIT',
-    total_items: 2,
-    total_cost: 322.5,
-    shipped_at: '2026-09-29T09:30:00Z',
-    notes: 'Reabastecimiento urgente de productos de alta rotación para piso de venta',
-    origin_branch_name: 'Sucursal Principal Caracas',
-    origin_warehouse_name: 'Almacén Central Mayorista',
-    destination_branch_name: 'Sucursal Principal Caracas',
-    destination_warehouse_name: 'Depósito Piso de Venta',
-    shipped_by_name: 'Administrador Demo',
-  },
-  {
-    id: 'tr-02',
-    transfer_number: 'TRS-202609-0002',
-    status: 'RECEIVED',
-    total_items: 1,
-    total_cost: 115.0,
-    shipped_at: '2026-09-28T14:00:00Z',
-    received_at: '2026-09-28T15:30:00Z',
-    notes: 'Traslado regular completado',
-    origin_branch_name: 'Sucursal Principal Caracas',
-    origin_warehouse_name: 'Almacén Central Mayorista',
-    destination_branch_name: 'Sucursal Este - Las Mercedes',
-    destination_warehouse_name: 'Depósito Piso de Venta',
-    shipped_by_name: 'Supervisor Inventario',
-    received_by_name: 'Administrador Demo',
-  },
-];
-
 export const InventoryTransfersView: React.FC = () => {
   const { activeBranchId, token } = useAuthStore();
-  const [transfers, setTransfers] = useState<TransferRecord[]>(DEMO_TRANSFERS);
+  const [transfers, setTransfers] = useState<TransferRecord[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Filtros
@@ -89,41 +62,86 @@ export const InventoryTransfersView: React.FC = () => {
   // Modales
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showReceiveModal, setShowReceiveModal] = useState(false);
+  const [showProductSearch, setShowProductSearch] = useState(false);
   const [selectedTransfer, setSelectedTransfer] = useState<TransferRecord | null>(null);
   const [receiveNotes, setReceiveNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [pdfModal, setPdfModal] = useState<{
+    isOpen: boolean;
+    endpoint: string | null;
+    title: string;
+    filename?: string;
+  }>({
+    isOpen: false,
+    endpoint: null,
+    title: '',
+  });
+
+  useEscapeKey(() => {
+    if (showProductSearch) setShowProductSearch(false);
+    else if (showReceiveModal) setShowReceiveModal(false);
+    else if (showCreateModal) setShowCreateModal(false);
+  }, Boolean(showProductSearch || showReceiveModal || showCreateModal));
 
   // Form State: Nuevo Traslado
-  const [originWarehouseId, setOriginWarehouseId] = useState('w1111111-1111-1111-1111-111111111111');
-  const [destWarehouseId, setDestWarehouseId] = useState('w2222222-2222-2222-2222-222222222222');
+  const [originWarehouseId, setOriginWarehouseId] = useState('');
+  const [destWarehouseId, setDestWarehouseId] = useState('');
   const [transferNotes, setTransferNotes] = useState('');
-  const [items, setItems] = useState<NewTransferItem[]>([
-    {
-      productId: 'p1',
-      sku: 'HAR-PAN-01',
-      productName: 'Harina PAN Blanca 1Kg',
-      quantity: 50,
-      notes: 'Bultos sellados',
-    },
-  ]);
+  const [items, setItems] = useState<NewTransferItem[]>([]);
+
+  // Catálogos desde BD
+  const [catalog, setCatalog] = useState<{ id: string; sku: string; name: string }[]>([]);
+  const [warehouses, setWarehouses] = useState<{ id: string; name: string }[]>([]);
 
   // Selección de producto en formulario
-  const [newProductId, setNewProductId] = useState('p2');
+  const [newProductId, setNewProductId] = useState('');
   const [newQuantity, setNewQuantity] = useState<number>(10);
   const [newNotes, setNewNotes] = useState('');
 
-  const catalog = [
-    { id: 'p1', sku: 'HAR-PAN-01', name: 'Harina PAN Blanca 1Kg' },
-    { id: 'p2', sku: 'LEC-POL-01', name: 'Leche en Polvo Completa 1Kg' },
-    { id: 'p3', sku: 'DES-SET-06', name: 'Juego Destornilladores 6 Piezas' },
-    { id: 'p4', sku: 'ARR-PRI-01', name: 'Arroz Primor Blanco 1Kg' },
-    { id: 'p5', sku: 'ACE-MAZ-01', name: 'Aceite Mazeite 1 Litro' },
-  ];
+  useEffect(() => {
+    const fetchFormCatalog = async () => {
+      try {
+        const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+        const [prodRes, branchRes] = await Promise.all([
+          fetch('/api/inventory/products', { headers }),
+          fetch('/api/auth/branches', { headers }),
+        ]);
 
-  const warehouses = [
-    { id: 'w1111111-1111-1111-1111-111111111111', name: 'Almacén Central Mayorista (ALM-01)' },
-    { id: 'w2222222-2222-2222-2222-222222222222', name: 'Depósito Piso de Venta (TIENDA-01)' },
-  ];
+        if (prodRes.ok) {
+          const pJson = await prodRes.json();
+          if (pJson.success && Array.isArray(pJson.data)) {
+            const mapped = pJson.data.map((p: any) => ({ id: p.id, sku: p.sku, name: p.name }));
+            setCatalog(mapped);
+            if (mapped.length > 0) setNewProductId(mapped[0].id);
+          }
+        }
+
+        if (branchRes.ok) {
+          const bJson = await branchRes.json();
+          if (bJson.success && Array.isArray(bJson.data)) {
+            const allWh: { id: string; name: string }[] = [];
+            bJson.data.forEach((b: any) => {
+              (b.warehouses || []).forEach((w: any) => {
+                allWh.push({ id: w.id, name: `${w.name} (${b.name})` });
+              });
+            });
+            setWarehouses(allWh);
+            if (allWh.length >= 2) {
+              setOriginWarehouseId(allWh[0].id);
+              setDestWarehouseId(allWh[1].id);
+            } else if (allWh.length === 1) {
+              setOriginWarehouseId(allWh[0].id);
+              setDestWarehouseId(allWh[0].id);
+            }
+          }
+        }
+      } catch {
+        // Ignorar
+      }
+    };
+
+    fetchFormCatalog();
+  }, [token]);
 
   useEffect(() => {
     fetchTransfers();
@@ -141,11 +159,15 @@ export const InventoryTransfersView: React.FC = () => {
       if (res.ok) {
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
-          setTransfers(json.data.length > 0 ? json.data : DEMO_TRANSFERS);
+          setTransfers(json.data);
+        } else {
+          setTransfers([]);
         }
+      } else {
+        setTransfers([]);
       }
     } catch {
-      setTransfers(DEMO_TRANSFERS);
+      setTransfers([]);
     } finally {
       setLoading(false);
     }
@@ -188,6 +210,15 @@ export const InventoryTransfersView: React.FC = () => {
       return;
     }
 
+    const confirmed = await showConfirmQuestion({
+      title: '¿Despachar traslado de inventario?',
+      text: `Se despacharán ${items.length} producto(s) desde el depósito de origen al depósito de destino.`,
+      confirmButtonText: 'Sí, despachar',
+      cancelButtonText: 'Cancelar',
+      icon: 'question',
+    });
+    if (!confirmed) return;
+
     setSubmitting(true);
     try {
       const res = await fetch('/api/inventory/transfers', {
@@ -219,6 +250,16 @@ export const InventoryTransfersView: React.FC = () => {
       setShowCreateModal(false);
       setTransferNotes('');
       fetchTransfers();
+
+      // Abrir inmediatamente la visualización y descarga en PDF
+      if (json.data?.id) {
+        setPdfModal({
+          isOpen: true,
+          endpoint: `/api/inventory/transfers/${json.data.id}/pdf`,
+          title: `Guía Oficial de Traslado N° ${json.data.transferNumber || ''}`,
+          filename: `traslado_inventario_${json.data.transferNumber || 'doc'}.pdf`,
+        });
+      }
     } catch (err: any) {
       toast.error(err.message || 'Error al despachar traslado');
     } finally {
@@ -228,6 +269,16 @@ export const InventoryTransfersView: React.FC = () => {
 
   const handleReceiveTransfer = async () => {
     if (!selectedTransfer) return;
+
+    const confirmed = await showConfirmQuestion({
+      title: '¿Confirmar recepción de mercancía?',
+      text: `¿Confirma que ha recibido físicamente la mercancía correspondiente al traslado ${selectedTransfer.transfer_number}?`,
+      confirmButtonText: 'Sí, confirmar recepción',
+      cancelButtonText: 'Cancelar',
+      icon: 'question',
+    });
+    if (!confirmed) return;
+
     setSubmitting(true);
     try {
       const res = await fetch('/api/inventory/transfers/receive', {
@@ -326,21 +377,41 @@ export const InventoryTransfersView: React.FC = () => {
     },
     {
       header: 'Acción',
-      cell: (t) =>
-        t.status === 'IN_TRANSIT' ? (
+      cell: (t) => (
+        <div className="flex items-center gap-1.5 justify-end">
           <Button
             size="sm"
-            onClick={() => {
-              setSelectedTransfer(t);
-              setShowReceiveModal(true);
-            }}
+            variant="outline"
+            onClick={() =>
+              setPdfModal({
+                isOpen: true,
+                endpoint: `/api/inventory/transfers/${t.id}/pdf`,
+                title: `Guía de Traslado ${t.transfer_number}`,
+                filename: `guia_traslado_${t.transfer_number}.pdf`,
+              })
+            }
+            className="h-8 px-2 text-xs text-sky-700 hover:text-sky-800"
+            title="Ver / Reimprimir Guía de Traslado en PDF"
           >
-            <Check className="w-3.5 h-3.5 mr-1" />
-            Recepcionar
+            <FileText className="w-3.5 h-3.5 mr-1 text-sky-600" />
+            PDF
           </Button>
-        ) : (
-          <span className="text-[11px] text-neutral-400 italic">Completado</span>
-        ),
+          {t.status === 'IN_TRANSIT' ? (
+            <Button
+              size="sm"
+              onClick={() => {
+                setSelectedTransfer(t);
+                setShowReceiveModal(true);
+              }}
+            >
+              <Check className="w-3.5 h-3.5 mr-1" />
+              Recepcionar
+            </Button>
+          ) : (
+            <span className="text-[11px] text-neutral-400 italic">Completado</span>
+          )}
+        </div>
+      ),
     },
   ];
 
@@ -457,22 +528,29 @@ export const InventoryTransfersView: React.FC = () => {
 
       {/* Modal: Crear Traslado */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
+            {/* Header (Pinned) */}
+            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
               <div className="flex items-center gap-2">
                 <Truck className="w-5 h-5 text-sky-600" />
-                <h3 className="text-sm font-bold text-neutral-900">Despacho de Traslado entre Depósitos</h3>
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-900">Despacho de Traslado entre Depósitos</h3>
+                  <p className="text-[11px] text-neutral-500">Registre la transferencia de mercancía entre depósitos</p>
+                </div>
               </div>
               <button
+                type="button"
                 onClick={() => setShowCreateModal(false)}
-                className="text-neutral-400 hover:text-neutral-600"
+                title="Cerrar modal (Esc)"
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
+            {/* Body (Scrollable) */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-neutral-700 mb-1">Depósito Origen (Despacha)</label>
@@ -521,18 +599,40 @@ export const InventoryTransfersView: React.FC = () => {
                 <span className="font-semibold text-neutral-800 block">Agregar Producto a Trasladar:</span>
                 <div className="grid grid-cols-12 gap-2 items-end">
                   <div className="col-span-6">
-                    <label className="text-[11px] text-neutral-500 block mb-1">Producto</label>
-                    <select
-                      value={newProductId}
-                      onChange={(e) => setNewProductId(e.target.value)}
-                      className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs bg-white"
-                    >
-                      {catalog.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.sku} - {p.name}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] text-neutral-500 block">Producto</label>
+                      <button
+                        type="button"
+                        onClick={() => setShowProductSearch(true)}
+                        className="text-[11px] text-sky-600 hover:text-sky-700 font-medium flex items-center gap-1 cursor-pointer"
+                      >
+                        <Search className="w-3 h-3" />
+                        <span>Buscar en catálogo</span>
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={newProductId}
+                        onChange={(e) => setNewProductId(e.target.value)}
+                        className="flex-1 h-8 px-2 border border-neutral-300 rounded-lg text-xs bg-white"
+                      >
+                        {catalog.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.sku} - {p.name}
+                          </option>
+                        ))}
+                      </select>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowProductSearch(true)}
+                        title="Buscar producto en modal"
+                        className="h-8 px-2 shrink-0 flex items-center justify-center"
+                      >
+                        <Search className="w-3.5 h-3.5 text-neutral-500" />
+                      </Button>
+                    </div>
                   </div>
 
                   <div className="col-span-3">
@@ -572,6 +672,7 @@ export const InventoryTransfersView: React.FC = () => {
                           {it.quantity} unidades
                         </span>
                         <button
+                          type="button"
                           onClick={() => handleRemoveItem(idx)}
                           className="text-neutral-400 hover:text-red-500 p-1"
                         >
@@ -584,7 +685,8 @@ export const InventoryTransfersView: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-3 border-t border-neutral-100">
+            {/* Footer (Pinned) */}
+            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
               <Button variant="outline" size="sm" onClick={() => setShowCreateModal(false)}>
                 Cancelar
               </Button>
@@ -599,24 +701,31 @@ export const InventoryTransfersView: React.FC = () => {
 
       {/* Modal: Recepcionar Traslado */}
       {showReceiveModal && selectedTransfer && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-md w-full p-6 shadow-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-md w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
+            {/* Header (Pinned) */}
+            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                <h3 className="text-sm font-bold text-neutral-900">
-                  Recepcionar Traslado {selectedTransfer.transfer_number}
-                </h3>
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-900">
+                    Recepcionar Traslado {selectedTransfer.transfer_number}
+                  </h3>
+                  <p className="text-[11px] text-neutral-500">Confirmación de ingreso al depósito destino</p>
+                </div>
               </div>
               <button
+                type="button"
                 onClick={() => setShowReceiveModal(false)}
-                className="text-neutral-400 hover:text-neutral-600"
+                title="Cerrar modal (Esc)"
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
+            {/* Body (Scrollable) */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
               <p className="text-neutral-600">
                 Al confirmar la recepción, la mercancía se acreditará automáticamente en el stock del depósito destino (
                 <strong>{selectedTransfer.destination_warehouse_name}</strong>) y quedará registrada en el Kardex.
@@ -649,7 +758,8 @@ export const InventoryTransfersView: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-3 border-t border-neutral-100">
+            {/* Footer (Pinned) */}
+            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
               <Button variant="outline" size="sm" onClick={() => setShowReceiveModal(false)}>
                 Cancelar
               </Button>
@@ -661,6 +771,27 @@ export const InventoryTransfersView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Modal Buscador de Productos */}
+      <ProductSearchModal
+        isOpen={showProductSearch}
+        onClose={() => setShowProductSearch(false)}
+        onSelect={(prod) => {
+          setNewProductId(prod.id);
+          setShowProductSearch(false);
+        }}
+        products={catalog}
+        mode="transfer"
+      />
+
+      {/* Modal Visor / Descarga PDF de Traslado de Inventario */}
+      <PdfViewerModal
+        isOpen={pdfModal.isOpen}
+        onClose={() => setPdfModal((prev) => ({ ...prev, isOpen: false }))}
+        title={pdfModal.title}
+        endpoint={pdfModal.endpoint}
+        filename={pdfModal.filename}
+      />
     </div>
   );
 };

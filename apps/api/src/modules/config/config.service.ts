@@ -2,7 +2,9 @@ import { query } from '../../db';
 import {
   UpdateCompanyInput,
   BranchInput,
+  UpdateBranchInput,
   WarehouseInput,
+  UpdateWarehouseInput,
   UpdateBusinessRulesInput,
 } from '@ero/shared';
 import crypto from 'crypto';
@@ -191,6 +193,112 @@ export class ConfigService {
   }
 
   /**
+   * Actualiza una sucursal existente
+   */
+  static async updateBranch(companyId: string, id: string, input: UpdateBranchInput) {
+    const rows = await query<any>(
+      `SELECT * FROM branches WHERE id = ? AND company_id = ?`,
+      [id, companyId]
+    );
+    if (rows.length === 0) {
+      throw new Error('Sucursal no encontrada');
+    }
+    const current = rows[0];
+    const code = input.code !== undefined ? input.code.trim().toUpperCase() : current.code;
+    const name = input.name !== undefined ? input.name.trim() : current.name;
+    const address = input.address !== undefined ? input.address : current.address;
+    const phone = input.phone !== undefined ? input.phone : current.phone;
+    const isMain = input.isMain !== undefined ? input.isMain : Boolean(current.is_main);
+    const isActive = input.isActive !== undefined ? input.isActive : Boolean(current.is_active);
+
+    if (isMain && !current.is_main) {
+      await query(`UPDATE branches SET is_main = 0 WHERE company_id = ?`, [companyId]);
+    }
+
+    await query(
+      `UPDATE branches SET code = ?, name = ?, address = ?, phone = ?, is_main = ?, is_active = ?
+       WHERE id = ? AND company_id = ?`,
+      [code, name, address, phone, isMain ? 1 : 0, isActive ? 1 : 0, id, companyId]
+    );
+
+    return {
+      id,
+      companyId,
+      code,
+      name,
+      address,
+      phone,
+      isMain,
+      isActive,
+    };
+  }
+
+  /**
+   * Elimina una sucursal: física si no tiene registros asociados, o lógica si tiene operaciones
+   */
+  static async deleteBranch(companyId: string, id: string) {
+    const rows = await query<any>(
+      `SELECT * FROM branches WHERE id = ? AND company_id = ?`,
+      [id, companyId]
+    );
+    if (rows.length === 0) {
+      throw new Error('Sucursal no encontrada');
+    }
+    const current = rows[0];
+
+    // Verificar si es la única sucursal principal
+    if (current.is_main) {
+      const otherBranches = await query<any>(
+        `SELECT id FROM branches WHERE company_id = ? AND id != ? AND is_active = 1 LIMIT 1`,
+        [companyId, id]
+      );
+      if (otherBranches.length > 0) {
+        await query(`UPDATE branches SET is_main = 1 WHERE id = ?`, [otherBranches[0].id]);
+      }
+    }
+
+    // Comprobar registros operacionales asociados
+    const [invoices] = await query<any>(`SELECT COUNT(*) as cnt FROM sales_invoices WHERE branch_id = ?`, [id]);
+    const [movements] = await query<any>(`SELECT COUNT(*) as cnt FROM inventory_movements WHERE branch_id = ?`, [id]);
+    const [registers] = await query<any>(`SELECT COUNT(*) as cnt FROM cash_registers WHERE branch_id = ?`, [id]);
+    const [quotations] = await query<any>(`SELECT COUNT(*) as cnt FROM sales_quotations WHERE branch_id = ?`, [id]);
+    const [deliveries] = await query<any>(`SELECT COUNT(*) as cnt FROM delivery_notes WHERE branch_id = ?`, [id]);
+
+    const hasOperationalRecords =
+      (invoices?.cnt || 0) > 0 ||
+      (movements?.cnt || 0) > 0 ||
+      (registers?.cnt || 0) > 0 ||
+      (quotations?.cnt || 0) > 0 ||
+      (deliveries?.cnt || 0) > 0;
+
+    if (hasOperationalRecords) {
+      // Eliminación lógica / Desactivación
+      await query(`UPDATE branches SET is_active = 0 WHERE id = ?`, [id]);
+      await query(`UPDATE warehouses SET is_active = 0 WHERE branch_id = ?`, [id]);
+      return {
+        success: true,
+        deleted: false,
+        deactivated: true,
+        message: 'La sucursal posee registros operativos asociados (ventas, movimientos o cajas). Ha sido desactivada lógicamente para proteger el historial contable y fiscal.',
+      };
+    } else {
+      // Eliminación física limpia
+      await query(`DELETE FROM user_branches WHERE branch_id = ?`, [id]);
+      await query(`DELETE FROM user_warehouses WHERE warehouse_id IN (SELECT id FROM warehouses WHERE branch_id = ?)`, [id]);
+      await query(`DELETE FROM product_locations WHERE warehouse_id IN (SELECT id FROM warehouses WHERE branch_id = ?)`, [id]);
+      await query(`DELETE FROM product_stocks WHERE warehouse_id IN (SELECT id FROM warehouses WHERE branch_id = ?)`, [id]);
+      await query(`DELETE FROM warehouses WHERE branch_id = ?`, [id]);
+      await query(`DELETE FROM branches WHERE id = ?`, [id]);
+      return {
+        success: true,
+        deleted: true,
+        deactivated: false,
+        message: 'Sucursal y sus depósitos eliminados permanentemente del sistema.',
+      };
+    }
+  }
+
+  /**
    * Obtiene los almacenes/depósitos de la empresa o filtrados por sucursal
    */
   static async getWarehouses(companyId: string, branchId?: string) {
@@ -290,14 +398,120 @@ export class ConfigService {
   }
 
   /**
+   * Actualiza un depósito existente
+   */
+  static async updateWarehouse(companyId: string, id: string, input: UpdateWarehouseInput) {
+    const rows = await query<any>(
+      `SELECT w.* FROM warehouses w
+       INNER JOIN branches b ON w.branch_id = b.id
+       WHERE w.id = ? AND b.company_id = ?`,
+      [id, companyId]
+    );
+    if (rows.length === 0) {
+      throw new Error('Depósito no encontrado');
+    }
+    const current = rows[0];
+    const branchId = input.branchId !== undefined ? input.branchId : current.branch_id;
+    const code = input.code !== undefined ? input.code.trim().toUpperCase() : current.code;
+    const name = input.name !== undefined ? input.name.trim() : current.name;
+    const isDefault = input.isDefault !== undefined ? input.isDefault : Boolean(current.is_default);
+    const isActive = input.isActive !== undefined ? input.isActive : Boolean(current.is_active);
+
+    if (isDefault && !current.is_default) {
+      await query(`UPDATE warehouses SET is_default = 0 WHERE branch_id = ?`, [branchId]);
+    }
+
+    await query(
+      `UPDATE warehouses SET branch_id = ?, code = ?, name = ?, is_default = ?, is_active = ?
+       WHERE id = ?`,
+      [branchId, code, name, isDefault ? 1 : 0, isActive ? 1 : 0, id]
+    );
+
+    return {
+      id,
+      branchId,
+      code,
+      name,
+      isDefault,
+      isActive,
+    };
+  }
+
+  /**
+   * Elimina un depósito: física si no tiene registros/stock, o lógica si tiene operaciones
+   */
+  static async deleteWarehouse(companyId: string, id: string) {
+    const rows = await query<any>(
+      `SELECT w.* FROM warehouses w
+       INNER JOIN branches b ON w.branch_id = b.id
+       WHERE w.id = ? AND b.company_id = ?`,
+      [id, companyId]
+    );
+    if (rows.length === 0) {
+      throw new Error('Depósito no encontrado');
+    }
+
+    // Verificar si tiene stock activo mayor a 0
+    const [stocks] = await query<any>(
+      `SELECT COUNT(*) as cnt FROM product_stocks WHERE warehouse_id = ? AND current_stock > 0`,
+      [id]
+    );
+    // Verificar si tiene movimientos de inventario históricos
+    const [movements] = await query<any>(
+      `SELECT COUNT(*) as cnt FROM inventory_movements WHERE warehouse_id = ?`,
+      [id]
+    );
+    // Verificar si tiene facturas asociadas
+    const [invoices] = await query<any>(
+      `SELECT COUNT(*) as cnt FROM sales_invoices WHERE warehouse_id = ?`,
+      [id]
+    );
+    // Verificar si tiene despachos / notas de entrega
+    const [deliveries] = await query<any>(
+      `SELECT COUNT(*) as cnt FROM delivery_notes WHERE warehouse_id = ?`,
+      [id]
+    );
+
+    const hasOperationalRecords =
+      (stocks?.cnt || 0) > 0 ||
+      (movements?.cnt || 0) > 0 ||
+      (invoices?.cnt || 0) > 0 ||
+      (deliveries?.cnt || 0) > 0;
+
+    if (hasOperationalRecords) {
+      // Eliminación lógica / Desactivación
+      await query(`UPDATE warehouses SET is_active = 0 WHERE id = ?`, [id]);
+      return {
+        success: true,
+        deleted: false,
+        deactivated: true,
+        message: 'El depósito posee existencias de inventario o movimientos históricos. Ha sido desactivado lógicamente para preservar la integridad de datos.',
+      };
+    } else {
+      // Eliminación física limpia
+      await query(`DELETE FROM user_warehouses WHERE warehouse_id = ?`, [id]);
+      await query(`DELETE FROM product_locations WHERE warehouse_id = ?`, [id]);
+      await query(`DELETE FROM product_stocks WHERE warehouse_id = ?`, [id]);
+      await query(`DELETE FROM warehouses WHERE id = ?`, [id]);
+      return {
+        success: true,
+        deleted: true,
+        deactivated: false,
+        message: 'Depósito eliminado permanentemente del sistema.',
+      };
+    }
+  }
+
+  /**
    * Obtiene las reglas de negocio configuradas
    */
   static async getBusinessRules(companyId: string, branchId?: string) {
     try {
       const rows = await query<any>(
         `SELECT id, company_id, branch_id, allow_credit_sales, require_approval_discount,
-                max_discount_allowed, pos_invoice_mode, tax_affects_final_price,
-                enforce_credit_limit, retention_period_years
+                max_discount_allowed, pos_invoice_mode, sales_invoice_mode, tax_affects_final_price,
+                enforce_credit_limit, require_approval_credit_exceeded, allow_negative_stock,
+                require_approval_negative_stock, retention_period_years
          FROM business_rules
          WHERE company_id = ? AND (${branchId ? 'branch_id = ? OR branch_id IS NULL' : 'branch_id IS NULL'})
          ORDER BY branch_id DESC
@@ -314,9 +528,13 @@ export class ConfigService {
           allowCreditSales: Boolean(r.allow_credit_sales),
           requireApprovalDiscount: Boolean(r.require_approval_discount),
           maxDiscountAllowed: Number(r.max_discount_allowed),
-          posInvoiceMode: r.pos_invoice_mode,
+          posInvoiceMode: r.pos_invoice_mode || 'normal_printer',
+          salesInvoiceMode: r.sales_invoice_mode || 'free_form',
           taxAffectsFinalPrice: Boolean(r.tax_affects_final_price),
           enforceCreditLimit: Boolean(r.enforce_credit_limit),
+          requireApprovalCreditExceeded: Boolean(r.require_approval_credit_exceeded !== undefined ? r.require_approval_credit_exceeded : 1),
+          allowNegativeStock: Boolean(r.allow_negative_stock !== undefined ? r.allow_negative_stock : 1),
+          requireApprovalNegativeStock: Boolean(r.require_approval_negative_stock !== undefined ? r.require_approval_negative_stock : 1),
           retentionPeriodYears: Number(r.retention_period_years),
         };
       }
@@ -331,8 +549,12 @@ export class ConfigService {
       requireApprovalDiscount: true,
       maxDiscountAllowed: 10.0,
       posInvoiceMode: 'normal_printer' as const,
+      salesInvoiceMode: 'free_form' as const,
       taxAffectsFinalPrice: true,
       enforceCreditLimit: true,
+      requireApprovalCreditExceeded: true,
+      allowNegativeStock: true,
+      requireApprovalNegativeStock: true,
       retentionPeriodYears: 5,
     };
   }
@@ -346,16 +568,21 @@ export class ConfigService {
       await query(
         `INSERT INTO business_rules (
            id, company_id, branch_id, allow_credit_sales, require_approval_discount,
-           max_discount_allowed, pos_invoice_mode, tax_affects_final_price,
-           enforce_credit_limit, retention_period_years
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           max_discount_allowed, pos_invoice_mode, sales_invoice_mode, tax_affects_final_price,
+           enforce_credit_limit, require_approval_credit_exceeded, allow_negative_stock,
+           require_approval_negative_stock, retention_period_years
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
            allow_credit_sales = VALUES(allow_credit_sales),
            require_approval_discount = VALUES(require_approval_discount),
            max_discount_allowed = VALUES(max_discount_allowed),
            pos_invoice_mode = VALUES(pos_invoice_mode),
+           sales_invoice_mode = VALUES(sales_invoice_mode),
            tax_affects_final_price = VALUES(tax_affects_final_price),
            enforce_credit_limit = VALUES(enforce_credit_limit),
+           require_approval_credit_exceeded = VALUES(require_approval_credit_exceeded),
+           allow_negative_stock = VALUES(allow_negative_stock),
+           require_approval_negative_stock = VALUES(require_approval_negative_stock),
            retention_period_years = VALUES(retention_period_years)`,
         [
           id,
@@ -365,8 +592,12 @@ export class ConfigService {
           input.requireApprovalDiscount ? 1 : 0,
           input.maxDiscountAllowed,
           input.posInvoiceMode,
+          input.salesInvoiceMode || 'free_form',
           input.taxAffectsFinalPrice ? 1 : 0,
           input.enforceCreditLimit ? 1 : 0,
+          input.requireApprovalCreditExceeded ? 1 : 0,
+          input.allowNegativeStock ? 1 : 0,
+          input.requireApprovalNegativeStock ? 1 : 0,
           input.retentionPeriodYears,
         ]
       );
@@ -388,7 +619,7 @@ export class ConfigService {
     try {
       const rows = await query<any>(
         `SELECT u.id, u.username, u.email, u.full_name, u.role_id, u.is_2fa_enabled,
-                u.is_active, u.last_login_at, r.name as role_name
+                u.is_active, u.all_branches, u.can_switch_warehouses, u.last_login_at, r.name as role_name
          FROM users u
          LEFT JOIN roles r ON u.role_id = r.id
          WHERE u.company_id = ?
@@ -397,6 +628,41 @@ export class ConfigService {
       );
 
       if (rows.length > 0) {
+        // Obtenemos sucursales asignadas
+        const userBranchesRows = await query<any>(
+          `SELECT ub.user_id, ub.branch_id, ub.is_default
+           FROM user_branches ub
+           INNER JOIN branches b ON ub.branch_id = b.id
+           WHERE b.company_id = ?`,
+          [companyId]
+        );
+
+        // Obtenemos almacenes asignados
+        const userWarehousesRows = await query<any>(
+          `SELECT uw.user_id, uw.warehouse_id, uw.is_default, w.branch_id
+           FROM user_warehouses uw
+           INNER JOIN warehouses w ON uw.warehouse_id = w.id
+           INNER JOIN branches b ON w.branch_id = b.id
+           WHERE b.company_id = ?`,
+          [companyId]
+        );
+
+        const branchMap = new Map<string, string[]>();
+        userBranchesRows.forEach((ub: any) => {
+          if (!branchMap.has(ub.user_id)) branchMap.set(ub.user_id, []);
+          branchMap.get(ub.user_id)!.push(ub.branch_id);
+        });
+
+        const warehouseMap = new Map<string, string[]>();
+        const warehouseByBranchMap = new Map<string, Record<string, string>>();
+        userWarehousesRows.forEach((uw: any) => {
+          if (!warehouseMap.has(uw.user_id)) warehouseMap.set(uw.user_id, []);
+          warehouseMap.get(uw.user_id)!.push(uw.warehouse_id);
+
+          if (!warehouseByBranchMap.has(uw.user_id)) warehouseByBranchMap.set(uw.user_id, {});
+          warehouseByBranchMap.get(uw.user_id)![uw.branch_id] = uw.warehouse_id;
+        });
+
         return rows.map((u) => ({
           id: u.id,
           username: u.username,
@@ -406,6 +672,11 @@ export class ConfigService {
           roleName: u.role_name || 'Sin Rol',
           is2faEnabled: Boolean(u.is_2fa_enabled),
           isActive: Boolean(u.is_active),
+          allBranches: Boolean(u.all_branches ?? 1),
+          canSwitchWarehouses: Boolean(u.can_switch_warehouses ?? 1),
+          branchIds: branchMap.get(u.id) || [],
+          warehouseIds: warehouseMap.get(u.id) || [],
+          warehouseByBranch: warehouseByBranchMap.get(u.id) || {},
           lastLoginAt: u.last_login_at,
         }));
       }
@@ -458,11 +729,11 @@ export class ConfigService {
       const rows = await query<any>(
         `SELECT r.id, r.name, r.description, r.is_system,
                 COUNT(rp.permission_id) as permissions_count,
-                GROUP_CONCAT(p.module || '.' || p.action) as permissions_str
+                GROUP_CONCAT(CONCAT(p.module, '.', p.action)) as permissions_str
          FROM roles r
          LEFT JOIN role_permissions rp ON r.id = rp.role_id
          LEFT JOIN permissions p ON rp.permission_id = p.id
-         WHERE r.company_id = ?
+         WHERE (r.company_id = ? OR r.is_system = 1 OR r.company_id IS NULL)
          GROUP BY r.id
          ORDER BY r.is_system DESC, r.name ASC`,
         [companyId]
@@ -540,7 +811,11 @@ export class ConfigService {
     roleId: string;
     is2faEnabled?: boolean;
     isActive?: boolean;
+    allBranches?: boolean;
+    canSwitchWarehouses?: boolean;
     branchIds?: string[];
+    warehouseIds?: string[];
+    warehouseByBranch?: Record<string, string>;
   }) {
     const id = crypto.randomUUID();
     let passwordHash = 'Admin123!';
@@ -553,6 +828,9 @@ export class ConfigService {
       }
     }
 
+    const allBranchesVal = input.allBranches !== undefined ? (input.allBranches ? 1 : 0) : 1;
+    const canSwitchWhVal = input.canSwitchWarehouses !== undefined ? (input.canSwitchWarehouses ? 1 : 0) : 1;
+
     try {
       const existing = await query<any>(
         `SELECT id FROM users WHERE (username = ? OR email = ?) AND company_id = ?`,
@@ -563,8 +841,8 @@ export class ConfigService {
       }
 
       await query(
-        `INSERT INTO users (id, company_id, role_id, username, email, password_hash, full_name, is_2fa_enabled, is_active)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO users (id, company_id, role_id, username, email, password_hash, full_name, is_2fa_enabled, is_active, all_branches, can_switch_warehouses)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
           companyId,
@@ -575,6 +853,8 @@ export class ConfigService {
           input.fullName.trim(),
           input.is2faEnabled ? 1 : 0,
           input.isActive !== undefined ? (input.isActive ? 1 : 0) : 1,
+          allBranchesVal,
+          canSwitchWhVal,
         ]
       );
 
@@ -587,6 +867,26 @@ export class ConfigService {
         }
       }
 
+      if (input.warehouseByBranch && Object.keys(input.warehouseByBranch).length > 0) {
+        const entries = Object.entries(input.warehouseByBranch);
+        for (let i = 0; i < entries.length; i++) {
+          const whId = entries[i][1];
+          if (whId) {
+            await query(
+              `INSERT INTO user_warehouses (user_id, warehouse_id, is_default) VALUES (?, ?, ?)`,
+              [id, whId, i === 0 ? 1 : 0]
+            );
+          }
+        }
+      } else if (input.warehouseIds && input.warehouseIds.length > 0) {
+        for (let i = 0; i < input.warehouseIds.length; i++) {
+          await query(
+            `INSERT INTO user_warehouses (user_id, warehouse_id, is_default) VALUES (?, ?, ?)`,
+            [id, input.warehouseIds[i], i === 0 ? 1 : 0]
+          );
+        }
+      }
+
       return {
         id,
         username: input.username,
@@ -595,6 +895,11 @@ export class ConfigService {
         roleId: input.roleId,
         is2faEnabled: Boolean(input.is2faEnabled),
         isActive: input.isActive !== undefined ? Boolean(input.isActive) : true,
+        allBranches: Boolean(allBranchesVal),
+        canSwitchWarehouses: Boolean(canSwitchWhVal),
+        branchIds: input.branchIds || [],
+        warehouseIds: input.warehouseIds || Object.values(input.warehouseByBranch || {}),
+        warehouseByBranch: input.warehouseByBranch || {},
         lastLoginAt: null,
       };
     } catch (err: any) {
@@ -609,6 +914,11 @@ export class ConfigService {
         roleId: input.roleId,
         is2faEnabled: Boolean(input.is2faEnabled),
         isActive: input.isActive !== undefined ? Boolean(input.isActive) : true,
+        allBranches: Boolean(allBranchesVal),
+        canSwitchWarehouses: Boolean(canSwitchWhVal),
+        branchIds: input.branchIds || [],
+        warehouseIds: input.warehouseIds || Object.values(input.warehouseByBranch || {}),
+        warehouseByBranch: input.warehouseByBranch || {},
         lastLoginAt: null,
       };
     }
@@ -624,7 +934,11 @@ export class ConfigService {
     password?: string;
     is2faEnabled?: boolean;
     isActive?: boolean;
+    allBranches?: boolean;
+    canSwitchWarehouses?: boolean;
     branchIds?: string[];
+    warehouseIds?: string[];
+    warehouseByBranch?: Record<string, string>;
   }) {
     try {
       const updates: string[] = [];
@@ -650,6 +964,14 @@ export class ConfigService {
         updates.push('is_active = ?');
         values.push(input.isActive ? 1 : 0);
       }
+      if (input.allBranches !== undefined) {
+        updates.push('all_branches = ?');
+        values.push(input.allBranches ? 1 : 0);
+      }
+      if (input.canSwitchWarehouses !== undefined) {
+        updates.push('can_switch_warehouses = ?');
+        values.push(input.canSwitchWarehouses ? 1 : 0);
+      }
       if (input.password && input.password.trim() !== '') {
         let passwordHash = input.password;
         try {
@@ -668,12 +990,34 @@ export class ConfigService {
         );
       }
 
-      if (input.branchIds) {
+      if (input.branchIds !== undefined) {
         await query(`DELETE FROM user_branches WHERE user_id = ?`, [id]);
         for (let i = 0; i < input.branchIds.length; i++) {
           await query(
             `INSERT INTO user_branches (user_id, branch_id, is_default) VALUES (?, ?, ?)`,
             [id, input.branchIds[i], i === 0 ? 1 : 0]
+          );
+        }
+      }
+
+      if (input.warehouseByBranch !== undefined) {
+        await query(`DELETE FROM user_warehouses WHERE user_id = ?`, [id]);
+        const entries = Object.entries(input.warehouseByBranch);
+        for (let i = 0; i < entries.length; i++) {
+          const whId = entries[i][1];
+          if (whId) {
+            await query(
+              `INSERT INTO user_warehouses (user_id, warehouse_id, is_default) VALUES (?, ?, ?)`,
+              [id, whId, i === 0 ? 1 : 0]
+            );
+          }
+        }
+      } else if (input.warehouseIds !== undefined) {
+        await query(`DELETE FROM user_warehouses WHERE user_id = ?`, [id]);
+        for (let i = 0; i < input.warehouseIds.length; i++) {
+          await query(
+            `INSERT INTO user_warehouses (user_id, warehouse_id, is_default) VALUES (?, ?, ?)`,
+            [id, input.warehouseIds[i], i === 0 ? 1 : 0]
           );
         }
       }

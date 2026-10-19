@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '../../components/ui/Button';
 import { Printer, Copy, Check, X, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
@@ -30,6 +30,17 @@ interface FiscalReportModalProps {
 
 export const FiscalReportModal: React.FC<FiscalReportModalProps> = ({ data, isOpen, onClose }) => {
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen || !data) return null;
 

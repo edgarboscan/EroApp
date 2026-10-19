@@ -15,6 +15,8 @@ export interface UserSession {
   permissions: string[];
   branches?: string[];
   warehouses?: string[];
+  allBranches?: boolean;
+  canSwitchWarehouses?: boolean;
 }
 
 export interface TempAuthUser {

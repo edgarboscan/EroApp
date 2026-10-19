@@ -78,7 +78,7 @@ export const PhysicalLocationsView: React.FC = () => {
     {
       header: 'Stock Actual',
       accessorKey: 'currentStock',
-      cell: (row) => <span className="font-bold text-neutral-900">{formatNumber(row.currentStock, { maximumFractionDigits: 0 })} UND</span>,
+      cell: (row) => <span className="font-bold text-neutral-900">{formatNumber(row.currentStock, { maximumFractionDigits: 2})} UND</span>,
     },
   ];
 

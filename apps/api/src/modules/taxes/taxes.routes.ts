@@ -5,6 +5,8 @@ import {
   emitWithholdingISLRSchema,
 } from '@ero/shared';
 import { TaxesService } from './taxes.service';
+import { ReportsPdfEngine } from '../reports/reports-pdf';
+import { ReportsService } from '../reports/reports.service';
 import { authenticate, AppEnv } from '../../middleware/auth';
 import { authorize } from '../../middleware/rbac';
 import { z } from 'zod';
@@ -18,6 +20,7 @@ taxesRouter.get('/withholdings', authenticate, authorize('taxes', 'read'), async
   const period = c.req.query('period');
   const branchId = c.req.query('branchId') || c.get('activeBranchId');
   const supplierId = c.req.query('supplierId');
+  const format = c.req.query('format');
 
   const data = await TaxesService.getWithholdings(user.companyId, {
     type,
@@ -27,6 +30,28 @@ taxesRouter.get('/withholdings', authenticate, authorize('taxes', 'read'), async
   });
 
   return c.json({ success: true, data });
+});
+
+// GET /api/taxes/withholdings/:id/pdf - Comprobante oficial de retención en PDF (IVA o ISLR)
+taxesRouter.get('/withholdings/:id/pdf', authenticate, authorize('taxes', 'read'), async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id')!;
+
+  const voucher = await TaxesService.getWithholdingById(user.companyId, id);
+  if (!voucher) {
+    return c.json({ success: false, error: { message: 'Comprobante de retención no encontrado' } }, 404);
+  }
+
+  const [company, userName] = await Promise.all([
+    ReportsService.getCompanyPdfInfo(user.companyId),
+    ReportsService.getUserFullName(user.sub),
+  ]);
+
+  const buffer = ReportsPdfEngine.generateWithholdingVoucherPDF(voucher, company, userName);
+
+  c.header('Content-Type', 'application/pdf');
+  c.header('Content-Disposition', `inline; filename="comprobante_retencion_${voucher.voucherNumber}.pdf"`);
+  return c.body(new Uint8Array(buffer));
 });
 
 // GET /api/taxes/pending-invoices - Facturas de compra disponibles para retención
@@ -85,39 +110,84 @@ taxesRouter.post(
   }
 );
 
-// GET /api/taxes/books/purchases - Libro de Compras SENIAT
+// GET /api/taxes/books/purchases - Libro de Compras SENIAT (JSON / PDF)
 taxesRouter.get('/books/purchases', authenticate, authorize('taxes', 'read'), async (c) => {
   const user = c.get('user');
   const now = new Date();
   const currentPeriod = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
   const period = c.req.query('period') || currentPeriod;
   const branchId = c.req.query('branchId') || c.get('activeBranchId');
+  const format = c.req.query('format');
 
   const data = await TaxesService.getPurchasesBook(user.companyId, period, branchId);
+
+  if (format === 'pdf') {
+    const [company, userName] = await Promise.all([
+      ReportsService.getCompanyPdfInfo(user.companyId),
+      ReportsService.getUserFullName(user.sub),
+    ]);
+
+    const buffer = ReportsPdfEngine.generatePurchasesBookReportPDF(data, company, userName, { period });
+
+    c.header('Content-Type', 'application/pdf');
+    c.header('Content-Disposition', `inline; filename="libro_compras_${period}.pdf"`);
+    return c.body(new Uint8Array(buffer));
+  }
+
   return c.json({ success: true, data });
 });
 
-// GET /api/taxes/books/sales - Libro de Ventas SENIAT
+// GET /api/taxes/books/sales - Libro de Ventas SENIAT (JSON / PDF)
 taxesRouter.get('/books/sales', authenticate, authorize('taxes', 'read'), async (c) => {
   const user = c.get('user');
   const now = new Date();
   const currentPeriod = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
   const period = c.req.query('period') || currentPeriod;
   const branchId = c.req.query('branchId') || c.get('activeBranchId');
+  const format = c.req.query('format');
 
   const data = await TaxesService.getSalesBook(user.companyId, period, branchId);
+
+  if (format === 'pdf') {
+    const [company, userName] = await Promise.all([
+      ReportsService.getCompanyPdfInfo(user.companyId),
+      ReportsService.getUserFullName(user.sub),
+    ]);
+
+    const buffer = ReportsPdfEngine.generateSalesBookReportPDF(data.items || [], company, userName, { period });
+
+    c.header('Content-Type', 'application/pdf');
+    c.header('Content-Disposition', `inline; filename="libro_ventas_${period}.pdf"`);
+    return c.body(new Uint8Array(buffer));
+  }
+
   return c.json({ success: true, data });
 });
 
-// GET /api/taxes/arcv - Reporte Anual de Retenciones ISLR (Comprobante ARCV)
+// GET /api/taxes/arcv - Reporte Anual de Retenciones ISLR (Comprobante ARCV) (JSON / PDF)
 taxesRouter.get('/arcv', authenticate, authorize('taxes', 'read'), async (c) => {
   const user = c.get('user');
   const currentYear = new Date().getFullYear();
   const yearQuery = c.req.query('year');
   const year = yearQuery ? parseInt(yearQuery, 10) : currentYear;
   const supplierId = c.req.query('supplierId');
+  const format = c.req.query('format');
 
   const data = await TaxesService.getARCVReport(user.companyId, year, supplierId);
+
+  if (format === 'pdf') {
+    const [company, userName] = await Promise.all([
+      ReportsService.getCompanyPdfInfo(user.companyId),
+      ReportsService.getUserFullName(user.sub),
+    ]);
+
+    const buffer = ReportsPdfEngine.generateARCVReportPDF(data, company, userName, { year });
+
+    c.header('Content-Type', 'application/pdf');
+    c.header('Content-Disposition', `inline; filename="comprobante_arcv_${year}.pdf"`);
+    return c.body(new Uint8Array(buffer));
+  }
+
   return c.json({ success: true, data });
 });
 
@@ -140,3 +210,4 @@ taxesRouter.get('/export/seniat', authenticate, authorize('taxes', 'read'), asyn
 
   return c.body(fileData.content);
 });
+

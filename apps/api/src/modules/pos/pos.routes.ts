@@ -13,6 +13,9 @@ import {
 import { POSService } from './pos.service';
 import { authenticate, AppEnv } from '../../middleware/auth';
 import { authorize } from '../../middleware/rbac';
+import { query } from '../../db';
+import { generateCashShiftVoucherPDF } from '../reports/reports-pdf';
+import { ReportsService } from '../reports/reports.service';
 
 export const posRouter = new Hono<AppEnv>();
 
@@ -57,7 +60,7 @@ posRouter.put('/payment-methods/:id', authenticate, async (c) => {
     return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'No cuenta con permisos para editar métodos de pago' } }, 403);
   }
 
-  const id = c.req.param('id');
+  const id = c.req.param('id')!;
   try {
     const body = await c.req.json();
     const method = await POSService.updatePaymentMethod(id, user.companyId, body);
@@ -76,7 +79,7 @@ posRouter.delete('/payment-methods/:id', authenticate, async (c) => {
     return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'No cuenta con permisos para eliminar métodos de pago' } }, 403);
   }
 
-  const id = c.req.param('id');
+  const id = c.req.param('id')!;
   try {
     await POSService.deletePaymentMethod(id, user.companyId);
     return c.json({ success: true, message: 'Método de pago desactivado' });
@@ -155,8 +158,8 @@ posRouter.delete('/registers/:id', authenticate, async (c) => {
   }
 
   try {
-    await POSService.deleteCashRegister(user.companyId, id);
-    return c.json({ success: true, message: 'Caja registradora desactivada exitosamente' });
+    const result = await POSService.deleteCashRegister(user.companyId, id);
+    return c.json(result);
   } catch (error: any) {
     return c.json({ success: false, error: { code: 'REGISTER_DELETE_FAILED', message: error.message } }, 400);
   }
@@ -223,6 +226,37 @@ posRouter.post(
   }
 );
 
+// GET /api/pos/shifts/:id/pdf - Descarga / Visualización de comprobante y acta de cierre de caja
+posRouter.get('/shifts/:id/pdf', authenticate, authorize('pos', 'read'), async (c) => {
+  const user = c.get('user');
+  const shiftId = c.req.param('id')!;
+
+  try {
+    const shift = await POSService.getShiftById(user.companyId, shiftId);
+    if (!shift) {
+      return c.json({ success: false, error: { code: 'SHIFT_NOT_FOUND', message: 'Turno de caja no encontrado' } }, 404);
+    }
+
+    const [company, userName] = await Promise.all([
+      ReportsService.getCompanyPdfInfo(user.companyId),
+      ReportsService.getUserFullName(user.sub),
+    ]);
+
+    const pdfBuffer = await generateCashShiftVoucherPDF({
+      company,
+      shift,
+      userName,
+    });
+
+    c.header('Content-Type', 'application/pdf');
+    c.header('Content-Disposition', `inline; filename="cierre_caja_${shift.cashRegisterCode || '01'}_${shift.id.slice(0, 8)}.pdf"`);
+    return c.body(new Uint8Array(pdfBuffer));
+  } catch (error: any) {
+    console.error('[POS Shift PDF Error]', error);
+    return c.json({ success: false, error: { code: 'SHIFT_PDF_FAILED', message: error.message } }, 500);
+  }
+});
+
 // POST /api/pos/shifts/movements - Registrar entrada / salida de efectivo
 posRouter.post(
   '/shifts/movements',
@@ -241,6 +275,18 @@ posRouter.post(
     }
   }
 );
+
+// POST /api/pos/authorize-supervisor - Autorización de supervisor para operaciones especiales (ej. stock negativo)
+posRouter.post('/authorize-supervisor', authenticate, async (c) => {
+  const user = c.get('user');
+  try {
+    const body = await c.req.json();
+    const result = await POSService.authorizeSupervisor(user.companyId, user.sub, body);
+    return c.json({ success: true, data: result });
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'SUPERVISOR_AUTH_FAILED', message: error.message } }, 400);
+  }
+});
 
 // POST /api/pos/sales - Procesa una venta en caja
 posRouter.post(

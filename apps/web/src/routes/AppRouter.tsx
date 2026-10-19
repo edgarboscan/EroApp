@@ -6,6 +6,14 @@ import { TwoFactorView } from '../features/auth/TwoFactorView';
 import { SelectBranchView } from '../features/auth/SelectBranchView';
 import { ProtectedRoute } from '../components/auth/ProtectedRoute';
 import { RequirePermission } from '../components/auth/RequirePermission';
+import { useAuthStore } from '../stores/authStore';
+import { getDefaultAppRoute } from '../lib/navigation';
+
+const DefaultLandingRedirect: React.FC = () => {
+  const hasPermission = useAuthStore((s) => s.hasPermission);
+  const targetRoute = getDefaultAppRoute(hasPermission);
+  return <Navigate to={targetRoute} replace />;
+};
 
 import { DynamicDashboard } from '../features/dashboards/DynamicDashboard';
 import { POSRegister } from '../features/pos/POSRegister';
@@ -52,6 +60,7 @@ import { ARCVReportView } from '../features/taxes/ARCVReportView';
 
 // Módulo Configuración, Licenciamiento & Auditoría (Paso 10)
 import { CompanyConfigView } from '../features/config/CompanyConfigView';
+import { PaymentMethodsConfigView } from '../features/config/PaymentMethodsConfigView';
 import { UsersAndRolesView } from '../features/config/UsersAndRolesView';
 import { LicensesView } from '../features/config/LicensesView';
 import { AuditLogsView } from '../features/audit/AuditLogsView';
@@ -81,12 +90,12 @@ export const AppRouter: React.FC = () => {
           </ProtectedRoute>
         }
       >
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/" element={<DefaultLandingRedirect />} />
         
         <Route
           path="/dashboard"
           element={
-            <RequirePermission module="dashboards" action="read">
+            <RequirePermission module="dashboards" action="read" fallback={<DefaultLandingRedirect />}>
               <DynamicDashboard />
             </RequirePermission>
           }
@@ -364,6 +373,15 @@ export const AppRouter: React.FC = () => {
           element={
             <RequirePermission module="config" action="read">
               <CompanyConfigView />
+            </RequirePermission>
+          }
+        />
+
+        <Route
+          path="/config/payment-methods"
+          element={
+            <RequirePermission module="config" action="read">
+              <PaymentMethodsConfigView />
             </RequirePermission>
           }
         />

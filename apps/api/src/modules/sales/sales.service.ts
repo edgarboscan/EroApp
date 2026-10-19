@@ -4,10 +4,259 @@ import {
   CreateDeliveryNoteInput,
   ConvertQuotationToInvoiceInput,
   ConvertDeliveryToInvoiceInput,
+  isSuperAdminRole,
 } from '@ero/shared';
 import crypto from 'crypto';
+import argon2 from 'argon2';
 
 export class SalesService {
+  // ==========================================
+  // CONFIGURACIÓN & REGLAS DE FACTURACIÓN
+  // ==========================================
+
+  static async getNextInvoiceNumber(companyId: string) {
+    const currentYear = new Date().getFullYear();
+    const rows = await query<any>(
+      `SELECT invoice_number FROM sales_invoices 
+       WHERE (branch_id IN (SELECT id FROM branches WHERE company_id = ?) OR user_id IN (SELECT id FROM users WHERE company_id = ?))
+         AND YEAR(invoice_date) = ?`,
+      [companyId, companyId, currentYear]
+    );
+
+    const regex = new RegExp(`^FACT-${currentYear}-(\\d+)$`);
+    let maxSeq = 0;
+    for (const r of rows) {
+      const match = String(r.invoice_number || '').match(regex);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (!isNaN(num) && num > maxSeq) {
+          maxSeq = num;
+        }
+      }
+    }
+
+    const nextSeq = maxSeq + 1;
+    const nextInvoiceNumber = `FACT-${currentYear}-${String(nextSeq).padStart(5, '0')}`;
+
+    const ruleRows = await query<any>(
+      `SELECT sales_invoice_mode, require_approval_credit_exceeded, enforce_credit_limit 
+       FROM business_rules WHERE company_id = ?`,
+      [companyId]
+    );
+    const rules = ruleRows[0] || {
+      sales_invoice_mode: 'free_form',
+      require_approval_credit_exceeded: 1,
+      enforce_credit_limit: 1,
+    };
+
+    return {
+      nextInvoiceNumber,
+      salesInvoiceMode: rules.sales_invoice_mode || 'free_form',
+      requireApprovalCreditExceeded: Boolean(rules.require_approval_credit_exceeded),
+      enforceCreditLimit: Boolean(rules.enforce_credit_limit),
+    };
+  }
+
+  static async getCustomerCredit(companyId: string, customerId: string) {
+    const [customerRows, debtRows, ruleRows] = await Promise.all([
+      query<any>(
+        `SELECT id, name, doc_type, doc_number, credit_enabled, credit_limit, payment_terms_days 
+         FROM customers WHERE id = ? AND company_id = ?`,
+        [customerId, companyId]
+      ),
+      query<any>(
+        `SELECT COALESCE(SUM(amount_balance), 0) as currentDebt
+         FROM receivables
+         WHERE customer_id = ? AND status IN ('PENDING', 'PARTIAL', 'OVERDUE')`,
+        [customerId]
+      ),
+      query<any>(
+        `SELECT sales_invoice_mode, require_approval_credit_exceeded, enforce_credit_limit 
+         FROM business_rules WHERE company_id = ?`,
+        [companyId]
+      ),
+    ]);
+
+    if (customerRows.length === 0) {
+      throw new Error('Cliente no encontrado');
+    }
+
+    const customer = customerRows[0];
+    const rules = ruleRows[0] || {
+      sales_invoice_mode: 'free_form',
+      require_approval_credit_exceeded: 1,
+      enforce_credit_limit: 1,
+    };
+    const creditLimit = Number(customer.credit_limit || 0);
+    const currentDebt = Number(debtRows[0]?.currentDebt || 0);
+    const availableCredit = Number((creditLimit - currentDebt).toFixed(2));
+    const paymentTermsDays = Number(customer.payment_terms_days || 15);
+
+    return {
+      customerId: customer.id,
+      customerName: customer.name,
+      customerDoc: `${customer.doc_type}-${customer.doc_number}`,
+      creditEnabled: Boolean(customer.credit_enabled),
+      creditLimit,
+      paymentTermsDays,
+      currentDebt,
+      availableCredit,
+      salesInvoiceMode: rules.sales_invoice_mode || 'free_form',
+      enforceCreditLimit: Boolean(rules.enforce_credit_limit),
+      requireApprovalCreditExceeded: Boolean(rules.require_approval_credit_exceeded),
+    };
+  }
+
+  static async generateInvoiceNumber(conn: any, companyId: string): Promise<string> {
+    const currentYear = new Date().getFullYear();
+    const [rows] = await conn.execute(
+      `SELECT invoice_number FROM sales_invoices 
+       WHERE (branch_id IN (SELECT id FROM branches WHERE company_id = ?) OR user_id IN (SELECT id FROM users WHERE company_id = ?))
+         AND YEAR(invoice_date) = ?`,
+      [companyId, companyId, currentYear]
+    );
+
+    const regex = new RegExp(`^FACT-${currentYear}-(\\d+)$`);
+    let maxSeq = 0;
+    for (const r of rows) {
+      const match = String(r.invoice_number || '').match(regex);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (!isNaN(num) && num > maxSeq) {
+          maxSeq = num;
+        }
+      }
+    }
+
+    const nextSeq = maxSeq + 1;
+    return `FACT-${currentYear}-${String(nextSeq).padStart(5, '0')}`;
+  }
+
+  static async validateCreditAndApproval(
+    conn: any,
+    companyId: string,
+    userId: string,
+    customer: any,
+    totalAmount: number,
+    adminAuthorized?: boolean,
+    supervisorApproval?: { usernameOrEmail: string; password: string; notes?: string | null } | null
+  ) {
+    if (!customer.credit_enabled) {
+      throw new Error(`El cliente ${customer.name} no tiene crédito comercial autorizado`);
+    }
+
+    const [debtRows] = await conn.execute(
+      `SELECT COALESCE(SUM(amount_balance), 0) as currentDebt
+       FROM receivables
+       WHERE customer_id = ? AND status IN ('PENDING', 'PARTIAL', 'OVERDUE')`,
+      [customer.id]
+    );
+    const currentDebt = Number(debtRows[0]?.currentDebt || 0);
+    const creditLimit = Number(customer.credit_limit || 0);
+    const availableCredit = Number((creditLimit - currentDebt).toFixed(2));
+    const isCreditExceeded = currentDebt + totalAmount > creditLimit;
+
+    const [ruleRows] = await conn.execute(
+      `SELECT enforce_credit_limit, require_approval_credit_exceeded 
+       FROM business_rules WHERE company_id = ?`,
+      [companyId]
+    );
+    const rules = ruleRows[0] || { enforce_credit_limit: 1, require_approval_credit_exceeded: 1 };
+
+    if (isCreditExceeded && rules.enforce_credit_limit) {
+      if (!rules.require_approval_credit_exceeded) {
+        throw new Error(
+          `Límite de crédito comercial excedido. Límite: $${creditLimit.toFixed(2)}, Deuda actual: $${currentDebt.toFixed(2)}, Disponible: $${availableCredit.toFixed(2)}, Monto a facturar: $${totalAmount.toFixed(2)}.`
+        );
+      }
+
+      // Se requiere aprobación de usuario de mayor nivel
+      const [currentUserRows] = await conn.execute(
+        `SELECT u.id, u.full_name, r.name as role_name 
+         FROM users u 
+         INNER JOIN roles r ON u.role_id = r.id 
+         WHERE u.id = ?`,
+        [userId]
+      );
+      const currentUser = currentUserRows[0];
+      const isCurrentUserAdmin = currentUser && isSuperAdminRole(currentUser.role_name);
+
+      let approvedByUserId = userId;
+      let approvedByUserName = currentUser?.full_name || 'Administrador';
+
+      if (isCurrentUserAdmin && adminAuthorized) {
+        approvedByUserId = userId;
+        approvedByUserName = currentUser.full_name;
+      } else if (supervisorApproval) {
+        const { usernameOrEmail, password } = supervisorApproval;
+        const [supervisorRows] = await conn.execute(
+          `SELECT u.id, u.full_name, u.password_hash, u.is_active, r.name as role_name
+           FROM users u
+           INNER JOIN roles r ON u.role_id = r.id
+           WHERE (u.username = ? OR u.email = ?) AND u.company_id = ? AND u.is_active = 1`,
+          [usernameOrEmail, usernameOrEmail, companyId]
+        );
+
+        if (supervisorRows.length === 0) {
+          throw new Error('Credenciales de supervisor inválidas o usuario inactivo');
+        }
+
+        const supervisor = supervisorRows[0];
+        let isPasswordValid = false;
+        try {
+          if (supervisor.password_hash.startsWith('$argon2')) {
+            isPasswordValid = await argon2.verify(supervisor.password_hash, password);
+          } else {
+            isPasswordValid = supervisor.password_hash === password;
+          }
+        } catch {
+          isPasswordValid = false;
+        }
+
+        if (!isPasswordValid) {
+          throw new Error('Contraseña del supervisor incorrecta');
+        }
+
+        if (!isSuperAdminRole(supervisor.role_name)) {
+          const [permRows] = await conn.execute(
+            `SELECT p.action FROM role_permissions rp
+             INNER JOIN permissions p ON rp.permission_id = p.id
+             WHERE rp.role_id = (SELECT role_id FROM users WHERE id = ?)
+               AND p.module = 'sales' AND p.action IN ('approve', 'create')`,
+            [supervisor.id]
+          );
+          if (permRows.length === 0) {
+            throw new Error('El usuario supervisor indicado no cuenta con rango suficiente para autorizar sobregiro de crédito');
+          }
+        }
+
+        approvedByUserId = supervisor.id;
+        approvedByUserName = supervisor.full_name;
+      } else {
+        throw new Error(
+          `Límite de crédito excedido (Disponible: $${availableCredit.toFixed(2)}, Monto a facturar: $${totalAmount.toFixed(2)}). Se requiere autorización de un usuario supervisor o administrador.`
+        );
+      }
+
+      return {
+        approved: true,
+        approvedByUserId,
+        approvedByUserName,
+        currentDebt,
+        creditLimit,
+        availableCredit,
+        notes: supervisorApproval?.notes || 'Autorizado por administrador',
+      };
+    }
+
+    return {
+      approved: false,
+      currentDebt,
+      creditLimit,
+      availableCredit,
+    };
+  }
+
   // ==========================================
   // COTIZACIONES / PRESUPUESTOS (QUOTATIONS)
   // ==========================================
@@ -23,6 +272,8 @@ export class SalesService {
               sq.total_amount as totalAmount, sq.status, sq.notes,
               sq.created_at as createdAt,
               c.name as customerName, CONCAT(c.doc_type, '-', c.doc_number) as customerDoc,
+              c.credit_enabled as creditEnabled, c.credit_limit as creditLimit,
+              c.payment_terms_days as paymentTermsDays,
               b.name as branchName,
               u.full_name as createdByUserName,
               (SELECT COUNT(*) FROM sales_quotation_items sqi WHERE sqi.quotation_id = sq.id) as itemsCount
@@ -51,6 +302,7 @@ export class SalesService {
               c.name as customerName, CONCAT(c.doc_type, '-', c.doc_number) as customerDoc,
               c.phone as customerPhone, c.email as customerEmail, c.address as customerAddress,
               c.credit_enabled as creditEnabled, c.credit_limit as creditLimit,
+              c.payment_terms_days as paymentTermsDays,
               b.name as branchName,
               u.full_name as createdByUserName
        FROM sales_quotations sq
@@ -432,35 +684,57 @@ export class SalesService {
       if (delivery.status === 'INVOICED') throw new Error('Esta nota de entrega ya fue facturada');
       if (delivery.status === 'ANNULLED') throw new Error('No se puede facturar una nota de entrega anulada');
 
-      // 2. Obtener cliente y verificar crédito comercial
+      // 2. Reglas de facturación administrativa
+      const [ruleRows] = await conn.execute<any[]>(
+        `SELECT sales_invoice_mode, require_approval_credit_exceeded, enforce_credit_limit 
+         FROM business_rules WHERE company_id = ?`,
+        [companyId]
+      );
+      const companyRules = ruleRows[0] || {
+        sales_invoice_mode: 'free_form',
+        require_approval_credit_exceeded: 1,
+        enforce_credit_limit: 1,
+      };
+
+      const invoiceMode = input.invoiceMode || companyRules.sales_invoice_mode || 'free_form';
+
+      // Validar Nº de control fiscal según el modo de facturación
+      let finalControlNumber: string | null = null;
+      if (invoiceMode === 'free_form') {
+        if (!input.controlNumber || !input.controlNumber.trim()) {
+          throw new Error('El Nº de Control SENIAT es obligatorio para Facturas en Forma Libre / Talonario');
+        }
+        finalControlNumber = input.controlNumber.trim();
+      } else if (invoiceMode === 'fiscal_printer') {
+        finalControlNumber = input.controlNumber?.trim() || null;
+      } else {
+        finalControlNumber = null;
+      }
+
+      // Autogenerar número de factura si no fue provisto
+      const invoiceNumber = input.invoiceNumber?.trim() || (await this.generateInvoiceNumber(conn, companyId));
+
+      // 3. Obtener cliente y verificar crédito comercial
       const [customerRows] = await conn.execute<any[]>(
         `SELECT * FROM customers WHERE id = ?`,
         [delivery.customer_id]
       );
       const customer = customerRows[0];
 
+      let creditApproval: any = null;
       if (input.isCredit) {
-        if (!customer.credit_enabled) {
-          throw new Error(`El cliente ${customer.name} no tiene crédito comercial autorizado`);
-        }
-
-        // Sumar saldo adeudado actual
-        const [debtRows] = await conn.execute<any[]>(
-          `SELECT COALESCE(SUM(amount_balance), 0) as currentDebt
-           FROM receivables
-           WHERE customer_id = ? AND status IN ('PENDING', 'PARTIAL', 'OVERDUE')`,
-          [delivery.customer_id]
+        creditApproval = await this.validateCreditAndApproval(
+          conn,
+          companyId,
+          userId,
+          customer,
+          delivery.total_amount,
+          input.adminAuthorized,
+          input.supervisorApproval
         );
-        const currentDebt = Number(debtRows[0]?.currentDebt || 0);
-
-        if (currentDebt + delivery.total_amount > Number(customer.credit_limit)) {
-          throw new Error(
-            `Límite de crédito excedido. Límite: $${customer.credit_limit}, Deuda actual: $${currentDebt.toFixed(2)}, Nuevo total: $${(currentDebt + delivery.total_amount).toFixed(2)}`
-          );
-        }
       }
 
-      // 3. Obtener ítems despachados
+      // 4. Obtener ítems despachados
       const [items] = await conn.execute<any[]>(
         `SELECT dni.*, p.default_tax_rate_id
          FROM delivery_note_items dni
@@ -498,7 +772,7 @@ export class SalesService {
 
       const totalInvoiceAmount = Number((baseTaxableAmount + taxAmount).toFixed(2));
 
-      // 4. Insertar sales_invoices (El inventario YA fue rebajado por la nota de entrega)
+      // 5. Insertar sales_invoices (El inventario YA fue rebajado por la nota de entrega)
       await conn.execute(
         `INSERT INTO sales_invoices (
           id, branch_id, warehouse_id, customer_id, user_id,
@@ -513,9 +787,9 @@ export class SalesService {
           delivery.warehouse_id,
           delivery.customer_id,
           userId,
-          input.invoiceNumber,
-          input.controlNumber || null,
-          input.invoiceMode,
+          invoiceNumber,
+          finalControlNumber,
+          invoiceMode,
           delivery.currency,
           delivery.exchange_rate,
           baseTaxableAmount,
@@ -526,7 +800,32 @@ export class SalesService {
         ]
       );
 
-      // 5. Insertar ítems de factura
+      // Si se aprobó sobregiro de crédito, registrar en auditoría
+      if (creditApproval && creditApproval.approved) {
+        await conn.execute(
+          `INSERT INTO audit_logs (
+            id, company_id, branch_id, user_id, module, action, entity, entity_id, after_json
+          ) VALUES (?, ?, ?, ?, 'sales', 'CREDIT_LIMIT_OVERRIDE', 'sales_invoices', ?, ?)`,
+          [
+            crypto.randomUUID(),
+            companyId,
+            delivery.branch_id,
+            creditApproval.approvedByUserId,
+            invoiceId,
+            JSON.stringify({
+              customerId: delivery.customer_id,
+              customerName: customer.name,
+              creditLimit: creditApproval.creditLimit,
+              currentDebt: creditApproval.currentDebt,
+              saleAmount: totalInvoiceAmount,
+              approvedBy: creditApproval.approvedByUserName,
+              notes: creditApproval.notes,
+            }),
+          ]
+        );
+      }
+
+      // 6. Insertar ítems de factura
       for (const item of preparedInvoiceItems) {
         await conn.execute(
           `INSERT INTO sales_invoice_items (
@@ -549,10 +848,11 @@ export class SalesService {
         );
       }
 
-      // 6. Si es a crédito, registrar en receivables (CxC)
+      // 7. Si es a crédito, registrar en receivables (CxC)
       if (input.isCredit) {
         const receivableId = crypto.randomUUID();
-        const dueDate = input.dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const paymentDays = Number(customer.payment_terms_days) || 15;
+        const dueDate = input.dueDate || new Date(Date.now() + paymentDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
         await conn.execute(
           `INSERT INTO receivables (
@@ -563,7 +863,7 @@ export class SalesService {
         );
       }
 
-      // 7. Actualizar la nota de entrega a INVOICED
+      // 8. Actualizar la nota de entrega a INVOICED
       await conn.execute(
         `UPDATE delivery_notes
          SET status = 'INVOICED', sales_invoice_id = ?
@@ -573,7 +873,9 @@ export class SalesService {
 
       return {
         invoiceId,
-        invoiceNumber: input.invoiceNumber,
+        invoiceNumber,
+        controlNumber: finalControlNumber,
+        invoiceMode,
         totalAmount: totalInvoiceAmount,
         isCredit: input.isCredit,
         status: input.isCredit ? 'PENDING' : 'PAID',
@@ -593,34 +895,57 @@ export class SalesService {
       const quotation = quotationRows[0];
       if (quotation.status === 'CONVERTED') throw new Error('Esta cotización ya fue facturada');
 
-      // 2. Verificar cliente y crédito comercial
+      // 2. Reglas de facturación administrativa
+      const [ruleRows] = await conn.execute<any[]>(
+        `SELECT sales_invoice_mode, require_approval_credit_exceeded, enforce_credit_limit 
+         FROM business_rules WHERE company_id = ?`,
+        [companyId]
+      );
+      const companyRules = ruleRows[0] || {
+        sales_invoice_mode: 'free_form',
+        require_approval_credit_exceeded: 1,
+        enforce_credit_limit: 1,
+      };
+
+      const invoiceMode = input.invoiceMode || companyRules.sales_invoice_mode || 'free_form';
+
+      // Validar Nº de control fiscal según el modo de facturación
+      let finalControlNumber: string | null = null;
+      if (invoiceMode === 'free_form') {
+        if (!input.controlNumber || !input.controlNumber.trim()) {
+          throw new Error('El Nº de Control SENIAT es obligatorio para Facturas en Forma Libre / Talonario');
+        }
+        finalControlNumber = input.controlNumber.trim();
+      } else if (invoiceMode === 'fiscal_printer') {
+        finalControlNumber = input.controlNumber?.trim() || null;
+      } else {
+        finalControlNumber = null;
+      }
+
+      // Autogenerar número de factura si no fue provisto
+      const invoiceNumber = input.invoiceNumber?.trim() || (await this.generateInvoiceNumber(conn, companyId));
+
+      // 3. Verificar cliente y crédito comercial
       const [customerRows] = await conn.execute<any[]>(
         `SELECT * FROM customers WHERE id = ?`,
         [quotation.customer_id]
       );
       const customer = customerRows[0];
 
+      let creditApproval: any = null;
       if (input.isCredit) {
-        if (!customer.credit_enabled) {
-          throw new Error(`El cliente ${customer.name} no tiene crédito comercial autorizado`);
-        }
-
-        const [debtRows] = await conn.execute<any[]>(
-          `SELECT COALESCE(SUM(amount_balance), 0) as currentDebt
-           FROM receivables
-           WHERE customer_id = ? AND status IN ('PENDING', 'PARTIAL', 'OVERDUE')`,
-          [quotation.customer_id]
+        creditApproval = await this.validateCreditAndApproval(
+          conn,
+          companyId,
+          userId,
+          customer,
+          quotation.total_amount,
+          input.adminAuthorized,
+          input.supervisorApproval
         );
-        const currentDebt = Number(debtRows[0]?.currentDebt || 0);
-
-        if (currentDebt + quotation.total_amount > Number(customer.credit_limit)) {
-          throw new Error(
-            `Límite de crédito excedido. Límite: $${customer.credit_limit}, Deuda actual: $${currentDebt.toFixed(2)}, Nuevo total: $${(currentDebt + quotation.total_amount).toFixed(2)}`
-          );
-        }
       }
 
-      // 3. Obtener ítems de la cotización y verificar stock en el depósito
+      // 4. Obtener ítems de la cotización y verificar stock en el depósito
       const [items] = await conn.execute<any[]>(
         `SELECT sqi.*, p.cost_price, p.sku
          FROM sales_quotation_items sqi
@@ -644,7 +969,7 @@ export class SalesService {
 
       const invoiceId = crypto.randomUUID();
 
-      // 4. Crear factura de venta
+      // 5. Crear factura de venta
       await conn.execute(
         `INSERT INTO sales_invoices (
           id, branch_id, warehouse_id, customer_id, user_id,
@@ -659,9 +984,9 @@ export class SalesService {
           input.warehouseId,
           quotation.customer_id,
           userId,
-          input.invoiceNumber,
-          input.controlNumber || null,
-          input.invoiceMode,
+          invoiceNumber,
+          finalControlNumber,
+          invoiceMode,
           quotation.currency,
           quotation.exchange_rate,
           quotation.subtotal_amount,
@@ -673,7 +998,32 @@ export class SalesService {
         ]
       );
 
-      // 5. Procesar ítems, rebaja de stock y Kardex
+      // Si se aprobó sobregiro de crédito, registrar en auditoría
+      if (creditApproval && creditApproval.approved) {
+        await conn.execute(
+          `INSERT INTO audit_logs (
+            id, company_id, branch_id, user_id, module, action, entity, entity_id, after_json
+          ) VALUES (?, ?, ?, ?, 'sales', 'CREDIT_LIMIT_OVERRIDE', 'sales_invoices', ?, ?)`,
+          [
+            crypto.randomUUID(),
+            companyId,
+            quotation.branch_id,
+            creditApproval.approvedByUserId,
+            invoiceId,
+            JSON.stringify({
+              customerId: quotation.customer_id,
+              customerName: customer.name,
+              creditLimit: creditApproval.creditLimit,
+              currentDebt: creditApproval.currentDebt,
+              saleAmount: quotation.total_amount,
+              approvedBy: creditApproval.approvedByUserName,
+              notes: creditApproval.notes,
+            }),
+          ]
+        );
+      }
+
+      // 6. Procesar ítems, rebaja de stock y Kardex
       for (const item of items) {
         await conn.execute(
           `INSERT INTO sales_invoice_items (
@@ -716,16 +1066,17 @@ export class SalesService {
             item.product_id,
             item.quantity,
             item.cost_price,
-            input.invoiceNumber,
-            `Facturación Administrativa: ${input.invoiceNumber}`,
+            invoiceNumber,
+            `Facturación Administrativa: ${invoiceNumber}`,
           ]
         );
       }
 
-      // 6. Si es a crédito, registrar en receivables (CxC)
+      // 7. Si es a crédito, registrar en receivables (CxC) con cálculo de días de vencimiento
       if (input.isCredit) {
         const receivableId = crypto.randomUUID();
-        const dueDate = input.dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const paymentDays = Number(customer.payment_terms_days) || 15;
+        const dueDate = input.dueDate || new Date(Date.now() + paymentDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
         await conn.execute(
           `INSERT INTO receivables (
@@ -736,7 +1087,7 @@ export class SalesService {
         );
       }
 
-      // 7. Marcar cotización como CONVERTED
+      // 8. Marcar cotización como CONVERTED
       await conn.execute(
         `UPDATE sales_quotations SET status = 'CONVERTED' WHERE id = ?`,
         [input.quotationId]
@@ -744,7 +1095,9 @@ export class SalesService {
 
       return {
         invoiceId,
-        invoiceNumber: input.invoiceNumber,
+        invoiceNumber,
+        controlNumber: finalControlNumber,
+        invoiceMode,
         totalAmount: quotation.total_amount,
         isCredit: input.isCredit,
         status: input.isCredit ? 'PENDING' : 'PAID',

@@ -2,7 +2,11 @@ import { query } from '../../db';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import autoTableImport from 'jspdf-autotable';
+
+const autoTable = (typeof autoTableImport === 'function'
+  ? autoTableImport
+  : (autoTableImport as any).default || autoTableImport) as typeof autoTableImport;
 
 export interface SalesReportFilters {
   startDate?: string;
@@ -50,7 +54,7 @@ export class ReportsService {
    * Reporte de Ventas (Resumido y Detallado)
    */
   static async getSalesReport(companyId: string, filters: SalesReportFilters = {}) {
-    const whereConditions: string[] = ['si.company_id = ?'];
+    const whereConditions: string[] = ['b.company_id = ?'];
     const params: any[] = [companyId];
 
     if (filters.startDate) {
@@ -97,14 +101,14 @@ export class ReportsService {
         si.user_id,
         u.full_name as cashier_name,
         si.customer_id,
-        CONCAT(si.customer_doc_type, '-', si.customer_doc_number) as customer_doc,
-        si.customer_name,
+        COALESCE(CONCAT(c.doc_type, '-', c.doc_number), 'V-00000000') as customer_doc,
+        COALESCE(c.name, 'CLIENTE CONTADO') as customer_name,
         si.currency,
         si.exchange_rate,
         si.base_exempt_amount as exempt_usd,
         si.base_taxable_amount as taxable_usd,
         si.tax_amount as iva_usd,
-        si.igtf_total_amount as igtf_usd,
+        COALESCE(si.igtf_amount, 0) as igtf_usd,
         si.total_amount as total_usd,
         ROUND(si.total_amount * si.exchange_rate, 2) as total_ves,
         si.is_credit,
@@ -112,6 +116,7 @@ export class ReportsService {
       FROM sales_invoices si
       INNER JOIN branches b ON si.branch_id = b.id
       INNER JOIN users u ON si.user_id = u.id
+      LEFT JOIN customers c ON si.customer_id = c.id
       LEFT JOIN cash_shifts cs ON si.shift_id = cs.id
       LEFT JOIN cash_registers cr ON cs.cash_register_id = cr.id
       WHERE ${whereClause}
@@ -615,7 +620,58 @@ export class ReportsService {
   }
 
   /**
-   * Exportador a PDF
+   * Obtiene la información fiscal de la empresa para reportes PDF
+   */
+  static async getCompanyPdfInfo(companyId: string) {
+    const rows = await query<any>(
+      `SELECT rif, legal_name, trade_name, fiscal_address, phone, email, is_special_taxpayer 
+       FROM companies 
+       WHERE id = ? LIMIT 1`,
+      [companyId]
+    );
+
+    if (rows.length > 0) {
+      return {
+        rif: rows[0].rif,
+        legalName: rows[0].legal_name,
+        tradeName: rows[0].trade_name,
+        fiscalAddress: rows[0].fiscal_address,
+        phone: rows[0].phone,
+        email: rows[0].email,
+        isSpecialTaxpayer: !!rows[0].is_special_taxpayer,
+      };
+    }
+
+    return {
+      rif: 'J-123456-7',
+      legalName: 'DISTRIBUIDORA ERO VE C.A.',
+      tradeName: 'DISTRIBUIDORA ERO VE',
+      fiscalAddress: 'Av. Francisco de Miranda, Torre Empresarial, Piso 8, Caracas, Venezuela',
+      phone: '+58 212 999 8877',
+      email: 'administracion@erove.com.ve',
+      isSpecialTaxpayer: true,
+    };
+  }
+
+  /**
+   * Obtiene el nombre completo del usuario para la firma del reporte
+   */
+  static async getUserFullName(userId: string): Promise<string> {
+    const rows = await query<any>(`SELECT full_name, username FROM users WHERE id = ? LIMIT 1`, [userId]);
+    return rows[0]?.full_name || rows[0]?.username || 'Administrador';
+  }
+
+  /**
+   * Obtiene el nombre de la sucursal si se especifica
+   */
+  static async getBranchName(branchId?: string): Promise<string | undefined> {
+    if (!branchId || branchId === 'all') return undefined;
+    const rows = await query<any>(`SELECT name FROM branches WHERE id = ? LIMIT 1`, [branchId]);
+    return rows[0]?.name;
+  }
+
+  /**
+   * Exportador genérico a PDF (Legacy fallback)
    */
   static exportToPDF(title: string, headers: string[], rows: any[][]): Buffer {
     const doc = new jsPDF({ orientation: 'landscape' });
@@ -636,3 +692,4 @@ export class ReportsService {
     return Buffer.from(doc.output('arraybuffer'));
   }
 }
+

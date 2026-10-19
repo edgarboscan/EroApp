@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '../../components/ui/Button';
 import { Printer, Copy, Check, X, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -48,6 +48,17 @@ export const FiscalInvoiceModal: React.FC<FiscalInvoiceModalProps> = ({
   isFiscal = true,
 }) => {
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen || !data) return null;
 

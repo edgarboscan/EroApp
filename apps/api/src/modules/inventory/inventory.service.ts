@@ -1,10 +1,16 @@
 import { query, withTransaction } from '../../db';
 import {
   DepartmentInput,
+  UpdateDepartmentInput,
   GroupInput,
+  UpdateGroupInput,
   SubgroupInput,
+  UpdateSubgroupInput,
   ProductInput,
+  UpdateProductInput,
   ProductLocationInput,
+  WarehouseLocationInput,
+  UpdateWarehouseLocationInput,
   InventoryMovementInput,
   CreateInventoryAdjustmentInput,
   CreateInventoryTransferInput,
@@ -37,9 +43,49 @@ export class InventoryService {
     await query(
       `INSERT INTO departments (id, company_id, code, name, description, is_active)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [id, input.companyId, input.code, input.name, input.description || null, input.isActive ? 1 : 0]
+      [id, input.companyId, input.code.trim().toUpperCase(), input.name.trim(), input.description || null, input.isActive ? 1 : 0]
     );
     return { id, ...input };
+  }
+
+  static async updateDepartment(id: string, input: UpdateDepartmentInput) {
+    const rows = await query<any>(`SELECT * FROM departments WHERE id = ?`, [id]);
+    if (rows.length === 0) throw new Error('Departamento no encontrado');
+    const cur = rows[0];
+    const code = input.code !== undefined ? input.code.trim().toUpperCase() : cur.code;
+    const name = input.name !== undefined ? input.name.trim() : cur.name;
+    const description = input.description !== undefined ? input.description : cur.description;
+    const isActive = input.isActive !== undefined ? (input.isActive ? 1 : 0) : cur.is_active;
+
+    await query(
+      `UPDATE departments SET code = ?, name = ?, description = ?, is_active = ? WHERE id = ?`,
+      [code, name, description, isActive, id]
+    );
+    return { id, code, name, description, isActive: Boolean(isActive) };
+  }
+
+  static async deleteDepartment(id: string) {
+    const [groups] = await query<any>(`SELECT COUNT(*) as cnt FROM \`groups\` WHERE department_id = ?`, [id]);
+    const [products] = await query<any>(`SELECT COUNT(*) as cnt FROM products WHERE department_id = ?`, [id]);
+    const hasChildren = (groups?.cnt || 0) > 0 || (products?.cnt || 0) > 0;
+
+    if (hasChildren) {
+      await query(`UPDATE departments SET is_active = 0 WHERE id = ?`, [id]);
+      return {
+        success: true,
+        deleted: false,
+        deactivated: true,
+        message: 'El departamento posee grupos o productos asociados. Ha sido desactivado lógicamente.',
+      };
+    } else {
+      await query(`DELETE FROM departments WHERE id = ?`, [id]);
+      return {
+        success: true,
+        deleted: true,
+        deactivated: false,
+        message: 'Departamento eliminado permanentemente.',
+      };
+    }
   }
 
   static async getGroups(departmentId?: string) {
@@ -60,9 +106,50 @@ export class InventoryService {
     await query(
       `INSERT INTO \`groups\` (id, department_id, code, name, description, is_active)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [id, input.departmentId, input.code, input.name, input.description || null, input.isActive ? 1 : 0]
+      [id, input.departmentId, input.code.trim().toUpperCase(), input.name.trim(), input.description || null, input.isActive ? 1 : 0]
     );
     return { id, ...input };
+  }
+
+  static async updateGroup(id: string, input: UpdateGroupInput) {
+    const rows = await query<any>(`SELECT * FROM \`groups\` WHERE id = ?`, [id]);
+    if (rows.length === 0) throw new Error('Grupo no encontrado');
+    const cur = rows[0];
+    const departmentId = input.departmentId !== undefined ? input.departmentId : cur.department_id;
+    const code = input.code !== undefined ? input.code.trim().toUpperCase() : cur.code;
+    const name = input.name !== undefined ? input.name.trim() : cur.name;
+    const description = input.description !== undefined ? input.description : cur.description;
+    const isActive = input.isActive !== undefined ? (input.isActive ? 1 : 0) : cur.is_active;
+
+    await query(
+      `UPDATE \`groups\` SET department_id = ?, code = ?, name = ?, description = ?, is_active = ? WHERE id = ?`,
+      [departmentId, code, name, description, isActive, id]
+    );
+    return { id, departmentId, code, name, description, isActive: Boolean(isActive) };
+  }
+
+  static async deleteGroup(id: string) {
+    const [subgroups] = await query<any>(`SELECT COUNT(*) as cnt FROM subgroups WHERE group_id = ?`, [id]);
+    const [products] = await query<any>(`SELECT COUNT(*) as cnt FROM products WHERE group_id = ?`, [id]);
+    const hasChildren = (subgroups?.cnt || 0) > 0 || (products?.cnt || 0) > 0;
+
+    if (hasChildren) {
+      await query(`UPDATE \`groups\` SET is_active = 0 WHERE id = ?`, [id]);
+      return {
+        success: true,
+        deleted: false,
+        deactivated: true,
+        message: 'El grupo posee subgrupos o productos asociados. Ha sido desactivado lógicamente.',
+      };
+    } else {
+      await query(`DELETE FROM \`groups\` WHERE id = ?`, [id]);
+      return {
+        success: true,
+        deleted: true,
+        deactivated: false,
+        message: 'Grupo eliminado permanentemente.',
+      };
+    }
   }
 
   static async getSubgroups(groupId?: string) {
@@ -83,14 +170,145 @@ export class InventoryService {
     await query(
       `INSERT INTO subgroups (id, group_id, code, name, description, is_active)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [id, input.groupId, input.code, input.name, input.description || null, input.isActive ? 1 : 0]
+      [id, input.groupId, input.code.trim().toUpperCase(), input.name.trim(), input.description || null, input.isActive ? 1 : 0]
     );
     return { id, ...input };
+  }
+
+  static async updateSubgroup(id: string, input: UpdateSubgroupInput) {
+    const rows = await query<any>(`SELECT * FROM subgroups WHERE id = ?`, [id]);
+    if (rows.length === 0) throw new Error('Subgrupo no encontrado');
+    const cur = rows[0];
+    const groupId = input.groupId !== undefined ? input.groupId : cur.group_id;
+    const code = input.code !== undefined ? input.code.trim().toUpperCase() : cur.code;
+    const name = input.name !== undefined ? input.name.trim() : cur.name;
+    const description = input.description !== undefined ? input.description : cur.description;
+    const isActive = input.isActive !== undefined ? (input.isActive ? 1 : 0) : cur.is_active;
+
+    await query(
+      `UPDATE subgroups SET group_id = ?, code = ?, name = ?, description = ?, is_active = ? WHERE id = ?`,
+      [groupId, code, name, description, isActive, id]
+    );
+    return { id, groupId, code, name, description, isActive: Boolean(isActive) };
+  }
+
+  static async deleteSubgroup(id: string) {
+    const [products] = await query<any>(`SELECT COUNT(*) as cnt FROM products WHERE subgroup_id = ?`, [id]);
+    const hasChildren = (products?.cnt || 0) > 0;
+
+    if (hasChildren) {
+      await query(`UPDATE subgroups SET is_active = 0 WHERE id = ?`, [id]);
+      return {
+        success: true,
+        deleted: false,
+        deactivated: true,
+        message: 'El subgrupo posee productos asociados. Ha sido desactivado lógicamente.',
+      };
+    } else {
+      await query(`DELETE FROM subgroups WHERE id = ?`, [id]);
+      return {
+        success: true,
+        deleted: true,
+        deactivated: false,
+        message: 'Subgrupo eliminado permanentemente.',
+      };
+    }
   }
 
   // ==========================================
   // UBICACIÓN FÍSICA (PASILLO, ESTANTE, COMPARTIMIENTO)
   // ==========================================
+
+  static async getWarehouseLocations(companyId: string, warehouseId?: string) {
+    const params: any[] = [companyId];
+    let whFilter = '';
+    if (warehouseId) {
+      whFilter = 'AND pl.warehouse_id = ?';
+      params.push(warehouseId);
+    }
+
+    return await query<any>(
+      `SELECT pl.id, pl.warehouse_id as warehouseId, w.name as warehouseName, w.code as warehouseCode,
+              b.id as branchId, b.name as branchName,
+              pl.product_id as productId, p.sku, p.name as productName,
+              pl.aisle, pl.shelf, pl.compartment, pl.notes,
+              COALESCE(ps.current_stock, 0) as currentStock
+       FROM product_locations pl
+       INNER JOIN warehouses w ON pl.warehouse_id = w.id
+       INNER JOIN branches b ON w.branch_id = b.id
+       LEFT JOIN products p ON pl.product_id = p.id
+       LEFT JOIN product_stocks ps ON pl.product_id = ps.product_id AND pl.warehouse_id = ps.warehouse_id
+       WHERE b.company_id = ? ${whFilter}
+       ORDER BY w.name ASC, pl.aisle ASC, pl.shelf ASC, pl.compartment ASC`,
+      params
+    );
+  }
+
+  static async createWarehouseLocation(companyId: string, input: WarehouseLocationInput) {
+    const rows = await query<any>(
+      `SELECT w.id FROM warehouses w INNER JOIN branches b ON w.branch_id = b.id WHERE w.id = ? AND b.company_id = ?`,
+      [input.warehouseId, companyId]
+    );
+    if (rows.length === 0) throw new Error('El depósito seleccionado no pertenece a la empresa');
+
+    const id = input.id || crypto.randomUUID();
+    await query(
+      `INSERT INTO product_locations (id, warehouse_id, product_id, aisle, shelf, compartment, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        input.warehouseId,
+        input.productId || null,
+        input.aisle.trim(),
+        input.shelf?.trim() || null,
+        input.compartment?.trim() || null,
+        input.notes?.trim() || null,
+      ]
+    );
+
+    return { id, ...input };
+  }
+
+  static async updateWarehouseLocation(companyId: string, id: string, input: UpdateWarehouseLocationInput) {
+    const rows = await query<any>(
+      `SELECT pl.* FROM product_locations pl
+       INNER JOIN warehouses w ON pl.warehouse_id = w.id
+       INNER JOIN branches b ON w.branch_id = b.id
+       WHERE pl.id = ? AND b.company_id = ?`,
+      [id, companyId]
+    );
+    if (rows.length === 0) throw new Error('Ubicación no encontrada');
+    const cur = rows[0];
+
+    const warehouseId = input.warehouseId !== undefined ? input.warehouseId : cur.warehouse_id;
+    const productId = input.productId !== undefined ? (input.productId || null) : cur.product_id;
+    const aisle = input.aisle !== undefined ? input.aisle.trim() : cur.aisle;
+    const shelf = input.shelf !== undefined ? (input.shelf?.trim() || null) : cur.shelf;
+    const compartment = input.compartment !== undefined ? (input.compartment?.trim() || null) : cur.compartment;
+    const notes = input.notes !== undefined ? (input.notes?.trim() || null) : cur.notes;
+
+    await query(
+      `UPDATE product_locations SET warehouse_id = ?, product_id = ?, aisle = ?, shelf = ?, compartment = ?, notes = ?
+       WHERE id = ?`,
+      [warehouseId, productId, aisle, shelf, compartment, notes, id]
+    );
+
+    return { id, warehouseId, productId, aisle, shelf, compartment, notes };
+  }
+
+  static async deleteWarehouseLocation(companyId: string, id: string) {
+    const rows = await query<any>(
+      `SELECT pl.id FROM product_locations pl
+       INNER JOIN warehouses w ON pl.warehouse_id = w.id
+       INNER JOIN branches b ON w.branch_id = b.id
+       WHERE pl.id = ? AND b.company_id = ?`,
+      [id, companyId]
+    );
+    if (rows.length === 0) throw new Error('Ubicación no encontrada');
+
+    await query(`DELETE FROM product_locations WHERE id = ?`, [id]);
+    return { success: true, message: 'Ubicación física eliminada exitosamente' };
+  }
 
   static async getProductLocations(productId: string) {
     return await query<any>(
@@ -124,7 +342,7 @@ export class InventoryService {
       `SELECT pl.aisle, pl.shelf, pl.compartment, pl.warehouse_id as warehouseId, w.name as warehouseName,
               p.id as productId, p.sku, p.name as productName, ps.current_stock as currentStock
        FROM product_locations pl
-       INNER JOIN products p ON pl.product_id = p.id
+       LEFT JOIN products p ON pl.product_id = p.id
        INNER JOIN warehouses w ON pl.warehouse_id = w.id
        LEFT JOIN product_stocks ps ON p.id = ps.product_id AND pl.warehouse_id = ps.warehouse_id
        WHERE (? IS NULL OR pl.warehouse_id = ?)
@@ -222,6 +440,145 @@ export class InventoryService {
 
       return { id, ...input };
     });
+  }
+
+  static async getProductById(companyId: string, id: string) {
+    const rows = await query<any>(
+      `SELECT p.id, p.sku, p.barcode, p.name, p.description, p.product_type as productType,
+              p.department_id as departmentId, d.name as departmentName,
+              p.group_id as groupId, g.name as groupName,
+              p.subgroup_id as subgroupId, sg.name as subgroupName,
+              p.brand, p.unit_of_measure as unitOfMeasure,
+              p.cost_price as costPrice, p.base_price as basePrice, p.currency,
+              p.default_tax_rate_id as defaultTaxRateId, tr.name as taxRateName, COALESCE(tr.rate, 16.0) as taxRate,
+              p.tax_inclusive as taxInclusive,
+              p.min_stock as minStock, p.max_stock as maxStock, p.is_active as isActive
+       FROM products p
+       LEFT JOIN departments d ON p.department_id = d.id
+       LEFT JOIN \`groups\` g ON p.group_id = g.id
+       LEFT JOIN subgroups sg ON p.subgroup_id = sg.id
+       LEFT JOIN tax_rates tr ON p.default_tax_rate_id = tr.id
+       WHERE p.id = ? AND p.company_id = ?`,
+      [id, companyId]
+    );
+    if (rows.length === 0) return null;
+    const product = rows[0];
+
+    const locations = await query<any>(
+      `SELECT pl.id, pl.warehouse_id as warehouseId, w.name as warehouseName,
+              pl.aisle, pl.shelf, pl.compartment, pl.notes
+       FROM product_locations pl
+       INNER JOIN warehouses w ON pl.warehouse_id = w.id
+       WHERE pl.product_id = ?`,
+      [id]
+    );
+
+    return {
+      ...product,
+      locations,
+    };
+  }
+
+  static async updateProduct(companyId: string, id: string, input: UpdateProductInput) {
+    const rows = await query<any>(
+      `SELECT * FROM products WHERE id = ? AND company_id = ?`,
+      [id, companyId]
+    );
+    if (rows.length === 0) throw new Error('Producto no encontrado');
+    const cur = rows[0];
+
+    const sku = input.sku !== undefined ? input.sku.trim().toUpperCase() : cur.sku;
+    const barcode = input.barcode !== undefined ? (input.barcode?.trim() || null) : cur.barcode;
+    const name = input.name !== undefined ? input.name.trim() : cur.name;
+    const description = input.description !== undefined ? input.description : cur.description;
+    const productType = input.productType !== undefined ? input.productType : cur.product_type;
+    const departmentId = input.departmentId !== undefined ? (input.departmentId || null) : cur.department_id;
+    const groupId = input.groupId !== undefined ? (input.groupId || null) : cur.group_id;
+    const subgroupId = input.subgroupId !== undefined ? (input.subgroupId || null) : cur.subgroup_id;
+    const supplierId = input.supplierId !== undefined ? (input.supplierId || null) : cur.supplier_id;
+    const brand = input.brand !== undefined ? (input.brand || null) : cur.brand;
+    const unitOfMeasure = input.unitOfMeasure !== undefined ? input.unitOfMeasure : cur.unit_of_measure;
+    const costPrice = input.costPrice !== undefined ? input.costPrice : cur.cost_price;
+    const basePrice = input.basePrice !== undefined ? input.basePrice : cur.base_price;
+    const currency = input.currency !== undefined ? input.currency : cur.currency;
+    const defaultTaxRateId = input.defaultTaxRateId !== undefined ? (input.defaultTaxRateId || null) : cur.default_tax_rate_id;
+    const taxInclusive = input.taxInclusive !== undefined ? (input.taxInclusive ? 1 : 0) : cur.tax_inclusive;
+    const minStock = input.minStock !== undefined ? input.minStock : cur.min_stock;
+    const maxStock = input.maxStock !== undefined ? input.maxStock : cur.max_stock;
+    const hasBatches = input.hasBatches !== undefined ? (input.hasBatches ? 1 : 0) : cur.has_batches;
+    const hasSerials = input.hasSerials !== undefined ? (input.hasSerials ? 1 : 0) : cur.has_serials;
+    const isActive = input.isActive !== undefined ? (input.isActive ? 1 : 0) : cur.is_active;
+
+    await query(
+      `UPDATE products SET
+         sku = ?, barcode = ?, name = ?, description = ?, product_type = ?,
+         department_id = ?, group_id = ?, subgroup_id = ?, supplier_id = ?, brand = ?,
+         unit_of_measure = ?, cost_price = ?, base_price = ?, currency = ?,
+         default_tax_rate_id = ?, tax_inclusive = ?, min_stock = ?, max_stock = ?,
+         has_batches = ?, has_serials = ?, is_active = ?, updated_at = NOW()
+       WHERE id = ? AND company_id = ?`,
+      [
+        sku, barcode, name, description, productType,
+        departmentId, groupId, subgroupId, supplierId, brand,
+        unitOfMeasure, costPrice, basePrice, currency,
+        defaultTaxRateId, taxInclusive, minStock, maxStock,
+        hasBatches, hasSerials, isActive,
+        id, companyId
+      ]
+    );
+
+    // Si se enviaron ubicaciones, actualizarlas
+    if (input.locations && input.locations.length > 0) {
+      for (const loc of input.locations) {
+        await query(
+          `INSERT INTO product_locations (id, product_id, warehouse_id, aisle, shelf, compartment, notes)
+           VALUES (?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             aisle = VALUES(aisle),
+             shelf = VALUES(shelf),
+             compartment = VALUES(compartment),
+             notes = VALUES(notes),
+             updated_at = NOW()`,
+          [crypto.randomUUID(), id, loc.warehouseId, loc.aisle || null, loc.shelf || null, loc.compartment || null, loc.notes || null]
+        );
+      }
+    }
+
+    return { id, sku, barcode, name, description, productType, basePrice, costPrice, currency, isActive: Boolean(isActive) };
+  }
+
+  static async deleteProduct(companyId: string, id: string) {
+    const rows = await query<any>(
+      `SELECT * FROM products WHERE id = ? AND company_id = ?`,
+      [id, companyId]
+    );
+    if (rows.length === 0) throw new Error('Producto no encontrado');
+
+    const [invoices] = await query<any>(`SELECT COUNT(*) as cnt FROM sales_invoice_items WHERE product_id = ?`, [id]);
+    const [movements] = await query<any>(`SELECT COUNT(*) as cnt FROM inventory_movements WHERE product_id = ?`, [id]);
+    const [deliveries] = await query<any>(`SELECT COUNT(*) as cnt FROM delivery_note_items WHERE product_id = ?`, [id]);
+
+    const hasOperationalRecords = (invoices?.cnt || 0) > 0 || (movements?.cnt || 0) > 0 || (deliveries?.cnt || 0) > 0;
+
+    if (hasOperationalRecords) {
+      await query(`UPDATE products SET is_active = 0 WHERE id = ?`, [id]);
+      return {
+        success: true,
+        deleted: false,
+        deactivated: true,
+        message: 'El producto posee movimientos de inventario o ventas asociadas. Ha sido desactivado lógicamente para preservar la integridad contable.',
+      };
+    } else {
+      await query(`DELETE FROM product_locations WHERE product_id = ?`, [id]);
+      await query(`DELETE FROM product_stocks WHERE product_id = ?`, [id]);
+      await query(`DELETE FROM products WHERE id = ?`, [id]);
+      return {
+        success: true,
+        deleted: true,
+        deactivated: false,
+        message: 'Producto eliminado permanentemente del sistema.',
+      };
+    }
   }
 
   static async recordMovement(input: InventoryMovementInput, userId: string) {
@@ -775,5 +1132,110 @@ export class InventoryService {
     sql += ` ORDER BY it.created_at DESC LIMIT 50`;
 
     return await query<any>(sql, params);
+  }
+
+  /**
+   * Obtiene los datos detallados de un ajuste de inventario para comprobante PDF
+   */
+  static async getAdjustmentById(companyId: string, adjustmentId: string) {
+    const rows = await query<any>(
+      `SELECT ia.*, b.name as branch_name, w.name as warehouse_name, u.full_name as user_name
+       FROM inventory_adjustments ia
+       INNER JOIN branches b ON ia.branch_id = b.id
+       INNER JOIN warehouses w ON ia.warehouse_id = w.id
+       INNER JOIN users u ON ia.user_id = u.id
+       WHERE ia.id = ? AND ia.company_id = ?`,
+      [adjustmentId, companyId]
+    );
+
+    if (rows.length === 0) return null;
+    const adj = rows[0];
+
+    const items = await query<any>(
+      `SELECT iai.*, p.sku as product_sku, p.name as product_name
+       FROM inventory_adjustment_items iai
+       INNER JOIN products p ON iai.product_id = p.id
+       WHERE iai.adjustment_id = ?`,
+      [adjustmentId]
+    );
+
+    return {
+      adjustmentNumber: adj.adjustment_number,
+      adjustmentDate: adj.adjustment_date ? new Date(adj.adjustment_date).toISOString() : new Date().toISOString(),
+      type: adj.type,
+      reason: adj.reason,
+      status: adj.status,
+      branchName: adj.branch_name,
+      warehouseName: adj.warehouse_name,
+      userName: adj.user_name,
+      totalCostImpact: Number(adj.total_cost_impact || 0),
+      items: items.map((i: any) => ({
+        productSku: i.product_sku,
+        productName: i.product_name,
+        movementType: i.movement_type,
+        previousStock: Number(i.previous_stock || 0),
+        quantity: Number(i.quantity || 0),
+        newStock: Number(i.new_stock || 0),
+        unitCost: Number(i.unit_cost || 0),
+        totalCost: Number(i.total_cost || 0),
+        notes: i.notes || undefined,
+      })),
+    };
+  }
+
+  /**
+   * Obtiene los datos detallados de un traslado de inventario para Guía de Traslado PDF
+   */
+  static async getTransferById(companyId: string, transferId: string) {
+    const rows = await query<any>(
+      `SELECT it.*,
+              ob.name as origin_branch_name, ow.name as origin_warehouse_name,
+              db.name as destination_branch_name, dw.name as destination_warehouse_name,
+              su.full_name as shipped_by_name, ru.full_name as received_by_name
+       FROM inventory_transfers it
+       INNER JOIN branches ob ON it.origin_branch_id = ob.id
+       INNER JOIN warehouses ow ON it.origin_warehouse_id = ow.id
+       INNER JOIN branches db ON it.destination_branch_id = db.id
+       INNER JOIN warehouses dw ON it.destination_warehouse_id = dw.id
+       INNER JOIN users su ON it.shipped_by_user_id = su.id
+       LEFT JOIN users ru ON it.received_by_user_id = ru.id
+       WHERE it.id = ? AND it.company_id = ?`,
+      [transferId, companyId]
+    );
+
+    if (rows.length === 0) return null;
+    const tr = rows[0];
+
+    const items = await query<any>(
+      `SELECT iti.*, p.sku as product_sku, p.name as product_name
+       FROM inventory_transfer_items iti
+       INNER JOIN products p ON iti.product_id = p.id
+       WHERE iti.transfer_id = ?`,
+      [transferId]
+    );
+
+    return {
+      transferNumber: tr.transfer_number,
+      shippedAt: tr.shipped_at ? new Date(tr.shipped_at).toISOString() : new Date().toISOString(),
+      receivedAt: tr.received_at ? new Date(tr.received_at).toISOString() : undefined,
+      status: tr.status,
+      originBranchName: tr.origin_branch_name,
+      originWarehouseName: tr.origin_warehouse_name,
+      destinationBranchName: tr.destination_branch_name,
+      destinationWarehouseName: tr.destination_warehouse_name,
+      shippedByUserName: tr.shipped_by_name,
+      receivedByUserName: tr.received_by_name || undefined,
+      notes: tr.notes || undefined,
+      totalItems: Number(tr.total_items || items.length),
+      totalCost: Number(tr.total_cost || 0),
+      items: items.map((i: any) => ({
+        productSku: i.product_sku,
+        productName: i.product_name,
+        quantitySent: Number(i.quantity_sent || 0),
+        quantityReceived: i.quantity_received != null ? Number(i.quantity_received) : undefined,
+        unitCost: Number(i.unit_cost || 0),
+        notes: i.notes || undefined,
+      })),
+    };
   }
 }

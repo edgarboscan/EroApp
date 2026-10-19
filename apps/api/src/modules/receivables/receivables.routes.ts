@@ -4,6 +4,9 @@ import { createCollectionSchema } from '@ero/shared';
 import { ReceivablesService } from './receivables.service';
 import { authenticate, AppEnv } from '../../middleware/auth';
 import { authorize } from '../../middleware/rbac';
+import { query } from '../../db';
+import { generateCollectionReceiptPDF } from '../reports/reports-pdf';
+import { ReportsService } from '../reports/reports.service';
 
 export const receivablesRouter = new Hono<AppEnv>();
 
@@ -31,4 +34,35 @@ receivablesRouter.post('/collections', authenticate, authorize('receivables', 'c
   const body = c.req.valid('json');
   const data = await ReceivablesService.registerCollection(user.companyId, user.sub, body);
   return c.json({ success: true, data }, 201);
+});
+
+// GET /api/receivables/collections/:id/pdf - Descarga / Visualización de Recibo Oficial de Cobro
+receivablesRouter.get('/collections/:id/pdf', authenticate, authorize('receivables', 'read'), async (c) => {
+  const user = c.get('user');
+  const paymentId = c.req.param('id')!;
+
+  try {
+    const collection = await ReceivablesService.getCollectionById(user.companyId, paymentId);
+    if (!collection) {
+      return c.json({ success: false, error: { code: 'COLLECTION_NOT_FOUND', message: 'Recibo de cobro no encontrado' } }, 404);
+    }
+
+    const [company, userName] = await Promise.all([
+      ReportsService.getCompanyPdfInfo(user.companyId),
+      ReportsService.getUserFullName(user.sub),
+    ]);
+
+    const pdfBuffer = await generateCollectionReceiptPDF({
+      company,
+      collection,
+      userName,
+    });
+
+    c.header('Content-Type', 'application/pdf');
+    c.header('Content-Disposition', `inline; filename="recibo_cobro_${collection.receiptNumber}.pdf"`);
+    return c.body(new Uint8Array(pdfBuffer));
+  } catch (error: any) {
+    console.error('[Collection PDF Error]', error);
+    return c.json({ success: false, error: { code: 'COLLECTION_PDF_FAILED', message: error.message } }, 500);
+  }
 });

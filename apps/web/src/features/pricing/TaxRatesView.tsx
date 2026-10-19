@@ -3,9 +3,10 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
-import { Edit } from 'lucide-react';
+import { Edit, X, Percent } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatPercent } from '../../utils/formatters';
+import { useEscapeKey } from '../../components/ui/Modal';
 
 interface TaxRate {
   id: string;
@@ -29,6 +30,8 @@ export const TaxRatesView: React.FC = () => {
   const [newRate, setNewRate] = useState<number>(16);
   const [affectsFinalPrice, setAffectsFinalPrice] = useState(false);
   const [reason, setReason] = useState('');
+
+  useEscapeKey(() => setIsModalOpen(false), isModalOpen);
 
   const handleOpenModal = (tax: TaxRate) => {
     setSelectedTax(tax);
@@ -73,52 +76,73 @@ export const TaxRatesView: React.FC = () => {
 
       {/* Modal de Modificación de Tasa */}
       {isModalOpen && selectedTax && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-lg w-full p-6 shadow-xl space-y-4">
-            <h3 className="text-base font-bold text-neutral-900">
-              Modificar Tasa: {selectedTax.name}
-            </h3>
+        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-lg w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
+            {/* Header (Pinned) */}
+            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
+              <div className="flex items-center gap-2">
+                <Percent className="w-5 h-5 text-sky-600" />
+                <div>
+                  <h3 className="text-base font-bold text-neutral-900">
+                    Modificar Tasa: {selectedTax.name}
+                  </h3>
+                  <p className="text-[11px] text-neutral-500">Ajuste de alícuota tributaria y recálculo automático</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                title="Cerrar modal (Esc)"
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="Tasa Actual (%)" value={`${selectedTax.rate}%`} disabled />
+            {/* Body (Scrollable) */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-4">
+                <Input label="Tasa Actual (%)" value={`${selectedTax.rate}%`} disabled />
+                <Input
+                  label="Nueva Tasa (%)"
+                  type="number"
+                  value={newRate}
+                  onChange={(e) => setNewRate(Number(e.target.value))}
+                />
+              </div>
+
+              {/* Regla de negocio tributaria */}
+              <div className="p-4 rounded-lg border border-neutral-200 bg-neutral-50 space-y-2">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-neutral-900">
+                      ¿Afecta el precio final al público?
+                    </span>
+                    <p className="text-[11px] text-neutral-500 mt-0.5">
+                      {affectsFinalPrice
+                        ? 'Los productos aumentarán su PVP al cliente final.'
+                        : 'El PVP se mantendrá igual. La empresa absorberá el cambio en su margen reduciendo la base imponible.'}
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={affectsFinalPrice}
+                    onChange={(e) => setAffectsFinalPrice(e.target.checked)}
+                    className="w-5 h-5 text-sky-600 rounded mt-0.5 cursor-pointer"
+                  />
+                </div>
+              </div>
+
               <Input
-                label="Nueva Tasa (%)"
-                type="number"
-                value={newRate}
-                onChange={(e) => setNewRate(Number(e.target.value))}
+                label="Motivo del Cambio (Requerido por Auditoría)"
+                placeholder="Ej: Reforma tributaria según Providencia Administrativa..."
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
               />
             </div>
 
-            {/* Regla de negocio tributaria */}
-            <div className="p-4 rounded-lg border border-neutral-200 bg-neutral-50 space-y-2">
-              <div className="flex items-start justify-between">
-                <div>
-                  <span className="text-xs font-bold text-neutral-900">
-                    ¿Afecta el precio final al público?
-                  </span>
-                  <p className="text-[11px] text-neutral-500 mt-0.5">
-                    {affectsFinalPrice
-                      ? 'Los productos aumentarán su PVP al cliente final.'
-                      : 'El PVP se mantendrá igual. La empresa absorberá el cambio en su margen reduciendo la base imponible.'}
-                  </p>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={affectsFinalPrice}
-                  onChange={(e) => setAffectsFinalPrice(e.target.checked)}
-                  className="w-5 h-5 text-sky-600 rounded mt-0.5 cursor-pointer"
-                />
-              </div>
-            </div>
-
-            <Input
-              label="Motivo del Cambio (Requerido por Auditoría)"
-              placeholder="Ej: Reforma tributaria según Providencia Administrativa..."
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-            />
-
-            <div className="flex justify-end gap-2 pt-2">
+            {/* Footer (Pinned) */}
+            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
               <Button variant="outline" size="sm" onClick={() => setIsModalOpen(false)}>
                 Cancelar
               </Button>

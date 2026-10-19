@@ -14,10 +14,13 @@ import {
   Building2,
   DollarSign,
   X,
+  FileText,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/authStore';
 import { formatMoneyUSD } from '../../utils/formatters';
+import { useEscapeKey } from '../../components/ui/Modal';
+import { PdfViewerModal } from '../../components/ui/PdfViewerModal';
 
 interface ARCVVoucher {
   id: string;
@@ -47,46 +50,28 @@ interface ARCVSupplier {
   vouchers: ARCVVoucher[];
 }
 
-const DEMO_ARCV_SUPPLIERS: ARCVSupplier[] = [
-  {
-    supplierId: 's1',
-    supplierRif: 'J-30555666-0',
-    supplierName: 'ALIMENTOS POLAR COMERCIAL C.A.',
-    taxYear: 2026,
-    totalTaxableBase: 780.00,
-    totalIslrRetained: 39.00,
-    vouchersCount: 1,
-    vouchers: [
-      {
-        id: 'w2',
-        voucherNumber: '20260900000001',
-        taxPeriod: '2026-09',
-        conceptCode: 'SERV_TRANS',
-        conceptDescription: 'Servicio de Transporte y Envíos',
-        personType: 'PJD',
-        invoiceNumber: 'FACT-POLAR-9812',
-        controlNumber: '00-0981234',
-        invoiceDate: '2026-09-14',
-        totalInvoiceAmount: 1254.80,
-        taxableBaseAmount: 780.00,
-        ratePercentage: 5.00,
-        subtractingFactor: 0.00,
-        islrRetainedAmount: 39.00,
-      },
-    ],
-  },
-];
-
 export const ARCVReportView: React.FC = () => {
   const currentYear = new Date().getFullYear();
   const [taxYear, setTaxYear] = useState<number>(currentYear);
-  const [suppliers, setSuppliers] = useState<ARCVSupplier[]>(DEMO_ARCV_SUPPLIERS);
+  const [suppliers, setSuppliers] = useState<ARCVSupplier[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [expandedSupplierId, setExpandedSupplierId] = useState<string | null>(null);
 
   // Print Modal
   const [selectedSupplierForPrint, setSelectedSupplierForPrint] = useState<ARCVSupplier | null>(null);
+  const [pdfModal, setPdfModal] = useState<{
+    isOpen: boolean;
+    endpoint: string | null;
+    title: string;
+    filename?: string;
+  }>({
+    isOpen: false,
+    endpoint: null,
+    title: '',
+  });
+
+  useEscapeKey(() => setSelectedSupplierForPrint(null), Boolean(selectedSupplierForPrint));
 
   useEffect(() => {
     fetchARCVReport();
@@ -98,12 +83,16 @@ export const ARCVReportView: React.FC = () => {
       const res = await fetch(`/api/taxes/arcv?year=${taxYear}`);
       if (res.ok) {
         const json = await res.json();
-        if (json.success && json.data && json.data.suppliers) {
-          setSuppliers(json.data.suppliers.length > 0 ? json.data.suppliers : DEMO_ARCV_SUPPLIERS);
+        if (json.success && json.data && Array.isArray(json.data.suppliers)) {
+          setSuppliers(json.data.suppliers);
+        } else {
+          setSuppliers([]);
         }
+      } else {
+        setSuppliers([]);
       }
     } catch {
-      setSuppliers(DEMO_ARCV_SUPPLIERS);
+      setSuppliers([]);
     } finally {
       setLoading(false);
     }
@@ -166,6 +155,21 @@ export const ARCVReportView: React.FC = () => {
           >
             <Download className="w-4 h-4 mr-1 text-sky-600" />
             Descargar XML SENIAT
+          </Button>
+          <Button
+            size="sm"
+            onClick={() =>
+              setPdfModal({
+                isOpen: true,
+                endpoint: `/api/taxes/arcv?year=${taxYear}&format=pdf`,
+                title: `Certificado Anual ARCV ISLR - Ejercicio ${taxYear}`,
+                filename: `Certificado_ARCV_${taxYear}.pdf`,
+              })
+            }
+            className="flex-1 sm:flex-none"
+          >
+            <Download className="w-4 h-4 mr-1" />
+            Ver / Descargar PDF ARCV
           </Button>
         </div>
       </div>
@@ -304,6 +308,23 @@ export const ARCVReportView: React.FC = () => {
                         <Button
                           variant="outline"
                           size="sm"
+                          onClick={() =>
+                            setPdfModal({
+                              isOpen: true,
+                              endpoint: `/api/taxes/arcv?year=${taxYear}&supplierId=${sup.supplierId}&format=pdf`,
+                              title: `Certificado ARCV - ${sup.supplierName}`,
+                              filename: `ARCV_${sup.supplierRif}_${taxYear}.pdf`,
+                            })
+                          }
+                          className="h-8 px-2.5 text-xs text-sky-700 hover:text-sky-800 hover:bg-sky-50"
+                          title="Ver / Descargar PDF Oficial ARCV"
+                        >
+                          <FileText className="w-3.5 h-3.5 mr-1 text-sky-600" />
+                          PDF
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => setSelectedSupplierForPrint(sup)}
                           className="h-8 px-2.5 text-xs"
                           title="Imprimir Certificado ARCV"
@@ -379,119 +400,137 @@ export const ARCVReportView: React.FC = () => {
 
       {/* Official Annual ARCV Certificate Printable Modal */}
       {selectedSupplierForPrint && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg border border-neutral-200 shadow-xl max-w-3xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-neutral-200 pb-3 print:hidden">
-              <h2 className="text-base font-semibold text-neutral-900">
-                Certificado de Retención Anual (Formato AR-CV)
-              </h2>
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4">
+          <div className="bg-white rounded-lg border border-neutral-200 shadow-2xl max-w-3xl w-full max-h-[92vh] flex flex-col overflow-hidden my-auto">
+            {/* Header (Pinned) */}
+            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white print:hidden">
+              <div className="flex items-center gap-2">
+                <FileCheck className="w-5 h-5 text-sky-600" />
+                <div>
+                  <h2 className="text-base font-bold text-neutral-900">
+                    Certificado de Retención Anual (Formato AR-CV)
+                  </h2>
+                  <p className="text-[11px] text-neutral-500">
+                    Beneficiario: {selectedSupplierForPrint.supplierName} • Ejercicio Fiscal {taxYear}
+                  </p>
+                </div>
+              </div>
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="outline" onClick={() => window.print()}>
                   <Printer className="w-4 h-4 mr-1" />
                   Imprimir
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => setSelectedSupplierForPrint(null)}>
-                  <X className="w-4 h-4" />
-                </Button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedSupplierForPrint(null)}
+                  title="Cerrar modal (Esc)"
+                  className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
             </div>
 
-            {/* Official Formato AR-CV Document */}
-            <div className="p-6 bg-white border border-neutral-300 rounded-lg text-neutral-800 space-y-4 text-xs font-sans">
-              <div className="text-center border-b border-neutral-300 pb-3">
-                <h1 className="text-base font-bold uppercase tracking-wide text-neutral-900">
-                  COMPROBANTE DE RETENCIÓN DE IMPUESTO SOBRE LA RENTA
-                </h1>
-                <p className="text-xs font-semibold text-neutral-700 mt-0.5">
-                  CERTIFICADO ANUAL AR-CV - EJERCICIO GRAVABLE {taxYear}
-                </p>
-                <p className="text-[10px] text-neutral-500">
-                  (Artículo 24 del Decreto N° 1808 - Reglamento de la Ley de ISLR)
-                </p>
-              </div>
-
-              {/* Data Table Agent and Subject */}
-              <div className="grid grid-cols-2 gap-4 bg-neutral-50 p-3 rounded-lg border border-neutral-200">
-                <div>
-                  <p className="font-bold text-[11px] text-neutral-900 mb-1">AGENTE DE RETENCIÓN</p>
-                  <p className="font-semibold text-neutral-800">DISTRIBUIDORA ERO VE, C.A.</p>
-                  <p className="text-neutral-600">RIF: J-40123456-7</p>
-                  <p className="text-neutral-600">Caracas, Venezuela</p>
+            {/* Body (Scrollable) */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+              {/* Official Formato AR-CV Document */}
+              <div className="p-6 bg-white border border-neutral-300 rounded-lg text-neutral-800 space-y-4 text-xs font-sans">
+                <div className="text-center border-b border-neutral-300 pb-3">
+                  <h1 className="text-base font-bold uppercase tracking-wide text-neutral-900">
+                    COMPROBANTE DE RETENCIÓN DE IMPUESTO SOBRE LA RENTA
+                  </h1>
+                  <p className="text-xs font-semibold text-neutral-700 mt-0.5">
+                    CERTIFICADO ANUAL AR-CV - EJERCICIO GRAVABLE {taxYear}
+                  </p>
+                  <p className="text-[10px] text-neutral-500">
+                    (Artículo 24 del Decreto N° 1808 - Reglamento de la Ley de ISLR)
+                  </p>
                 </div>
-                <div>
-                  <p className="font-bold text-[11px] text-neutral-900 mb-1">BENEFICIARIO (SUJETO RETENIDO)</p>
-                  <p className="font-semibold text-neutral-800">{selectedSupplierForPrint.supplierName}</p>
-                  <p className="text-neutral-600">RIF: {selectedSupplierForPrint.supplierRif}</p>
-                  <p className="text-neutral-600">Período Fiscal: 01/01/{taxYear} al 31/12/{taxYear}</p>
-                </div>
-              </div>
 
-              {/* Table of Monthly Operations */}
-              <table className="w-full border-collapse border border-neutral-300 text-[11px]">
-                <thead className="bg-neutral-100 font-semibold">
-                  <tr>
-                    <th className="border border-neutral-300 p-2 text-left">N° Comprobante</th>
-                    <th className="border border-neutral-300 p-2 text-left">Factura</th>
-                    <th className="border border-neutral-300 p-2 text-center">Fecha</th>
-                    <th className="border border-neutral-300 p-2 text-left">Concepto</th>
-                    <th className="border border-neutral-300 p-2 text-right">Base Imponible</th>
-                    <th className="border border-neutral-300 p-2 text-right">%</th>
-                    <th className="border border-neutral-300 p-2 text-right bg-neutral-200">ISLR Retenido</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedSupplierForPrint.vouchers.map((v) => (
-                    <tr key={v.id}>
-                      <td className="border border-neutral-300 p-2 font-mono">{v.voucherNumber}</td>
-                      <td className="border border-neutral-300 p-2 font-mono">{v.invoiceNumber}</td>
-                      <td className="border border-neutral-300 p-2 text-center">
-                        {new Date(v.invoiceDate).toLocaleDateString('es-VE')}
+                {/* Data Table Agent and Subject */}
+                <div className="grid grid-cols-2 gap-4 bg-neutral-50 p-3 rounded-lg border border-neutral-200">
+                  <div>
+                    <p className="font-bold text-[11px] text-neutral-900 mb-1">AGENTE DE RETENCIÓN</p>
+                    <p className="font-semibold text-neutral-800">DISTRIBUIDORA ERO VE, C.A.</p>
+                    <p className="text-neutral-600">RIF: J-40123456-7</p>
+                    <p className="text-neutral-600">Caracas, Venezuela</p>
+                  </div>
+                  <div>
+                    <p className="font-bold text-[11px] text-neutral-900 mb-1">BENEFICIARIO (SUJETO RETENIDO)</p>
+                    <p className="font-semibold text-neutral-800">{selectedSupplierForPrint.supplierName}</p>
+                    <p className="text-neutral-600">RIF: {selectedSupplierForPrint.supplierRif}</p>
+                    <p className="text-neutral-600">Período Fiscal: 01/01/{taxYear} al 31/12/{taxYear}</p>
+                  </div>
+                </div>
+
+                {/* Table of Monthly Operations */}
+                <table className="w-full border-collapse border border-neutral-300 text-[11px]">
+                  <thead className="bg-neutral-100 font-semibold">
+                    <tr>
+                      <th className="border border-neutral-300 p-2 text-left">N° Comprobante</th>
+                      <th className="border border-neutral-300 p-2 text-left">Factura</th>
+                      <th className="border border-neutral-300 p-2 text-center">Fecha</th>
+                      <th className="border border-neutral-300 p-2 text-left">Concepto</th>
+                      <th className="border border-neutral-300 p-2 text-right">Base Imponible</th>
+                      <th className="border border-neutral-300 p-2 text-right">%</th>
+                      <th className="border border-neutral-300 p-2 text-right bg-neutral-200">ISLR Retenido</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedSupplierForPrint.vouchers.map((v) => (
+                      <tr key={v.id}>
+                        <td className="border border-neutral-300 p-2 font-mono">{v.voucherNumber}</td>
+                        <td className="border border-neutral-300 p-2 font-mono">{v.invoiceNumber}</td>
+                        <td className="border border-neutral-300 p-2 text-center">
+                          {new Date(v.invoiceDate).toLocaleDateString('es-VE')}
+                        </td>
+                        <td className="border border-neutral-300 p-2">{v.conceptDescription}</td>
+                        <td className="border border-neutral-300 p-2 text-right font-mono">
+                          {formatMoneyUSD(v.taxableBaseAmount)}
+                        </td>
+                        <td className="border border-neutral-300 p-2 text-right font-mono">{v.ratePercentage}%</td>
+                        <td className="border border-neutral-300 p-2 text-right font-mono font-bold bg-neutral-100">
+                          {formatMoneyUSD(v.islrRetainedAmount)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-neutral-100 font-bold border-t-2 border-neutral-300">
+                    <tr>
+                      <td colSpan={4} className="border border-neutral-300 p-2 text-right uppercase">
+                        Totales Anuales Acumulados:
                       </td>
-                      <td className="border border-neutral-300 p-2">{v.conceptDescription}</td>
-                      <td className="border border-neutral-300 p-2 text-right font-mono">
-                        {formatMoneyUSD(v.taxableBaseAmount)}
+                      <td className="border border-neutral-300 p-2 text-right font-mono text-sky-800">
+                        {formatMoneyUSD(selectedSupplierForPrint.totalTaxableBase)}
                       </td>
-                      <td className="border border-neutral-300 p-2 text-right font-mono">{v.ratePercentage}%</td>
-                      <td className="border border-neutral-300 p-2 text-right font-mono font-bold bg-neutral-100">
-                        {formatMoneyUSD(v.islrRetainedAmount)}
+                      <td className="border border-neutral-300 p-2"></td>
+                      <td className="border border-neutral-300 p-2 text-right font-mono font-bold text-sky-900 bg-neutral-200">
+                        {formatMoneyUSD(selectedSupplierForPrint.totalIslrRetained)}
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-                <tfoot className="bg-neutral-100 font-bold border-t-2 border-neutral-300">
-                  <tr>
-                    <td colSpan={4} className="border border-neutral-300 p-2 text-right uppercase">
-                      Totales Anuales Acumulados:
-                    </td>
-                    <td className="border border-neutral-300 p-2 text-right font-mono text-sky-800">
-                      {formatMoneyUSD(selectedSupplierForPrint.totalTaxableBase)}
-                    </td>
-                    <td className="border border-neutral-300 p-2"></td>
-                    <td className="border border-neutral-300 p-2 text-right font-mono font-bold text-sky-900 bg-neutral-200">
-                      {formatMoneyUSD(selectedSupplierForPrint.totalIslrRetained)}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
+                  </tfoot>
+                </table>
 
-              {/* Signatures */}
-              <div className="grid grid-cols-2 gap-8 pt-10 text-center text-xs">
-                <div>
-                  <div className="border-t border-neutral-400 mx-auto w-48 pt-1">
-                    <p className="font-bold text-neutral-800">AGENTE DE RETENCIÓN</p>
-                    <p className="text-[10px] text-neutral-500">Firma y Sello del Pagador</p>
+                {/* Signatures */}
+                <div className="grid grid-cols-2 gap-8 pt-10 text-center text-xs">
+                  <div>
+                    <div className="border-t border-neutral-400 mx-auto w-48 pt-1">
+                      <p className="font-bold text-neutral-800">AGENTE DE RETENCIÓN</p>
+                      <p className="text-[10px] text-neutral-500">Firma y Sello del Pagador</p>
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <div className="border-t border-neutral-400 mx-auto w-48 pt-1">
-                    <p className="font-bold text-neutral-800">SUJETO RETENIDO</p>
-                    <p className="text-[10px] text-neutral-500">Firma y C.I. del Beneficiario</p>
+                  <div>
+                    <div className="border-t border-neutral-400 mx-auto w-48 pt-1">
+                      <p className="font-bold text-neutral-800">SUJETO RETENIDO</p>
+                      <p className="text-[10px] text-neutral-500">Firma y C.I. del Beneficiario</p>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-neutral-200 print:hidden">
+            {/* Footer (Pinned) */}
+            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex justify-end gap-2 shrink-0 print:hidden">
               <Button variant="outline" size="sm" onClick={() => setSelectedSupplierForPrint(null)}>
                 Cerrar
               </Button>
@@ -503,6 +542,15 @@ export const ARCVReportView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Modal Visor / Descarga PDF Certificado ARCV */}
+      <PdfViewerModal
+        isOpen={pdfModal.isOpen}
+        onClose={() => setPdfModal((prev) => ({ ...prev, isOpen: false }))}
+        title={pdfModal.title}
+        endpoint={pdfModal.endpoint}
+        filename={pdfModal.filename}
+      />
     </div>
   );
 };

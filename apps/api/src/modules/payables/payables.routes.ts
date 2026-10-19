@@ -4,6 +4,9 @@ import { createPayablePaymentSchema, createPurchaseInvoiceSchema } from '@ero/sh
 import { PayablesService } from './payables.service';
 import { authenticate, AppEnv } from '../../middleware/auth';
 import { authorize } from '../../middleware/rbac';
+import { query } from '../../db';
+import { generatePayablePaymentReceiptPDF } from '../reports/reports-pdf';
+import { ReportsService } from '../reports/reports.service';
 
 export const payablesRouter = new Hono<AppEnv>();
 
@@ -31,6 +34,37 @@ payablesRouter.post('/payments', authenticate, authorize('payables', 'create'), 
   const body = c.req.valid('json');
   const data = await PayablesService.registerPayment(user.companyId, user.sub, body);
   return c.json({ success: true, data }, 201);
+});
+
+// GET /api/payables/payments/:id/pdf - Descarga / Visualización de Comprobante de Pago a Proveedor
+payablesRouter.get('/payments/:id/pdf', authenticate, authorize('payables', 'read'), async (c) => {
+  const user = c.get('user');
+  const paymentId = c.req.param('id')!;
+
+  try {
+    const payment = await PayablesService.getPaymentById(user.companyId, paymentId);
+    if (!payment) {
+      return c.json({ success: false, error: { code: 'PAYMENT_NOT_FOUND', message: 'Comprobante de pago no encontrado' } }, 404);
+    }
+
+    const [company, userName] = await Promise.all([
+      ReportsService.getCompanyPdfInfo(user.companyId),
+      ReportsService.getUserFullName(user.sub),
+    ]);
+
+    const pdfBuffer = await generatePayablePaymentReceiptPDF({
+      company,
+      payment,
+      userName,
+    });
+
+    c.header('Content-Type', 'application/pdf');
+    c.header('Content-Disposition', `inline; filename="recibo_pago_${payment.receiptNumber}.pdf"`);
+    return c.body(new Uint8Array(pdfBuffer));
+  } catch (error: any) {
+    console.error('[Payment PDF Error]', error);
+    return c.json({ success: false, error: { code: 'PAYMENT_PDF_FAILED', message: error.message } }, 500);
+  }
 });
 
 // POST /api/payables/purchases - Registrar factura de compra

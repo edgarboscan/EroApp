@@ -145,6 +145,59 @@ export class PricingService {
   }
 
   /**
+   * Obtiene los datos detallados de un lote de modificación de precios para reporte PDF
+   */
+  static async getBatchById(companyId: string, batchId: string) {
+    const rows = await query<any>(
+      `SELECT b.*, u.full_name as user_name
+       FROM price_change_batches b
+       INNER JOIN users u ON b.user_id = u.id
+       WHERE (b.id = ? OR b.batch_number = ?) AND b.company_id = ?`,
+      [batchId, batchId, companyId]
+    );
+
+    if (rows.length === 0) return null;
+    const batch = rows[0];
+
+    const items = await query<any>(
+      `SELECT pci.*, p.sku, p.name as product_name
+       FROM price_change_items pci
+       INNER JOIN products p ON pci.product_id = p.id
+       WHERE pci.batch_id = ?`,
+      [batch.id]
+    );
+
+    return {
+      batchNumber: batch.batch_number,
+      createdAt: batch.created_at ? new Date(batch.created_at).toISOString() : new Date().toISOString(),
+      appliedAt: batch.applied_at ? new Date(batch.applied_at).toISOString() : undefined,
+      userName: batch.user_name,
+      mode: batch.mode,
+      modeValue: Number(batch.mode_value || 0),
+      roundingRule: batch.rounding_rule,
+      reason: batch.reason || undefined,
+      status: batch.status,
+      items: items.map((i: any) => {
+        const cost = Number(i.cost_price || 0);
+        const oldP = Number(i.old_base_price || 0);
+        const newP = Number(i.new_base_price || 0);
+        const oldMargin = oldP > 0 && cost > 0 ? ((oldP - cost) / oldP) * 100 : undefined;
+        const newMargin = newP > 0 && cost > 0 ? ((newP - cost) / newP) * 100 : undefined;
+
+        return {
+          sku: i.sku || 'N/A',
+          productName: i.product_name,
+          oldPrice: oldP,
+          newPrice: newP,
+          oldMarginPercent: oldMargin ? Number(oldMargin.toFixed(1)) : undefined,
+          newMarginPercent: newMargin ? Number(newMargin.toFixed(1)) : undefined,
+          currency: 'USD',
+        };
+      }),
+    };
+  }
+
+  /**
    * Obtiene las tasas de impuestos configuradas
    */
   static async getTaxRates(companyId: string) {

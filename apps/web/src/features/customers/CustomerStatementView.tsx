@@ -38,64 +38,7 @@ export const CustomerStatementView: React.FC = () => {
           throw new Error('No se pudo cargar el estado de cuenta');
         }
       } catch {
-        // Mock fallback
-        setStatement({
-          customer: {
-            id,
-            docType: 'J',
-            docNumber: '30999888-1',
-            name: 'INVERSIONES EL SOL DE CARACAS C.A.',
-            address: 'Av. Libertador, Edif. Centro, Chacao, Caracas',
-            phone: '+58 212 999 1122',
-            email: 'contacto@elsolcaracas.com',
-            isSpecialTaxpayer: true,
-            creditEnabled: true,
-            creditLimit: 5000.0,
-            paymentTermsDays: 30,
-            currentBalance: 1420.50,
-            availableCredit: 3579.50,
-          },
-          invoices: [
-            {
-              id: 'inv-1',
-              invoiceNumber: 'FACT-001042',
-              controlNumber: '00-001042',
-              invoiceDate: '2026-09-15 10:30:00',
-              currency: 'USD',
-              totalAmount: 1420.50,
-              status: 'PENDING',
-              isCredit: true,
-              receivable: {
-                id: 'rec-1',
-                amountTotal: 1420.50,
-                amountPaid: 0.00,
-                amountBalance: 1420.50,
-                dueDate: '2026-10-15',
-                status: 'PENDING',
-                daysOverdue: -16,
-              },
-            },
-            {
-              id: 'inv-0',
-              invoiceNumber: 'FACT-000980',
-              controlNumber: '00-000980',
-              invoiceDate: '2026-08-20 14:15:00',
-              currency: 'USD',
-              totalAmount: 950.00,
-              status: 'PAID',
-              isCredit: true,
-              receivable: {
-                id: 'rec-0',
-                amountTotal: 950.00,
-                amountPaid: 950.00,
-                amountBalance: 0.00,
-                dueDate: '2026-09-19',
-                status: 'PAID',
-                daysOverdue: 10,
-              },
-            },
-          ],
-        });
+        setStatement(null);
       } finally {
         setIsLoading(false);
       }
@@ -104,7 +47,7 @@ export const CustomerStatementView: React.FC = () => {
     fetchStatement();
   }, [id, token]);
 
-  if (isLoading || !statement) {
+  if (isLoading) {
     return (
       <div className="flex flex-col gap-6">
         <div className="h-8 bg-neutral-200 rounded-lg w-48 animate-pulse" />
@@ -113,6 +56,30 @@ export const CustomerStatementView: React.FC = () => {
             <div key={idx} className="h-24 bg-neutral-200 rounded-lg animate-pulse" />
           ))}
         </div>
+      </div>
+    );
+  }
+
+  if (!statement) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/customers')}
+          >
+            <ArrowLeft className="w-4 h-4 mr-1" />
+            Clientes
+          </Button>
+        </div>
+        <Card className="p-12 text-center">
+          <FileText className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
+          <h2 className="text-sm font-semibold text-neutral-800">Sin información</h2>
+          <p className="text-xs text-neutral-500 mt-1">
+            No se encontró información o estado de cuenta para el cliente seleccionado.
+          </p>
+        </Card>
       </div>
     );
   }

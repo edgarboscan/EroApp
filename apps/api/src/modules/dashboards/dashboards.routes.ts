@@ -31,11 +31,28 @@ dashboardsRouter.get('/widgets', authenticate, authorize('dashboards', 'read'), 
   return c.json({ success: true, data: result });
 });
 
-// GET /api/dashboards/widgets/:code/data - Carga la data en vivo para un widget
-dashboardsRouter.get('/widgets/:code/data', authenticate, async (c) => {
-  const code = c.req.param('code');
+// GET /api/dashboards/summary - Carga todas las métricas reales y consolidadas del dashboard
+dashboardsRouter.get('/summary', authenticate, authorize('dashboards', 'read'), async (c) => {
+  const user = c.get('user');
   const queryBranch = c.req.query('branchId');
-  const branchId = queryBranch && queryBranch !== 'ALL' ? queryBranch : c.get('activeBranchId');
-  const result = await DashboardsService.getWidgetData(code!, branchId || undefined);
+  const queryWarehouse = c.req.query('warehouseId');
+  const branchId = queryBranch && queryBranch !== 'ALL' ? queryBranch : (queryBranch === 'ALL' ? undefined : c.get('activeBranchId'));
+  const warehouseId = queryWarehouse && queryWarehouse !== 'ALL' ? queryWarehouse : (queryWarehouse === 'ALL' ? undefined : c.get('activeWarehouseId'));
+
+  const result = await DashboardsService.getDashboardSummary(user.companyId, branchId || undefined, warehouseId || undefined);
   return c.json({ success: true, data: result });
 });
+
+// GET /api/dashboards/widgets/:code/data - Carga la data en vivo para un widget
+dashboardsRouter.get('/widgets/:code/data', authenticate, authorize('dashboards', 'read'), async (c) => {
+  const user = c.get('user');
+  const code = c.req.param('code');
+  const queryBranch = c.req.query('branchId');
+  const queryWarehouse = c.req.query('warehouseId');
+  const branchId = queryBranch && queryBranch !== 'ALL' ? queryBranch : (queryBranch === 'ALL' ? undefined : c.get('activeBranchId'));
+  const warehouseId = queryWarehouse && queryWarehouse !== 'ALL' ? queryWarehouse : (queryWarehouse === 'ALL' ? undefined : c.get('activeWarehouseId'));
+
+  const result = await DashboardsService.getWidgetData(code!, branchId || undefined, warehouseId || undefined, user.companyId);
+  return c.json({ success: true, data: result });
+});
+

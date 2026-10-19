@@ -164,6 +164,108 @@ export class TaxesService {
   }
 
   /**
+   * Obtiene un comprobante de retención específico por ID (IVA o ISLR)
+   */
+  static async getWithholdingById(companyId: string, id: string) {
+    // 1. Probar en IVA
+    const ivaRows = await query<any>(
+      `SELECT 
+        twi.id, twi.company_id, twi.branch_id, br.name as branch_name,
+        twi.supplier_id, s.rif as supplier_rif, s.name as supplier_name,
+        twi.purchase_invoice_id, twi.voucher_number, twi.tax_period, twi.fortnight,
+        twi.invoice_number, twi.control_number, twi.invoice_date,
+        twi.total_invoice_amount, twi.exempt_amount, twi.taxable_base_amount,
+        twi.tax_rate, twi.iva_amount, twi.retained_percentage, twi.iva_retained_amount,
+        twi.status, twi.created_at
+      FROM tax_withholdings_iva twi
+      INNER JOIN branches br ON twi.branch_id = br.id
+      INNER JOIN suppliers s ON twi.supplier_id = s.id
+      WHERE twi.id = ? AND twi.company_id = ?`,
+      [id, companyId]
+    );
+
+    if (ivaRows.length > 0) {
+      const r = ivaRows[0];
+      return {
+        id: r.id,
+        type: 'IVA',
+        branchId: r.branch_id,
+        branchName: r.branch_name,
+        supplierId: r.supplier_id,
+        supplierRif: r.supplier_rif,
+        supplierName: r.supplier_name,
+        purchaseInvoiceId: r.purchase_invoice_id,
+        voucherNumber: r.voucher_number,
+        taxPeriod: r.tax_period,
+        fortnight: r.fortnight,
+        invoiceNumber: r.invoice_number,
+        controlNumber: r.control_number,
+        invoiceDate: r.invoice_date,
+        totalInvoiceAmount: Number(r.total_invoice_amount),
+        exemptAmount: Number(r.exempt_amount),
+        taxableBaseAmount: Number(r.taxable_base_amount),
+        taxRate: Number(r.tax_rate),
+        ivaAmount: Number(r.iva_amount),
+        retainedPercentage: Number(r.retained_percentage),
+        retainedAmount: Number(r.iva_retained_amount),
+        status: r.status,
+        createdAt: r.created_at,
+      };
+    }
+
+    // 2. Probar en ISLR
+    const islrRows = await query<any>(
+      `SELECT 
+        twis.id, twis.company_id, twis.branch_id, br.name as branch_name,
+        twis.supplier_id, s.rif as supplier_rif, s.name as supplier_name,
+        twis.purchase_invoice_id, twis.voucher_number, twis.tax_period,
+        twis.concept_code, twis.concept_description, twis.person_type,
+        pi.invoice_number, pi.control_number, pi.invoice_date,
+        twis.total_invoice_amount, twis.taxable_base_amount,
+        twis.rate_percentage, twis.subtracting_factor, twis.islr_retained_amount,
+        twis.status, twis.created_at
+      FROM tax_withholdings_islr twis
+      INNER JOIN branches br ON twis.branch_id = br.id
+      INNER JOIN suppliers s ON twis.supplier_id = s.id
+      INNER JOIN purchase_invoices pi ON twis.purchase_invoice_id = pi.id
+      WHERE twis.id = ? AND twis.company_id = ?`,
+      [id, companyId]
+    );
+
+    if (islrRows.length > 0) {
+      const r = islrRows[0];
+      return {
+        id: r.id,
+        type: 'ISLR',
+        branchId: r.branch_id,
+        branchName: r.branch_name,
+        supplierId: r.supplier_id,
+        supplierRif: r.supplier_rif,
+        supplierName: r.supplier_name,
+        purchaseInvoiceId: r.purchase_invoice_id,
+        voucherNumber: r.voucher_number,
+        taxPeriod: r.tax_period,
+        conceptCode: r.concept_code,
+        conceptDescription: r.concept_description,
+        personType: r.person_type,
+        invoiceNumber: r.invoice_number,
+        controlNumber: r.control_number,
+        invoiceDate: r.invoice_date,
+        totalInvoiceAmount: Number(r.total_invoice_amount),
+        taxableBaseAmount: Number(r.taxable_base_amount),
+        ratePercentage: Number(r.rate_percentage),
+        subtractingFactor: Number(r.subtracting_factor),
+        retainedAmount: Number(r.islr_retained_amount),
+        islrRetainedAmount: Number(r.islr_retained_amount),
+        status: r.status,
+        createdAt: r.created_at,
+      };
+    }
+
+    return null;
+  }
+
+  /**
    * Obtiene facturas de compra pendientes de retención de IVA o ISLR
    */
   static async getInvoicesPendingWithholding(companyId: string, branchId?: string) {

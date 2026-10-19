@@ -2,6 +2,7 @@ import React from 'react';
 import { Button } from '../../components/ui/Button';
 import { Printer, X, FileText } from 'lucide-react';
 import { formatMoneyUSD } from '@ero/shared';
+import { useEscapeKey } from '../../components/ui/Modal';
 
 export interface WithholdingVoucherData {
   id: string;
@@ -35,6 +36,8 @@ interface Props {
 }
 
 export const WithholdingVoucherModal: React.FC<Props> = ({ voucher, onClose }) => {
+  useEscapeKey(onClose, Boolean(voucher));
+
   if (!voucher) return null;
 
   const handlePrint = () => {
@@ -44,26 +47,48 @@ export const WithholdingVoucherModal: React.FC<Props> = ({ voucher, onClose }) =
   const isIVA = voucher.type === 'IVA';
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg border border-neutral-200 shadow-xl max-w-3xl w-full p-6 space-y-6 max-h-[90vh] overflow-y-auto">
-        {/* Top actions toolbar */}
-        <div className="flex items-center justify-between border-b border-neutral-200 pb-3 print:hidden">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4">
+      <div className="bg-white rounded-lg border border-neutral-200 shadow-2xl max-w-3xl w-full max-h-[92vh] flex flex-col overflow-hidden my-auto">
+        {/* Top Header (Pinned) */}
+        <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white print:hidden">
           <div className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-sky-600" />
-            <h2 className="text-base font-semibold text-neutral-900">
-              Comprobante Oficial SENIAT ({voucher.type})
-            </h2>
+            <div>
+              <h2 className="text-base font-bold text-neutral-900">
+                Comprobante Oficial SENIAT ({voucher.type})
+              </h2>
+              <p className="text-[11px] text-neutral-500">N° {voucher.voucherNumber} • Período: {voucher.taxPeriod}</p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                window.open(`/api/taxes/withholdings/${voucher.id}/pdf`, '_blank');
+              }}
+              title="Descargar o Ver PDF Oficial"
+            >
+              <FileText className="w-4 h-4 mr-1 text-sky-600" />
+              Ver PDF
+            </Button>
             <Button size="sm" variant="outline" onClick={handlePrint}>
               <Printer className="w-4 h-4 mr-1" />
               Imprimir
             </Button>
-            <Button size="sm" variant="ghost" onClick={onClose}>
-              <X className="w-4 h-4" />
-            </Button>
+            <button
+              type="button"
+              onClick={onClose}
+              title="Cerrar modal (Esc)"
+              className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
+
+        {/* Scrollable Body */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
 
         {/* Printable Voucher Paper */}
         <div className="p-4 sm:p-6 bg-white border border-neutral-300 rounded-lg text-neutral-800 space-y-4 text-xs font-sans">
@@ -227,9 +252,10 @@ export const WithholdingVoucherModal: React.FC<Props> = ({ voucher, onClose }) =
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Bottom Actions */}
-        <div className="flex justify-end gap-2 pt-2 border-t border-neutral-200 print:hidden">
+        {/* Bottom Actions (Pinned) */}
+        <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex justify-end gap-2 shrink-0 print:hidden">
           <Button variant="outline" size="sm" onClick={onClose}>
             Cerrar
           </Button>

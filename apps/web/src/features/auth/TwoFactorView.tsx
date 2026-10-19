@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { toast } from 'sonner';
 import { ShieldCheck, ArrowRight, ArrowLeft, KeyRound } from 'lucide-react';
+import { getDefaultAppRoute } from '../../lib/navigation';
 
 export const TwoFactorView: React.FC = () => {
   const navigate = useNavigate();
@@ -63,35 +64,9 @@ export const TwoFactorView: React.FC = () => {
 
       setAuth(json.data.user, json.data.accessToken);
       toast.success('Identidad verificada exitosamente');
-      navigate('/dashboard', { replace: true });
+      const targetRoute = getDefaultAppRoute(useAuthStore.getState().hasPermission);
+      navigate(targetRoute, { replace: true });
     } catch (err: any) {
-      // Fallback demo para código 123456
-      if (code === '123456') {
-        const fallbackUser = {
-          id: tempUser.userId,
-          username: tempUser.username,
-          email: tempUser.email,
-          fullName: tempUser.fullName || tempUser.username,
-          role: 'super_admin',
-          companyId: 'c1111111-1111-1111-1111-111111111111',
-          branchId: 'b1111111-1111-1111-1111-111111111111',
-          warehouseId: 'w1111111-1111-1111-1111-111111111111',
-          permissions: [
-            'dashboards.read', 'dashboards.update',
-            'inventory.read', 'inventory.create', 'inventory.update', 'inventory.adjust',
-            'pricing.read', 'pricing.bulk_update', 'pricing.apply_tax',
-            'sales.read', 'sales.create',
-            'pos.read', 'pos.close_register',
-            'receivables.read', 'payables.read', 'treasury.read', 'taxes.read',
-            'reports.export_pdf', 'reports.export_excel'
-          ],
-        };
-        setAuth(fallbackUser, 'mock-jwt-token-2fa');
-        toast.success('Identidad verificada en modo local');
-        navigate('/dashboard', { replace: true });
-        return;
-      }
-
       const msg = err.message || 'Código inválido o expirado';
       setErrorMessage(msg);
       toast.error(msg);
@@ -137,7 +112,7 @@ export const TwoFactorView: React.FC = () => {
               type="text"
               inputMode="numeric"
               maxLength={6}
-              placeholder="123456"
+              placeholder="000000"
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
               className="text-center font-mono text-lg tracking-widest"
@@ -155,19 +130,6 @@ export const TwoFactorView: React.FC = () => {
               <ArrowRight className="w-4 h-4 ml-1.5" />
             </Button>
           </form>
-
-          {/* Código demo de asistencia */}
-          <div className="mt-4 p-3 rounded-lg bg-neutral-50 border border-neutral-200 flex items-center justify-between text-xs">
-            <span className="text-neutral-500">Código de prueba:</span>
-            <button
-              type="button"
-              onClick={() => setCode('123456')}
-              className="font-mono font-bold text-sky-700 hover:text-sky-800 flex items-center gap-1 cursor-pointer"
-            >
-              <KeyRound className="w-3.5 h-3.5" />
-              123456
-            </button>
-          </div>
 
           <div className="mt-6 pt-4 border-t border-neutral-100 flex justify-center">
             <button

@@ -15,10 +15,15 @@ import {
   Calendar,
   TrendingDown,
   TrendingUp,
+  Search,
 } from 'lucide-react';
+import { ProductSearchModal } from '../../components/search';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/authStore';
 import { formatMoneyUSD } from '../../utils/formatters';
+import { showConfirmQuestion } from '../../lib/sweetalert';
+import { useEscapeKey } from '../../components/ui/Modal';
+import { PdfViewerModal } from '../../components/ui/PdfViewerModal';
 
 interface AdjustmentRecord {
   id: string;
@@ -44,86 +49,71 @@ interface NewAdjustmentItem {
   notes?: string;
 }
 
-const DEMO_ADJUSTMENTS: AdjustmentRecord[] = [
-  {
-    id: 'adj-01',
-    adjustment_number: 'AJU-202609-0001',
-    type: 'DAMAGE_SPOILED',
-    adjustment_date: '2026-09-29T11:00:00Z',
-    total_cost_impact: -15.0,
-    reason: 'Empaque roto por manipulación en pasillo 4',
-    status: 'APPLIED',
-    branch_name: 'Sucursal Principal Caracas',
-    warehouse_name: 'Depósito Piso de Venta',
-    user_name: 'Administrador Demo',
-    items_count: 1,
-  },
-  {
-    id: 'adj-02',
-    adjustment_number: 'AJU-202609-0002',
-    type: 'FOUND_SURPLUS',
-    adjustment_date: '2026-09-28T16:30:00Z',
-    total_cost_impact: 23.0,
-    reason: 'Caja adicional encontrada en estantería superior durante inventario rotativo',
-    status: 'APPLIED',
-    branch_name: 'Sucursal Principal Caracas',
-    warehouse_name: 'Almacén Central Mayorista',
-    user_name: 'Supervisor Inventario',
-    items_count: 2,
-  },
-  {
-    id: 'adj-03',
-    adjustment_number: 'AJU-202609-0003',
-    type: 'PHYSICAL_COUNT',
-    adjustment_date: '2026-09-27T18:00:00Z',
-    total_cost_impact: -5.75,
-    reason: 'Ajuste de conteo físico mensual de cierre de mes',
-    status: 'APPLIED',
-    branch_name: 'Sucursal Principal Caracas',
-    warehouse_name: 'Almacén Central Mayorista',
-    user_name: 'Administrador Demo',
-    items_count: 1,
-  },
-];
-
 export const InventoryAdjustmentsView: React.FC = () => {
   const { activeBranchId, activeWarehouseId, token } = useAuthStore();
-  const [adjustments, setAdjustments] = useState<AdjustmentRecord[]>(DEMO_ADJUSTMENTS);
+  const [adjustments, setAdjustments] = useState<AdjustmentRecord[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Modal
   const [showModal, setShowModal] = useState(false);
+  const [showProductSearch, setShowProductSearch] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [pdfModal, setPdfModal] = useState<{
+    isOpen: boolean;
+    endpoint: string | null;
+    title: string;
+    filename?: string;
+  }>({
+    isOpen: false,
+    endpoint: null,
+    title: '',
+  });
+
+  useEscapeKey(() => {
+    if (showProductSearch) setShowProductSearch(false);
+    else if (showModal) setShowModal(false);
+  }, Boolean(showProductSearch || showModal));
 
   // Form State
   const [adjustmentType, setAdjustmentType] = useState<string>('DAMAGE_SPOILED');
   const [reason, setReason] = useState('');
-  const [items, setItems] = useState<NewAdjustmentItem[]>([
-    {
-      productId: 'p2',
-      sku: 'LEC-POL-01',
-      productName: 'Leche en Polvo Completa 1Kg',
-      movementType: 'ADJUST_OUT',
-      quantity: 1,
-      unitCost: 7.5,
-      notes: 'Bolsa rasgada',
-    },
-  ]);
+  const [items, setItems] = useState<NewAdjustmentItem[]>([]);
 
   // Selección de producto en formulario
-  const [newProductId, setNewProductId] = useState('p1');
+  const [catalog, setCatalog] = useState<{ id: string; sku: string; name: string; cost: number }[]>([]);
+  const [newProductId, setNewProductId] = useState('');
   const [newMovementType, setNewMovementType] = useState<'ADJUST_IN' | 'ADJUST_OUT'>('ADJUST_OUT');
   const [newQuantity, setNewQuantity] = useState<number>(1);
-  const [newUnitCost, setNewUnitCost] = useState<number>(1.15);
+  const [newUnitCost, setNewUnitCost] = useState<number>(0);
   const [newNotes, setNewNotes] = useState('');
 
-  const catalog = [
-    { id: 'p1', sku: 'HAR-PAN-01', name: 'Harina PAN Blanca 1Kg', cost: 1.15 },
-    { id: 'p2', sku: 'LEC-POL-01', name: 'Leche en Polvo Completa 1Kg', cost: 7.5 },
-    { id: 'p3', sku: 'DES-SET-06', name: 'Juego Destornilladores 6 Piezas', cost: 10.0 },
-    { id: 'p4', sku: 'ARR-PRI-01', name: 'Arroz Primor Blanco 1Kg', cost: 1.05 },
-    { id: 'p5', sku: 'ACE-MAZ-01', name: 'Aceite Mazeite 1 Litro', cost: 2.9 },
-  ];
+  useEffect(() => {
+    const fetchCatalog = async () => {
+      try {
+        const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+        const res = await fetch('/api/inventory/products', { headers });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.data)) {
+            const mapped = json.data.map((p: any) => ({
+              id: p.id,
+              sku: p.sku,
+              name: p.name,
+              cost: Number(p.costPrice || p.cost_price || 0),
+            }));
+            setCatalog(mapped);
+            if (mapped.length > 0) {
+              setNewProductId(mapped[0].id);
+              setNewUnitCost(mapped[0].cost);
+            }
+          }
+        }
+      } catch {
+        // Ignorar
+      }
+    };
+    fetchCatalog();
+  }, [token]);
 
   useEffect(() => {
     fetchAdjustments();
@@ -141,11 +131,15 @@ export const InventoryAdjustmentsView: React.FC = () => {
       if (res.ok) {
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
-          setAdjustments(json.data.length > 0 ? json.data : DEMO_ADJUSTMENTS);
+          setAdjustments(json.data);
+        } else {
+          setAdjustments([]);
         }
+      } else {
+        setAdjustments([]);
       }
     } catch {
-      setAdjustments(DEMO_ADJUSTMENTS);
+      setAdjustments([]);
     } finally {
       setLoading(false);
     }
@@ -190,6 +184,15 @@ export const InventoryAdjustmentsView: React.FC = () => {
       return;
     }
 
+    const confirmed = await showConfirmQuestion({
+      title: '¿Aplicar ajuste de inventario?',
+      text: `Se procesará el ajuste con ${items.length} producto(s) afectando inmediatamente las existencias del depósito actual.`,
+      confirmButtonText: 'Sí, aplicar ajuste',
+      cancelButtonText: 'Cancelar',
+      icon: 'question',
+    });
+    if (!confirmed) return;
+
     setSubmitting(true);
     try {
       const res = await fetch('/api/inventory/adjustments', {
@@ -222,6 +225,16 @@ export const InventoryAdjustmentsView: React.FC = () => {
       setShowModal(false);
       setReason('');
       fetchAdjustments();
+
+      // Abrir inmediatamente la visualización y descarga en PDF
+      if (json.data?.id) {
+        setPdfModal({
+          isOpen: true,
+          endpoint: `/api/inventory/adjustments/${json.data.id}/pdf`,
+          title: `Comprobante de Ajuste N° ${json.data.adjustmentNumber || ''}`,
+          filename: `ajuste_inventario_${json.data.adjustmentNumber || 'doc'}.pdf`,
+        });
+      }
     } catch (err: any) {
       toast.error(err.message || 'Error al registrar ajuste');
     } finally {
@@ -307,6 +320,28 @@ export const InventoryAdjustmentsView: React.FC = () => {
       accessorKey: 'status',
       cell: () => <Badge variant="success">APLICADO</Badge>,
     },
+    {
+      header: 'Acción',
+      cell: (a) => (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() =>
+            setPdfModal({
+              isOpen: true,
+              endpoint: `/api/inventory/adjustments/${a.id}/pdf`,
+              title: `Comprobante de Ajuste ${a.adjustment_number}`,
+              filename: `comprobante_ajuste_${a.adjustment_number}.pdf`,
+            })
+          }
+          className="h-8 px-2 text-xs text-sky-700 hover:text-sky-800"
+          title="Ver / Reimprimir Comprobante de Ajuste en PDF"
+        >
+          <FileText className="w-3.5 h-3.5 mr-1 text-sky-600" />
+          PDF
+        </Button>
+      ),
+    },
   ];
 
   return (
@@ -384,22 +419,29 @@ export const InventoryAdjustmentsView: React.FC = () => {
 
       {/* Modal de Nuevo Ajuste */}
       {showModal && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
+            {/* Header (Pinned) */}
+            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
               <div className="flex items-center gap-2">
                 <ClipboardList className="w-5 h-5 text-sky-600" />
-                <h3 className="text-sm font-bold text-neutral-900">Registrar Ajuste de Inventario</h3>
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-900">Registrar Ajuste de Inventario</h3>
+                  <p className="text-[11px] text-neutral-500">Ajuste de existencias por mermas, vencimientos o conteo físico</p>
+                </div>
               </div>
               <button
+                type="button"
                 onClick={() => setShowModal(false)}
-                className="text-neutral-400 hover:text-neutral-600"
+                title="Cerrar modal (Esc)"
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
+            {/* Body (Scrollable) */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-neutral-700 mb-1">Tipo de Ajuste</label>
@@ -434,22 +476,44 @@ export const InventoryAdjustmentsView: React.FC = () => {
                 <span className="font-semibold text-neutral-800 block">Agregar Producto a la Lista:</span>
                 <div className="grid grid-cols-12 gap-2 items-end">
                   <div className="col-span-5">
-                    <label className="text-[11px] text-neutral-500 block mb-1">Producto</label>
-                    <select
-                      value={newProductId}
-                      onChange={(e) => {
-                        setNewProductId(e.target.value);
-                        const p = catalog.find((c) => c.id === e.target.value);
-                        if (p) setNewUnitCost(p.cost);
-                      }}
-                      className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs bg-white"
-                    >
-                      {catalog.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.sku} - {p.name}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] text-neutral-500 block">Producto</label>
+                      <button
+                        type="button"
+                        onClick={() => setShowProductSearch(true)}
+                        className="text-[11px] text-sky-600 hover:text-sky-700 font-medium flex items-center gap-1 cursor-pointer"
+                      >
+                        <Search className="w-3 h-3" />
+                        <span>Buscar en catálogo</span>
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={newProductId}
+                        onChange={(e) => {
+                          setNewProductId(e.target.value);
+                          const p = catalog.find((c) => c.id === e.target.value);
+                          if (p) setNewUnitCost(p.cost);
+                        }}
+                        className="flex-1 h-8 px-2 border border-neutral-300 rounded-lg text-xs bg-white"
+                      >
+                        {catalog.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.sku} - {p.name}
+                          </option>
+                        ))}
+                      </select>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowProductSearch(true)}
+                        title="Buscar producto en modal"
+                        className="h-8 px-2 shrink-0 flex items-center justify-center"
+                      >
+                        <Search className="w-3.5 h-3.5 text-neutral-500" />
+                      </Button>
+                    </div>
                   </div>
 
                   <div className="col-span-3">
@@ -506,6 +570,7 @@ export const InventoryAdjustmentsView: React.FC = () => {
                           {formatMoneyUSD(it.quantity * it.unitCost)}
                         </span>
                         <button
+                          type="button"
                           onClick={() => handleRemoveItem(idx)}
                           className="text-neutral-400 hover:text-red-500 p-1"
                         >
@@ -518,7 +583,8 @@ export const InventoryAdjustmentsView: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-3 border-t border-neutral-100">
+            {/* Footer (Pinned) */}
+            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
               <Button variant="outline" size="sm" onClick={() => setShowModal(false)}>
                 Cancelar
               </Button>
@@ -530,6 +596,29 @@ export const InventoryAdjustmentsView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Modal Buscador de Productos */}
+      <ProductSearchModal
+        isOpen={showProductSearch}
+        onClose={() => setShowProductSearch(false)}
+        onSelect={(prod) => {
+          setNewProductId(prod.id);
+          const cost = Number(prod.defaultCost ?? prod.costPrice ?? (prod as any).cost ?? 0);
+          setNewUnitCost(cost);
+          setShowProductSearch(false);
+        }}
+        products={catalog}
+        mode="general"
+      />
+
+      {/* Modal Visor / Descarga PDF de Ajuste de Inventario */}
+      <PdfViewerModal
+        isOpen={pdfModal.isOpen}
+        onClose={() => setPdfModal((prev) => ({ ...prev, isOpen: false }))}
+        title={pdfModal.title}
+        endpoint={pdfModal.endpoint}
+        filename={pdfModal.filename}
+      />
     </div>
   );
 };

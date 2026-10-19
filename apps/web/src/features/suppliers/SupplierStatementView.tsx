@@ -42,67 +42,7 @@ export const SupplierStatementView: React.FC = () => {
           throw new Error('No se pudo cargar el estado de cuenta');
         }
       } catch {
-        // Fallback demo data
-        setStatement({
-          supplier: {
-            id,
-            rif: 'J-30555666-0',
-            name: 'ALIMENTOS POLAR COMERCIAL C.A.',
-            fiscalAddress: 'Los Cortijos de Lourdes, Edif. Polar, Caracas',
-            phone: '+58 212 202 3111',
-            email: 'atencionproveedores@polar.com.ve',
-            isPersonNatural: false,
-            isResident: true,
-            creditLimit: 25000.0,
-            paymentTermsDays: 15,
-            currentBalance: 1254.80,
-          },
-          invoices: [
-            {
-              id: 'inv-1',
-              invoiceNumber: 'FACT-POLAR-9812',
-              controlNumber: '00-0981234',
-              invoiceDate: '2026-09-14',
-              totalAmount: 1254.80,
-              status: 'PENDING',
-              isCredit: true,
-              branchName: 'Sucursal Principal Caracas',
-              payableId: 'pay-1',
-              amountPaid: 0.0,
-              amountBalance: 1254.80,
-              dueDate: '2026-09-29',
-              daysOverdue: 0,
-            },
-            {
-              id: 'inv-2',
-              invoiceNumber: 'FACT-POLAR-8900',
-              controlNumber: '00-0890012',
-              invoiceDate: '2026-08-20',
-              totalAmount: 3200.0,
-              status: 'PAID',
-              isCredit: true,
-              branchName: 'Sucursal Principal Caracas',
-              payableId: 'pay-2',
-              amountPaid: 3200.0,
-              amountBalance: 0.0,
-              dueDate: '2026-09-04',
-              daysOverdue: 0,
-            },
-          ],
-          payments: [
-            {
-              id: 'paym-1',
-              method: 'TRANSFER_VES',
-              amountVes: 116800.0,
-              amountUsd: 3200.0,
-              exchangeRate: 36.5,
-              referenceNumber: 'TRANS-BCO-998877',
-              notes: 'Pago liquidación factura FACT-POLAR-8900',
-              createdAt: '2026-09-03T14:30:00Z',
-              invoiceNumber: 'FACT-POLAR-8900',
-            },
-          ],
-        });
+        setStatement(null);
       } finally {
         setIsLoading(false);
       }
@@ -125,9 +65,31 @@ export const SupplierStatementView: React.FC = () => {
     );
   }
 
-  const supplier = statement?.supplier;
-  const invoices = statement?.invoices || [];
-  const payments = statement?.payments || [];
+  if (!statement || !statement.supplier) {
+    return (
+      <div className="space-y-6">
+        <button
+          type="button"
+          onClick={() => navigate('/suppliers')}
+          className="inline-flex items-center text-xs font-medium text-neutral-500 hover:text-neutral-900 transition-colors"
+        >
+          <ArrowLeft className="w-3.5 h-3.5 mr-1" />
+          Volver al Directorio de Proveedores
+        </button>
+        <Card className="p-12 text-center">
+          <Truck className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
+          <h2 className="text-sm font-semibold text-neutral-800">Sin información</h2>
+          <p className="text-xs text-neutral-500 mt-1">
+            No se encontró información o estado de cuenta para el proveedor seleccionado.
+          </p>
+        </Card>
+      </div>
+    );
+  }
+
+  const supplier = statement.supplier;
+  const invoices = statement.invoices || [];
+  const payments = statement.payments || [];
 
   return (
     <div className="space-y-6">

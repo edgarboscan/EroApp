@@ -20,6 +20,7 @@ import {
   DollarSign,
   Clock,
 } from 'lucide-react';
+import { useEscapeKey } from '../../components/ui/Modal';
 
 interface Supplier {
   id: string;
@@ -38,57 +39,6 @@ interface Supplier {
   pendingPayablesCount: number;
 }
 
-const DEMO_SUPPLIERS: Supplier[] = [
-  {
-    id: 's1',
-    rif: 'J-30555666-0',
-    name: 'ALIMENTOS POLAR COMERCIAL C.A.',
-    fiscalAddress: 'Los Cortijos de Lourdes, Edif. Polar, Caracas',
-    phone: '+58 212 202 3111',
-    email: 'atencionproveedores@polar.com.ve',
-    isPersonNatural: false,
-    isResident: true,
-    islrConceptCode: 'SERV_IND',
-    creditLimit: 25000.0,
-    paymentTermsDays: 15,
-    isActive: true,
-    currentBalance: 1254.80,
-    pendingPayablesCount: 1,
-  },
-  {
-    id: 's2',
-    rif: 'J-00033322-1',
-    name: 'MONDELEZ VENEZUELA C.A.',
-    fiscalAddress: 'Zona Industrial San Diego, Valencia, Edo. Carabobo',
-    phone: '+58 241 876 5432',
-    email: 'pagos@mondelezinternational.com',
-    isPersonNatural: false,
-    isResident: true,
-    islrConceptCode: 'SERV_IND',
-    creditLimit: 10000.0,
-    paymentTermsDays: 30,
-    isActive: true,
-    currentBalance: 1240.00,
-    pendingPayablesCount: 1,
-  },
-  {
-    id: 's3',
-    rif: 'J-29888777-4',
-    name: 'DISTRIBUIDORA FERRETERA CENTRAL C.A.',
-    fiscalAddress: 'Av. Las Delicias, Maracay, Edo. Aragua',
-    phone: '+58 243 234 5678',
-    email: 'ventas@ferreteracentral.com',
-    isPersonNatural: false,
-    isResident: true,
-    islrConceptCode: 'BIENES',
-    creditLimit: 5000.0,
-    paymentTermsDays: 15,
-    isActive: true,
-    currentBalance: 0.0,
-    pendingPayablesCount: 0,
-  },
-];
-
 export const SuppliersView: React.FC = () => {
   const navigate = useNavigate();
   const { token, hasPermission } = useAuthStore();
@@ -96,6 +46,8 @@ export const SuppliersView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  useEscapeKey(() => setIsModalOpen(false), isModalOpen);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -123,22 +75,10 @@ export const SuppliersView: React.FC = () => {
         const json = await res.json();
         setSuppliers(json.data || []);
       } else {
-        setSuppliers(
-          DEMO_SUPPLIERS.filter(
-            (s) =>
-              s.name.toLowerCase().includes(search.toLowerCase()) ||
-              s.rif.toLowerCase().includes(search.toLowerCase())
-          )
-        );
+        setSuppliers([]);
       }
     } catch {
-      setSuppliers(
-        DEMO_SUPPLIERS.filter(
-          (s) =>
-            s.name.toLowerCase().includes(search.toLowerCase()) ||
-            s.rif.toLowerCase().includes(search.toLowerCase())
-        )
-      );
+      setSuppliers([]);
     } finally {
       setLoading(false);
     }
@@ -188,27 +128,8 @@ export const SuppliersView: React.FC = () => {
         const err = await res.json();
         toast.error(err.error?.message || 'Error al guardar el proveedor');
       }
-    } catch {
-      // Demo fallback: update local state
-      const newSup: Supplier = {
-        id: `s-${Date.now()}`,
-        rif: formData.rif.toUpperCase(),
-        name: formData.name,
-        fiscalAddress: formData.fiscalAddress,
-        phone: formData.phone,
-        email: formData.email,
-        isPersonNatural: formData.isPersonNatural,
-        isResident: formData.isResident,
-        islrConceptCode: formData.islrConceptCode,
-        creditLimit: formData.creditLimit,
-        paymentTermsDays: formData.paymentTermsDays,
-        isActive: true,
-        currentBalance: 0,
-        pendingPayablesCount: 0,
-      };
-      setSuppliers([newSup, ...suppliers]);
-      toast.success('Proveedor guardado localmente');
-      setIsModalOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || 'Error de conexión al guardar el proveedor');
     }
   };
 
@@ -465,107 +386,116 @@ export const SuppliersView: React.FC = () => {
 
       {/* Modal: Registrar Proveedor */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-neutral-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-lg w-full p-6 shadow-xl border border-neutral-200">
-            <div className="flex justify-between items-center mb-4 border-b border-neutral-100 pb-3">
-              <h2 className="text-lg font-bold text-neutral-900 flex items-center gap-2">
+        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-lg w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
+            {/* Header (Pinned) */}
+            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
+              <div className="flex items-center gap-2">
                 <Truck className="w-5 h-5 text-sky-600" />
-                Registrar Nuevo Proveedor
-              </h2>
+                <div>
+                  <h2 className="text-base font-bold text-neutral-900">Registrar Nuevo Proveedor</h2>
+                  <p className="text-[11px] text-neutral-500">Gestión de compras, datos fiscales SENIAT y retenciones</p>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg"
+                title="Cerrar modal (Esc)"
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <form id="supplierForm" onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden">
+              {/* Body (Scrollable) */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Input
+                    label="RIF (Fiscal SENIAT)"
+                    placeholder="J-12345678-9"
+                    value={formData.rif}
+                    onChange={(e) => setFormData({ ...formData, rif: e.target.value })}
+                    required
+                  />
+                  <Input
+                    label="Teléfono de Contacto"
+                    placeholder="+58 212 999 8877"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  />
+                </div>
+
                 <Input
-                  label="RIF (Fiscal SENIAT)"
-                  placeholder="J-12345678-9"
-                  value={formData.rif}
-                  onChange={(e) => setFormData({ ...formData, rif: e.target.value })}
+                  label="Nombre o Razón Social"
+                  placeholder="Nombre legal completo"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
                 />
+
                 <Input
-                  label="Teléfono de Contacto"
-                  placeholder="+58 212 999 8877"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  label="Correo Electrónico"
+                  type="email"
+                  placeholder="pagos@empresa.com"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 />
-              </div>
 
-              <Input
-                label="Nombre o Razón Social"
-                placeholder="Nombre legal completo"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required
-              />
+                <Input
+                  label="Dirección Fiscal"
+                  placeholder="Zona industrial, calle, edificio..."
+                  value={formData.fiscalAddress}
+                  onChange={(e) => setFormData({ ...formData, fiscalAddress: e.target.value })}
+                />
 
-              <Input
-                label="Correo Electrónico"
-                type="email"
-                placeholder="pagos@empresa.com"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              />
+                <div className="grid grid-cols-2 gap-3 p-3 bg-neutral-50 rounded-lg border border-neutral-200">
+                  <label className="flex items-center gap-2 text-xs font-medium text-neutral-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.isPersonNatural}
+                      onChange={(e) =>
+                        setFormData({ ...formData, isPersonNatural: e.target.checked })
+                      }
+                      className="w-4 h-4 text-sky-600 rounded"
+                    />
+                    Persona Natural
+                  </label>
+                  <label className="flex items-center gap-2 text-xs font-medium text-neutral-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.isResident}
+                      onChange={(e) =>
+                        setFormData({ ...formData, isResident: e.target.checked })
+                      }
+                      className="w-4 h-4 text-sky-600 rounded"
+                    />
+                    Domiciliado en Venezuela
+                  </label>
+                </div>
 
-              <Input
-                label="Dirección Fiscal"
-                placeholder="Zona industrial, calle, edificio..."
-                value={formData.fiscalAddress}
-                onChange={(e) => setFormData({ ...formData, fiscalAddress: e.target.value })}
-              />
-
-              <div className="grid grid-cols-2 gap-3 p-3 bg-neutral-50 rounded-lg border border-neutral-200">
-                <label className="flex items-center gap-2 text-xs font-medium text-neutral-700 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.isPersonNatural}
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    label="Límite de Crédito ($ USD)"
+                    type="number"
+                    value={formData.creditLimit}
                     onChange={(e) =>
-                      setFormData({ ...formData, isPersonNatural: e.target.checked })
+                      setFormData({ ...formData, creditLimit: Number(e.target.value) })
                     }
-                    className="w-4 h-4 text-sky-600 rounded"
                   />
-                  Persona Natural
-                </label>
-                <label className="flex items-center gap-2 text-xs font-medium text-neutral-700 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.isResident}
+                  <Input
+                    label="Plazo de Pago (Días)"
+                    type="number"
+                    value={formData.paymentTermsDays}
                     onChange={(e) =>
-                      setFormData({ ...formData, isResident: e.target.checked })
+                      setFormData({ ...formData, paymentTermsDays: Number(e.target.value) })
                     }
-                    className="w-4 h-4 text-sky-600 rounded"
                   />
-                  Domiciliado en Venezuela
-                </label>
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <Input
-                  label="Límite de Crédito ($ USD)"
-                  type="number"
-                  value={formData.creditLimit}
-                  onChange={(e) =>
-                    setFormData({ ...formData, creditLimit: Number(e.target.value) })
-                  }
-                />
-                <Input
-                  label="Plazo de Pago (Días)"
-                  type="number"
-                  value={formData.paymentTermsDays}
-                  onChange={(e) =>
-                    setFormData({ ...formData, paymentTermsDays: Number(e.target.value) })
-                  }
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-neutral-100">
+              {/* Footer (Pinned) */}
+              <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
                 <Button
                   variant="outline"
                   size="sm"

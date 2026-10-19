@@ -17,9 +17,13 @@ import {
   Filter,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { showDestructiveConfirm } from '../../lib/sweetalert';
 import { useAuthStore } from '../../stores/authStore';
 import { WithholdingVoucherModal, WithholdingVoucherData } from './WithholdingVoucherModal';
 import { STANDARD_ISLR_CONCEPTS, formatMoneyUSD } from '@ero/shared';
+import { useEscapeKey } from '../../components/ui/Modal';
+import { InvoiceSearchModal } from '../../components/search';
+import { PdfViewerModal } from '../../components/ui/PdfViewerModal';
 
 interface WithholdingItem {
   id: string;
@@ -73,86 +77,10 @@ interface PendingInvoice {
   hasIslrWithholding: boolean;
 }
 
-const DEMO_WITHHOLDINGS: WithholdingItem[] = [
-  {
-    id: 'w1',
-    type: 'IVA',
-    branchId: 'b1',
-    branchName: 'Sucursal Principal Caracas',
-    supplierId: 's1',
-    supplierRif: 'J-30555666-0',
-    supplierName: 'ALIMENTOS POLAR COMERCIAL C.A.',
-    purchaseInvoiceId: 'pi1',
-    voucherNumber: '20260900000001',
-    taxPeriod: '2026-09',
-    fortnight: 'FIRST',
-    invoiceNumber: 'FACT-POLAR-9812',
-    controlNumber: '00-0981234',
-    invoiceDate: '2026-09-14',
-    totalInvoiceAmount: 1254.80,
-    exemptAmount: 350.00,
-    taxableBaseAmount: 780.00,
-    taxRate: 16.00,
-    taxAmount: 124.80,
-    retainedPercentage: 75.00,
-    retainedAmount: 93.60,
-    status: 'EMITTED',
-    createdAt: '2026-09-14T10:00:00Z',
-  },
-  {
-    id: 'w2',
-    type: 'ISLR',
-    branchId: 'b1',
-    branchName: 'Sucursal Principal Caracas',
-    supplierId: 's1',
-    supplierRif: 'J-30555666-0',
-    supplierName: 'ALIMENTOS POLAR COMERCIAL C.A.',
-    purchaseInvoiceId: 'pi1',
-    voucherNumber: '20260900000001',
-    taxPeriod: '2026-09',
-    conceptCode: 'SERV_TRANS',
-    conceptDescription: 'Servicio de Transporte y Envíos',
-    personType: 'PJD',
-    invoiceNumber: 'FACT-POLAR-9812',
-    controlNumber: '00-0981234',
-    invoiceDate: '2026-09-14',
-    totalInvoiceAmount: 1254.80,
-    taxableBaseAmount: 780.00,
-    ratePercentage: 5.00,
-    retainedAmount: 39.00,
-    status: 'EMITTED',
-    createdAt: '2026-09-14T10:05:00Z',
-  },
-];
-
-const DEMO_PENDING_INVOICES: PendingInvoice[] = [
-  {
-    id: 'pi2',
-    branchId: 'b1',
-    branchName: 'Sucursal Principal Caracas',
-    supplierId: 's2',
-    supplierRif: 'J-00033322-1',
-    supplierName: 'MONDELEZ VENEZUELA C.A.',
-    supplierIsResident: true,
-    supplierIslrConceptCode: 'SERV_IND',
-    invoiceNumber: 'FACT-MDLZ-4410',
-    controlNumber: '00-0044102',
-    invoiceDate: '2026-08-15',
-    currency: 'USD',
-    exchangeRate: 36.20,
-    baseExemptAmount: 0.00,
-    baseTaxableAmount: 1500.00,
-    taxAmount: 240.00,
-    totalAmount: 1740.00,
-    hasIvaWithholding: false,
-    hasIslrWithholding: false,
-  },
-];
-
 export const WithholdingsView: React.FC = () => {
   const { activeBranchId } = useAuthStore();
-  const [withholdings, setWithholdings] = useState<WithholdingItem[]>(DEMO_WITHHOLDINGS);
-  const [pendingInvoices, setPendingInvoices] = useState<PendingInvoice[]>(DEMO_PENDING_INVOICES);
+  const [withholdings, setWithholdings] = useState<WithholdingItem[]>([]);
+  const [pendingInvoices, setPendingInvoices] = useState<PendingInvoice[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Filters
@@ -165,6 +93,22 @@ export const WithholdingsView: React.FC = () => {
   // Modals
   const [voucherModalData, setVoucherModalData] = useState<WithholdingVoucherData | null>(null);
   const [showEmitModal, setShowEmitModal] = useState(false);
+  const [showInvoiceSearch, setShowInvoiceSearch] = useState(false);
+  const [pdfModal, setPdfModal] = useState<{
+    isOpen: boolean;
+    endpoint: string | null;
+    title: string;
+    filename?: string;
+  }>({
+    isOpen: false,
+    endpoint: null,
+    title: '',
+  });
+
+  useEscapeKey(() => {
+    if (showInvoiceSearch) setShowInvoiceSearch(false);
+    else if (showEmitModal) setShowEmitModal(false);
+  }, Boolean(showInvoiceSearch || showEmitModal));
 
   // Emission Form State
   const [emitType, setEmitType] = useState<'IVA' | 'ISLR'>('IVA');
@@ -199,12 +143,15 @@ export const WithholdingsView: React.FC = () => {
             ...(json.data.ivaWithholdings || []),
             ...(json.data.islrWithholdings || []),
           ];
-          setWithholdings(combined.length > 0 ? combined : DEMO_WITHHOLDINGS);
+          setWithholdings(combined);
+        } else {
+          setWithholdings([]);
         }
+      } else {
+        setWithholdings([]);
       }
     } catch {
-      // Fallback a demo data
-      setWithholdings(DEMO_WITHHOLDINGS);
+      setWithholdings([]);
     } finally {
       setLoading(false);
     }
@@ -217,12 +164,16 @@ export const WithholdingsView: React.FC = () => {
       const res = await fetch(`/api/taxes/pending-invoices?${params.toString()}`);
       if (res.ok) {
         const json = await res.json();
-        if (json.success && json.data) {
-          setPendingInvoices(json.data.length > 0 ? json.data : DEMO_PENDING_INVOICES);
+        if (json.success && Array.isArray(json.data)) {
+          setPendingInvoices(json.data);
+        } else {
+          setPendingInvoices([]);
         }
+      } else {
+        setPendingInvoices([]);
       }
     } catch {
-      setPendingInvoices(DEMO_PENDING_INVOICES);
+      setPendingInvoices([]);
     }
   };
 
@@ -247,6 +198,7 @@ export const WithholdingsView: React.FC = () => {
 
     setIsSubmitting(true);
     try {
+      let resultJson: any = null;
       if (emitType === 'IVA') {
         const res = await fetch('/api/taxes/withholdings/iva', {
           method: 'POST',
@@ -261,6 +213,7 @@ export const WithholdingsView: React.FC = () => {
         if (!res.ok || !json.success) {
           throw new Error(json.error?.message || 'Error al emitir retención de IVA');
         }
+        resultJson = json;
         toast.success(`Comprobante de IVA ${json.data.voucherNumber} generado`);
       } else {
         const concept = STANDARD_ISLR_CONCEPTS.find((c) => c.code === conceptCode);
@@ -280,6 +233,7 @@ export const WithholdingsView: React.FC = () => {
         if (!res.ok || !json.success) {
           throw new Error(json.error?.message || 'Error al emitir retención de ISLR');
         }
+        resultJson = json;
         toast.success(`Comprobante de ISLR ${json.data.voucherNumber} generado`);
       }
 
@@ -287,6 +241,18 @@ export const WithholdingsView: React.FC = () => {
       setSelectedInvoiceId('');
       fetchWithholdings();
       fetchPendingInvoices();
+
+      // Abrir inmediatamente la vista previa / descarga del PDF oficial resultante
+      const emittedId = resultJson?.data?.id;
+      const emittedVoucherNumber = resultJson?.data?.voucherNumber || 'voucher';
+      if (emittedId) {
+        setPdfModal({
+          isOpen: true,
+          endpoint: `/api/taxes/withholdings/${emittedId}/pdf`,
+          title: `Comprobante de Retención Oficial ${emittedVoucherNumber} (${emitType})`,
+          filename: `comprobante_retencion_${emittedVoucherNumber}.pdf`,
+        });
+      }
     } catch (err: any) {
       toast.error(err.message || 'Error al procesar la retención');
     } finally {
@@ -313,7 +279,12 @@ export const WithholdingsView: React.FC = () => {
   };
 
   const handleAnnul = async (item: WithholdingItem) => {
-    if (!window.confirm(`¿Confirma anular el comprobante ${item.voucherNumber} de ${item.type}?`)) {
+    const confirmed = await showDestructiveConfirm(
+      '¿Confirmar anulación?',
+      `¿Confirma anular el comprobante de retención ${item.voucherNumber} (${item.type})? Esta operación es definitiva.`,
+      'Sí, anular comprobante'
+    );
+    if (!confirmed) {
       return;
     }
 
@@ -629,6 +600,22 @@ export const WithholdingsView: React.FC = () => {
                         <Button
                           variant="ghost"
                           size="sm"
+                          onClick={() =>
+                            setPdfModal({
+                              isOpen: true,
+                              endpoint: `/api/taxes/withholdings/${item.id}/pdf`,
+                              title: `Comprobante Oficial ${item.voucherNumber} (${item.type})`,
+                              filename: `comprobante_retencion_${item.voucherNumber}.pdf`,
+                            })
+                          }
+                          className="h-7 px-2 text-xs text-sky-600 hover:text-sky-700 hover:bg-sky-50"
+                          title="Ver / Descargar PDF Oficial SENIAT"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => setVoucherModalData(item as WithholdingVoucherData)}
                           className="h-7 px-2 text-xs"
                           title="Ver / Imprimir Comprobante"
@@ -658,223 +645,260 @@ export const WithholdingsView: React.FC = () => {
 
       {/* Emission Modal */}
       {showEmitModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg border border-neutral-200 shadow-xl max-w-xl w-full p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-neutral-200 pb-3">
-              <h2 className="text-base font-semibold text-neutral-900 flex items-center gap-2">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4">
+          <div className="bg-white rounded-lg border border-neutral-200 shadow-2xl max-w-xl w-full max-h-[92vh] flex flex-col overflow-hidden my-auto">
+            {/* Header (Pinned) */}
+            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
+              <div className="flex items-center gap-2">
                 <FileText className="w-5 h-5 text-sky-600" />
-                Emitir Comprobante de Retención
-              </h2>
-              <Button size="sm" variant="ghost" onClick={() => setShowEmitModal(false)}>
-                <X className="w-4 h-4" />
-              </Button>
+                <div>
+                  <h2 className="text-base font-bold text-neutral-900">
+                    Emitir Comprobante de Retención
+                  </h2>
+                  <p className="text-[11px] text-neutral-500">Generación legal según providencias SENIAT</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEmitModal(false)}
+                title="Cerrar modal (Esc)"
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            <form onSubmit={handleEmitWithholding} className="space-y-4 text-xs">
-              {/* Type Switcher */}
-              <div>
-                <label className="block font-medium text-neutral-700 mb-1">
-                  Tipo de Retención
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setEmitType('IVA')}
-                    className={`py-2 px-3 rounded-lg border text-center font-medium transition-colors ${
-                      emitType === 'IVA'
-                        ? 'border-sky-600 bg-sky-50 text-sky-700'
-                        : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
-                    }`}
-                  >
-                    Retención de IVA (75% / 100%)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEmitType('ISLR')}
-                    className={`py-2 px-3 rounded-lg border text-center font-medium transition-colors ${
-                      emitType === 'ISLR'
-                        ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
-                        : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
-                    }`}
-                  >
-                    Retención de ISLR (Dec. 1808)
-                  </button>
-                </div>
-              </div>
-
-              {/* Purchase Invoice Picker */}
-              <div>
-                <label className="block font-medium text-neutral-700 mb-1">
-                  Factura de Compra Afectada *
-                </label>
-                <select
-                  value={selectedInvoiceId}
-                  onChange={(e) => setSelectedInvoiceId(e.target.value)}
-                  className="w-full py-2 px-3 border border-neutral-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  required
-                >
-                  <option value="">-- Seleccionar factura de compra pendiente --</option>
-                  {pendingInvoices
-                    .filter((inv) => (emitType === 'IVA' ? !inv.hasIvaWithholding : !inv.hasIslrWithholding))
-                    .map((inv) => (
-                      <option key={inv.id} value={inv.id}>
-                        {inv.invoiceNumber} - {inv.supplierName} ({inv.supplierRif}) - Total: ${inv.totalAmount}
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              {/* Invoice details summary if selected */}
-              {selectedInvoice && (
-                <div className="bg-neutral-50 p-3 rounded-lg border border-neutral-200 grid grid-cols-2 gap-2 text-[11px]">
-                  <div>
-                    <span className="text-neutral-500">Proveedor:</span>{' '}
-                    <span className="font-semibold text-neutral-800">{selectedInvoice.supplierName}</span>
-                  </div>
-                  <div>
-                    <span className="text-neutral-500">RIF:</span>{' '}
-                    <span className="font-mono text-neutral-800">{selectedInvoice.supplierRif}</span>
-                  </div>
-                  <div>
-                    <span className="text-neutral-500">Base Imponible:</span>{' '}
-                    <span className="font-mono font-semibold text-neutral-800">
-                      {formatMoneyUSD(selectedInvoice.baseTaxableAmount)}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-neutral-500">Monto IVA:</span>{' '}
-                    <span className="font-mono font-semibold text-neutral-800">
-                      {formatMoneyUSD(selectedInvoice.taxAmount)}
-                    </span>
+            <form id="emitWithholdingForm" onSubmit={handleEmitWithholding} className="flex-1 flex flex-col overflow-hidden">
+              {/* Body (Scrollable) */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
+                {/* Type Switcher */}
+                <div>
+                  <label className="block font-medium text-neutral-700 mb-1">
+                    Tipo de Retención
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEmitType('IVA')}
+                      className={`py-2 px-3 rounded-lg border text-center font-medium transition-colors ${
+                        emitType === 'IVA'
+                          ? 'border-sky-600 bg-sky-50 text-sky-700'
+                          : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+                      }`}
+                    >
+                      Retención de IVA (75% / 100%)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEmitType('ISLR')}
+                      className={`py-2 px-3 rounded-lg border text-center font-medium transition-colors ${
+                        emitType === 'ISLR'
+                          ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+                          : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+                      }`}
+                    >
+                      Retención de ISLR (Dec. 1808)
+                    </button>
                   </div>
                 </div>
-              )}
 
-              {/* IVA specific fields */}
-              {emitType === 'IVA' && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-medium text-neutral-700 mb-1">
-                      Porcentaje de Retención
+                {/* Purchase Invoice Picker */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-medium text-neutral-700">
+                      Factura de Compra Afectada *
                     </label>
-                    <select
-                      value={retainedPercentage}
-                      onChange={(e) => setRetainedPercentage(Number(e.target.value))}
-                      className="w-full py-2 px-3 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    <button
+                      type="button"
+                      onClick={() => setShowInvoiceSearch(true)}
+                      className="text-xs text-sky-600 hover:text-sky-700 font-medium flex items-center gap-1 cursor-pointer"
                     >
-                      <option value={75}>75% (General Sujetos Especiales)</option>
-                      <option value={100}>100% (Designación Especial / Contribuyente Sin RIF)</option>
-                    </select>
+                      <Search className="w-3.5 h-3.5" />
+                      <span>Buscar en modal</span>
+                    </button>
                   </div>
-                  <div>
-                    <label className="block font-medium text-neutral-700 mb-1">
-                      Quincena Fiscal
-                    </label>
+                  <div className="flex items-center gap-2">
                     <select
-                      value={fortnight}
-                      onChange={(e) => setFortnight(e.target.value as 'FIRST' | 'SECOND')}
-                      className="w-full py-2 px-3 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      value={selectedInvoiceId}
+                      onChange={(e) => setSelectedInvoiceId(e.target.value)}
+                      className="flex-1 py-2 px-3 border border-neutral-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
+                      required
                     >
-                      <option value="FIRST">1ra Quincena (Días 1 al 15)</option>
-                      <option value="SECOND">2da Quincena (Días 16 al último)</option>
+                      <option value="">-- Seleccionar factura de compra pendiente --</option>
+                      {pendingInvoices
+                        .filter((inv) => (emitType === 'IVA' ? !inv.hasIvaWithholding : !inv.hasIslrWithholding))
+                        .map((inv) => (
+                          <option key={inv.id} value={inv.id}>
+                            {inv.invoiceNumber} - {inv.supplierName} ({inv.supplierRif}) - Total: ${inv.totalAmount}
+                          </option>
+                        ))}
                     </select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowInvoiceSearch(true)}
+                      title="Buscar factura de compra"
+                      className="px-2.5 py-2 shrink-0 flex items-center gap-1 text-xs"
+                    >
+                      <Search className="w-3.5 h-3.5 text-neutral-500" />
+                      <span>Buscar</span>
+                    </Button>
                   </div>
                 </div>
-              )}
 
-              {/* ISLR specific fields */}
-              {emitType === 'ISLR' && (
-                <div className="space-y-3">
-                  <div>
-                    <label className="block font-medium text-neutral-700 mb-1">
-                      Concepto SENIAT (Decreto 1808)
-                    </label>
-                    <select
-                      value={conceptCode}
-                      onChange={(e) => {
-                        setConceptCode(e.target.value);
-                        const c = STANDARD_ISLR_CONCEPTS.find((item) => item.code === e.target.value);
-                        if (c) {
-                          setRatePercentage(personType === 'PJD' ? c.defaultRatePJD : c.defaultRatePNR);
-                        }
-                      }}
-                      className="w-full py-2 px-3 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    >
-                      {STANDARD_ISLR_CONCEPTS.map((c) => (
-                        <option key={c.code} value={c.code}>
-                          {c.code} - {c.name}
-                        </option>
-                      ))}
-                    </select>
+                {/* Invoice details summary if selected */}
+                {selectedInvoice && (
+                  <div className="bg-neutral-50 p-3 rounded-lg border border-neutral-200 grid grid-cols-2 gap-2 text-[11px]">
+                    <div>
+                      <span className="text-neutral-500">Proveedor:</span>{' '}
+                      <span className="font-semibold text-neutral-800">{selectedInvoice.supplierName}</span>
+                    </div>
+                    <div>
+                      <span className="text-neutral-500">RIF:</span>{' '}
+                      <span className="font-mono text-neutral-800">{selectedInvoice.supplierRif}</span>
+                    </div>
+                    <div>
+                      <span className="text-neutral-500">Base Imponible:</span>{' '}
+                      <span className="font-mono font-semibold text-neutral-800">
+                        {formatMoneyUSD(selectedInvoice.baseTaxableAmount)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-neutral-500">Monto IVA:</span>{' '}
+                      <span className="font-mono font-semibold text-neutral-800">
+                        {formatMoneyUSD(selectedInvoice.taxAmount)}
+                      </span>
+                    </div>
                   </div>
+                )}
 
-                  <div className="grid grid-cols-3 gap-2">
+                {/* IVA specific fields */}
+                {emitType === 'IVA' && (
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block font-medium text-neutral-700 mb-1">
-                        Tipo Persona
+                        Porcentaje de Retención
                       </label>
                       <select
-                        value={personType}
-                        onChange={(e) => setPersonType(e.target.value)}
-                        className="w-full py-2 px-2 border border-neutral-300 rounded-lg text-xs"
+                        value={retainedPercentage}
+                        onChange={(e) => setRetainedPercentage(Number(e.target.value))}
+                        className="w-full py-2 px-3 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
                       >
-                        <option value="PJD">PJ Domiciliada</option>
-                        <option value="PNR">PN Residente</option>
-                        <option value="PJND">PJ No Domiciliada</option>
-                        <option value="PNNR">PN No Residente</option>
+                        <option value={75}>75% (General Sujetos Especiales)</option>
+                        <option value={100}>100% (Designación Especial / Contribuyente Sin RIF)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block font-medium text-neutral-700 mb-1">
+                        Quincena Fiscal
+                      </label>
+                      <select
+                        value={fortnight}
+                        onChange={(e) => setFortnight(e.target.value as 'FIRST' | 'SECOND')}
+                        className="w-full py-2 px-3 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
+                      >
+                        <option value="FIRST">1ra Quincena (Días 1 al 15)</option>
+                        <option value="SECOND">2da Quincena (Días 16 al último)</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                {/* ISLR specific fields */}
+                {emitType === 'ISLR' && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block font-medium text-neutral-700 mb-1">
+                        Concepto SENIAT (Decreto 1808)
+                      </label>
+                      <select
+                        value={conceptCode}
+                        onChange={(e) => {
+                          setConceptCode(e.target.value);
+                          const c = STANDARD_ISLR_CONCEPTS.find((item) => item.code === e.target.value);
+                          if (c) {
+                            setRatePercentage(personType === 'PJD' ? c.defaultRatePJD : c.defaultRatePNR);
+                          }
+                        }}
+                        className="w-full py-2 px-3 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
+                      >
+                        {STANDARD_ISLR_CONCEPTS.map((c) => (
+                          <option key={c.code} value={c.code}>
+                            {c.code} - {c.name}
+                          </option>
+                        ))}
                       </select>
                     </div>
 
-                    <div>
-                      <label className="block font-medium text-neutral-700 mb-1">
-                        Tarifa Retención (%)
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        max="100"
-                        value={ratePercentage}
-                        onChange={(e) => setRatePercentage(Number(e.target.value))}
-                        className="w-full py-2 px-2 border border-neutral-300 rounded-lg font-mono text-xs"
-                        required
-                      />
-                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block font-medium text-neutral-700 mb-1">
+                          Tipo Persona
+                        </label>
+                        <select
+                          value={personType}
+                          onChange={(e) => setPersonType(e.target.value)}
+                          className="w-full py-2 px-2 border border-neutral-300 rounded-lg text-xs bg-white"
+                        >
+                          <option value="PJD">PJ Domiciliada</option>
+                          <option value="PNR">PN Residente</option>
+                          <option value="PJND">PJ No Domiciliada</option>
+                          <option value="PNNR">PN No Residente</option>
+                        </select>
+                      </div>
 
-                    <div>
-                      <label className="block font-medium text-neutral-700 mb-1">
-                        Sustraendo (Bs/USD)
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={subtractingFactor}
-                        onChange={(e) => setSubtractingFactor(Number(e.target.value))}
-                        className="w-full py-2 px-2 border border-neutral-300 rounded-lg font-mono text-xs"
-                      />
+                      <div>
+                        <label className="block font-medium text-neutral-700 mb-1">
+                          Tarifa Retención (%)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max="100"
+                          value={ratePercentage}
+                          onChange={(e) => setRatePercentage(Number(e.target.value))}
+                          className="w-full py-2 px-2 border border-neutral-300 rounded-lg font-mono text-xs"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-medium text-neutral-700 mb-1">
+                          Sustraendo (Bs/USD)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={subtractingFactor}
+                          onChange={(e) => setSubtractingFactor(Number(e.target.value))}
+                          className="w-full py-2 px-2 border border-neutral-300 rounded-lg font-mono text-xs"
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Total Retained Preview Box */}
-              <div className="p-3 bg-neutral-900 text-white rounded-lg flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] text-neutral-400">Total Impuesto a Retener</p>
-                  <p className="text-lg font-bold font-mono">
-                    {emitType === 'IVA'
-                      ? formatMoneyUSD(previewIvaRetained)
-                      : formatMoneyUSD(previewIslrRetained)}
-                  </p>
+                {/* Total Retained Preview Box */}
+                <div className="p-3 bg-neutral-900 text-white rounded-lg flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] text-neutral-400">Total Impuesto a Retener</p>
+                    <p className="text-lg font-bold font-mono">
+                      {emitType === 'IVA'
+                        ? formatMoneyUSD(previewIvaRetained)
+                        : formatMoneyUSD(previewIslrRetained)}
+                    </p>
+                  </div>
+                  <Badge variant="neutral" className="text-[10px]">
+                    Correlativo automático YYYYMM
+                  </Badge>
                 </div>
-                <Badge variant="neutral" className="text-[10px]">
-                  Correlativo automático YYYYMM
-                </Badge>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex justify-end gap-2 pt-2 border-t border-neutral-200">
+              {/* Action Buttons (Pinned) */}
+              <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex justify-end gap-2 shrink-0">
                 <Button
                   type="button"
                   variant="outline"
@@ -897,6 +921,37 @@ export const WithholdingsView: React.FC = () => {
       <WithholdingVoucherModal
         voucher={voucherModalData}
         onClose={() => setVoucherModalData(null)}
+      />
+
+      {/* Modal Buscador de Facturas de Compra */}
+      <InvoiceSearchModal
+        isOpen={showInvoiceSearch}
+        onClose={() => setShowInvoiceSearch(false)}
+        onSelect={(inv) => {
+          setSelectedInvoiceId(inv.id);
+          setShowInvoiceSearch(false);
+        }}
+        invoices={pendingInvoices
+          .filter((inv) => (emitType === 'IVA' ? !inv.hasIvaWithholding : !inv.hasIslrWithholding))
+          .map((inv) => ({
+            id: inv.id,
+            documentNumber: inv.invoiceNumber,
+            partyName: inv.supplierName,
+            partyDoc: inv.supplierRif,
+            issueDate: inv.invoiceDate,
+            amountTotal: inv.totalAmount,
+            amountBalance: inv.totalAmount,
+          }))}
+        mode="payable"
+      />
+
+      {/* Modal Visor / Descarga PDF Oficial SENIAT */}
+      <PdfViewerModal
+        isOpen={pdfModal.isOpen}
+        onClose={() => setPdfModal((prev) => ({ ...prev, isOpen: false }))}
+        title={pdfModal.title}
+        endpoint={pdfModal.endpoint}
+        filename={pdfModal.filename}
       />
     </div>
   );

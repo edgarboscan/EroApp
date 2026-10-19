@@ -60,7 +60,7 @@ const normalizeInvoiceMode = (val: unknown) => {
 
 export const posSaleSubmitSchema = z.object({
   branchId: z.string().min(1),
-  warehouseId: z.string().min(1),
+  warehouseId: z.string().optional().nullable(),
   customerId: z.string().min(1).optional().nullable(),
   customerDocType: z.enum(['V', 'E', 'J', 'G', 'P']).default('V'),
   customerDocNumber: z.string().min(3).max(20).default('99999999'),
@@ -90,6 +90,7 @@ export type POSSaleSubmit = z.infer<typeof posSaleSubmitSchema>;
 
 export const cashRegisterSchema = z.object({
   branchId: z.string().min(1),
+  warehouseId: z.string().optional().nullable(),
   code: z.string().min(1).max(20),
   name: z.string().min(1).max(100),
   fiscalPrinterSerial: z.string().max(50).optional().nullable(),

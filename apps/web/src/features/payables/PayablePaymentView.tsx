@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { toast } from 'sonner';
 import { formatMoneyUSD, formatMoneyVES } from '../../utils/formatters';
+import { showConfirmQuestion } from '../../lib/sweetalert';
 import {
   ArrowLeft,
   DollarSign,
@@ -13,7 +14,11 @@ import {
   Receipt,
   Truck,
   CheckCircle2,
+  Search,
 } from 'lucide-react';
+import { InvoiceSearchModal } from '../../components/search';
+import { useEscapeKey } from '../../components/ui/Modal';
+import { PdfViewerModal } from '../../components/ui/PdfViewerModal';
 
 interface PayableOption {
   id: string;
@@ -26,29 +31,6 @@ interface PayableOption {
   dueDate: string;
 }
 
-const DEMO_PENDING_PAYABLES: PayableOption[] = [
-  {
-    id: 'p1',
-    supplierName: 'ALIMENTOS POLAR COMERCIAL C.A.',
-    supplierRif: 'J-30555666-0',
-    invoiceNumber: 'FACT-POLAR-9812',
-    amountTotal: 1254.80,
-    amountPaid: 0.00,
-    amountBalance: 1254.80,
-    dueDate: '2026-09-29',
-  },
-  {
-    id: 'p2',
-    supplierName: 'MONDELEZ VENEZUELA C.A.',
-    supplierRif: 'J-00033322-1',
-    invoiceNumber: 'FACT-MDLZ-4410',
-    amountTotal: 1740.00,
-    amountPaid: 500.00,
-    amountBalance: 1240.00,
-    dueDate: '2026-09-14',
-  },
-];
-
 export const PayablePaymentView: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -60,12 +42,25 @@ export const PayablePaymentView: React.FC = () => {
 
   // Form Fields
   const [selectedPayableId, setSelectedPayableId] = useState('');
+  const [showInvoiceSearch, setShowInvoiceSearch] = useState(false);
   const [currency, setCurrency] = useState<'USD' | 'VES'>('USD');
   const [exchangeRate, setExchangeRate] = useState(36.5);
   const [amount, setAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<string>('TRANSFER_VES');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [notes, setNotes] = useState('');
+  const [pdfModal, setPdfModal] = useState<{
+    isOpen: boolean;
+    endpoint: string | null;
+    title: string;
+    filename?: string;
+  }>({
+    isOpen: false,
+    endpoint: null,
+    title: '',
+  });
+
+  useEscapeKey(() => setShowInvoiceSearch(false), showInvoiceSearch);
 
   // Check URL query param ?payableId=xxx
   useEffect(() => {
@@ -87,17 +82,16 @@ export const PayablePaymentView: React.FC = () => {
         });
         if (res.ok) {
           const json = await res.json();
-          setPayables(json.data || []);
-          if (!selectedPayableId && json.data?.length > 0) {
-            setSelectedPayableId(json.data[0].id);
+          const data = Array.isArray(json.data) ? json.data : [];
+          setPayables(data);
+          if (!selectedPayableId && data.length > 0) {
+            setSelectedPayableId(data[0].id);
           }
         } else {
-          setPayables(DEMO_PENDING_PAYABLES);
-          if (!selectedPayableId) setSelectedPayableId(DEMO_PENDING_PAYABLES[0].id);
+          setPayables([]);
         }
       } catch {
-        setPayables(DEMO_PENDING_PAYABLES);
-        if (!selectedPayableId) setSelectedPayableId(DEMO_PENDING_PAYABLES[0].id);
+        setPayables([]);
       } finally {
         setLoading(false);
       }
@@ -105,6 +99,8 @@ export const PayablePaymentView: React.FC = () => {
 
     fetchPendingPayables();
   }, [activeBranchId]);
+
+
 
   const activePayable = payables.find((p) => p.id === selectedPayableId);
 
@@ -136,6 +132,15 @@ export const PayablePaymentView: React.FC = () => {
       return;
     }
 
+    const confirmed = await showConfirmQuestion({
+      title: '¿Confirmar pago a proveedor?',
+      text: `¿Confirma el pago por ${currency === 'USD' ? `$${amount.toFixed(2)}` : `Bs. ${amount.toFixed(2)}`} a favor de ${activePayable?.supplierName || 'proveedor seleccionado'}?`,
+      confirmButtonText: 'Sí, registrar pago',
+      cancelButtonText: 'Cancelar',
+      icon: 'question',
+    });
+    if (!confirmed) return;
+
     setSubmitting(true);
     try {
       const res = await fetch('/api/payables/payments', {
@@ -155,16 +160,24 @@ export const PayablePaymentView: React.FC = () => {
         }),
       });
 
-      if (res.ok) {
+      const json = await res.json();
+      if (res.ok && json.success) {
         toast.success('Pago al proveedor registrado y comprobante emitido exitosamente');
-        navigate('/payables');
+        if (json.data?.id) {
+          setPdfModal({
+            isOpen: true,
+            endpoint: `/api/payables/payments/${json.data.id}/pdf`,
+            title: 'Recibo Oficial de Pago a Proveedor (CxP)',
+            filename: `recibo_pago_cxp_${json.data.id}.pdf`,
+          });
+        } else {
+          navigate('/payables');
+        }
       } else {
-        const json = await res.json();
         toast.error(json.error?.message || 'Error al procesar el pago');
       }
     } catch {
-      toast.success('Pago registrado correctamente en modo local');
-      navigate('/payables');
+      toast.error('Error de red al procesar el pago al proveedor');
     } finally {
       setSubmitting(false);
     }
@@ -209,20 +222,42 @@ export const PayablePaymentView: React.FC = () => {
             </div>
           ) : (
             <div>
-              <label className="block text-xs font-medium text-neutral-700 mb-1">
-                Factura / Proveedor Pendiente
-              </label>
-              <select
-                value={selectedPayableId}
-                onChange={(e) => setSelectedPayableId(e.target.value)}
-                className="w-full h-10 px-3 text-sm border border-neutral-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-              >
-                {payables.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.supplierName} ({p.supplierRif}) - Factura {p.invoiceNumber} | Saldo: ${p.amountBalance.toFixed(2)}
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-medium text-neutral-700">
+                  Factura / Proveedor Pendiente
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowInvoiceSearch(true)}
+                  className="text-xs text-sky-600 hover:text-sky-700 font-medium flex items-center gap-1 cursor-pointer"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  <span>Buscar en modal</span>
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <select
+                  value={selectedPayableId}
+                  onChange={(e) => setSelectedPayableId(e.target.value)}
+                  className="flex-1 h-10 px-3 text-sm border border-neutral-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                >
+                  {payables.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.supplierName} ({p.supplierRif}) - Factura {p.invoiceNumber} | Saldo: ${p.amountBalance.toFixed(2)}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowInvoiceSearch(true)}
+                  title="Buscar factura por pagar"
+                  className="h-10 px-3 shrink-0 flex items-center gap-1.5 text-xs"
+                >
+                  <Search className="w-4 h-4 text-neutral-500" />
+                  <span>Buscar</span>
+                </Button>
+              </div>
             </div>
           )}
 
@@ -378,6 +413,38 @@ export const PayablePaymentView: React.FC = () => {
           </Button>
         </div>
       </form>
+
+      {/* Modal Buscador de Facturas por Pagar */}
+      <InvoiceSearchModal
+        isOpen={showInvoiceSearch}
+        onClose={() => setShowInvoiceSearch(false)}
+        onSelect={(inv) => {
+          setSelectedPayableId(inv.id);
+          setShowInvoiceSearch(false);
+        }}
+        invoices={payables.map((p) => ({
+          id: p.id,
+          documentNumber: p.invoiceNumber,
+          partyName: p.supplierName,
+          partyDoc: p.supplierRif,
+          dueDate: p.dueDate,
+          amountTotal: p.amountTotal,
+          amountBalance: p.amountBalance,
+        }))}
+        mode="payable"
+      />
+
+      {/* Modal Visor / Descarga PDF de Recibo de Pago CxP */}
+      <PdfViewerModal
+        isOpen={pdfModal.isOpen}
+        onClose={() => {
+          setPdfModal((prev) => ({ ...prev, isOpen: false }));
+          navigate('/payables');
+        }}
+        title={pdfModal.title}
+        endpoint={pdfModal.endpoint}
+        filename={pdfModal.filename}
+      />
     </div>
   );
 };

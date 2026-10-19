@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { DataTable, Column } from '../../components/ui/DataTable';
+import { useEscapeKey } from '../../components/ui/Modal';
+import { useExchangeRateStore } from "../../stores/exchangeRateStore";
 import {
   PackageCheck,
   Plus,
@@ -17,10 +19,17 @@ import {
   AlertCircle,
   Eye,
   CheckCircle2,
+  Search,
+  FileText,
 } from 'lucide-react';
+import { SupplierSearchModal, ProductSearchModal } from '../../components/search';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/authStore';
-import { formatMoneyUSD, formatMoneyVES } from '../../utils/formatters';
+import { formatMoneyUSD, formatMoneyVES, formatExchangeRate
+ } from '../../utils/formatters';
+import { showConfirmQuestion } from '../../lib/sweetalert';
+import { PdfViewerModal } from '../../components/ui/PdfViewerModal';
+
 
 interface GoodsReceiptRecord {
   id: string;
@@ -51,83 +60,48 @@ interface NewReceiptItem {
   notes?: string;
 }
 
-const DEMO_RECEIPTS: GoodsReceiptRecord[] = [
-  {
-    id: 'gr-01',
-    receiptNumber: 'REC-2026-0001',
-    supplierDeliveryNote: 'GD-884920',
-    receiptDate: '2026-09-29T11:00:00Z',
-    currency: 'USD',
-    exchangeRate: 36.85,
-    totalCost: 1150.0,
-    status: 'RECEIVED',
-    purchaseInvoiceId: null,
-    notes: 'Recepción completa de harina y arroz según orden OC-2026-0001',
-    supplierName: 'ALIMENTOS POLAR COMERCIAL C.A.',
-    supplierRif: 'J-00041312-1',
-    warehouseName: 'Almacén Central Mayorista',
-    branchName: 'Sucursal Principal Caracas',
-    receivedByUserName: 'Ing. Edgar Boscán',
-    purchaseOrderNumber: 'OC-2026-0001',
-  },
-  {
-    id: 'gr-02',
-    receiptNumber: 'REC-2026-0002',
-    supplierDeliveryNote: 'NE-44910',
-    receiptDate: '2026-09-28T16:30:00Z',
-    currency: 'USD',
-    exchangeRate: 36.85,
-    totalCost: 425.0,
-    status: 'INVOICED',
-    purchaseInvoiceId: 'inv-881',
-    notes: 'Recepción parcial de cables y conectores. Facturada y enviada a CxP',
-    supplierName: 'DISTRIBUIDORA FERRETERA EL TIGRE S.A.',
-    supplierRif: 'J-30987654-2',
-    warehouseName: 'Depósito Piso de Venta',
-    branchName: 'Sucursal Este - Las Mercedes',
-    receivedByUserName: 'María Pérez',
-    purchaseOrderNumber: 'OC-2026-0002',
-  },
-];
-
-const AVAILABLE_PRODUCTS = [
-  { id: '11111111-1111-1111-1111-111111111111', sku: 'ALM-HAR-001', name: 'Harina de Maíz Blanco 1kg', defaultCost: 1.15 },
-  { id: '22222222-2222-2222-2222-222222222222', sku: 'ALM-ARR-002', name: 'Arroz Blanco Tradicional 1kg', defaultCost: 1.25 },
-  { id: '33333333-3333-3333-3333-333333333333', sku: 'BEB-REF-003', name: 'Refresco Cola 2L Botella', defaultCost: 1.80 },
-  { id: '44444444-4444-4444-4444-444444444444', sku: 'FER-CAB-004', name: 'Cable Eléctrico THW #12 (Metro)', defaultCost: 0.65 },
-];
-
-const AVAILABLE_SUPPLIERS = [
-  { id: 'sup-01', name: 'ALIMENTOS POLAR COMERCIAL C.A.', rif: 'J-00041312-1' },
-  { id: 'sup-02', name: 'DISTRIBUIDORA FERRETERA EL TIGRE S.A.', rif: 'J-30987654-2' },
-  { id: 'sup-03', name: 'EMBOTELLADORA NACIONAL C.A.', rif: 'J-12345678-9' },
-];
-
 export const GoodsReceiptsView: React.FC = () => {
-  const { activeBranchId, activeWarehouseId } = useAuthStore();
-  const [receipts, setReceipts] = useState<GoodsReceiptRecord[]>(DEMO_RECEIPTS);
+  const { activeBranchId, activeWarehouseId, token } = useAuthStore();
+  const [receipts, setReceipts] = useState<GoodsReceiptRecord[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Catálogos desde BD
+  const [availableProducts, setAvailableProducts] = useState<{ id: string; sku: string; name: string; defaultCost: number }[]>([]);
+  const [availableSuppliers, setAvailableSuppliers] = useState<{ id: string; name: string; rif: string }[]>([]);
 
   // Modales
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [invoicingReceipt, setInvoicingReceipt] = useState<GoodsReceiptRecord | null>(null);
+  const [showSupplierSearch, setShowSupplierSearch] = useState(false);
+  const [productSearchRowIdx, setProductSearchRowIdx] = useState<number | null>(null);
+  const [isAddingFromSearch, setIsAddingFromSearch] = useState(false);
+  const [pdfModal, setPdfModal] = useState<{
+    isOpen: boolean;
+    endpoint: string | null;
+    title: string;
+    filename?: string;
+  }>({
+    isOpen: false,
+    endpoint: null,
+    title: '',
+  });
+
+  useEscapeKey(() => {
+    if (showSupplierSearch) setShowSupplierSearch(false);
+    else if (productSearchRowIdx !== null) setProductSearchRowIdx(null);
+    else if (isAddingFromSearch) setIsAddingFromSearch(false);
+    else if (invoicingReceipt) setInvoicingReceipt(null);
+    else if (isCreateOpen) setIsCreateOpen(false);
+  }, Boolean(showSupplierSearch || productSearchRowIdx !== null || isAddingFromSearch || invoicingReceipt || isCreateOpen));
 
   // Formulario Nueva Recepción
-  const [supplierId, setSupplierId] = useState(AVAILABLE_SUPPLIERS[0].id);
+    const rate = useExchangeRateStore((s) => s.rate);
+  const [supplierId, setSupplierId] = useState('');
   const [deliveryNote, setDeliveryNote] = useState('');
   const [poNumber, setPoNumber] = useState('');
-  const [exchangeRate, setExchangeRate] = useState(36.85);
+  const [exchangeRate, setExchangeRate] = useState(rate);
   const [receiptNotes, setReceiptNotes] = useState('');
-  const [receiptItems, setReceiptItems] = useState<NewReceiptItem[]>([
-    {
-      productId: AVAILABLE_PRODUCTS[0].id,
-      productName: AVAILABLE_PRODUCTS[0].name,
-      sku: AVAILABLE_PRODUCTS[0].sku,
-      quantityReceived: 50,
-      unitCost: AVAILABLE_PRODUCTS[0].defaultCost,
-      totalCost: 57.5,
-    },
-  ]);
+  const [receiptItems, setReceiptItems] = useState<NewReceiptItem[]>([]);
 
   // Formulario de Conversión a Factura CxP
   const [invoiceNumber, setInvoiceNumber] = useState('');
@@ -135,10 +109,80 @@ export const GoodsReceiptsView: React.FC = () => {
   const [isCredit, setIsCredit] = useState(true);
   const [dueDate, setDueDate] = useState('');
 
+  const fetchReceipts = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (activeBranchId) params.append('branchId', activeBranchId);
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const res = await fetch(`/api/purchases/receipts?${params.toString()}`, { headers });
+      if (res.ok) {
+        const json = await res.json();
+        setReceipts(Array.isArray(json.data) ? json.data : []);
+      } else {
+        setReceipts([]);
+      }
+    } catch {
+      setReceipts([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const fetchCatalogs = async () => {
+      try {
+        const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+        const [prodRes, supRes] = await Promise.all([
+          fetch('/api/inventory/products', { headers }),
+          fetch('/api/suppliers', { headers }),
+        ]);
+
+        if (prodRes.ok) {
+          const pJson = await prodRes.json();
+          if (pJson.success && Array.isArray(pJson.data)) {
+            const mappedProds = pJson.data.map((p: any) => ({
+              id: p.id,
+              sku: p.sku,
+              name: p.name,
+              defaultCost: Number(p.costPrice || p.cost_price || 0),
+            }));
+            setAvailableProducts(mappedProds);
+          }
+        }
+
+        if (supRes.ok) {
+          const sJson = await supRes.json();
+          if (sJson.success && Array.isArray(sJson.data)) {
+            const mappedSups = sJson.data.map((s: any) => ({
+              id: s.id,
+              name: s.name,
+              rif: s.rif,
+            }));
+            setAvailableSuppliers(mappedSups);
+            if (mappedSups.length > 0) setSupplierId(mappedSups[0].id);
+          }
+        }
+      } catch {
+        // Ignorar
+      }
+    };
+
+    fetchCatalogs();
+  }, [token]);
+
+  useEffect(() => {
+    fetchReceipts();
+  }, [activeBranchId, token]);
+
   const totalReceiptCost = receiptItems.reduce((acc, i) => acc + i.totalCost, 0);
 
   const handleAddItem = () => {
-    const prod = AVAILABLE_PRODUCTS[0];
+    if (availableProducts.length === 0) {
+      toast.error('No hay productos disponibles en el catálogo de inventario');
+      return;
+    }
+    const prod = availableProducts[0];
     setReceiptItems([
       ...receiptItems,
       {
@@ -152,11 +196,22 @@ export const GoodsReceiptsView: React.FC = () => {
     ]);
   };
 
+  const handleAddItemWithProduct = (prod: any) => {
+    const cost = Number(prod.defaultCost ?? prod.costPrice ?? 0);
+    setReceiptItems((prev) => [
+      ...prev,
+      {
+        productId: prod.id,
+        productName: prod.name,
+        sku: prod.sku,
+        quantityReceived: 10,
+        unitCost: cost,
+        totalCost: Number((10 * cost).toFixed(2)),
+      },
+    ]);
+  };
+
   const handleRemoveItem = (index: number) => {
-    if (receiptItems.length === 1) {
-      toast.error('La recepción debe contener al menos un producto');
-      return;
-    }
     setReceiptItems(receiptItems.filter((_, idx) => idx !== index));
   };
 
@@ -165,7 +220,7 @@ export const GoodsReceiptsView: React.FC = () => {
     const item = updated[index];
 
     if (field === 'productId') {
-      const p = AVAILABLE_PRODUCTS.find((pr) => pr.id === val);
+      const p = availableProducts.find((pr) => pr.id === val);
       if (p) {
         item.productId = p.id;
         item.productName = p.name;
@@ -184,44 +239,78 @@ export const GoodsReceiptsView: React.FC = () => {
     setReceiptItems(updated);
   };
 
-  const handleCreateReceipt = (e: React.FormEvent) => {
+  const handleCreateReceipt = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!supplierId) {
+      toast.error('Debe seleccionar un proveedor');
+      return;
+    }
     if (receiptItems.length === 0) {
       toast.error('Debe incluir al menos un producto a recibir');
       return;
     }
 
-    const supplier = AVAILABLE_SUPPLIERS.find((s) => s.id === supplierId);
-    const newSeq = String(receipts.length + 1).padStart(4, '0');
-    const newReceiptNumber = `REC-2026-${newSeq}`;
+    const supplier = availableSuppliers.find((s) => s.id === supplierId);
 
-    const newRecord: GoodsReceiptRecord = {
-      id: `gr-${Date.now()}`,
-      receiptNumber: newReceiptNumber,
-      supplierDeliveryNote: deliveryNote || null,
-      receiptDate: new Date().toISOString(),
-      currency: 'USD',
-      exchangeRate,
-      totalCost: Number(totalReceiptCost.toFixed(2)),
-      status: 'RECEIVED',
-      purchaseInvoiceId: null,
-      notes: receiptNotes || null,
-      supplierName: supplier?.name || 'Proveedor General',
-      supplierRif: supplier?.rif || 'J-00000000-0',
-      warehouseName: activeWarehouseId === 'w2222222-2222-2222-2222-222222222222' ? 'Depósito Piso de Venta' : 'Almacén Central Mayorista',
-      branchName: activeBranchId === 'b2222222-2222-2222-2222-222222222222' ? 'Sucursal Este - Las Mercedes' : 'Sucursal Principal Caracas',
-      receivedByUserName: 'Ing. Edgar Boscán',
-      purchaseOrderNumber: poNumber || null,
-    };
+    const confirmed = await showConfirmQuestion({
+      title: '¿Confirmar recepción de mercancía?',
+      text: `Se registrará la entrada de ${receiptItems.length} producto(s) por un total de $${totalReceiptCost.toFixed(2)} a favor de ${supplier?.name || 'proveedor seleccionado'}. Se afectará el inventario físico y costo promedio.`,
+      confirmButtonText: 'Sí, confirmar recepción',
+      cancelButtonText: 'Cancelar',
+      icon: 'question',
+    });
+    if (!confirmed) return;
 
-    setReceipts([newRecord, ...receipts]);
-    setIsCreateOpen(false);
-    toast.success(
-      `Recepción ${newReceiptNumber} procesada. Stock incrementado y Costo Promedio actualizado en Kardex.`
-    );
+    try {
+      const res = await fetch('/api/purchases/receipts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          branchId: activeBranchId || undefined,
+          warehouseId: activeWarehouseId || undefined,
+          supplierId,
+          supplierDeliveryNote: deliveryNote || undefined,
+          purchaseOrderNumber: poNumber || undefined,
+          currency: 'USD',
+          exchangeRate,
+          notes: receiptNotes || undefined,
+          items: receiptItems.map((i) => ({
+            productId: i.productId,
+            quantityReceived: i.quantityReceived,
+            unitCost: i.unitCost,
+            notes: i.notes || undefined,
+          })),
+        }),
+      });
+
+      const json = await res.json();
+      if (res.ok && json.success) {
+        toast.success(`Recepción ${json.data.receiptNumber} procesada exitosamente en inventario`);
+        setIsCreateOpen(false);
+        setReceiptItems([]);
+        fetchReceipts();
+
+        // Abrir inmediatamente la visualización y descarga en PDF
+        if (json.data?.id) {
+          setPdfModal({
+            isOpen: true,
+            endpoint: `/api/purchases/receipts/${json.data.id}/pdf`,
+            title: `Acta de Recepción de Mercancía N° ${json.data.receiptNumber || ''}`,
+            filename: `acta_recepcion_${json.data.receiptNumber || 'doc'}.pdf`,
+          });
+        }
+      } else {
+        throw new Error(json.error?.message || 'Error al procesar recepción');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Error al registrar recepción de mercancía');
+    }
   };
 
-  const handleConvertToInvoice = (e: React.FormEvent) => {
+  const handleConvertToInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!invoicingReceipt) return;
     if (!invoiceNumber.trim()) {
@@ -229,20 +318,43 @@ export const GoodsReceiptsView: React.FC = () => {
       return;
     }
 
-    setReceipts(
-      receipts.map((r) =>
-        r.id === invoicingReceipt.id
-          ? { ...r, status: 'INVOICED', purchaseInvoiceId: `inv-${Date.now()}` }
-          : r
-      )
-    );
+    const confirmed = await showConfirmQuestion({
+      title: '¿Generar factura y cuenta por pagar?',
+      text: `Se creará la cuenta por pagar vinculada a la factura ${invoiceNumber} por $${invoicingReceipt.totalCost.toFixed(2)}.`,
+      confirmButtonText: 'Sí, generar factura',
+      cancelButtonText: 'Cancelar',
+      icon: 'question',
+    });
+    if (!confirmed) return;
 
-    toast.success(
-      `Factura ${invoiceNumber} registrada exitosamente en Cuentas por Pagar (CxP).`
-    );
-    setInvoicingReceipt(null);
-    setInvoiceNumber('');
-    setControlNumber('');
+    try {
+      const res = await fetch(`/api/purchases/receipts/${invoicingReceipt.id}/invoice`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          invoiceNumber: invoiceNumber.trim(),
+          controlNumber: controlNumber.trim() || undefined,
+          isCredit,
+          dueDate: dueDate || undefined,
+        }),
+      });
+
+      const json = await res.json();
+      if (res.ok && json.success) {
+        toast.success(`Factura ${invoiceNumber} registrada exitosamente en Cuentas por Pagar`);
+        setInvoicingReceipt(null);
+        setInvoiceNumber('');
+        setControlNumber('');
+        fetchReceipts();
+      } else {
+        throw new Error(json.error?.message || 'Error al convertir a factura');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Error al registrar factura fiscal');
+    }
   };
 
   const columns: Column<GoodsReceiptRecord>[] = [
@@ -328,6 +440,20 @@ export const GoodsReceiptsView: React.FC = () => {
       accessorKey: 'id',
       cell: (item) => (
         <div className="flex items-center gap-1.5 justify-end">
+          <button
+            onClick={() =>
+              setPdfModal({
+                isOpen: true,
+                endpoint: `/api/purchases/receipts/${item.id}/pdf`,
+                title: `Acta de Recepción ${item.receiptNumber}`,
+                filename: `acta_recepcion_${item.receiptNumber}.pdf`,
+              })
+            }
+            className="p-1 text-neutral-500 hover:text-sky-600 rounded-lg hover:bg-neutral-100"
+            title="Ver / Reimprimir Acta de Recepción en PDF"
+          >
+            <FileText className="w-4 h-4 text-sky-600" />
+          </button>
           {item.status === 'RECEIVED' && (
             <Button
               variant="outline"
@@ -414,40 +540,58 @@ export const GoodsReceiptsView: React.FC = () => {
 
       {/* Modal Procesar Nueva Recepción */}
       {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg border border-neutral-200 w-full max-w-4xl p-6 shadow-xl my-8">
-            <div className="flex items-center justify-between pb-4 border-b border-neutral-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/60 backdrop-blur-xs p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg border border-neutral-200 w-full max-w-4xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden my-auto">
+            {/* Header (Pinned) */}
+            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
               <div>
-                <h3 className="text-base font-bold text-neutral-900">Recepción Física de Mercancía</h3>
-                <p className="text-xs text-neutral-500 mt-0.5">
+                <h3 className="text-sm font-bold text-neutral-900">Recepción Física de Mercancía</h3>
+                <p className="text-[11px] text-neutral-500 mt-0.5">
                   Registra el conteo de entrada al depósito y recalcula el costo ponderado
                 </p>
               </div>
               <button
+                type="button"
                 onClick={() => setIsCreateOpen(false)}
-                className="text-neutral-400 hover:text-neutral-700 p-1 rounded-lg"
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
+                title="Cerrar modal (Esc)"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateReceipt} className="mt-4 space-y-5">
+            <form id="createReceiptForm" onSubmit={handleCreateReceipt} className="flex-1 flex flex-col overflow-hidden">
+              {/* Body (Scrollable) */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-neutral-700 mb-1">
                     Proveedor *
                   </label>
-                  <select
-                    value={supplierId}
-                    onChange={(e) => setSupplierId(e.target.value)}
-                    className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-3 py-2 text-neutral-800"
-                  >
-                    {AVAILABLE_SUPPLIERS.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center gap-1.5">
+                    <select
+                      value={supplierId}
+                      onChange={(e) => setSupplierId(e.target.value)}
+                      className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-3 py-2 text-neutral-800"
+                    >
+                      {availableSuppliers.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowSupplierSearch(true)}
+                      title="Buscar proveedor"
+                      className="px-2.5 py-2 shrink-0 flex items-center gap-1 text-xs"
+                    >
+                      <Search className="w-3.5 h-3.5 text-neutral-500" />
+                      {/* <span>Buscar</span> */}
+                    </Button>
+                  </div>
                 </div>
 
                 <div>
@@ -483,9 +627,9 @@ export const GoodsReceiptsView: React.FC = () => {
                   <input
                     type="number"
                     step="0.01"
-                    value={exchangeRate}
+                    value={formatExchangeRate(exchangeRate, 2)}
                     onChange={(e) => setExchangeRate(Number(e.target.value))}
-                    className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-3 py-2 text-neutral-800"
+                    className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-3 py-2 text-neutral-800 text-right"
                   />
                 </div>
               </div>
@@ -496,15 +640,26 @@ export const GoodsReceiptsView: React.FC = () => {
                   <h4 className="text-xs font-semibold text-neutral-900 uppercase tracking-wider">
                     Productos Físicamente Recibidos ({receiptItems.length})
                   </h4>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleAddItem}
-                    className="text-xs rounded-lg py-1 px-2.5 flex items-center gap-1.5"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Agregar Producto</span>
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsAddingFromSearch(true)}
+                      className="text-xs rounded-lg py-1 px-2.5 flex items-center gap-1.5"
+                    >
+                      <Search className="w-3.5 h-3.5 text-neutral-500" />
+                      <span>Buscar en Catálogo</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleAddItem}
+                      className="text-xs rounded-lg py-1 px-2.5 flex items-center gap-1.5"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Agregar Fila</span>
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto border border-neutral-200 rounded-lg">
@@ -522,17 +677,29 @@ export const GoodsReceiptsView: React.FC = () => {
                       {receiptItems.map((item, idx) => (
                         <tr key={idx} className="hover:bg-neutral-50/50">
                           <td className="py-2 px-3">
-                            <select
-                              value={item.productId}
-                              onChange={(e) => handleItemChange(idx, 'productId', e.target.value)}
-                              className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-2.5 py-1.5 text-neutral-800"
-                            >
-                              {AVAILABLE_PRODUCTS.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                  {p.sku} - {p.name}
-                                </option>
-                              ))}
-                            </select>
+                            <div className="flex items-center gap-1.5">
+                              <select
+                                value={item.productId}
+                                onChange={(e) => handleItemChange(idx, 'productId', e.target.value)}
+                                className="flex-1 text-xs bg-white border border-neutral-300 rounded-lg px-2.5 py-1.5 text-neutral-800"
+                              >
+                                {availableProducts.map((p) => (
+                                  <option key={p.id} value={p.id}>
+                                    {p.sku} - {p.name}
+                                  </option>
+                                ))}
+                              </select>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setProductSearchRowIdx(idx)}
+                                title="Buscar producto"
+                                className="p-1.5 shrink-0"
+                              >
+                                <Search className="w-3.5 h-3.5 text-neutral-500" />
+                              </Button>
+                            </div>
                           </td>
                           <td className="py-2 px-3">
                             <input
@@ -580,23 +747,25 @@ export const GoodsReceiptsView: React.FC = () => {
                   <strong>Impacto Automático:</strong> Esta recepción incrementará el stock disponible en el depósito seleccionado y recalculará el <strong>Costo Promedio Ponderado</strong> de cada producto registrado, asentando el comprobante en el Kardex valorizado.
                 </p>
               </div>
+            </div>
 
-              {/* Botones */}
-              <div className="flex items-center justify-between pt-3 border-t border-neutral-200">
-                <span className="text-sm font-bold text-neutral-900">
+            {/* Footer (Pinned) */}
+              <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-between gap-2 shrink-0">
+                <span className="text-sm font-bold text-neutral-900 font-mono">
                   Total Recepción: {formatMoneyUSD(totalReceiptCost)}
                 </span>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <Button
                     type="button"
                     variant="outline"
+                    size="sm"
                     onClick={() => setIsCreateOpen(false)}
-                    className="rounded-lg text-xs"
                   >
                     Cancelar
                   </Button>
                   <Button
                     type="submit"
+                    size="sm"
                     className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs rounded-lg py-2 px-4 shadow-sm"
                   >
                     Confirmar Entrada en Depósito
@@ -610,24 +779,29 @@ export const GoodsReceiptsView: React.FC = () => {
 
       {/* Modal Facturar en CxP */}
       {invoicingReceipt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-lg border border-neutral-200 w-full max-w-lg p-6 shadow-xl">
-            <div className="flex items-center justify-between pb-4 border-b border-neutral-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/60 backdrop-blur-xs p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg border border-neutral-200 w-full max-w-lg max-h-[92vh] shadow-2xl flex flex-col overflow-hidden my-auto">
+            {/* Header (Pinned) */}
+            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
               <div>
-                <h3 className="text-base font-bold text-neutral-900">Facturar Recepción a CxP</h3>
-                <p className="text-xs text-neutral-500 mt-0.5">
+                <h3 className="text-sm font-bold text-neutral-900">Facturar Recepción a CxP</h3>
+                <p className="text-[11px] text-neutral-500 mt-0.5">
                   Generación de factura de compra oficial y registro de cuenta por pagar
                 </p>
               </div>
               <button
+                type="button"
                 onClick={() => setInvoicingReceipt(null)}
-                className="text-neutral-400 hover:text-neutral-700 p-1 rounded-lg"
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
+                title="Cerrar modal (Esc)"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleConvertToInvoice} className="mt-4 space-y-4">
+            <form id="invoiceReceiptForm" onSubmit={handleConvertToInvoice} className="flex-1 flex flex-col overflow-hidden">
+              {/* Body (Scrollable) */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
               <div className="bg-neutral-50 p-3 rounded-lg border border-neutral-200 text-xs">
                 <p className="font-semibold text-neutral-900">{invoicingReceipt.supplierName}</p>
                 <p className="text-neutral-500">{invoicingReceipt.supplierRif}</p>
@@ -690,17 +864,21 @@ export const GoodsReceiptsView: React.FC = () => {
                 </div>
               )}
 
-              <div className="flex justify-end gap-3 pt-3 border-t border-neutral-200">
+              </div>
+
+              {/* Footer (Pinned) */}
+              <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
                 <Button
                   type="button"
                   variant="outline"
+                  size="sm"
                   onClick={() => setInvoicingReceipt(null)}
-                  className="rounded-lg text-xs"
                 >
                   Cancelar
                 </Button>
                 <Button
                   type="submit"
+                  size="sm"
                   className="bg-sky-600 hover:bg-sky-700 text-white font-medium text-xs rounded-lg py-2 px-4 shadow-sm"
                 >
                   Crear Factura y Asentar en CxP
@@ -710,6 +888,42 @@ export const GoodsReceiptsView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Modal Buscador de Proveedores */}
+      <SupplierSearchModal
+        isOpen={showSupplierSearch}
+        onClose={() => setShowSupplierSearch(false)}
+        onSelect={(s) => setSupplierId(s.id)}
+        suppliers={availableSuppliers}
+      />
+
+      {/* Modal Buscador de Productos */}
+      <ProductSearchModal
+        isOpen={productSearchRowIdx !== null || isAddingFromSearch}
+        onClose={() => {
+          setProductSearchRowIdx(null);
+          setIsAddingFromSearch(false);
+        }}
+        onSelect={(prod) => {
+          if (isAddingFromSearch) {
+            handleAddItemWithProduct(prod);
+          } else if (productSearchRowIdx !== null) {
+            handleItemChange(productSearchRowIdx, 'productId', prod.id);
+          }
+        }}
+        products={availableProducts}
+        mode="purchase"
+      />
+
+      {/* Modal Visor / Descarga PDF de Recepción de Mercancía */}
+      <PdfViewerModal
+        isOpen={pdfModal.isOpen}
+        onClose={() => setPdfModal((prev) => ({ ...prev, isOpen: false }))}
+        title={pdfModal.title}
+        endpoint={pdfModal.endpoint}
+        filename={pdfModal.filename}
+      />
     </div>
   );
 };
+

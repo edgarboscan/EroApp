@@ -58,23 +58,36 @@ export type CreateDeliveryNoteInput = z.infer<typeof createDeliveryNoteSchema>;
 export const convertQuotationToInvoiceSchema = z.object({
   quotationId: z.string().uuid('ID de cotización requerido'),
   warehouseId: z.string().uuid('ID de depósito para rebaja de inventario requerido'),
-  invoiceNumber: z.string().min(1, 'Número de factura requerido').max(30),
+  invoiceNumber: z.string().max(30).optional().nullable(),
   controlNumber: z.string().max(30).optional().nullable(),
-  invoiceMode: z.enum(['normal_printer', 'fiscal_printer', 'electronic']).default('normal_printer'),
+  invoiceMode: z.enum(['fiscal_printer', 'free_form', 'no_fiscal', 'normal_printer', 'electronic']).default('free_form'),
   isCredit: z.boolean().default(false),
   dueDate: z.string().optional().nullable(),
   notes: z.string().max(255).optional().nullable(),
+  adminAuthorized: z.boolean().optional().default(false),
+  supervisorApproval: z.object({
+    usernameOrEmail: z.string().min(1, 'Usuario supervisor requerido'),
+    password: z.string().min(1, 'Contraseña de supervisor requerida'),
+    notes: z.string().max(255).optional().nullable(),
+  }).optional().nullable(),
 });
 
 export const convertDeliveryToInvoiceSchema = z.object({
   deliveryNoteId: z.string().uuid('ID de nota de entrega requerido'),
-  invoiceNumber: z.string().min(1, 'Número de factura requerido').max(30),
+  invoiceNumber: z.string().max(30).optional().nullable(),
   controlNumber: z.string().max(30).optional().nullable(),
-  invoiceMode: z.enum(['normal_printer', 'fiscal_printer', 'electronic']).default('normal_printer'),
+  invoiceMode: z.enum(['fiscal_printer', 'free_form', 'no_fiscal', 'normal_printer', 'electronic']).default('free_form'),
   isCredit: z.boolean().default(false),
   dueDate: z.string().optional().nullable(),
   notes: z.string().max(255).optional().nullable(),
+  adminAuthorized: z.boolean().optional().default(false),
+  supervisorApproval: z.object({
+    usernameOrEmail: z.string().min(1, 'Usuario supervisor requerido'),
+    password: z.string().min(1, 'Contraseña de supervisor requerida'),
+    notes: z.string().max(255).optional().nullable(),
+  }).optional().nullable(),
 });
 
 export type ConvertQuotationToInvoiceInput = z.infer<typeof convertQuotationToInvoiceSchema>;
 export type ConvertDeliveryToInvoiceInput = z.infer<typeof convertDeliveryToInvoiceSchema>;
+

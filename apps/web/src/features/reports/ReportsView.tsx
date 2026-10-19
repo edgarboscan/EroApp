@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
+import { useEscapeKey } from '../../components/ui/Modal';
 import {
   FileText,
   Download,
@@ -21,6 +22,11 @@ import {
   AlertTriangle,
   RefreshCw,
   Loader2,
+  Eye,
+  Printer,
+  ExternalLink,
+  X,
+  FileDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/authStore';
@@ -63,6 +69,13 @@ export const ReportsView: React.FC = () => {
   const [productData, setProductData] = useState<any[]>([]);
   const [cashierData, setCashierData] = useState<any[]>([]);
   const [salesBookData, setSalesBookData] = useState<any[]>([]);
+
+  // Estados para el visor de PDF interactivo
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState<boolean>(false);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [pdfTitle, setPdfTitle] = useState<string>('');
+  const [loadingPdf, setLoadingPdf] = useState<boolean>(false);
+  const iframeRef = React.useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
     loadActiveReport();
@@ -160,6 +173,111 @@ export const ReportsView: React.FC = () => {
     }
   };
 
+  const getPdfEndpoint = () => {
+    const branchParam = activeBranchId ? `&branchId=${activeBranchId}` : '';
+    const methodParam = selectedMethod !== 'all' ? `&paymentMethod=${selectedMethod}` : '';
+    let endpoint = '';
+
+    if (activeTab === 'sales') {
+      endpoint = `/api/reports/sales?startDate=${startDate}&endDate=${endDate}${branchParam}${methodParam}&detailed=${isDetailed}&format=pdf`;
+    } else if (activeTab === 'cash_shifts') {
+      endpoint = `/api/reports/cash-shifts?startDate=${startDate}&endDate=${endDate}${branchParam}&detailed=${isDetailed}&format=pdf`;
+    } else if (activeTab === 'sales_by_product') {
+      endpoint = `/api/reports/sales-by-product?startDate=${startDate}&endDate=${endDate}${branchParam}&format=pdf`;
+    } else if (activeTab === 'sales_by_cashier') {
+      endpoint = `/api/reports/sales-by-cashier?startDate=${startDate}&endDate=${endDate}${branchParam}&format=pdf`;
+    } else if (activeTab === 'sales_book') {
+      const period = startDate.slice(0, 7);
+      endpoint = `/api/reports/sales-book?period=${period}&format=pdf`;
+    }
+    return endpoint;
+  };
+
+  const getReportName = () => {
+    switch (activeTab) {
+      case 'sales':
+        return isDetailed ? 'Reporte_Ventas_Detallado' : 'Reporte_Ventas_Resumido';
+      case 'cash_shifts':
+        return isDetailed ? 'Reporte_Cierres_Caja_Detallado' : 'Reporte_Cierres_Caja_Resumido';
+      case 'sales_by_product':
+        return 'Reporte_Ventas_Por_Producto';
+      case 'sales_by_cashier':
+        return 'Reporte_Desempeno_Cajeros';
+      case 'sales_book':
+        return `Libro_Ventas_SENIAT_${startDate.slice(0, 7)}`;
+      default:
+        return 'Reporte_ERP';
+    }
+  };
+
+  const handleOpenPdfViewer = async () => {
+    setLoadingPdf(true);
+    setIsPdfModalOpen(true);
+    if (pdfBlobUrl) {
+      URL.revokeObjectURL(pdfBlobUrl);
+      setPdfBlobUrl(null);
+    }
+    try {
+      const endpoint = getPdfEndpoint();
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const res = await fetch(endpoint, { headers });
+      if (!res.ok) throw new Error('Error al generar el documento PDF');
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      setPdfBlobUrl(blobUrl);
+      setPdfTitle(getReportName().replace(/_/g, ' '));
+    } catch {
+      toast.error('No se pudo cargar la vista previa del PDF');
+      setIsPdfModalOpen(false);
+    } finally {
+      setLoadingPdf(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    setExporting(true);
+    try {
+      const endpoint = getPdfEndpoint();
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const res = await fetch(endpoint, { headers });
+      if (!res.ok) throw new Error('Error al descargar PDF');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${getReportName()}_${startDate}_a_${endDate}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Documento PDF generado y descargado exitosamente');
+    } catch {
+      toast.error('No se pudo descargar el archivo PDF');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleClosePdfModal = () => {
+    setIsPdfModalOpen(false);
+    if (pdfBlobUrl) {
+      URL.revokeObjectURL(pdfBlobUrl);
+      setPdfBlobUrl(null);
+    }
+  };
+
+  const handlePrintPdf = () => {
+    if (iframeRef.current?.contentWindow) {
+      iframeRef.current.contentWindow.focus();
+      iframeRef.current.contentWindow.print();
+    } else if (pdfBlobUrl) {
+      const win = window.open(pdfBlobUrl, '_blank');
+      win?.print();
+    }
+  };
+
+  useEscapeKey(handleClosePdfModal, isPdfModalOpen);
+
   // Filtrado de búsqueda en memoria para tablas
   const filteredSalesInvoices = (salesData?.invoices || []).filter((inv: any) => {
     if (!searchTerm.trim()) return true;
@@ -199,27 +317,50 @@ export const ReportsView: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleOpenPdfViewer}
+            disabled={loadingPdf || loading}
+            className="bg-sky-600 hover:bg-sky-700 text-white font-medium"
+          >
+            {loadingPdf ? (
+              <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+            ) : (
+              <Eye className="w-3.5 h-3.5 mr-1.5" />
+            )}
+            Ver PDF
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDownloadPdf}
+            disabled={exporting || loading}
+          >
+            <FileDown className="w-3.5 h-3.5 mr-1.5 text-neutral-600" />
+            Descargar PDF
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleExport('xlsx')}
+            disabled={exporting || loading}
+          >
+            <FileText className="w-3.5 h-3.5 mr-1 text-emerald-600" />
+            Excel
+          </Button>
+
           <Button
             variant="outline"
             size="sm"
             onClick={() => handleExport('csv')}
             disabled={exporting || loading}
           >
-            <Download className="w-3.5 h-3.5 mr-1" />
-            Exportar CSV
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => handleExport('xlsx')}
-            disabled={exporting || loading}
-          >
-            {exporting ? (
-              <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
-            ) : (
-              <FileText className="w-3.5 h-3.5 mr-1" />
-            )}
-            Exportar Excel (XLSX)
+            <Download className="w-3.5 h-3.5 mr-1 text-neutral-500" />
+            CSV
           </Button>
         </div>
       </div>
@@ -971,6 +1112,128 @@ export const ReportsView: React.FC = () => {
           )}
         </>
       )}
+
+      {/* Modal Visor de Reporte en PDF */}
+      {isPdfModalOpen && (
+        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="relative w-full max-w-6xl max-h-[92vh] bg-white rounded-lg border border-neutral-200 shadow-2xl flex flex-col overflow-hidden z-10 my-auto">
+            {/* Header del Modal */}
+            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="p-1.5 bg-neutral-100 text-neutral-700 rounded-lg shrink-0">
+                  <FileText className="w-5 h-5 text-neutral-700" />
+                </div>
+                <div className="truncate">
+                  <h3 className="text-sm font-semibold text-neutral-900 truncate">
+                    {pdfTitle || 'Vista Previa del Reporte PDF'}
+                  </h3>
+                  <div className="flex items-center gap-2 text-xs text-neutral-500">
+                    <span>
+                      Orientación:{' '}
+                      <strong className="text-neutral-700 font-medium">
+                        {activeTab === 'sales_book' || (activeTab === 'sales' && isDetailed) || (activeTab === 'cash_shifts' && isDetailed)
+                          ? 'Horizontal (Landscape)'
+                          : 'Vertical (Portrait)'}
+                      </strong>
+                    </span>
+                    <span>•</span>
+                    <span>Cumplimiento Fiscal SENIAT</span>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleClosePdfModal}
+                className="text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 p-1.5 rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-neutral-400 cursor-pointer"
+                title="Cerrar modal (Esc)"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Contenedor del Visor */}
+            <div className="flex-1 bg-neutral-100 p-2 sm:p-4 overflow-hidden relative min-h-[400px]">
+              {loadingPdf ? (
+                <div className="h-full w-full flex flex-col items-center justify-center gap-3 bg-white rounded-lg border border-neutral-200 p-6">
+                  <Loader2 className="w-8 h-8 text-neutral-600 animate-spin" />
+                  <p className="text-sm font-semibold text-neutral-800">
+                    Generando reporte PDF con diseño ejecutivo...
+                  </p>
+                  <p className="text-xs text-neutral-500 max-w-sm text-center">
+                    Preparando encabezados fiscales, numeración de páginas, tarjetas de resumen y formato{' '}
+                    {activeTab === 'sales_book' || (activeTab === 'sales' && isDetailed) || (activeTab === 'cash_shifts' && isDetailed)
+                      ? 'horizontal (landscape)'
+                      : 'vertical (portrait)'}.
+                  </p>
+                </div>
+              ) : pdfBlobUrl ? (
+                <iframe
+                  ref={iframeRef}
+                  src={pdfBlobUrl}
+                  className="w-full h-full rounded-lg border border-neutral-300 bg-white shadow-xs"
+                  title="Visor PDF de Reportes"
+                />
+              ) : (
+                <div className="h-full w-full flex flex-col items-center justify-center text-neutral-400">
+                  <p className="text-sm">No se ha podido cargar el documento</p>
+                </div>
+              )}
+            </div>
+
+            {/* Pinned Footer */}
+            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-between gap-2 shrink-0">
+              <div className="flex items-center gap-2">
+                {pdfBlobUrl && (
+                  <a
+                    href={pdfBlobUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium text-neutral-700 bg-white border border-neutral-200 rounded-lg hover:bg-neutral-100 transition-colors focus-visible:ring-2 focus-visible:ring-neutral-400"
+                    title="Abrir en pestaña nueva"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 mr-1.5 text-neutral-500" />
+                    Abrir pestaña
+                  </a>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePrintPdf}
+                  disabled={!pdfBlobUrl}
+                  title="Imprimir documento"
+                >
+                  <Printer className="w-3.5 h-3.5 mr-1.5" />
+                  Imprimir
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDownloadPdf}
+                  disabled={!pdfBlobUrl}
+                  title="Descargar archivo PDF"
+                >
+                  <FileDown className="w-3.5 h-3.5 mr-1.5" />
+                  Descargar
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleClosePdfModal}
+                >
+                  Cerrar
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+

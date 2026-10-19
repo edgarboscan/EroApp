@@ -2,9 +2,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
+import { useEscapeKey } from '../../components/ui/Modal';
 import { useAuthStore, isSuperAdminRole } from '../../stores/authStore';
 import { toast } from 'sonner';
 import { formatMoneyUSD, formatMoneyVES, formatNumber } from '../../utils/formatters';
+import { showConfirmQuestion } from '../../lib/sweetalert';
 import {
   DollarSign,
   TrendingUp,
@@ -18,15 +20,17 @@ import {
   ArrowLeft,
   ArrowRight,
   Building2,
+  Warehouse,
+  Lock,
   Layers,
   X,
   CreditCard,
   ShoppingBag,
-  BarChart2,
-  Clock,
+  Inbox,
   CheckCircle2,
   Maximize2,
   Minimize2,
+  Package,
 } from 'lucide-react';
 import {
   BarChart,
@@ -56,6 +60,65 @@ export interface CatalogWidget {
   defaultColSpan: 1 | 2 | 4;
 }
 
+export interface WarehouseOption {
+  id: string;
+  code: string;
+  name: string;
+  isDefault?: boolean;
+}
+
+export interface BranchOption {
+  id: string;
+  code: string;
+  name: string;
+  isMain?: boolean;
+  warehouses: WarehouseOption[];
+}
+
+export interface DashboardSummaryData {
+  salesToday: {
+    totalUSD: number;
+    totalVES: number;
+    countInvoices: number;
+  };
+  ticketAvg: {
+    avgTicketUSD: number;
+    countInvoices: number;
+  };
+  taxSummary: {
+    totalIVA: number;
+    totalIGTF: number;
+  };
+  cxcSummary: {
+    totalPendingUSD: number;
+    overdueUSD: number;
+    cxcDistribution: { name: string; value: number; color: string }[];
+  };
+  purchasesMonth: {
+    totalUSD: number;
+    ordersCount: number;
+  };
+  topProducts: { name: string; ventas: number }[];
+  weeklySalesTrend: { date: string; day: string; ventas: number }[];
+  criticalStock: {
+    count: number;
+    items: {
+      sku: string;
+      name: string;
+      warehouse: string;
+      stock: number;
+      min: number;
+    }[];
+  };
+  recentTransactions: {
+    number: string;
+    time: string;
+    customer: string;
+    amount: number;
+    status: string;
+  }[];
+}
+
 const WIDGET_CATALOG: CatalogWidget[] = [
   {
     code: 'WIDGET_SALES_TODAY',
@@ -68,7 +131,7 @@ const WIDGET_CATALOG: CatalogWidget[] = [
     code: 'WIDGET_TICKET_AVG',
     title: 'Ticket Promedio',
     category: 'kpi',
-    description: 'Valor promedio de facturación por cliente y variación semanal',
+    description: 'Valor promedio de facturación por cliente en los últimos 7 días',
     defaultColSpan: 1,
   },
   {
@@ -82,7 +145,7 @@ const WIDGET_CATALOG: CatalogWidget[] = [
     code: 'WIDGET_TAX_SUMMARY',
     title: 'Resumen Fiscal SENIAT',
     category: 'kpi',
-    description: 'IVA facturado e IGTF percibido en el período tributario',
+    description: 'IVA facturado e IGTF percibido en el mes en curso',
     defaultColSpan: 1,
   },
   {
@@ -96,7 +159,7 @@ const WIDGET_CATALOG: CatalogWidget[] = [
     code: 'WIDGET_PURCHASES_MONTH',
     title: 'Compras a Proveedores',
     category: 'kpi',
-    description: 'Facturación por recepción de mercancía y compromisos de pago',
+    description: 'Facturación por recepción de mercancía y compromisos del mes',
     defaultColSpan: 1,
   },
   {
@@ -150,21 +213,30 @@ export const DynamicDashboard: React.FC = () => {
   const user = useAuthStore((s) => s.user);
   const token = useAuthStore((s) => s.token);
   const activeBranchId = useAuthStore((s) => s.activeBranchId);
+  const activeWarehouseId = useAuthStore((s) => s.activeWarehouseId);
   const setActiveBranch = useAuthStore((s) => s.setActiveBranch);
+  const setActiveWarehouse = useAuthStore((s) => s.setActiveWarehouse);
+  const hasPermission = useAuthStore((s) => s.hasPermission);
 
   const [isEditMode, setIsEditMode] = useState(false);
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
-  const [selectedBranch, setSelectedBranch] = useState<string>(activeBranchId || 'ALL');
 
-  // Sucursales autorizadas del usuario
-  const [branches, setBranches] = useState<{ id: string; name: string; code: string }[]>([
-    { id: 'b1', name: 'Sucursal Principal - Caracas', code: 'SUC-01' },
-    { id: 'b2', name: 'Sucursal Las Mercedes', code: 'SUC-02' },
-    { id: 'b3', name: 'Sucursal Valencia Centro', code: 'SUC-03' },
-  ]);
+  useEscapeKey(() => setIsCatalogOpen(false), isCatalogOpen);
+
+  // Sucursales y almacenes autorizados
+  const [branches, setBranches] = useState<BranchOption[]>([]);
+  const [selectedBranch, setSelectedBranch] = useState<string>(activeBranchId || 'ALL');
+  const [selectedWarehouse, setSelectedWarehouse] = useState<string>(activeWarehouseId || 'ALL');
+
+  // Datos reales en vivo del backend
+  const [summaryData, setSummaryData] = useState<DashboardSummaryData | null>(null);
+  const [isLoadingSummary, setIsLoadingSummary] = useState(true);
+
+  const isSuper = isSuperAdminRole(user?.role);
 
   // Cargar sucursales autorizadas desde API
   useEffect(() => {
+    let isMounted = true;
     const fetchBranches = async () => {
       try {
         const headers: Record<string, string> = {};
@@ -173,31 +245,190 @@ export const DynamicDashboard: React.FC = () => {
         if (res.ok) {
           const json = await res.json();
           if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+            let userBranchesList: BranchOption[] = json.data;
+
             // Filtrar solo sucursales autorizadas al usuario si no es super_admin
-            const userBranches = user?.branches || [];
-            const filtered = userBranches.length > 0 && !isSuperAdminRole(user?.role)
-              ? json.data.filter((b: any) => userBranches.includes(b.id))
-              : json.data;
-            if (filtered.length > 0) {
-              setBranches(filtered);
+            if (!isSuper) {
+              const userBranchIds = user?.branches || [];
+              if (userBranchIds.length > 0) {
+                userBranchesList = userBranchesList.filter((b) => userBranchIds.includes(b.id));
+              }
+
+              // Filtrar solo depósitos autorizados
+              const userWarehouseIds = user?.warehouses || [];
+              if (userWarehouseIds.length > 0) {
+                userBranchesList = userBranchesList.map((b) => ({
+                  ...b,
+                  warehouses: b.warehouses.filter((w) => userWarehouseIds.includes(w.id)),
+                }));
+              }
+            }
+
+            if (isMounted && userBranchesList.length > 0) {
+              setBranches(userBranchesList);
+
+              // Establecer sucursal seleccionada inicial si no está fijada
+              let initialBranchId = activeBranchId;
+              if (!initialBranchId || (initialBranchId !== 'ALL' && !userBranchesList.some((b) => b.id === initialBranchId))) {
+                initialBranchId = userBranchesList[0].id;
+              }
+              setSelectedBranch(initialBranchId);
+
+              // Establecer depósito inicial para la sucursal activa
+              const branchObj = userBranchesList.find((b) => b.id === initialBranchId);
+              if (branchObj && branchObj.warehouses.length > 0) {
+                const initialWh = branchObj.warehouses.some((w) => w.id === activeWarehouseId)
+                  ? activeWarehouseId!
+                  : (branchObj.warehouses.find((w) => w.isDefault)?.id || branchObj.warehouses[0].id);
+                setSelectedWarehouse(initialWh);
+              }
             }
           }
         }
       } catch {
-        // Mantener sucursales por defecto
+        // En caso de fallo de red
       }
     };
+
     fetchBranches();
-  }, [token, user]);
+    return () => {
+      isMounted = false;
+    };
+  }, [token, user, isSuper]);
 
-  // Sincronizar selectedBranch con activeBranchId inicial
-  useEffect(() => {
-    if (activeBranchId && selectedBranch === 'ALL') {
-      setSelectedBranch(activeBranchId);
+  // Almacenes disponibles para la sucursal seleccionada
+  const availableWarehouses = useMemo<WarehouseOption[]>(() => {
+    if (selectedBranch === 'ALL') {
+      // Consolidar todos los almacenes de todas las sucursales autorizadas
+      return branches.flatMap((b) => b.warehouses);
     }
-  }, [activeBranchId]);
+    const currentBranch = branches.find((b) => b.id === selectedBranch);
+    return currentBranch ? currentBranch.warehouses : [];
+  }, [branches, selectedBranch]);
 
-  // Estado de widgets activos en el Dashboard
+  // Reglas de permisos para alternar sucursal y depósito
+  const canSwitchBranch = useMemo(() => {
+    if (isSuper) return true;
+    if (hasPermission('branches', 'switch') || hasPermission('config', 'read')) return true;
+    return branches.length > 1;
+  }, [isSuper, hasPermission, branches.length]);
+
+  const isBranchLocked = !canSwitchBranch || branches.length <= 1;
+
+  const canSwitchWarehouse = useMemo(() => {
+    if (isSuper) return true;
+    if (hasPermission('warehouses', 'switch') || hasPermission('inventory', 'transfer')) return true;
+    return availableWarehouses.length > 1;
+  }, [isSuper, hasPermission, availableWarehouses.length]);
+
+  const isWarehouseLocked = !canSwitchWarehouse || availableWarehouses.length <= 1;
+
+  // Cargar datos en vivo del backend para la sucursal y depósito seleccionados
+  useEffect(() => {
+    let isMounted = true;
+    const fetchSummary = async () => {
+      setIsLoadingSummary(true);
+      try {
+        const headers: Record<string, string> = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const params = new URLSearchParams();
+        if (selectedBranch) params.set('branchId', selectedBranch);
+        if (selectedWarehouse) params.set('warehouseId', selectedWarehouse);
+
+        const res = await fetch(`/api/dashboards/summary?${params.toString()}`, { headers });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && isMounted) {
+            setSummaryData(json.data);
+          }
+        } else if (isMounted) {
+          // En caso de respuesta con error, establecer valores seguros en cero
+          setSummaryData({
+            salesToday: { totalUSD: 0, totalVES: 0, countInvoices: 0 },
+            ticketAvg: { avgTicketUSD: 0, countInvoices: 0 },
+            taxSummary: { totalIVA: 0, totalIGTF: 0 },
+            cxcSummary: { totalPendingUSD: 0, overdueUSD: 0, cxcDistribution: [] },
+            purchasesMonth: { totalUSD: 0, ordersCount: 0 },
+            topProducts: [],
+            weeklySalesTrend: [],
+            criticalStock: { count: 0, items: [] },
+            recentTransactions: [],
+          });
+        }
+      } catch {
+        if (isMounted) {
+          setSummaryData({
+            salesToday: { totalUSD: 0, totalVES: 0, countInvoices: 0 },
+            ticketAvg: { avgTicketUSD: 0, countInvoices: 0 },
+            taxSummary: { totalIVA: 0, totalIGTF: 0 },
+            cxcSummary: { totalPendingUSD: 0, overdueUSD: 0, cxcDistribution: [] },
+            purchasesMonth: { totalUSD: 0, ordersCount: 0 },
+            topProducts: [],
+            weeklySalesTrend: [],
+            criticalStock: { count: 0, items: [] },
+            recentTransactions: [],
+          });
+        }
+      } finally {
+        if (isMounted) setIsLoadingSummary(false);
+      }
+    };
+
+    fetchSummary();
+    return () => {
+      isMounted = false;
+    };
+  }, [token, selectedBranch, selectedWarehouse]);
+
+  // Manejador del cambio de sucursal
+  const handleBranchChange = (branchId: string) => {
+    if (isBranchLocked) {
+      toast.warning('No tiene autorización para cambiar de sucursal.');
+      return;
+    }
+
+    setSelectedBranch(branchId);
+
+    // Ajustar depósito para la nueva sucursal seleccionada
+    if (branchId !== 'ALL') {
+      const branch = branches.find((b) => b.id === branchId);
+      if (branch && branch.warehouses.length > 0) {
+        const defaultWh = branch.warehouses.find((w) => w.isDefault)?.id || branch.warehouses[0].id;
+        setSelectedWarehouse(defaultWh);
+        setActiveBranch(branchId, defaultWh);
+      } else {
+        setSelectedWarehouse('ALL');
+        setActiveBranch(branchId);
+      }
+    } else {
+      setSelectedWarehouse('ALL');
+    }
+
+    const branchName = branchId === 'ALL'
+      ? 'Consolidado (Todas las sucursales)'
+      : branches.find((b) => b.id === branchId)?.name || 'Sucursal Seleccionada';
+    toast.info(`Filtro aplicado: ${branchName}`);
+  };
+
+  // Manejador del cambio de depósito
+  const handleWarehouseChange = (warehouseId: string) => {
+    if (isWarehouseLocked) {
+      toast.warning('No tiene autorización para cambiar de depósito.');
+      return;
+    }
+
+    setSelectedWarehouse(warehouseId);
+    if (warehouseId !== 'ALL') {
+      setActiveWarehouse(warehouseId);
+    }
+    const whName = warehouseId === 'ALL'
+      ? 'Todos los depósitos'
+      : availableWarehouses.find((w) => w.id === warehouseId)?.name || 'Depósito Seleccionado';
+    toast.info(`Filtro aplicado: ${whName}`);
+  };
+
+  // Layout persistente en LocalStorage y Backend
   const storageKey = `ero_erp_dashboard_layout_${user?.id || 'default'}`;
   const [activeWidgets, setActiveWidgets] = useState<DashboardWidgetItem[]>(() => {
     try {
@@ -209,26 +440,23 @@ export const DynamicDashboard: React.FC = () => {
         }
       }
     } catch {
-      // Ignorar fallback
+      // Fallback a widgets iniciales
     }
     return DEFAULT_WIDGET_ITEMS;
   });
 
   const [savedSnapshot, setSavedSnapshot] = useState<DashboardWidgetItem[]>(activeWidgets);
 
-  // Al entrar en modo edición, tomar un snapshot para permitir Cancelar
   const handleEnterEditMode = () => {
     setSavedSnapshot([...activeWidgets]);
     setIsEditMode(true);
   };
 
-  // Cancelar edición y revertir al snapshot guardado
   const handleCancelEdit = () => {
     setActiveWidgets([...savedSnapshot]);
     setIsEditMode(false);
   };
 
-  // Guardar Layout en API y en LocalStorage
   const handleSaveLayout = async () => {
     try {
       localStorage.setItem(storageKey, JSON.stringify(activeWidgets));
@@ -264,13 +492,20 @@ export const DynamicDashboard: React.FC = () => {
     }
   };
 
-  // Restablecer layout predeterminado
-  const handleResetDefault = () => {
+  const handleResetDefault = async () => {
+    const confirmed = await showConfirmQuestion({
+      title: '¿Restablecer diseño del dashboard?',
+      text: 'Se restaurará la distribución original recomendada de los widgets en el dashboard.',
+      confirmButtonText: 'Sí, restablecer',
+      cancelButtonText: 'Cancelar',
+      icon: 'question',
+    });
+    if (!confirmed) return;
+
     setActiveWidgets(DEFAULT_WIDGET_ITEMS);
     toast.info('Se ha restablecido el layout inicial recomendado');
   };
 
-  // Reordenar widgets: mover hacia la izquierda / arriba
   const handleMoveLeft = (index: number) => {
     if (index === 0) return;
     setActiveWidgets((prev) => {
@@ -282,7 +517,6 @@ export const DynamicDashboard: React.FC = () => {
     });
   };
 
-  // Reordenar widgets: mover hacia la derecha / abajo
   const handleMoveRight = (index: number) => {
     if (index === activeWidgets.length - 1) return;
     setActiveWidgets((prev) => {
@@ -294,7 +528,6 @@ export const DynamicDashboard: React.FC = () => {
     });
   };
 
-  // Alternar tamaño de columna del widget
   const handleToggleColSpan = (instanceId: string) => {
     setActiveWidgets((prev) =>
       prev.map((w) => {
@@ -305,13 +538,11 @@ export const DynamicDashboard: React.FC = () => {
     );
   };
 
-  // Eliminar widget activo
   const handleRemoveWidget = (instanceId: string) => {
     setActiveWidgets((prev) => prev.filter((w) => w.instanceId !== instanceId));
     toast.info('Widget removido del dashboard');
   };
 
-  // Añadir widget desde el catálogo
   const handleAddFromCatalog = (widget: CatalogWidget) => {
     const newItem: DashboardWidgetItem = {
       instanceId: `inst_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -324,101 +555,82 @@ export const DynamicDashboard: React.FC = () => {
     toast.success(`Widget "${widget.title}" agregado al dashboard`);
   };
 
-  // Cambiar sucursal activa
-  const handleBranchChange = (branchId: string) => {
-    setSelectedBranch(branchId);
-    if (branchId !== 'ALL') {
-      setActiveBranch(branchId);
-    }
-    const branchName = branchId === 'ALL'
-      ? 'Consolidado (Todas las sucursales)'
-      : branches.find((b) => b.id === branchId)?.name || 'Sucursal Seleccionada';
-    toast.info(`Datos filtrados para: ${branchName}`);
+  // Controles de edición para cada widget
+  const renderWidgetControls = (item: DashboardWidgetItem, index: number) => {
+    if (!isEditMode) return null;
+
+    return (
+      <div className="flex items-center justify-between pb-3 mb-3 border-b border-sky-100 bg-sky-50/60 -mx-4 -mt-4 p-2.5 rounded-t-lg">
+        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-sky-800">
+          <Layers className="w-3.5 h-3.5" />
+          <span>Posición #{index + 1} ({item.colSpan === 1 ? '1 col' : item.colSpan === 2 ? '2 cols' : 'Ancho completo'})</span>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            disabled={index === 0}
+            onClick={() => handleMoveLeft(index)}
+            className="p-1 rounded-lg text-neutral-600 hover:text-sky-700 hover:bg-sky-100 disabled:opacity-30 disabled:pointer-events-none"
+            title="Mover antes"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            disabled={index === activeWidgets.length - 1}
+            onClick={() => handleMoveRight(index)}
+            className="p-1 rounded-lg text-neutral-600 hover:text-sky-700 hover:bg-sky-100 disabled:opacity-30 disabled:pointer-events-none"
+            title="Mover después"
+          >
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => handleToggleColSpan(item.instanceId)}
+            className="p-1 rounded-lg text-neutral-600 hover:text-sky-700 hover:bg-sky-100"
+            title="Alternar ancho de widget"
+          >
+            {item.colSpan === 4 ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+          </button>
+          <button
+            type="button"
+            onClick={() => handleRemoveWidget(item.instanceId)}
+            className="p-1 rounded-lg text-red-600 hover:text-red-700 hover:bg-red-100"
+            title="Remover widget"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+    );
   };
 
-  // Datos dinámicos calculados según la sucursal seleccionada
-  const multiplier = useMemo(() => {
-    if (selectedBranch === 'b2') return 0.65;
-    if (selectedBranch === 'b3') return 0.45;
-    if (selectedBranch === 'ALL') return 1.45;
-    return 1.0; // b1
-  }, [selectedBranch]);
+  // Renderizado de Skeleton para reducir layout shift
+  const renderKpiSkeleton = (title: string) => (
+    <Card>
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">{title}</span>
+        <div className="w-8 h-8 rounded-lg bg-neutral-100 animate-pulse" />
+      </div>
+      <div className="mt-3 space-y-2">
+        <div className="h-7 w-24 bg-neutral-200 rounded-lg animate-pulse" />
+        <div className="h-3 w-36 bg-neutral-100 rounded-lg animate-pulse" />
+      </div>
+    </Card>
+  );
 
-  const kpiSales = useMemo(() => ({
-    totalUSD: formatMoneyUSD(4850.5 * multiplier),
-    totalVES: formatMoneyVES(179468.5 * multiplier),
-    countInvoices: formatNumber(Math.round(42 * multiplier), { maximumFractionDigits: 2 }),
-  }), [multiplier]);
-
-  const kpiTicket = useMemo(() => ({
-    avgTicketUSD: formatMoneyUSD(115.48 * (0.95 + multiplier * 0.05)),
-  }), [multiplier]);
-
-  const kpiTax = useMemo(() => ({
-    totalIVA: formatMoneyUSD(776.08 * multiplier),
-    totalIGTF: formatMoneyUSD(145.51 * multiplier),
-  }), [multiplier]);
-
-  const kpiCxc = useMemo(() => ({
-    totalPendingUSD: formatMoneyUSD(19900 * multiplier),
-    overdueUSD: formatMoneyUSD(3200 * multiplier),
-  }), [multiplier]);
-
-  const kpiPurchases = useMemo(() => ({
-    totalUSD: formatMoneyUSD(12400 * multiplier),
-    ordersCount: formatNumber(Math.round(8 * multiplier), { maximumFractionDigits: 2 }),
-  }), [multiplier]);
-
-  const cxcData = useMemo(() => [
-    { name: 'Al Día', value: Math.round(12500 * multiplier), color: '#10b981' },
-    { name: '1-30 Días', value: Math.round(4200 * multiplier), color: '#38bdf8' },
-    { name: '31-60 Días', value: Math.round(1800 * multiplier), color: '#fbbf24' },
-    { name: '61-90 Días', value: Math.round(950 * multiplier), color: '#f97316' },
-    { name: '+90 Días', value: Math.round(450 * multiplier), color: '#ef4444' },
-  ], [multiplier]);
-
-  const topProductsData = useMemo(() => [
-    { name: 'Harina PAN 1Kg', ventas: Math.round(145 * multiplier) },
-    { name: 'Leche en Polvo 1Kg', ventas: Math.round(89 * multiplier) },
-    { name: 'Arroz Primor 1Kg', ventas: Math.round(74 * multiplier) },
-    { name: 'Aceite Mazeite 1L', ventas: Math.round(68 * multiplier) },
-    { name: 'Pasta Primor 1Kg', ventas: Math.round(52 * multiplier) },
-  ], [multiplier]);
-
-  const weeklySalesTrend = useMemo(() => [
-    { day: 'Lun', ventas: Math.round(3400 * multiplier) },
-    { day: 'Mar', ventas: Math.round(4100 * multiplier) },
-    { day: 'Mié', ventas: Math.round(3800 * multiplier) },
-    { day: 'Jue', ventas: Math.round(4600 * multiplier) },
-    { day: 'Vie', ventas: Math.round(5200 * multiplier) },
-    { day: 'Sáb', ventas: Math.round(5900 * multiplier) },
-    { day: 'Dom', ventas: Math.round(2900 * multiplier) },
-  ], [multiplier]);
-
-  const criticalStockItems = useMemo(() => {
-    const branchName = selectedBranch === 'ALL'
-      ? 'Todas las Sucursales'
-      : branches.find((b) => b.id === selectedBranch)?.name || 'Almacén Central';
-
-    return [
-      { sku: 'LEC-POL-01', name: 'Leche en Polvo 1Kg', stock: 12, min: 20, warehouse: `${branchName} - Depósito Principal` },
-      { sku: 'DES-SET-06', name: 'Juego Destornilladores', stock: 5, min: 10, warehouse: `${branchName} - Depósito Principal` },
-      { sku: 'BOM-LED-12W', name: 'Bombillo LED 12W', stock: 8, min: 25, warehouse: `${branchName} - Piso de Venta` },
-      { sku: 'ARR-PRI-01', name: 'Arroz Primor 1Kg', stock: 18, min: 30, warehouse: `${branchName} - Depósito Principal` },
-    ];
-  }, [selectedBranch, branches]);
-
-  const recentTransactions = useMemo(() => [
-    { number: 'FAC-000452', time: '10:42 AM', customer: 'Inversiones Los Andes C.A.', amount: '345.00', status: 'EMITIDA' },
-    { number: 'FAC-000451', time: '10:15 AM', customer: 'Comercializadora El Sol', amount: '120.50', status: 'EMITIDA' },
-    { number: 'FAC-000450', time: '09:50 AM', customer: 'Distribuidora Central S.A.', amount: '890.00', status: 'EMITIDA' },
-    { number: 'FAC-000449', time: '09:12 AM', customer: 'Cliente Mostrador / Final', amount: '45.20', status: 'EMITIDA' },
-  ], []);
-
-  // Función de renderizado para cada widget según su código
+  // Renderizado dinámico de widgets con datos reales
   const renderWidgetContent = (item: DashboardWidgetItem, index: number) => {
+    if (isLoadingSummary) {
+      if (['WIDGET_SALES_TODAY', 'WIDGET_TICKET_AVG', 'WIDGET_CRITICAL_STOCK', 'WIDGET_TAX_SUMMARY', 'WIDGET_CXC_SUMMARY', 'WIDGET_PURCHASES_MONTH'].includes(item.code)) {
+        return renderKpiSkeleton(item.title);
+      }
+    }
+
     switch (item.code) {
-      case 'WIDGET_SALES_TODAY':
+      case 'WIDGET_SALES_TODAY': {
+        const sales = summaryData?.salesToday || { totalUSD: 0, totalVES: 0, countInvoices: 0 };
         return (
           <Card>
             {renderWidgetControls(item, index)}
@@ -429,15 +641,21 @@ export const DynamicDashboard: React.FC = () => {
               </div>
             </div>
             <div className="mt-3">
-              <div className="text-2xl font-bold text-neutral-900">{kpiSales.totalUSD}</div>
+              <div className="text-2xl font-bold text-neutral-900">{formatMoneyUSD(sales.totalUSD)}</div>
               <div className="text-xs text-neutral-500 mt-1">
-                {kpiSales.totalVES} • <span className="font-semibold text-neutral-700">{kpiSales.countInvoices}</span> facturas
+                {formatMoneyVES(sales.totalVES)} •{' '}
+                <span className="font-semibold text-neutral-700">
+                  {formatNumber(sales.countInvoices)}
+                </span>{' '}
+                {sales.countInvoices === 1 ? 'factura emitida' : 'facturas emitidas'}
               </div>
             </div>
           </Card>
         );
+      }
 
-      case 'WIDGET_TICKET_AVG':
+      case 'WIDGET_TICKET_AVG': {
+        const ticket = summaryData?.ticketAvg || { avgTicketUSD: 0, countInvoices: 0 };
         return (
           <Card>
             {renderWidgetControls(item, index)}
@@ -448,15 +666,19 @@ export const DynamicDashboard: React.FC = () => {
               </div>
             </div>
             <div className="mt-3">
-              <div className="text-2xl font-bold text-neutral-900">{kpiTicket.avgTicketUSD}</div>
-              <div className="text-xs text-emerald-600 font-medium mt-1">
-                +8.5% comparado con la semana anterior
+              <div className="text-2xl font-bold text-neutral-900">{formatMoneyUSD(ticket.avgTicketUSD)}</div>
+              <div className="text-xs text-neutral-500 font-medium mt-1">
+                {ticket.countInvoices > 0
+                  ? `Calculado sobre ${ticket.countInvoices} facturas (7 días)`
+                  : 'Sin ventas en los últimos 7 días'}
               </div>
             </div>
           </Card>
         );
+      }
 
-      case 'WIDGET_CRITICAL_STOCK':
+      case 'WIDGET_CRITICAL_STOCK': {
+        const criticalCount = summaryData?.criticalStock?.count || 0;
         return (
           <Card>
             {renderWidgetControls(item, index)}
@@ -467,15 +689,19 @@ export const DynamicDashboard: React.FC = () => {
               </div>
             </div>
             <div className="mt-3">
-              <div className="text-2xl font-bold text-neutral-900">{criticalStockItems.length}</div>
-              <div className="text-xs text-amber-600 font-medium mt-1">
-                Productos requieren reposición inmediata
+              <div className="text-2xl font-bold text-neutral-900">{criticalCount}</div>
+              <div className={`text-xs font-medium mt-1 ${criticalCount > 0 ? 'text-amber-600' : 'text-neutral-500'}`}>
+                {criticalCount > 0
+                  ? 'Productos requieren reposición inmediata'
+                  : 'Inventario en niveles óptimos'}
               </div>
             </div>
           </Card>
         );
+      }
 
-      case 'WIDGET_TAX_SUMMARY':
+      case 'WIDGET_TAX_SUMMARY': {
+        const tax = summaryData?.taxSummary || { totalIVA: 0, totalIGTF: 0 };
         return (
           <Card>
             {renderWidgetControls(item, index)}
@@ -486,15 +712,17 @@ export const DynamicDashboard: React.FC = () => {
               </div>
             </div>
             <div className="mt-3">
-              <div className="text-2xl font-bold text-neutral-900">{kpiTax.totalIVA}</div>
+              <div className="text-2xl font-bold text-neutral-900">{formatMoneyUSD(tax.totalIVA)}</div>
               <div className="text-xs text-neutral-500 mt-1">
-                IGTF generado: <span className="font-semibold text-neutral-700">{kpiTax.totalIGTF}</span>
+                IGTF percibido: <span className="font-semibold text-neutral-700">{formatMoneyUSD(tax.totalIGTF)}</span>
               </div>
             </div>
           </Card>
         );
+      }
 
-      case 'WIDGET_CXC_SUMMARY':
+      case 'WIDGET_CXC_SUMMARY': {
+        const cxc = summaryData?.cxcSummary || { totalPendingUSD: 0, overdueUSD: 0, cxcDistribution: [] };
         return (
           <Card>
             {renderWidgetControls(item, index)}
@@ -505,15 +733,20 @@ export const DynamicDashboard: React.FC = () => {
               </div>
             </div>
             <div className="mt-3">
-              <div className="text-2xl font-bold text-neutral-900">{kpiCxc.totalPendingUSD}</div>
+              <div className="text-2xl font-bold text-neutral-900">{formatMoneyUSD(cxc.totalPendingUSD)}</div>
               <div className="text-xs text-neutral-500 mt-1">
-                Vencido: <span className="font-semibold text-red-600">{kpiCxc.overdueUSD}</span>
+                Vencido:{' '}
+                <span className={`font-semibold ${cxc.overdueUSD > 0 ? 'text-red-600' : 'text-neutral-700'}`}>
+                  {formatMoneyUSD(cxc.overdueUSD)}
+                </span>
               </div>
             </div>
           </Card>
         );
+      }
 
-      case 'WIDGET_PURCHASES_MONTH':
+      case 'WIDGET_PURCHASES_MONTH': {
+        const purchases = summaryData?.purchasesMonth || { totalUSD: 0, ordersCount: 0 };
         return (
           <Card>
             {renderWidgetControls(item, index)}
@@ -524,74 +757,107 @@ export const DynamicDashboard: React.FC = () => {
               </div>
             </div>
             <div className="mt-3">
-              <div className="text-2xl font-bold text-neutral-900">{kpiPurchases.totalUSD}</div>
+              <div className="text-2xl font-bold text-neutral-900">{formatMoneyUSD(purchases.totalUSD)}</div>
               <div className="text-xs text-neutral-500 mt-1">
-                En <span className="font-semibold text-neutral-700">{kpiPurchases.ordersCount}</span> órdenes de compra
+                En <span className="font-semibold text-neutral-700">{purchases.ordersCount}</span> órdenes de compra
               </div>
             </div>
           </Card>
         );
+      }
 
-      case 'WIDGET_TOP_PRODUCTS':
+      case 'WIDGET_TOP_PRODUCTS': {
+        const topProducts = summaryData?.topProducts || [];
         return (
-          <Card title="Top 5 Productos más Vendidos" subtitle="Unidades facturadas en el período seleccionado">
+          <Card title="Top 5 Productos más Vendidos" subtitle="Unidades facturadas en los últimos 30 días">
             {renderWidgetControls(item, index)}
-            <div className="h-64 mt-2">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={topProductsData} layout="vertical" margin={{ left: 20, right: 20 }}>
-                  <XAxis type="number" tick={{ fontSize: 11 }} />
-                  <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={120} />
-                  <Tooltip />
-                  <Bar dataKey="ventas" fill="#0284c7" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            {topProducts.length === 0 ? (
+              <div className="h-64 flex flex-col items-center justify-center text-center p-6 bg-neutral-50/50 rounded-lg border border-dashed border-neutral-200 mt-2">
+                <Package className="w-8 h-8 text-neutral-300 mb-2" />
+                <p className="text-xs font-semibold text-neutral-700">Sin productos vendidos</p>
+                <p className="text-[11px] text-neutral-400 mt-1 max-w-xs">
+                  No se registran ventas para la sucursal o depósito seleccionado en los últimos 30 días.
+                </p>
+              </div>
+            ) : (
+              <div className="h-64 mt-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={topProducts} layout="vertical" margin={{ left: 20, right: 20 }}>
+                    <XAxis type="number" tick={{ fontSize: 11 }} />
+                    <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={120} />
+                    <Tooltip />
+                    <Bar dataKey="ventas" fill="#0284c7" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </Card>
         );
+      }
 
-      case 'WIDGET_CXC_AGING':
+      case 'WIDGET_CXC_AGING': {
+        const cxcDistribution = summaryData?.cxcSummary?.cxcDistribution || [];
+        const hasCxC = cxcDistribution.some((d) => d.value > 0);
         return (
           <Card title="Antigüedad de Saldos (CxC)" subtitle="Monto por cobrar según días de vencimiento ($ USD)">
             {renderWidgetControls(item, index)}
-            <div className="h-64 flex items-center justify-center">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={cxcData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={4}
-                    dataKey="value"
-                  >
-                    {cxcData.map((entry, idx) => (
-                      <Cell key={`cell-${idx}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-3 mt-2 text-xs">
-              {cxcData.map((d, idx) => (
-                <div key={idx} className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.color }} />
-                  <span className="text-neutral-600">{d.name}:</span>
-                  <span className="font-semibold text-neutral-900">{formatMoneyUSD(d.value)}</span>
+            {!hasCxC ? (
+              <div className="h-64 flex flex-col items-center justify-center text-center p-6 bg-neutral-50/50 rounded-lg border border-dashed border-neutral-200 mt-2">
+                <CreditCard className="w-8 h-8 text-neutral-300 mb-2" />
+                <p className="text-xs font-semibold text-neutral-700">Sin cuentas por cobrar pendientes</p>
+                <p className="text-[11px] text-neutral-400 mt-1 max-w-xs">
+                  Todos los clientes están al día o no existen documentos de crédito registrados.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="h-56 flex items-center justify-center">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={cxcDistribution}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={80}
+                        paddingAngle={4}
+                        dataKey="value"
+                      >
+                        {cxcDistribution.map((entry, idx) => (
+                          <Cell key={`cell-${idx}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
-              ))}
-            </div>
+                <div className="flex flex-wrap items-center justify-center gap-3 mt-2 text-xs">
+                  {cxcDistribution.map((d, idx) => (
+                    <div key={idx} className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.color }} />
+                      <span className="text-neutral-600">{d.name}:</span>
+                      <span className="font-semibold text-neutral-900">{formatMoneyUSD(d.value)}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </Card>
         );
+      }
 
-      case 'WIDGET_SALES_TREND':
+      case 'WIDGET_SALES_TREND': {
+        const trend = summaryData?.weeklySalesTrend || [];
+        const totalTrendSales = trend.reduce((sum, d) => sum + d.ventas, 0);
         return (
-          <Card title="Tendencia Semanal de Ventas" subtitle="Monto facturado en USD por día de la semana">
+          <Card
+            title="Tendencia Semanal de Ventas"
+            subtitle={`Monto facturado en USD en los últimos 7 días (Total: ${formatMoneyUSD(totalTrendSales)})`}
+          >
             {renderWidgetControls(item, index)}
             <div className="h-64 mt-2">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={weeklySalesTrend} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <BarChart data={trend} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="day" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
@@ -602,8 +868,10 @@ export const DynamicDashboard: React.FC = () => {
             </div>
           </Card>
         );
+      }
 
-      case 'WIDGET_CRITICAL_STOCK_TABLE':
+      case 'WIDGET_CRITICAL_STOCK_TABLE': {
+        const items = summaryData?.criticalStock?.items || [];
         return (
           <Card title="Detalle de Productos en Stock Crítico" subtitle="Monitoreo operativo para reposición o traslados">
             {renderWidgetControls(item, index)}
@@ -620,27 +888,41 @@ export const DynamicDashboard: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-100">
-                  {criticalStockItems.map((prod, idx) => (
-                    <tr key={idx} className="hover:bg-neutral-50/50">
-                      <td className="py-2.5 px-3 font-mono font-medium text-neutral-700">{prod.sku}</td>
-                      <td className="py-2.5 px-3 font-medium text-neutral-900">{prod.name}</td>
-                      <td className="py-2.5 px-3 text-neutral-600">{prod.warehouse}</td>
-                      <td className="py-2.5 px-3 text-right font-bold text-red-600">{prod.stock}</td>
-                      <td className="py-2.5 px-3 text-right text-neutral-600">{prod.min}</td>
-                      <td className="py-2.5 px-3 text-center">
-                        <Badge variant="danger">Bajo Mínimo</Badge>
+                  {items.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-xs text-neutral-400">
+                        <CheckCircle2 className="w-6 h-6 text-emerald-500 mx-auto mb-1.5" />
+                        <span className="font-semibold text-neutral-700">Niveles de inventario óptimos</span>
+                        <p className="text-[11px] text-neutral-400 mt-0.5">
+                          No existen productos por debajo de la existencia mínima requerida.
+                        </p>
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    items.map((prod, idx) => (
+                      <tr key={idx} className="hover:bg-neutral-50/50">
+                        <td className="py-2.5 px-3 font-mono font-medium text-neutral-700">{prod.sku}</td>
+                        <td className="py-2.5 px-3 font-medium text-neutral-900">{prod.name}</td>
+                        <td className="py-2.5 px-3 text-neutral-600">{prod.warehouse}</td>
+                        <td className="py-2.5 px-3 text-right font-bold text-red-600">{prod.stock}</td>
+                        <td className="py-2.5 px-3 text-right text-neutral-600">{prod.min}</td>
+                        <td className="py-2.5 px-3 text-center">
+                          <Badge variant="danger">Bajo Mínimo</Badge>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
           </Card>
         );
+      }
 
-      case 'WIDGET_RECENT_ACTIVITY':
+      case 'WIDGET_RECENT_ACTIVITY': {
+        const transactions = summaryData?.recentTransactions || [];
         return (
-          <Card title="Últimas Operaciones Fiscales Emitidas" subtitle="Facturación en tiempo real del turno activo">
+          <Card title="Últimas Operaciones Fiscales Emitidas" subtitle="Facturación en tiempo real del entorno seleccionado">
             {renderWidgetControls(item, index)}
             <div className="overflow-x-auto mt-2">
               <table className="w-full text-left text-xs border-collapse">
@@ -654,22 +936,39 @@ export const DynamicDashboard: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-100">
-                  {recentTransactions.map((tx, idx) => (
-                    <tr key={idx} className="hover:bg-neutral-50/50">
-                      <td className="py-2.5 px-3 font-mono font-bold text-neutral-900">{tx.number}</td>
-                      <td className="py-2.5 px-3 text-neutral-500 font-mono">{tx.time}</td>
-                      <td className="py-2.5 px-3 text-neutral-700 font-medium">{tx.customer}</td>
-                      <td className="py-2.5 px-3 text-right font-bold text-neutral-900">{formatMoneyUSD(Number(tx.amount))}</td>
-                      <td className="py-2.5 px-3 text-center">
-                        <Badge variant="success">EMITIDA</Badge>
+                  {transactions.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-xs text-neutral-400">
+                        <Inbox className="w-6 h-6 text-neutral-300 mx-auto mb-1.5" />
+                        <span className="font-semibold text-neutral-700">Sin operaciones fiscales</span>
+                        <p className="text-[11px] text-neutral-400 mt-0.5">
+                          No se han emitido facturas en esta sucursal o depósito durante la jornada.
+                        </p>
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    transactions.map((tx, idx) => (
+                      <tr key={idx} className="hover:bg-neutral-50/50">
+                        <td className="py-2.5 px-3 font-mono font-bold text-neutral-900">{tx.number}</td>
+                        <td className="py-2.5 px-3 text-neutral-500 font-mono">{tx.time}</td>
+                        <td className="py-2.5 px-3 text-neutral-700 font-medium">{tx.customer}</td>
+                        <td className="py-2.5 px-3 text-right font-bold text-neutral-900">
+                          {formatMoneyUSD(Number(tx.amount))}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <Badge variant={tx.status === 'ANNULLED' ? 'danger' : 'success'}>
+                            {tx.status}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
           </Card>
         );
+      }
 
       default:
         return (
@@ -683,68 +982,6 @@ export const DynamicDashboard: React.FC = () => {
     }
   };
 
-  // Controles de edición superpuestos en cada widget
-  const renderWidgetControls = (item: DashboardWidgetItem, index: number) => {
-    if (!isEditMode) return null;
-
-    return (
-      <div className="flex items-center justify-between pb-3 mb-3 border-b border-sky-100 bg-sky-50/60 -mx-4 -mt-4 p-2.5 rounded-t-lg">
-        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-sky-800">
-          <Layers className="w-3.5 h-3.5" />
-          <span>Posición #{index + 1} ({item.colSpan === 1 ? '1 col' : item.colSpan === 2 ? '2 cols' : 'Ancho completo'})</span>
-        </div>
-
-        <div className="flex items-center gap-1">
-          {/* Mover hacia atrás */}
-          <button
-            type="button"
-            disabled={index === 0}
-            onClick={() => handleMoveLeft(index)}
-            className="p-1 rounded text-neutral-600 hover:text-sky-700 hover:bg-sky-100 disabled:opacity-30 disabled:pointer-events-none"
-            title="Mover antes"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Mover hacia adelante */}
-          <button
-            type="button"
-            disabled={index === activeWidgets.length - 1}
-            onClick={() => handleMoveRight(index)}
-            className="p-1 rounded text-neutral-600 hover:text-sky-700 hover:bg-sky-100 disabled:opacity-30 disabled:pointer-events-none"
-            title="Mover después"
-          >
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Cambiar tamaño */}
-          <button
-            type="button"
-            onClick={() => handleToggleColSpan(item.instanceId)}
-            className="p-1 rounded text-neutral-600 hover:text-sky-700 hover:bg-sky-100"
-            title="Alternar ancho del widget (1 col / 2 cols / 4 cols)"
-          >
-            {item.colSpan === 4 ? (
-              <Minimize2 className="w-3.5 h-3.5" />
-            ) : (
-              <Maximize2 className="w-3.5 h-3.5" />
-            )}
-          </button>
-
-          {/* Eliminar widget */}
-          <button
-            type="button"
-            onClick={() => handleRemoveWidget(item.instanceId)}
-            className="p-1 rounded text-red-600 hover:text-red-700 hover:bg-red-100"
-            title="Remover widget"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="flex flex-col gap-6">
       {/* Header del Dashboard */}
@@ -752,27 +989,69 @@ export const DynamicDashboard: React.FC = () => {
         <div>
           <h1 className="text-xl font-bold text-neutral-900 tracking-tight">Dashboard Dinámico</h1>
           <p className="text-xs text-neutral-500 mt-0.5">
-            Métricas operativas y financieras en tiempo real según las sucursales autorizadas
+            Métricas operativas y financieras en tiempo real según el entorno operativo autorizado
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
           {/* Selector de Sucursal Autorizada */}
-          <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-lg px-3 py-1.5 shadow-sm text-xs w-full sm:w-auto">
+          <div
+            className={`flex items-center gap-2 bg-white border border-neutral-200 rounded-lg px-3 py-1.5 shadow-sm text-xs w-full sm:w-auto ${
+              isBranchLocked ? 'opacity-85 bg-neutral-50' : ''
+            } hidden`}
+          >
             <Building2 className="w-4 h-4 text-sky-600 shrink-0" />
             <span className="text-neutral-500 font-medium shrink-0">Sucursal:</span>
             <select
               value={selectedBranch}
+              disabled={isBranchLocked}
               onChange={(e) => handleBranchChange(e.target.value)}
-              className="bg-transparent font-semibold text-neutral-900 focus:outline-none cursor-pointer w-full"
+              className={`bg-transparent font-semibold text-neutral-900 focus:outline-none w-full ${
+                isBranchLocked ? 'cursor-not-allowed' : 'cursor-pointer'
+              }`}
             >
-              <option value="ALL">Consolidado (Todas las autorizadas)</option>
+              {isSuper && <option value="ALL">Consolidado (Todas las autorizadas)</option>}
               {branches.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.name} ({b.code})
                 </option>
               ))}
             </select>
+            {isBranchLocked && (
+              <span title="Sucursal asignada por perfil (Sin autorización para cambiar)">
+                <Lock className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+              </span>
+            )}
+          </div>
+
+          {/* Selector de Depósito / Almacén Autorizado */}
+          <div
+            className={`flex items-center gap-2 bg-white border border-neutral-200 rounded-lg px-3 py-1.5 shadow-sm text-xs w-full sm:w-auto ${
+              isWarehouseLocked ? 'opacity-85 bg-neutral-50' : ''
+            } hidden`}
+          >
+            <Warehouse className="w-4 h-4 text-sky-600 shrink-0" />
+            <span className="text-neutral-500 font-medium shrink-0">Depósito:</span>
+            <select
+              value={selectedWarehouse}
+              disabled={isWarehouseLocked}
+              onChange={(e) => handleWarehouseChange(e.target.value)}
+              className={`bg-transparent font-semibold text-neutral-900 focus:outline-none w-full ${
+                isWarehouseLocked ? 'cursor-not-allowed' : 'cursor-pointer'
+              }`}
+            >
+              {(isSuper || canSwitchWarehouse) && <option value="ALL">Todos los depósitos</option>}
+              {availableWarehouses.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name} ({w.code})
+                </option>
+              ))}
+            </select>
+            {isWarehouseLocked && (
+              <span title="Depósito asignado por perfil (Sin autorización para cambiar)">
+                <Lock className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+              </span>
+            )}
           </div>
 
           {/* Botones de Personalización */}
@@ -859,22 +1138,32 @@ export const DynamicDashboard: React.FC = () => {
 
       {/* MODAL / DRAWER CATÁLOGO DE WIDGETS */}
       {isCatalogOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/50 p-4">
-          <div className="bg-white rounded-lg shadow-xl border border-neutral-200 w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="p-4 border-b border-neutral-200 flex items-center justify-between bg-neutral-50">
-              <div className="flex items-center gap-2">
-                <Layers className="w-4 h-4 text-sky-600" />
-                <h3 className="text-sm font-bold text-neutral-900">Catálogo de Widgets Disponibles</h3>
+        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="relative w-full max-w-2xl max-h-[92vh] bg-white rounded-lg border border-neutral-200 shadow-2xl flex flex-col overflow-hidden z-10 my-auto">
+            {/* Header del Modal */}
+            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="p-1.5 bg-neutral-100 text-neutral-700 rounded-lg shrink-0">
+                  <Layers className="w-5 h-5 text-neutral-700" />
+                </div>
+                <div className="truncate">
+                  <h3 className="text-sm font-semibold text-neutral-900 truncate">Catálogo de Widgets Disponibles</h3>
+                  <p className="text-xs text-neutral-500">Selecciona componentes para agregar a tu panel de control</p>
+                </div>
               </div>
+
               <button
+                type="button"
                 onClick={() => setIsCatalogOpen(false)}
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg"
+                className="text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 p-1.5 rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-neutral-400 cursor-pointer"
+                title="Cerrar modal (Esc)"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-4 overflow-y-auto space-y-4">
+            {/* Scrollable Body */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
               <p className="text-xs text-neutral-500">
                 Selecciona los widgets que deseas agregar a tu panel de control. Podrás organizarlos y ajustar sus dimensiones libremente.
               </p>
@@ -927,7 +1216,8 @@ export const DynamicDashboard: React.FC = () => {
               </div>
             </div>
 
-            <div className="p-4 border-t border-neutral-200 bg-neutral-50 flex justify-end">
+            {/* Pinned Footer */}
+            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
               <Button variant="outline" size="sm" onClick={() => setIsCatalogOpen(false)}>
                 Cerrar Catálogo
               </Button>

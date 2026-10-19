@@ -38,48 +38,6 @@ interface AgingItem {
   days90Plus: number;
 }
 
-const DEMO_PAYABLES_AGING: AgingItem[] = [
-  {
-    payableId: 'p1',
-    branchId: 'b1',
-    branchName: 'Sucursal Principal Caracas',
-    supplierId: 's1',
-    supplierRif: 'J-30555666-0',
-    supplierName: 'ALIMENTOS POLAR COMERCIAL C.A.',
-    invoiceNumber: 'FACT-POLAR-9812',
-    invoiceDate: '2026-09-14',
-    dueDate: '2026-09-29',
-    daysOverdue: 0,
-    amountTotal: 1254.80,
-    amountPaid: 0.00,
-    amountBalance: 1254.80,
-    currentDue: 1254.80,
-    days1_30: 0,
-    days31_60: 0,
-    days61_90: 0,
-    days90Plus: 0,
-  },
-  {
-    payableId: 'p2',
-    branchId: 'b1',
-    branchName: 'Sucursal Principal Caracas',
-    supplierId: 's2',
-    supplierRif: 'J-00033322-1',
-    supplierName: 'MONDELEZ VENEZUELA C.A.',
-    invoiceNumber: 'FACT-MDLZ-4410',
-    invoiceDate: '2026-08-15',
-    dueDate: '2026-09-14',
-    daysOverdue: 15,
-    amountTotal: 1740.00,
-    amountPaid: 500.00,
-    amountBalance: 1240.00,
-    currentDue: 0,
-    days1_30: 1240.00,
-    days31_60: 0,
-    days61_90: 0,
-    days90Plus: 0,
-  },
-];
 
 export const PayablesAgingView: React.FC = () => {
   const navigate = useNavigate();
@@ -117,25 +75,29 @@ export const PayablesAgingView: React.FC = () => {
           }
         );
       } else {
-        fallbackDemo();
+        setItems([]);
+        setTotals({
+          current: 0,
+          days1_30: 0,
+          days31_60: 0,
+          days61_90: 0,
+          days90Plus: 0,
+          grandTotal: 0,
+        });
       }
     } catch {
-      fallbackDemo();
+      setItems([]);
+      setTotals({
+        current: 0,
+        days1_30: 0,
+        days31_60: 0,
+        days61_90: 0,
+        days90Plus: 0,
+        grandTotal: 0,
+      });
     } finally {
       setLoading(false);
     }
-  };
-
-  const fallbackDemo = () => {
-    setItems(DEMO_PAYABLES_AGING);
-    setTotals({
-      current: 1254.80,
-      days1_30: 1240.00,
-      days31_60: 0,
-      days61_90: 0,
-      days90Plus: 0,
-      grandTotal: 2494.80,
-    });
   };
 
   useEffect(() => {

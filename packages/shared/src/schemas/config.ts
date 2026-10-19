@@ -32,6 +32,9 @@ export const branchSchema = z.object({
 
 export type BranchInput = z.infer<typeof branchSchema>;
 
+export const updateBranchSchema = branchSchema.partial();
+export type UpdateBranchInput = z.infer<typeof updateBranchSchema>;
+
 // ==========================================
 // 3. Depósitos / Almacenes (Warehouses)
 // ==========================================
@@ -45,6 +48,9 @@ export const warehouseSchema = z.object({
 
 export type WarehouseInput = z.infer<typeof warehouseSchema>;
 
+export const updateWarehouseSchema = warehouseSchema.partial();
+export type UpdateWarehouseInput = z.infer<typeof updateWarehouseSchema>;
+
 // ==========================================
 // 4. Reglas de Negocio (Business Rules)
 // ==========================================
@@ -54,8 +60,12 @@ export const updateBusinessRulesSchema = z.object({
   requireApprovalDiscount: z.boolean().default(true),
   maxDiscountAllowed: z.number().min(0).max(100).default(10.0),
   posInvoiceMode: z.enum(['normal_printer', 'fiscal_printer', 'electronic']).default('normal_printer'),
+  salesInvoiceMode: z.enum(['fiscal_printer', 'free_form', 'no_fiscal']).default('free_form'),
   taxAffectsFinalPrice: z.boolean().default(true),
   enforceCreditLimit: z.boolean().default(true),
+  requireApprovalCreditExceeded: z.boolean().default(true),
+  allowNegativeStock: z.boolean().default(true),
+  requireApprovalNegativeStock: z.boolean().default(true),
   retentionPeriodYears: z.number().int().min(5, 'El período mínimo de auditoría fiscal es de 5 años').default(5),
 });
 
@@ -135,3 +145,29 @@ export interface AuditLogEntry {
   userAgent?: string | null;
   createdAt: string;
 }
+
+// ==========================================
+// 7. Gestión de Usuarios y Permisos
+// ==========================================
+export const createUserSchema = z.object({
+  username: z.string().min(3, 'El nombre de usuario debe tener al menos 3 caracteres').max(50),
+  email: z.string().email('Correo electrónico no válido'),
+  password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres').optional(),
+  fullName: z.string().min(2, 'El nombre completo es requerido').max(100),
+  roleId: z.string().min(1, 'El rol es requerido'),
+  is2faEnabled: z.boolean().default(false),
+  isActive: z.boolean().default(true),
+  allBranches: z.boolean().default(true),
+  canSwitchWarehouses: z.boolean().default(true),
+  branchIds: z.array(z.string()).optional(),
+  warehouseIds: z.array(z.string()).optional(),
+  warehouseByBranch: z.record(z.string(), z.string()).optional(),
+});
+
+export const updateUserSchema = createUserSchema.partial().extend({
+  password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres').optional().or(z.literal('')),
+});
+
+export type CreateUserInput = z.infer<typeof createUserSchema>;
+export type UpdateUserInput = z.infer<typeof updateUserSchema>;
+

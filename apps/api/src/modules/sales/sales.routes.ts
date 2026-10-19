@@ -9,6 +9,8 @@ import {
 import { SalesService } from './sales.service';
 import { authenticate, AppEnv } from '../../middleware/auth';
 import { authorize } from '../../middleware/rbac';
+import { generateQuotationPDF, generateDeliveryNotePDF } from '../reports/reports-pdf';
+import { ReportsService } from '../reports/reports.service';
 
 export const salesRouter = new Hono<AppEnv>();
 
@@ -41,6 +43,36 @@ salesRouter.get('/quotations/:id', authenticate, authorize('sales', 'read'), asy
     return c.json({ success: true, data: quotation });
   } catch (error: any) {
     return c.json({ success: false, error: { code: 'QUOTATION_FETCH_FAILED', message: error.message } }, 500);
+  }
+});
+
+salesRouter.get('/quotations/:id/pdf', authenticate, authorize('sales', 'read'), async (c) => {
+  const user = c.get('user');
+  const quotationId = c.req.param('id')!;
+
+  try {
+    const quotation = await SalesService.getQuotationById(user.companyId, quotationId);
+    if (!quotation) {
+      return c.json({ success: false, error: { code: 'QUOTATION_NOT_FOUND', message: 'Cotización no encontrada' } }, 404);
+    }
+
+    const [company, userName] = await Promise.all([
+      ReportsService.getCompanyPdfInfo(user.companyId),
+      ReportsService.getUserFullName(user.sub),
+    ]);
+
+    const pdfBuffer = await generateQuotationPDF({
+      company,
+      quotation,
+      userName,
+    });
+
+    c.header('Content-Type', 'application/pdf');
+    c.header('Content-Disposition', `inline; filename="cotizacion_${quotation.quotationNumber}.pdf"`);
+    return c.body(new Uint8Array(pdfBuffer));
+  } catch (error: any) {
+    console.error('[Quotation PDF Error]', error);
+    return c.json({ success: false, error: { code: 'QUOTATION_PDF_FAILED', message: error.message } }, 500);
   }
 });
 
@@ -107,6 +139,36 @@ salesRouter.get('/deliveries/:id', authenticate, authorize('sales', 'read'), asy
   }
 });
 
+salesRouter.get('/deliveries/:id/pdf', authenticate, authorize('sales', 'read'), async (c) => {
+  const user = c.get('user');
+  const deliveryId = c.req.param('id')!;
+
+  try {
+    const delivery = await SalesService.getDeliveryNoteById(user.companyId, deliveryId);
+    if (!delivery) {
+      return c.json({ success: false, error: { code: 'DELIVERY_NOTE_NOT_FOUND', message: 'Nota de entrega no encontrada' } }, 404);
+    }
+
+    const [company, userName] = await Promise.all([
+      ReportsService.getCompanyPdfInfo(user.companyId),
+      ReportsService.getUserFullName(user.sub),
+    ]);
+
+    const pdfBuffer = await generateDeliveryNotePDF({
+      company,
+      delivery,
+      userName,
+    });
+
+    c.header('Content-Type', 'application/pdf');
+    c.header('Content-Disposition', `inline; filename="nota_entrega_${delivery.deliveryNumber}.pdf"`);
+    return c.body(new Uint8Array(pdfBuffer));
+  } catch (error: any) {
+    console.error('[Delivery Note PDF Error]', error);
+    return c.json({ success: false, error: { code: 'DELIVERY_NOTE_PDF_FAILED', message: error.message } }, 500);
+  }
+});
+
 salesRouter.post(
   '/deliveries',
   authenticate,
@@ -126,8 +188,44 @@ salesRouter.post(
 );
 
 // ==========================================
+// Configuración y Datos de Facturación
+// ==========================================
+
+salesRouter.get(
+  '/next-invoice-number',
+  authenticate,
+  authorize('sales', 'read'),
+  async (c) => {
+    const user = c.get('user');
+    try {
+      const data = await SalesService.getNextInvoiceNumber(user.companyId);
+      return c.json({ success: true, data });
+    } catch (error: any) {
+      return c.json({ success: false, error: { code: 'NEXT_INVOICE_NUMBER_FAILED', message: error.message } }, 500);
+    }
+  }
+);
+
+salesRouter.get(
+  '/customer-credit/:customerId',
+  authenticate,
+  authorize('sales', 'read'),
+  async (c) => {
+    const user = c.get('user');
+    const customerId = c.req.param('customerId')!;
+    try {
+      const data = await SalesService.getCustomerCredit(user.companyId, customerId);
+      return c.json({ success: true, data });
+    } catch (error: any) {
+      return c.json({ success: false, error: { code: 'CUSTOMER_CREDIT_FETCH_FAILED', message: error.message } }, 500);
+    }
+  }
+);
+
+// ==========================================
 // Conversión a Facturación de Ventas (CxC)
 // ==========================================
+
 
 salesRouter.post(
   '/quotations/to-invoice',

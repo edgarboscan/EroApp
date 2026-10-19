@@ -40,10 +40,45 @@ authRouter.post('/2fa/verify', zValidator('json', verify2faSchema), async (c) =>
   }
 });
 
+// POST /api/auth/change-password
+authRouter.post('/change-password', async (c) => {
+  try {
+    const body = await c.req.json();
+    const result = await AuthService.changePassword(body);
+    return c.json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    return c.json({
+      success: false,
+      error: { code: 'CHANGE_PASSWORD_FAILED', message: error.message },
+    }, 400);
+  }
+});
+
+// POST /api/auth/recover-password
+authRouter.post('/recover-password', async (c) => {
+  try {
+    const body = await c.req.json();
+    const result = await AuthService.recoverPassword(body);
+    return c.json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    return c.json({
+      success: false,
+      error: { code: 'RECOVER_PASSWORD_FAILED', message: error.message },
+    }, 400);
+  }
+});
+
 // GET /api/auth/branches - Obtiene las sucursales y depósitos disponibles para el usuario
 authRouter.get('/branches', authenticate, async (c) => {
   const user = c.get('user');
-  const branches = await AuthService.getBranches(user.companyId);
+  const all = c.req.query('all') === 'true';
+  const branches = await AuthService.getBranches(user.companyId, user, { all });
   return c.json({
     success: true,
     data: branches,

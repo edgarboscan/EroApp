@@ -259,4 +259,53 @@ export class ReceivablesService {
       };
     });
   }
+
+  /**
+   * Obtiene los datos detallados de un cobro realizado para emisión de Recibo Oficial de Cobranza
+   */
+  static async getCollectionById(companyId: string, paymentId: string) {
+    const rows = await query<any>(
+      `SELECT sp.*, si.invoice_number, si.total_amount_usd as invoice_total_usd,
+              c.name as customer_name, CONCAT(c.doc_type, '-', c.doc_number) as customer_rif,
+              c.phone as customer_phone, c.address as customer_address,
+              r.amount_total, r.amount_paid as current_amount_paid,
+              COALESCE(bnk.name, ba.description) as bank_name
+       FROM sales_payments sp
+       INNER JOIN sales_invoices si ON sp.invoice_id = si.id
+       INNER JOIN customers c ON si.customer_id = c.id
+       INNER JOIN branches b ON si.branch_id = b.id
+       LEFT JOIN receivables r ON r.invoice_id = si.id
+       LEFT JOIN bank_movements bm ON bm.reference_number = sp.reference_number AND bm.movement_type = 'DEPOSIT'
+       LEFT JOIN bank_accounts ba ON bm.account_id = ba.id
+       LEFT JOIN banks bnk ON ba.bank_id = bnk.id
+       WHERE sp.id = ? AND b.company_id = ?`,
+      [paymentId, companyId]
+    );
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    const row = rows[0];
+    const remainingBalance = row.amount_total ? Math.max(0, Number(row.amount_total) - Number(row.current_amount_paid)) : 0;
+
+    return {
+      receiptNumber: `REC-${row.id.slice(0, 8).toUpperCase()}`,
+      date: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
+      customerName: row.customer_name,
+      customerRif: row.customer_rif,
+      customerPhone: row.customer_phone || undefined,
+      customerAddress: row.customer_address || undefined,
+      invoiceNumber: row.invoice_number || `FAC-${row.invoice_id.slice(0, 8)}`,
+      invoiceTotalUSD: Number(row.invoice_total_usd || row.amount_total || 0),
+      amountPaidUSD: Number(row.amount_usd || 0),
+      amountPaidVES: Number(row.amount_ves || 0),
+      remainingBalanceUSD: Number(remainingBalance.toFixed(2)),
+      paymentMethod: row.method,
+      referenceNumber: row.reference_number || undefined,
+      bankName: row.bank_name || undefined,
+      notes: undefined,
+      exchangeRate: Number(row.exchange_rate || 1),
+    };
+  }
 }

@@ -8,15 +8,15 @@ import { authorize } from '../../middleware/rbac';
 export const customersRouter = new Hono<AppEnv>();
 
 // GET /api/customers - Listado de clientes con saldos pendientes
-customersRouter.get('/', authenticate, authorize('customers', 'read'), async (c) => {
+customersRouter.get('/', authenticate, authorize(['customers.read', 'pos.read', 'sales.read']), async (c) => {
   const user = c.get('user');
-  const search = c.req.query('q');
+  const search = c.req.query('q') || c.req.query('search');
   const data = await CustomersService.getCustomers(user.companyId, search);
   return c.json({ success: true, data });
 });
 
 // GET /api/customers/:id - Detalle de un cliente
-customersRouter.get('/:id', authenticate, authorize('customers', 'read'), async (c) => {
+customersRouter.get('/:id', authenticate, authorize(['customers.read', 'pos.read', 'sales.read']), async (c) => {
   const user = c.get('user');
   const id = c.req.param('id');
   const data = await CustomersService.getCustomerById(id!, user.companyId);
@@ -24,7 +24,7 @@ customersRouter.get('/:id', authenticate, authorize('customers', 'read'), async 
 });
 
 // POST /api/customers - Crear nuevo cliente
-customersRouter.post('/', authenticate, authorize('customers', 'create'), zValidator('json', customerSchema), async (c) => {
+customersRouter.post('/', authenticate, authorize(['customers.create', 'pos.create', 'sales.create']), zValidator('json', customerSchema), async (c) => {
   const user = c.get('user');
   const body = c.req.valid('json');
   const data = await CustomersService.createCustomer(user.companyId, body);

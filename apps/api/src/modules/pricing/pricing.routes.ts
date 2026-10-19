@@ -4,6 +4,8 @@ import { bulkPriceUpdateRequestSchema, taxRateSchema, applyTaxRateChangeSchema }
 import { PricingService } from './pricing.service';
 import { authenticate, AppEnv } from '../../middleware/auth';
 import { authorize } from '../../middleware/rbac';
+import { generatePriceChangeReportPDF } from '../reports/reports-pdf';
+import { ReportsService } from '../reports/reports.service';
 
 export const pricingRouter = new Hono<AppEnv>();
 
@@ -28,6 +30,37 @@ pricingRouter.get('/bulk-update/batches', authenticate, authorize('pricing', 're
   const user = c.get('user');
   const result = await PricingService.getBatches(user.companyId);
   return c.json({ success: true, data: result });
+});
+
+// GET /api/pricing/bulk-update/batches/:id/pdf - Descarga / Visualización de Reporte de Lote de Precios
+pricingRouter.get('/bulk-update/batches/:id/pdf', authenticate, authorize('pricing', 'read'), async (c) => {
+  const user = c.get('user');
+  const batchId = c.req.param('id')!;
+
+  try {
+    const batch = await PricingService.getBatchById(user.companyId, batchId);
+    if (!batch) {
+      return c.json({ success: false, error: { code: 'BATCH_NOT_FOUND', message: 'Lote de precios no encontrado' } }, 404);
+    }
+
+    const [company, userName] = await Promise.all([
+      ReportsService.getCompanyPdfInfo(user.companyId),
+      ReportsService.getUserFullName(user.sub),
+    ]);
+
+    const pdfBuffer = await generatePriceChangeReportPDF({
+      company,
+      batch,
+      userName,
+    });
+
+    c.header('Content-Type', 'application/pdf');
+    c.header('Content-Disposition', `inline; filename="lote_precios_${batch.batchNumber}.pdf"`);
+    return c.body(new Uint8Array(pdfBuffer));
+  } catch (error: any) {
+    console.error('[Price Batch PDF Error]', error);
+    return c.json({ success: false, error: { code: 'PRICE_BATCH_PDF_FAILED', message: error.message } }, 500);
+  }
 });
 
 // GET /api/pricing/tax-rates - Listado de tasas

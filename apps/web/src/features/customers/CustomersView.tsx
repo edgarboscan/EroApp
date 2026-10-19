@@ -18,6 +18,7 @@ import {
   Phone,
   Mail,
 } from 'lucide-react';
+import { useEscapeKey } from '../../components/ui/Modal';
 
 interface Customer {
   id: string;
@@ -36,65 +37,16 @@ interface Customer {
   pendingInvoicesCount: number;
 }
 
-const DEMO_CUSTOMERS: Customer[] = [
-  {
-    id: 'c1',
-    docType: 'J',
-    docNumber: '30999888-1',
-    name: 'INVERSIONES EL SOL DE CARACAS C.A.',
-    address: 'Av. Libertador, Edif. Centro, Chacao, Caracas',
-    phone: '+58 212 999 1122',
-    email: 'contacto@elsolcaracas.com',
-    isSpecialTaxpayer: true,
-    creditEnabled: true,
-    creditLimit: 5000.0,
-    paymentTermsDays: 30,
-    isActive: true,
-    currentBalance: 1420.50,
-    pendingInvoicesCount: 2,
-  },
-  {
-    id: 'c2',
-    docType: 'J',
-    docNumber: '40111222-3',
-    name: 'SUMINISTROS Y ALIMENTOS INDUSTRIALES S.A.',
-    address: 'Zona Industrial Los Ruices, Galpón 4',
-    phone: '+58 212 234 5678',
-    email: 'compras@suministrosve.com',
-    isSpecialTaxpayer: false,
-    creditEnabled: true,
-    creditLimit: 2500.0,
-    paymentTermsDays: 15,
-    isActive: true,
-    currentBalance: 850.00,
-    pendingInvoicesCount: 1,
-  },
-  {
-    id: 'c3',
-    docType: 'V',
-    docNumber: '18456789',
-    name: 'CARLOS ALBERTO MENDOZA',
-    address: 'Urb. Santa Mónica, Calle Rómulo Gallegos',
-    phone: '+58 414 123 4567',
-    email: 'cmendoza@gmail.com',
-    isSpecialTaxpayer: false,
-    creditEnabled: false,
-    creditLimit: 0,
-    paymentTermsDays: 0,
-    isActive: true,
-    currentBalance: 0,
-    pendingInvoicesCount: 0,
-  },
-];
-
 export const CustomersView: React.FC = () => {
   const navigate = useNavigate();
   const token = useAuthStore((state) => state.token);
 
-  const [customers, setCustomers] = useState<Customer[]>(DEMO_CUSTOMERS);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  useEscapeKey(() => setIsModalOpen(false), isModalOpen);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -120,9 +72,11 @@ export const CustomersView: React.FC = () => {
       const json = await response.json();
       if (json.success && Array.isArray(json.data)) {
         setCustomers(json.data);
+      } else {
+        setCustomers([]);
       }
     } catch {
-      // Fallback a demo data
+      setCustomers([]);
     } finally {
       setIsLoading(false);
     }
@@ -157,18 +111,8 @@ export const CustomersView: React.FC = () => {
       } else {
         throw new Error(json.error?.message || 'Error al guardar cliente');
       }
-    } catch {
-      // Demo local fallback
-      const newCustomer: Customer = {
-        id: `demo-${Date.now()}`,
-        ...formData,
-        isActive: true,
-        currentBalance: 0,
-        pendingInvoicesCount: 0,
-      };
-      setCustomers([newCustomer, ...customers]);
-      toast.success('Cliente registrado (modo local)');
-      setIsModalOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || 'Error al guardar cliente');
     }
   };
 
@@ -311,128 +255,141 @@ export const CustomersView: React.FC = () => {
 
       {/* Modal Nuevo Cliente */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-lg w-full p-6 shadow-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-neutral-200 pb-3">
-              <h3 className="text-base font-bold text-neutral-900">Registrar Nuevo Cliente</h3>
+        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-lg w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
+            {/* Header (Pinned) */}
+            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
+              <div className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-sky-600" />
+                <div>
+                  <h3 className="text-base font-bold text-neutral-900">Registrar Nuevo Cliente</h3>
+                  <p className="text-[11px] text-neutral-500">Gestión de cartera, datos fiscales y condiciones de pago</p>
+                </div>
+              </div>
               <button
+                type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="text-neutral-400 hover:text-neutral-700"
+                title="Cerrar modal (Esc)"
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateCustomer} className="space-y-4">
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-neutral-700 block mb-1">
-                    Tipo Doc
-                  </label>
-                  <select
-                    value={formData.docType}
-                    onChange={(e) => setFormData({ ...formData, docType: e.target.value as any })}
-                    className="w-full h-10 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500 font-mono"
-                  >
-                    <option value="J">J - Jurídico</option>
-                    <option value="V">V - Venezolano</option>
-                    <option value="E">E - Extranjero</option>
-                    <option value="G">G - Gobierno</option>
-                    <option value="P">P - Pasaporte</option>
-                  </select>
-                </div>
-                <div className="col-span-2">
-                  <Input
-                    label="Número de Documento / RIF"
-                    placeholder="Ej: 309998881"
-                    value={formData.docNumber}
-                    onChange={(e) => setFormData({ ...formData, docNumber: e.target.value })}
-                    required
-                  />
-                </div>
-              </div>
-
-              <Input
-                label="Nombre / Razón Social"
-                placeholder="Ej: Distribuidora El Sol C.A."
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required
-              />
-
-              <div className="grid grid-cols-2 gap-3">
-                <Input
-                  label="Teléfono"
-                  placeholder="+58 212 999 8888"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                />
-                <Input
-                  label="Correo Electrónico"
-                  type="email"
-                  placeholder="cliente@empresa.com"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                />
-              </div>
-
-              <Input
-                label="Dirección Fiscal"
-                placeholder="Av. Principal, Edificio, Ciudad"
-                value={formData.address}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              />
-
-              {/* Parámetros Fiscales y Comerciales */}
-              <div className="p-3 rounded-lg border border-neutral-200 bg-neutral-50 space-y-3 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-neutral-800">
-                    ¿Es Contribuyente Especial SENIAT?
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={formData.isSpecialTaxpayer}
-                    onChange={(e) => setFormData({ ...formData, isSpecialTaxpayer: e.target.checked })}
-                    className="w-4 h-4 text-sky-600 rounded cursor-pointer"
-                  />
-                </div>
-
-                <div className="border-t border-neutral-200 pt-2 flex items-center justify-between">
+            <form id="customerForm" onSubmit={handleCreateCustomer} className="flex-1 flex flex-col overflow-hidden">
+              {/* Body (Scrollable) */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
+                <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <span className="font-semibold text-neutral-800 block">
-                      ¿Habilitar Línea de Crédito?
-                    </span>
-                    <span className="text-[11px] text-neutral-500">
-                      Permite emitir facturas en estado pendiente (CxC)
-                    </span>
+                    <label className="text-xs font-semibold text-neutral-700 block mb-1">
+                      Tipo Doc
+                    </label>
+                    <select
+                      value={formData.docType}
+                      onChange={(e) => setFormData({ ...formData, docType: e.target.value as any })}
+                      className="w-full h-10 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500 font-mono"
+                    >
+                      <option value="J">J - Jurídico</option>
+                      <option value="V">V - Venezolano</option>
+                      <option value="E">E - Extranjero</option>
+                      <option value="G">G - Gobierno</option>
+                      <option value="P">P - Pasaporte</option>
+                    </select>
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={formData.creditEnabled}
-                    onChange={(e) => setFormData({ ...formData, creditEnabled: e.target.checked })}
-                    className="w-4 h-4 text-sky-600 rounded cursor-pointer"
+                  <div className="col-span-2">
+                    <Input
+                      label="Número de Documento / RIF"
+                      placeholder="Ej: 309998881"
+                      value={formData.docNumber}
+                      onChange={(e) => setFormData({ ...formData, docNumber: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <Input
+                  label="Nombre / Razón Social"
+                  placeholder="Ej: Distribuidora El Sol C.A."
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
+                />
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    label="Teléfono"
+                    placeholder="+58 212 999 8888"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  />
+                  <Input
+                    label="Correo Electrónico"
+                    type="email"
+                    placeholder="cliente@empresa.com"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   />
                 </div>
 
-                {formData.creditEnabled && (
-                  <div className="grid grid-cols-2 gap-3 pt-2">
-                    <Input
-                      label="Límite de Crédito ($ USD)"
-                      type="number"
-                      value={formData.creditLimit}
-                      onChange={(e) => setFormData({ ...formData, creditLimit: Number(e.target.value) })}
-                    />
-                    <Input
-                      label="Plazo de Pago (Días)"
-                      type="number"
-                      value={formData.paymentTermsDays}
-                      onChange={(e) => setFormData({ ...formData, paymentTermsDays: Number(e.target.value) })}
+                <Input
+                  label="Dirección Fiscal"
+                  placeholder="Av. Principal, Edificio, Ciudad"
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                />
+
+                {/* Parámetros Fiscales y Comerciales */}
+                <div className="p-3 rounded-lg border border-neutral-200 bg-neutral-50 space-y-3 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-neutral-800">
+                      ¿Es Contribuyente Especial SENIAT?
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={formData.isSpecialTaxpayer}
+                      onChange={(e) => setFormData({ ...formData, isSpecialTaxpayer: e.target.checked })}
+                      className="w-4 h-4 text-sky-600 rounded cursor-pointer"
                     />
                   </div>
-                )}
+
+                  <div className="border-t border-neutral-200 pt-2 flex items-center justify-between">
+                    <div>
+                      <span className="font-semibold text-neutral-800 block">
+                        ¿Habilitar Línea de Crédito?
+                      </span>
+                      <span className="text-[11px] text-neutral-500">
+                        Permite emitir facturas en estado pendiente (CxC)
+                      </span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={formData.creditEnabled}
+                      onChange={(e) => setFormData({ ...formData, creditEnabled: e.target.checked })}
+                      className="w-4 h-4 text-sky-600 rounded cursor-pointer"
+                    />
+                  </div>
+
+                  {formData.creditEnabled && (
+                    <div className="grid grid-cols-2 gap-3 pt-2">
+                      <Input
+                        label="Límite de Crédito ($ USD)"
+                        type="number"
+                        value={formData.creditLimit}
+                        onChange={(e) => setFormData({ ...formData, creditLimit: Number(e.target.value) })}
+                      />
+                      <Input
+                        label="Plazo de Pago (Días)"
+                        type="number"
+                        value={formData.paymentTermsDays}
+                        onChange={(e) => setFormData({ ...formData, paymentTermsDays: Number(e.target.value) })}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-neutral-100">
+              {/* Footer (Pinned) */}
+              <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
                 <Button variant="outline" size="sm" type="button" onClick={() => setIsModalOpen(false)}>
                   Cancelar
                 </Button>

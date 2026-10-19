@@ -8,6 +8,8 @@ import {
 import { PurchasesService } from './purchases.service';
 import { authenticate, AppEnv } from '../../middleware/auth';
 import { authorize } from '../../middleware/rbac';
+import { generatePurchaseOrderPDF, generateGoodsReceiptPDF } from '../reports/reports-pdf';
+import { ReportsService } from '../reports/reports.service';
 
 export const purchasesRouter = new Hono<AppEnv>();
 
@@ -40,6 +42,36 @@ purchasesRouter.get('/orders/:id', authenticate, authorize('purchases', 'read'),
     return c.json({ success: true, data: order });
   } catch (error: any) {
     return c.json({ success: false, error: { code: 'ORDER_FETCH_FAILED', message: error.message } }, 500);
+  }
+});
+
+purchasesRouter.get('/orders/:id/pdf', authenticate, authorize('purchases', 'read'), async (c) => {
+  const user = c.get('user');
+  const orderId = c.req.param('id')!;
+
+  try {
+    const order = await PurchasesService.getOrderById(user.companyId, orderId);
+    if (!order) {
+      return c.json({ success: false, error: { code: 'ORDER_NOT_FOUND', message: 'Orden de compra no encontrada' } }, 404);
+    }
+
+    const [company, userName] = await Promise.all([
+      ReportsService.getCompanyPdfInfo(user.companyId),
+      ReportsService.getUserFullName(user.sub),
+    ]);
+
+    const pdfBuffer = await generatePurchaseOrderPDF({
+      company,
+      order,
+      userName,
+    });
+
+    c.header('Content-Type', 'application/pdf');
+    c.header('Content-Disposition', `inline; filename="orden_compra_${order.orderNumber}.pdf"`);
+    return c.body(new Uint8Array(pdfBuffer));
+  } catch (error: any) {
+    console.error('[Purchase Order PDF Error]', error);
+    return c.json({ success: false, error: { code: 'ORDER_PDF_FAILED', message: error.message } }, 500);
   }
 });
 
@@ -114,6 +146,36 @@ purchasesRouter.get('/receipts/:id', authenticate, authorize('purchases', 'read'
     return c.json({ success: true, data: receipt });
   } catch (error: any) {
     return c.json({ success: false, error: { code: 'RECEIPT_FETCH_FAILED', message: error.message } }, 500);
+  }
+});
+
+purchasesRouter.get('/receipts/:id/pdf', authenticate, authorize('purchases', 'read'), async (c) => {
+  const user = c.get('user');
+  const receiptId = c.req.param('id')!;
+
+  try {
+    const receipt = await PurchasesService.getReceiptById(user.companyId, receiptId);
+    if (!receipt) {
+      return c.json({ success: false, error: { code: 'RECEIPT_NOT_FOUND', message: 'Recepción no encontrada' } }, 404);
+    }
+
+    const [company, userName] = await Promise.all([
+      ReportsService.getCompanyPdfInfo(user.companyId),
+      ReportsService.getUserFullName(user.sub),
+    ]);
+
+    const pdfBuffer = await generateGoodsReceiptPDF({
+      company,
+      receipt,
+      userName,
+    });
+
+    c.header('Content-Type', 'application/pdf');
+    c.header('Content-Disposition', `inline; filename="recepcion_${receipt.receiptNumber}.pdf"`);
+    return c.body(new Uint8Array(pdfBuffer));
+  } catch (error: any) {
+    console.error('[Goods Receipt PDF Error]', error);
+    return c.json({ success: false, error: { code: 'RECEIPT_PDF_FAILED', message: error.message } }, 500);
   }
 });
 

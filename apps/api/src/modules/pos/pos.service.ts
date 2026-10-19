@@ -7,8 +7,10 @@ import {
   GenerateFiscalReportInput,
   CashRegisterInput,
   PaymentMethodInput,
+  isSuperAdminRole,
 } from '@ero/shared';
 import crypto from 'crypto';
+import argon2 from 'argon2';
 
 export class POSService {
   /**
@@ -113,10 +115,12 @@ export class POSService {
     const rows = await query<any>(
       `SELECT cr.id, cr.branch_id, b.name as branch_name, cr.code, cr.name, cr.fiscal_printer_serial,
               cr.invoice_mode, cr.default_bank_account_ves_id, cr.default_bank_account_usd_id, cr.is_active,
+              cr.warehouse_id, w.name as warehouse_name,
               (SELECT cs.id FROM cash_shifts cs WHERE cs.cash_register_id = cr.id AND cs.status = 'OPEN' LIMIT 1) as active_shift_id,
               (SELECT u.full_name FROM cash_shifts cs INNER JOIN users u ON cs.user_id = u.id WHERE cs.cash_register_id = cr.id AND cs.status = 'OPEN' LIMIT 1) as active_cashier_name
        FROM cash_registers cr
        INNER JOIN branches b ON cr.branch_id = b.id
+       LEFT JOIN warehouses w ON cr.warehouse_id = w.id
        WHERE b.company_id = ? ${branchFilter} AND cr.is_active = 1
        ORDER BY b.name ASC, cr.code ASC`,
       params
@@ -126,6 +130,8 @@ export class POSService {
       id: r.id,
       branchId: r.branch_id,
       branchName: r.branch_name,
+      warehouseId: r.warehouse_id || null,
+      warehouseName: r.warehouse_name || null,
       code: r.code,
       name: r.name,
       fiscalPrinterSerial: r.fiscal_printer_serial,
@@ -140,7 +146,7 @@ export class POSService {
   }
 
   /**
-   * Crea una nueva caja registradora configurando si es fiscal o no
+   * Crea una nueva caja registradora configurando si es fiscal o no y su almacén asociado
    */
   static async createCashRegister(companyId: string, input: CashRegisterInput) {
     // Validar sucursal
@@ -171,8 +177,8 @@ export class POSService {
     await query(
       `INSERT INTO cash_registers (
         id, branch_id, code, name, fiscal_printer_serial, invoice_mode,
-        default_bank_account_ves_id, default_bank_account_usd_id, is_active
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+        default_bank_account_ves_id, default_bank_account_usd_id, warehouse_id, is_active
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
       [
         id,
         input.branchId,
@@ -182,12 +188,14 @@ export class POSService {
         invoiceMode,
         input.defaultBankAccountIdVES || null,
         input.defaultBankAccountIdUSD || null,
+        input.warehouseId || null,
       ]
     );
 
     return {
       id,
       branchId: input.branchId,
+      warehouseId: input.warehouseId || null,
       code,
       name,
       fiscalPrinterSerial,
@@ -199,7 +207,7 @@ export class POSService {
   }
 
   /**
-   * Actualiza una caja registradora existente (nombre, código, modo fiscal, serial)
+   * Actualiza una caja registradora existente (nombre, código, almacén, modo fiscal, serial)
    */
   static async updateCashRegister(companyId: string, id: string, input: Partial<CashRegisterInput>) {
     const rows = await query<any>(
@@ -227,19 +235,24 @@ export class POSService {
     const defaultBankAccountIdUSD = input.defaultBankAccountIdUSD !== undefined
       ? (input.defaultBankAccountIdUSD || null)
       : current.default_bank_account_usd_id;
+    const warehouseId = input.warehouseId !== undefined
+      ? (input.warehouseId || null)
+      : current.warehouse_id;
     const isActive = input.isActive !== undefined ? (input.isActive ? 1 : 0) : current.is_active;
 
     await query(
       `UPDATE cash_registers
        SET code = ?, name = ?, fiscal_printer_serial = ?, invoice_mode = ?,
-           default_bank_account_ves_id = ?, default_bank_account_usd_id = ?, is_active = ?
+           default_bank_account_ves_id = ?, default_bank_account_usd_id = ?,
+           warehouse_id = ?, is_active = ?
        WHERE id = ?`,
-      [code, name, fiscalPrinterSerial, invoiceMode, defaultBankAccountIdVES, defaultBankAccountIdUSD, isActive, id]
+      [code, name, fiscalPrinterSerial, invoiceMode, defaultBankAccountIdVES, defaultBankAccountIdUSD, warehouseId, isActive, id]
     );
 
     return {
       id,
       branchId: current.branch_id,
+      warehouseId,
       code,
       name,
       fiscalPrinterSerial,
@@ -251,7 +264,7 @@ export class POSService {
   }
 
   /**
-   * Desactiva / Elimina una caja registradora
+   * Elimina una caja registradora: físicamente si no tiene historial, o lógicamente si posee turnos/reportes
    */
   static async deleteCashRegister(companyId: string, id: string) {
     const rows = await query<any>(
@@ -269,11 +282,37 @@ export class POSService {
       [id]
     );
     if (openShifts.length > 0) {
-      throw new Error('No se puede desactivar la caja porque posee un turno actualmente abierto');
+      throw new Error('No se puede eliminar ni desactivar la caja porque posee un turno actualmente abierto');
     }
 
-    await query(`UPDATE cash_registers SET is_active = 0 WHERE id = ?`, [id]);
-    return { success: true };
+    const [shifts] = await query<any>(
+      `SELECT COUNT(*) as cnt FROM cash_shifts WHERE cash_register_id = ?`,
+      [id]
+    );
+    const [reports] = await query<any>(
+      `SELECT COUNT(*) as cnt FROM fiscal_reports WHERE cash_register_id = ?`,
+      [id]
+    );
+
+    const hasHistory = (shifts?.cnt || 0) > 0 || (reports?.cnt || 0) > 0;
+
+    if (hasHistory) {
+      await query(`UPDATE cash_registers SET is_active = 0 WHERE id = ?`, [id]);
+      return {
+        success: true,
+        deleted: false,
+        deactivated: true,
+        message: 'La caja registradora posee turnos o reportes fiscales históricos. Ha sido desactivada lógicamente para preservar los registros de auditoría fiscal.',
+      };
+    } else {
+      await query(`DELETE FROM cash_registers WHERE id = ?`, [id]);
+      return {
+        success: true,
+        deleted: true,
+        deactivated: false,
+        message: 'Caja registradora eliminada permanentemente del sistema.',
+      };
+    }
   }
 
   /**
@@ -284,9 +323,11 @@ export class POSService {
       `SELECT cs.*, cr.code as cash_register_code, cr.name as cash_register_name,
               cr.fiscal_printer_serial, cr.invoice_mode,
               cr.default_bank_account_ves_id, cr.default_bank_account_usd_id,
+              cr.warehouse_id, w.name as warehouse_name,
               u.full_name as cashier_name
        FROM cash_shifts cs
        INNER JOIN cash_registers cr ON cs.cash_register_id = cr.id
+       LEFT JOIN warehouses w ON cr.warehouse_id = w.id
        INNER JOIN branches b ON cs.branch_id = b.id
        INNER JOIN users u ON cs.user_id = u.id
        WHERE b.company_id = ? AND cs.branch_id = ? AND cs.user_id = ? AND cs.status = 'OPEN'
@@ -385,6 +426,8 @@ export class POSService {
       invoiceMode: shift.invoice_mode,
       defaultBankAccountIdVES: shift.default_bank_account_ves_id || null,
       defaultBankAccountIdUSD: shift.default_bank_account_usd_id || null,
+      warehouseId: shift.warehouse_id || null,
+      warehouseName: shift.warehouse_name || null,
       branchId: shift.branch_id,
       userId: shift.user_id,
       cashierName: shift.cashier_name,
@@ -414,6 +457,113 @@ export class POSService {
       },
       status: shift.status,
       notes: shift.notes,
+    };
+  }
+
+  /**
+   * Obtiene los datos detallados de un turno de caja para comprobante / acta de arqueo
+   */
+  static async getShiftById(companyId: string, shiftId: string) {
+    const rows = await query<any>(
+      `SELECT cs.*, cr.code as cash_register_code, cr.name as cash_register_name,
+              cr.fiscal_printer_serial, cr.invoice_mode,
+              b.name as branch_name,
+              u.full_name as cashier_name,
+              b_ves.name as deposit_bank_ves_name,
+              ba_ves.account_number as deposit_account_ves_number,
+              b_usd.name as deposit_bank_usd_name,
+              ba_usd.account_number as deposit_account_usd_number
+       FROM cash_shifts cs
+       INNER JOIN cash_registers cr ON cs.cash_register_id = cr.id
+       INNER JOIN branches b ON cs.branch_id = b.id
+       INNER JOIN users u ON cs.user_id = u.id
+       LEFT JOIN bank_accounts ba_ves ON cs.deposit_bank_account_ves_id = ba_ves.id
+       LEFT JOIN banks b_ves ON ba_ves.bank_id = b_ves.id
+       LEFT JOIN bank_accounts ba_usd ON cs.deposit_bank_account_usd_id = ba_usd.id
+       LEFT JOIN banks b_usd ON ba_usd.bank_id = b_usd.id
+       WHERE b.company_id = ? AND cs.id = ?`,
+      [companyId, shiftId]
+    );
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    const shift = rows[0];
+
+    const paymentRows = await query<any>(
+      `SELECT sp.method, SUM(sp.amount_usd) as total_usd, SUM(sp.amount_ves) as total_ves
+       FROM sales_invoices si
+       INNER JOIN sales_payments sp ON si.id = sp.invoice_id
+       WHERE si.shift_id = ? AND si.status <> 'ANNULLED'
+       GROUP BY sp.method`,
+      [shift.id]
+    );
+
+    let cashSalesUSD = 0;
+    let cashSalesVES = 0;
+    let pagomovilVES = 0;
+    let debitVES = 0;
+    let creditVES = 0;
+    let zelleUSD = 0;
+    let otherVES = 0;
+    let otherUSD = 0;
+
+    for (const p of paymentRows) {
+      const u = Number(p.total_usd || 0);
+      const v = Number(p.total_ves || 0);
+      const m = String(p.method || '').toUpperCase().trim();
+
+      if (m === 'CASH_USD') cashSalesUSD += u;
+      else if (m === 'CASH_VES') cashSalesVES += v;
+      else if (m === 'PAGO_MOVIL') pagomovilVES += v;
+      else if (m === 'DEBIT_CARD') debitVES += v;
+      else if (m === 'CREDIT_CARD') creditVES += v;
+      else if (m === 'ZELLE') zelleUSD += u;
+      else {
+        otherVES += v;
+        otherUSD += u;
+      }
+    }
+
+    const totalCollectedVES = Number((cashSalesVES + pagomovilVES + debitVES + creditVES + otherVES).toFixed(2));
+    const totalCollectedUSD = Number((cashSalesUSD + zelleUSD + otherUSD).toFixed(2));
+
+    return {
+      id: shift.id,
+      cashRegisterCode: shift.cash_register_code,
+      cashRegisterName: shift.cash_register_name,
+      cashierName: shift.cashier_name,
+      branchName: shift.branch_name,
+      openedAt: shift.opened_at ? new Date(shift.opened_at).toISOString() : new Date().toISOString(),
+      closedAt: shift.closed_at ? new Date(shift.closed_at).toISOString() : undefined,
+      initialCashUSD: Number(shift.initial_cash_usd || 0),
+      initialCashVES: Number(shift.initial_cash_ves || 0),
+      finalCashUSDExpected: Number(shift.final_cash_usd_expected || 0),
+      finalCashVESExpected: Number(shift.final_cash_ves_expected || 0),
+      finalCashUSDCounted: Number(shift.final_cash_usd_counted || 0),
+      finalCashVESCounted: Number(shift.final_cash_ves_counted || 0),
+      differenceUSD: Number(shift.difference_usd || 0),
+      differenceVES: Number(shift.difference_ves || 0),
+      notes: shift.notes || undefined,
+      depositBankVESName: shift.deposit_bank_ves_name || undefined,
+      depositAmountVES: Number(shift.deposit_amount_ves || 0),
+      depositReferenceVES: shift.deposit_reference_ves || undefined,
+      depositBankUSDName: shift.deposit_bank_usd_name || undefined,
+      depositAmountUSD: Number(shift.deposit_amount_usd || 0),
+      depositReferenceUSD: shift.deposit_reference_usd || undefined,
+      summary: {
+        cashSalesUSD,
+        cashSalesVES,
+        pagomovilVES,
+        debitVES,
+        creditVES,
+        zelleUSD,
+        otherVES,
+        otherUSD,
+        totalCollectedVES,
+        totalCollectedUSD,
+      },
     };
   }
 
@@ -724,20 +874,171 @@ export class POSService {
   }
 
   /**
+   * Valida credenciales de supervisor o auto-autorización para operaciones especiales en POS (ej. stock en negativo)
+   */
+  static async authorizeSupervisor(
+    companyId: string,
+    currentUserId: string,
+    input: {
+      usernameOrEmail?: string;
+      password?: string;
+      reason?: string;
+      selfAuthorize?: boolean;
+    }
+  ) {
+    if (input.selfAuthorize) {
+      const currentUserRows = await query<any>(
+        `SELECT u.id, u.full_name, r.name as role_name
+         FROM users u
+         INNER JOIN roles r ON u.role_id = r.id
+         WHERE u.id = ? AND u.company_id = ? AND u.is_active = 1`,
+        [currentUserId, companyId]
+      );
+      if (currentUserRows.length === 0) {
+        throw new Error('Usuario actual no encontrado o inactivo');
+      }
+      const currentUser = currentUserRows[0];
+      if (isSuperAdminRole(currentUser.role_name)) {
+        return {
+          authorized: true,
+          approvedByUserId: currentUser.id,
+          approvedByUserName: currentUser.full_name,
+          roleName: currentUser.role_name,
+        };
+      }
+      const permRows = await query<any>(
+        `SELECT p.action FROM role_permissions rp
+         INNER JOIN permissions p ON rp.permission_id = p.id
+         WHERE rp.role_id = (SELECT role_id FROM users WHERE id = ?)
+           AND ((p.module = 'sales' AND p.action IN ('approve', 'create')) OR (p.module = 'inventory' AND p.action IN ('approve', 'update')) OR (p.module = 'pos' AND p.action IN ('approve', 'close_register')))`,
+        [currentUserId]
+      );
+      if (permRows.length > 0) {
+        return {
+          authorized: true,
+          approvedByUserId: currentUser.id,
+          approvedByUserName: currentUser.full_name,
+          roleName: currentUser.role_name,
+        };
+      }
+      throw new Error('El usuario actual no posee permisos suficientes de supervisor');
+    }
+
+    if (!input.usernameOrEmail?.trim() || !input.password) {
+      throw new Error('Debe ingresar usuario o correo y contraseña del supervisor');
+    }
+
+    const usernameOrEmail = input.usernameOrEmail.trim();
+    const supervisorRows = await query<any>(
+      `SELECT u.id, u.full_name, u.password_hash, u.is_active, r.name as role_name
+       FROM users u
+       INNER JOIN roles r ON u.role_id = r.id
+       WHERE (u.username = ? OR u.email = ?) AND u.company_id = ? AND u.is_active = 1`,
+      [usernameOrEmail, usernameOrEmail, companyId]
+    );
+
+    if (supervisorRows.length === 0) {
+      throw new Error('Credenciales de supervisor inválidas o usuario inactivo');
+    }
+
+    const supervisor = supervisorRows[0];
+    let isPasswordValid = false;
+    try {
+      if (supervisor.password_hash.startsWith('$argon2')) {
+        isPasswordValid = await argon2.verify(supervisor.password_hash, input.password);
+      } else {
+        isPasswordValid = supervisor.password_hash === input.password;
+      }
+    } catch {
+      isPasswordValid = false;
+    }
+
+    if (!isPasswordValid) {
+      throw new Error('Contraseña del supervisor incorrecta');
+    }
+
+    if (!isSuperAdminRole(supervisor.role_name)) {
+      const permRows = await query<any>(
+        `SELECT p.action FROM role_permissions rp
+         INNER JOIN permissions p ON rp.permission_id = p.id
+         WHERE rp.role_id = (SELECT role_id FROM users WHERE id = ?)
+           AND ((p.module = 'sales' AND p.action IN ('approve', 'create')) OR (p.module = 'inventory' AND p.action IN ('approve', 'update')) OR (p.module = 'pos' AND p.action IN ('approve', 'close_register')))`,
+        [supervisor.id]
+      );
+      if (permRows.length === 0) {
+        throw new Error('El usuario supervisor indicado no cuenta con rango suficiente para autorizar operaciones');
+      }
+    }
+
+    return {
+      authorized: true,
+      approvedByUserId: supervisor.id,
+      approvedByUserName: supervisor.full_name,
+      roleName: supervisor.role_name,
+    };
+  }
+
+  /**
    * Procesa una venta en POS, actualiza inventario y genera el ticket fiscal homologado
    */
   static async processSale(companyId: string, userId: string, payload: POSSaleSubmit) {
     return await withTransaction(async (conn) => {
-      // 1. Resolver turno activo
+      // 1. Resolver turno activo y almacén de la caja
       let activeShiftId: string | null = null;
+      let effectiveWarehouseId: string | null = payload.warehouseId || null;
+
       const [shiftRows]: any = await conn.query(
-        `SELECT id FROM cash_shifts 
-         WHERE branch_id = ? AND user_id = ? AND status = 'OPEN' 
+        `SELECT cs.id, cr.warehouse_id
+         FROM cash_shifts cs
+         INNER JOIN cash_registers cr ON cs.cash_register_id = cr.id
+         WHERE cs.branch_id = ? AND cs.user_id = ? AND cs.status = 'OPEN' 
          ORDER BY opened_at DESC LIMIT 1`,
         [payload.branchId, userId]
       );
       if (shiftRows && shiftRows.length > 0) {
         activeShiftId = shiftRows[0].id;
+        if (shiftRows[0].warehouse_id) {
+          effectiveWarehouseId = shiftRows[0].warehouse_id;
+        }
+      }
+
+      // Fallback a almacén predeterminado si aún no está asignado
+      if (!effectiveWarehouseId) {
+        const [defaultWh]: any = await conn.query(
+          `SELECT id FROM warehouses WHERE branch_id = ? AND is_active = 1 ORDER BY is_default DESC LIMIT 1`,
+          [payload.branchId]
+        );
+        if (defaultWh && defaultWh.length > 0) {
+          effectiveWarehouseId = defaultWh[0].id;
+        } else {
+          const [anyWh]: any = await conn.query(
+            `SELECT id FROM warehouses WHERE company_id = ? AND is_active = 1 ORDER BY is_default DESC LIMIT 1`,
+            [companyId]
+          );
+          if (anyWh && anyWh.length > 0) {
+            effectiveWarehouseId = anyWh[0].id;
+          }
+        }
+      }
+
+      // Validar reglas de negocio para stock negativo
+      const [rulesRows]: any = await conn.query(
+        `SELECT allow_negative_stock, require_approval_negative_stock FROM business_rules WHERE company_id = ? LIMIT 1`,
+        [companyId]
+      );
+      const allowNegativeStock = rulesRows && rulesRows.length > 0 ? Boolean(rulesRows[0].allow_negative_stock) : true;
+
+      if (!allowNegativeStock && effectiveWarehouseId) {
+        for (const item of payload.items) {
+          const [stockRow]: any = await conn.query(
+            `SELECT current_stock FROM product_stocks WHERE product_id = ? AND warehouse_id = ?`,
+            [item.productId, effectiveWarehouseId]
+          );
+          const available = Number(stockRow?.[0]?.current_stock || 0);
+          if (available < item.quantity) {
+            throw new Error(`Stock insuficiente en el almacén para el producto. Disponible: ${available}, Solicitado: ${item.quantity}. Las reglas de negocio no permiten existencias en negativo.`);
+          }
+        }
       }
 
       // 2. Resolver cliente
@@ -772,7 +1073,7 @@ export class POSService {
       const invoiceNumber = `FAC-${Date.now().toString().slice(-8)}`;
       const controlNumber = `00-${Date.now().toString().slice(-6)}`;
 
-      // 4. Insertar encabezado de factura con shift_id
+      // 4. Insertar encabezado de factura con shift_id y warehouse_id efectivo
       await conn.query(
         `INSERT INTO sales_invoices (
           id, branch_id, warehouse_id, customer_id, user_id, shift_id,
@@ -783,7 +1084,7 @@ export class POSService {
         [
           invoiceId,
           payload.branchId,
-          payload.warehouseId,
+          effectiveWarehouseId,
           customerId,
           userId,
           activeShiftId,
@@ -802,7 +1103,7 @@ export class POSService {
         ]
       );
 
-      // 5. Insertar renglones y descontar stock
+      // 5. Insertar renglones, descontar stock en el almacén de la caja y asentar en Kardex
       for (const item of payload.items) {
         await conn.query(
           `INSERT INTO sales_invoice_items (
@@ -823,13 +1124,35 @@ export class POSService {
           ]
         );
 
-        // Descontar inventario en el depósito correspondiente
-        await conn.query(
-          `UPDATE product_stocks 
-           SET current_stock = GREATEST(0, current_stock - ?)
-           WHERE product_id = ? AND warehouse_id = ?`,
-          [item.quantity, item.productId, payload.warehouseId]
-        );
+        if (effectiveWarehouseId) {
+          // Descontar inventario en el depósito correspondiente (permitiendo valores negativos según reglas)
+          await conn.query(
+            `INSERT INTO product_stocks (product_id, warehouse_id, current_stock, last_movement_at)
+             VALUES (?, ?, -?, CURRENT_TIMESTAMP())
+             ON DUPLICATE KEY UPDATE 
+               current_stock = current_stock - ?,
+               last_movement_at = CURRENT_TIMESTAMP()`,
+            [item.productId, effectiveWarehouseId, item.quantity, item.quantity]
+          );
+
+          // Registrar en Kardex de inventario
+          await conn.query(
+            `INSERT INTO inventory_movements (
+              id, branch_id, warehouse_id, product_id, user_id, movement_type,
+              quantity, unit_cost, reference_document, reason
+            ) VALUES (?, ?, ?, ?, ?, 'SALE', ?, 0.00, ?, ?)`,
+            [
+              crypto.randomUUID(),
+              payload.branchId,
+              effectiveWarehouseId,
+              item.productId,
+              userId,
+              item.quantity,
+              invoiceNumber,
+              `Venta POS Factura: ${invoiceNumber}`,
+            ]
+          );
+        }
       }
 
       // 6. Insertar métodos de pago
@@ -860,6 +1183,7 @@ export class POSService {
         invoiceNumber,
         controlNumber,
         shiftId: activeShiftId,
+        warehouseId: effectiveWarehouseId,
         customerDoc: `${payload.customerDocType}-${payload.customerDocNumber}`,
         customerName: payload.customerName,
         totalAmountUSD: payload.finalTotalAmount,
@@ -892,6 +1216,10 @@ export class POSService {
       }
 
       const register = regRows[0];
+
+      if (register.invoice_mode !== 'fiscal_printer' && !register.fiscal_printer_serial) {
+        throw new Error('La caja seleccionada no está configurada como fiscal y no admite la emisión de reportes fiscales X o Z');
+      }
 
       // 2. Determinar rango de facturas para este reporte
       let sqlInvoices = `

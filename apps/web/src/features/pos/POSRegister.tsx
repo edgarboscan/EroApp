@@ -25,14 +25,16 @@ import {
   ListChecks,
   Printer,
   SlidersHorizontal,
-  Settings2,
   ArrowLeftRight,
+  Edit2,
+  Warehouse,
+  ShieldCheck,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { showLeaveCartAlert, showClearCartAlert } from '../../lib/sweetalert';
 import { useAuthStore } from '../../stores/authStore';
 import { useExchangeRateStore } from '../../stores/exchangeRateStore';
 import { FiscalInvoiceModal, FiscalInvoiceTicketData } from './FiscalInvoiceModal';
-import { PaymentMethodsModal } from './PaymentMethodsModal';
 import {
   formatNumber,
   formatCurrency,
@@ -42,6 +44,7 @@ import {
   formatPercent,
   parseFormattedNumber,
   PaymentMethod,
+  isSuperAdminRole,
 } from '@ero/shared';
 
 interface ProductItem {
@@ -64,6 +67,8 @@ interface CartItem {
   subtotal: number;
   taxAmount: number;
   total: number;
+  isNegativeStockAuthorized?: boolean;
+  supervisorApprovedBy?: string;
 }
 
 interface PaymentEntry {
@@ -77,12 +82,6 @@ interface PaymentEntry {
   igtfAmountUSD: number;
   igtfAmountVES: number;
 }
-
-const DEFAULT_PRODUCTS: ProductItem[] = [
-  { id: 'p1', sku: 'HAR-PAN-01', name: 'Harina PAN Blanca 1Kg', priceUSD: 1.4, taxRatePercent: 0, barcode: '759101234567' },
-  { id: 'p2', sku: 'LEC-POL-01', name: 'Leche en Polvo Completa 1Kg', priceUSD: 9.2, taxRatePercent: 16, barcode: '759101234568' },
-  { id: 'p3', sku: 'DES-SET-06', name: 'Juego Destornilladores 6 Piezas', priceUSD: 14.5, taxRatePercent: 16, barcode: '759101234569' },
-];
 
 export const POSRegister: React.FC = () => {
   const navigate = useNavigate();
@@ -98,11 +97,38 @@ export const POSRegister: React.FC = () => {
     fetchRate();
   }, [fetchRate]);
 
-  const [products, setProducts] = useState<ProductItem[]>(DEFAULT_PRODUCTS);
+  const [products, setProducts] = useState<ProductItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [activeShift, setActiveShift] = useState<any>(null);
   const [loadingShift, setLoadingShift] = useState(false);
+
+  // Reglas de negocio (Stock negativo y autorizaciones)
+  const [businessRules, setBusinessRules] = useState<{
+    allowNegativeStock: boolean;
+    requireApprovalNegativeStock: boolean;
+  }>({
+    allowNegativeStock: true,
+    requireApprovalNegativeStock: true,
+  });
+
+  // Modal de Autorización de Supervisor para Stock en Negativo
+  interface SupervisorApprovalRequest {
+    productId: string;
+    productName: string;
+    sku: string;
+    availableStock: number;
+    targetQty: number;
+    deficit: number;
+    action: 'ADD' | 'UPDATE';
+  }
+  const [pendingStockApproval, setPendingStockApproval] = useState<SupervisorApprovalRequest | null>(null);
+  const [isSupervisorModalOpen, setIsSupervisorModalOpen] = useState(false);
+  const [supervisorUsername, setSupervisorUsername] = useState('');
+  const [supervisorPassword, setSupervisorPassword] = useState('');
+  const [supervisorNotes, setSupervisorNotes] = useState('');
+  const [isAuthorizingSupervisor, setIsAuthorizingSupervisor] = useState(false);
+  const [supervisorAuthError, setSupervisorAuthError] = useState<string | null>(null);
 
   // Cliente de la venta
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
@@ -136,7 +162,6 @@ export const POSRegister: React.FC = () => {
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
   const [currentMethod, setCurrentMethod] = useState<string>('CASH_USD');
   const [availablePaymentMethods, setAvailablePaymentMethods] = useState<PaymentMethod[]>([]);
-  const [isPaymentMethodsModalOpen, setIsPaymentMethodsModalOpen] = useState(false);
   const [paymentCurrencyMode, setPaymentCurrencyMode] = useState<'USD' | 'VES'>('USD');
   const [paymentAmountInput, setPaymentAmountInput] = useState<string>('');
   const [paymentRefInput, setPaymentRefInput] = useState<string>('');
@@ -147,6 +172,123 @@ export const POSRegister: React.FC = () => {
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
   const [showPrintPromptModal, setShowPrintPromptModal] = useState(false);
 
+  // Modal de captura / edición de referencia bancaria o lote
+  const [quickRefPrompt, setQuickRefPrompt] = useState<{
+    isOpen: boolean;
+    method: string;
+    methodName: string;
+    amountUSD: number;
+    amountVES: number;
+    isVES: boolean;
+    refValue: string;
+    isEditingPaymentIndex?: number;
+  }>({
+    isOpen: false,
+    method: '',
+    methodName: '',
+    amountUSD: 0,
+    amountVES: 0,
+    isVES: false,
+    refValue: '',
+  });
+
+  // Manejo global de tecla Escape para cancelar o cerrar modales activos
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (quickRefPrompt.isOpen) {
+          setQuickRefPrompt({
+            isOpen: false,
+            method: '',
+            methodName: '',
+            amountUSD: 0,
+            amountVES: 0,
+            isVES: false,
+            refValue: '',
+          });
+        } else if (showPrintPromptModal) {
+          setShowPrintPromptModal(false);
+        } else if (isNewCustomerModalOpen) {
+          setIsNewCustomerModalOpen(false);
+        } else if (isCartReviewModalOpen) {
+          setIsCartReviewModalOpen(false);
+        } else if (isInvoiceModalOpen) {
+          setIsInvoiceModalOpen(false);
+        } else if (isPaymentModalOpen) {
+          setIsPaymentModalOpen(false);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    quickRefPrompt.isOpen,
+    showPrintPromptModal,
+    isNewCustomerModalOpen,
+    isCartReviewModalOpen,
+    isInvoiceModalOpen,
+    isPaymentModalOpen,
+  ]);
+
+  // Guard de Navegación con SweetAlert: advertir al usuario si intenta cambiar de página con productos en el carrito
+  useEffect(() => {
+    if (cart.length === 0) return;
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+      return '';
+    };
+
+    const handleDocumentClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      const anchor = target?.closest('a');
+      if (!anchor) return;
+
+      const href = anchor.getAttribute('href');
+      if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+      if (anchor.target === '_blank') return;
+
+      const currentPath = window.location.pathname;
+      if (href !== currentPath && !href.startsWith(currentPath + '#')) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+
+        showLeaveCartAlert().then((confirmed) => {
+          if (confirmed) {
+            setCart([]);
+            if (href.startsWith('http://') || href.startsWith('https://')) {
+              window.location.href = href;
+            } else {
+              navigate(href);
+            }
+          }
+        });
+      }
+    };
+
+    const handlePopState = () => {
+      window.history.pushState(null, '', window.location.pathname);
+      showLeaveCartAlert().then((confirmed) => {
+        if (confirmed) {
+          setCart([]);
+          window.history.back();
+        }
+      });
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('click', handleDocumentClick, true);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('click', handleDocumentClick, true);
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [cart.length, navigate]);
+
   // Determinar si la caja activa opera con impresora fiscal
   const isFiscal = useMemo(() => {
     if (!activeShift) return false;
@@ -155,6 +297,7 @@ export const POSRegister: React.FC = () => {
 
   useEffect(() => {
     checkCurrentShift();
+    fetchBusinessRules();
     fetchProducts();
     fetchPaymentMethods();
   }, [activeBranchId]);
@@ -186,6 +329,24 @@ export const POSRegister: React.FC = () => {
     return () => clearTimeout(timer);
   }, [customerSearchQuery, token]);
 
+  const fetchBusinessRules = async () => {
+    try {
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const res = await fetch('/api/config/business-rules', { headers });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          setBusinessRules({
+            allowNegativeStock: json.data.allowNegativeStock !== undefined ? Boolean(json.data.allowNegativeStock) : true,
+            requireApprovalNegativeStock: json.data.requireApprovalNegativeStock !== undefined ? Boolean(json.data.requireApprovalNegativeStock) : true,
+          });
+        }
+      }
+    } catch {
+      // Usar defaults
+    }
+  };
+
   const checkCurrentShift = async () => {
     setLoadingShift(true);
     try {
@@ -196,32 +357,31 @@ export const POSRegister: React.FC = () => {
         const json = await res.json();
         if (json.success && json.data) {
           setActiveShift(json.data);
+          if (json.data.warehouseId) {
+            fetchProducts(json.data.warehouseId);
+          }
         } else {
           setActiveShift(null);
         }
+      } else {
+        setActiveShift(null);
       }
     } catch {
-      // Demo fallback: assume shift open for testing
-      setActiveShift({
-        id: 'shift-demo-01',
-        cashRegisterCode: 'CAJA-01',
-        cashRegisterName: 'Caja Principal Entrada',
-        cashierName: user?.fullName || 'Cajero Demo',
-        invoiceMode: 'fiscal_printer',
-        fiscalPrinterSerial: 'Z5A8812341',
-      });
+      setActiveShift(null);
     } finally {
       setLoadingShift(false);
     }
   };
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (warehouseIdOverride?: string) => {
     try {
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const res = await fetch('/api/inventory/products', { headers });
+      const targetWh = warehouseIdOverride || activeShift?.warehouseId || activeWarehouseId;
+      const queryParam = targetWh ? `?warehouseId=${encodeURIComponent(targetWh)}` : '';
+      const res = await fetch(`/api/inventory/products${queryParam}`, { headers });
       if (res.ok) {
         const json = await res.json();
-        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+        if (json.success && Array.isArray(json.data)) {
           const mapped: ProductItem[] = json.data.map((p: any) => {
             const rawTax = p.taxRate ?? p.tax_rate_percentage ?? p.tax_rate;
             const parsedTax = rawTax !== undefined && rawTax !== null ? parseFloat(rawTax) : 16.0;
@@ -232,17 +392,21 @@ export const POSRegister: React.FC = () => {
               id: p.id,
               sku: p.sku,
               name: p.name,
-              priceUSD: isNaN(price) || price <= 0 ? 1.0 : price,
+              priceUSD: isNaN(price) || price <= 0 ? 0 : price,
               taxRatePercent: isNaN(parsedTax) ? 16.0 : parsedTax,
               stock: isNaN(stock) ? 0 : stock,
               barcode: p.barcode,
             };
           });
           setProducts(mapped);
+        } else {
+          setProducts([]);
         }
+      } else {
+        setProducts([]);
       }
     } catch {
-      setProducts(DEFAULT_PRODUCTS);
+      setProducts([]);
     }
   };
 
@@ -252,24 +416,15 @@ export const POSRegister: React.FC = () => {
       const res = await fetch('/api/pos/payment-methods', { headers });
       if (res.ok) {
         const json = await res.json();
-        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+        if (json.success && Array.isArray(json.data)) {
           setAvailablePaymentMethods(json.data);
           return;
         }
       }
+      setAvailablePaymentMethods([]);
     } catch {
-      // fallback to standards below
+      setAvailablePaymentMethods([]);
     }
-    setAvailablePaymentMethods([
-      { id: '1', code: 'CASH_USD', name: 'Efectivo Divisas ($)', currency: 'USD', type: 'CASH', appliesIGTF: true, requiresReference: false, requiresBankAccount: false, isActive: true, displayOrder: 1 },
-      { id: '2', code: 'DEBIT_CARD', name: 'Punto de Venta / Débito (Bs)', currency: 'VES', type: 'CARD', appliesIGTF: false, requiresReference: true, requiresBankAccount: false, isActive: true, displayOrder: 2 },
-      { id: '3', code: 'CREDIT_CARD', name: 'Punto de Venta / Crédito (Bs)', currency: 'VES', type: 'CARD', appliesIGTF: false, requiresReference: true, requiresBankAccount: false, isActive: true, displayOrder: 3 },
-      { id: '4', code: 'PAGO_MOVIL', name: 'Pago Móvil (Bs)', currency: 'VES', type: 'ELECTRONIC', appliesIGTF: false, requiresReference: true, requiresBankAccount: false, isActive: true, displayOrder: 4 },
-      { id: '5', code: 'ZELLE', name: 'Zelle / Transferencia USD', currency: 'USD', type: 'ELECTRONIC', appliesIGTF: true, requiresReference: true, requiresBankAccount: false, isActive: true, displayOrder: 5 },
-      { id: '6', code: 'CASH_VES', name: 'Efectivo Bolívares (Bs)', currency: 'VES', type: 'CASH', appliesIGTF: false, requiresReference: false, requiresBankAccount: false, isActive: true, displayOrder: 6 },
-      { id: '7', code: 'BIOPAGO', name: 'Biopago BDV (Bs)', currency: 'VES', type: 'CARD', appliesIGTF: false, requiresReference: true, requiresBankAccount: false, isActive: true, displayOrder: 7 },
-      { id: '8', code: 'CASHEA', name: 'Cashea / Financiamiento', currency: 'USD', type: 'CREDIT', appliesIGTF: false, requiresReference: true, requiresBankAccount: false, isActive: true, displayOrder: 8 },
-    ]);
   };
 
   const handleSelectCustomer = (c: any) => {
@@ -361,57 +516,220 @@ export const POSRegister: React.FC = () => {
     );
   }, [products, searchTerm]);
 
-  // Manejo de Carrito
-  const addToCart = (product: ProductItem) => {
+  // Aplica la modificación al carrito registrando el estado de autorización si aplica
+  const applyCartItem = (
+    product: ProductItem,
+    newQuantity: number,
+    isAuthorized = false,
+    authorizedBy?: string
+  ) => {
     setCart((prev) => {
       const existing = prev.find((item) => item.productId === product.id);
+      if (newQuantity <= 0) {
+        return prev.filter((item) => item.productId !== product.id);
+      }
+      const subtotal = Number((newQuantity * product.priceUSD).toFixed(2));
+      const taxAmount = Number(((subtotal * product.taxRatePercent) / 100).toFixed(2));
+      const total = Number((subtotal + taxAmount).toFixed(2));
+
       if (existing) {
-        const updatedQty = existing.quantity + 1;
-        const subtotal = Number((updatedQty * product.priceUSD).toFixed(2));
-        const taxAmount = Number(((subtotal * product.taxRatePercent) / 100).toFixed(2));
-        const total = Number((subtotal + taxAmount).toFixed(2));
         return prev.map((item) =>
           item.productId === product.id
-            ? { ...item, quantity: updatedQty, subtotal, taxAmount, total }
+            ? {
+                ...item,
+                quantity: newQuantity,
+                subtotal,
+                taxAmount,
+                total,
+                isNegativeStockAuthorized: isAuthorized || item.isNegativeStockAuthorized,
+                supervisorApprovedBy: authorizedBy || item.supervisorApprovedBy,
+              }
             : item
         );
       }
-      const subtotal = Number(product.priceUSD.toFixed(2));
-      const taxAmount = Number(((subtotal * product.taxRatePercent) / 100).toFixed(2));
-      const total = Number((subtotal + taxAmount).toFixed(2));
+
       return [
         ...prev,
         {
           productId: product.id,
           sku: product.sku,
           name: product.name,
-          quantity: 1,
+          quantity: newQuantity,
           unitPrice: product.priceUSD,
           taxRatePercent: product.taxRatePercent,
           subtotal,
           taxAmount,
           total,
+          isNegativeStockAuthorized: isAuthorized,
+          supervisorApprovedBy: authorizedBy,
         },
       ];
     });
   };
 
+  // Manejo de Carrito con validación de stock y reglas de negocio
+  const addToCart = (product: ProductItem) => {
+    const existing = cart.find((item) => item.productId === product.id);
+    const currentQty = existing ? existing.quantity : 0;
+    const targetQty = currentQty + 1;
+    const availableStock = product.stock ?? 0;
+
+    // Validar si el producto no tiene existencia o la nueva cantidad excede el stock
+    if (targetQty > availableStock) {
+      if (!businessRules.allowNegativeStock) {
+        toast.error(
+          `El producto "${product.name}" no tiene existencia suficiente en almacén (Disponible: ${availableStock}, Solicitado: ${targetQty}). Las reglas de negocio no permiten ventas con existencia en negativo.`
+        );
+        return;
+      }
+
+      if (businessRules.requireApprovalNegativeStock) {
+        setPendingStockApproval({
+          productId: product.id,
+          productName: product.name,
+          sku: product.sku,
+          availableStock,
+          targetQty,
+          deficit: targetQty - availableStock,
+          action: existing ? 'UPDATE' : 'ADD',
+        });
+        setSupervisorAuthError(null);
+        setSupervisorUsername('');
+        setSupervisorPassword('');
+        setSupervisorNotes('');
+        setIsSupervisorModalOpen(true);
+        toast.warning(
+          `El producto "${product.name}" no tiene existencia suficiente (Disponible: ${availableStock}). Se requiere autorización de supervisor para continuar.`
+        );
+        return;
+      }
+
+      toast.warning(
+        `Atención: El producto "${product.name}" no tiene existencia suficiente (Disponible: ${availableStock}). Se registrará con existencia en negativo.`
+      );
+    }
+
+    applyCartItem(product, targetQty);
+  };
+
   const updateCartQty = (productId: string, delta: number) => {
-    setCart((prev) =>
-      prev
-        .map((item) => {
+    const existing = cart.find((item) => item.productId === productId);
+    if (!existing) return;
+
+    const targetQty = existing.quantity + delta;
+    if (targetQty <= 0) {
+      removeFromCart(productId);
+      return;
+    }
+
+    const product = products.find((p) => p.id === productId);
+    const availableStock = product?.stock ?? 0;
+
+    // Solo se valida stock si se está aumentando la cantidad
+    if (delta > 0 && targetQty > availableStock) {
+      if (!businessRules.allowNegativeStock) {
+        toast.error(
+          `Existencia insuficiente para "${existing.name}" en almacén (Disponible: ${availableStock}, Solicitado: ${targetQty}). Las reglas de negocio no permiten ventas con existencia en negativo.`
+        );
+        return;
+      }
+
+      if (businessRules.requireApprovalNegativeStock) {
+        setPendingStockApproval({
+          productId: existing.productId,
+          productName: existing.name,
+          sku: existing.sku,
+          availableStock,
+          targetQty,
+          deficit: targetQty - availableStock,
+          action: 'UPDATE',
+        });
+        setSupervisorAuthError(null);
+        setSupervisorUsername('');
+        setSupervisorPassword('');
+        setSupervisorNotes('');
+        setIsSupervisorModalOpen(true);
+        toast.warning(
+          `Modificación a cantidad ${targetQty} de "${existing.name}" dejará existencia en negativo (${availableStock - targetQty}). Se requiere autorización de supervisor.`
+        );
+        return;
+      }
+
+      toast.warning(
+        `Atención: Cantidad solicitada (${targetQty}) para "${existing.name}" excede la existencia disponible (${availableStock}).`
+      );
+    }
+
+    if (product) {
+      applyCartItem(product, targetQty);
+    } else {
+      setCart((prev) =>
+        prev.map((item) => {
           if (item.productId === productId) {
-            const updatedQty = item.quantity + delta;
-            if (updatedQty <= 0) return null;
-            const subtotal = Number((updatedQty * item.unitPrice).toFixed(2));
+            const subtotal = Number((targetQty * item.unitPrice).toFixed(2));
             const taxAmount = Number(((subtotal * item.taxRatePercent) / 100).toFixed(2));
             const total = Number((subtotal + taxAmount).toFixed(2));
-            return { ...item, quantity: updatedQty, subtotal, taxAmount, total };
+            return { ...item, quantity: targetQty, subtotal, taxAmount, total };
           }
           return item;
         })
-        .filter((item): item is CartItem => item !== null)
-    );
+      );
+    }
+  };
+
+  // Confirmar autorización de supervisor para stock negativo
+  const handleConfirmSupervisorApproval = async (selfAuth = false) => {
+    if (!pendingStockApproval) return;
+    if (!selfAuth && (!supervisorUsername.trim() || !supervisorPassword)) {
+      setSupervisorAuthError('Ingrese usuario o correo y contraseña del supervisor');
+      return;
+    }
+
+    setIsAuthorizingSupervisor(true);
+    setSupervisorAuthError(null);
+
+    try {
+      const res = await fetch('/api/pos/authorize-supervisor', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          selfAuthorize: selfAuth,
+          usernameOrEmail: selfAuth ? undefined : supervisorUsername.trim(),
+          password: selfAuth ? undefined : supervisorPassword,
+          reason: supervisorNotes.trim() || `Autorización de stock negativo para ${pendingStockApproval.productName}`,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error?.message || 'Autorización de supervisor rechazada');
+      }
+
+      const approverName = json.data?.approvedByUserName || 'Supervisor';
+      const product = products.find((p) => p.id === pendingStockApproval.productId) || {
+        id: pendingStockApproval.productId,
+        sku: pendingStockApproval.sku,
+        name: pendingStockApproval.productName,
+        priceUSD: cart.find((i) => i.productId === pendingStockApproval.productId)?.unitPrice || 0,
+        taxRatePercent: cart.find((i) => i.productId === pendingStockApproval.productId)?.taxRatePercent || 16,
+        stock: pendingStockApproval.availableStock,
+      };
+
+      applyCartItem(product, pendingStockApproval.targetQty, true, approverName);
+
+      toast.success(
+        `Venta con existencia en negativo aprobada por ${approverName} para "${pendingStockApproval.productName}"`
+      );
+      setIsSupervisorModalOpen(false);
+      setPendingStockApproval(null);
+    } catch (err: any) {
+      setSupervisorAuthError(err.message || 'Error al autorizar operación');
+    } finally {
+      setIsAuthorizingSupervisor(false);
+    }
   };
 
   const removeFromCart = (productId: string) => {
@@ -451,6 +769,102 @@ export const POSRegister: React.FC = () => {
   const remainingUSD = Math.max(0, Number((finalTotalUSD - totalPaidUSD).toFixed(2)));
   const remainingVES = Number((remainingUSD * exchangeRateBCV).toFixed(2));
 
+  // Verificar si un medio de pago requiere número de referencia bancaria o lote
+  const isMethodRequiringReference = (methodCode: string): boolean => {
+    const conf = availablePaymentMethods.find((m) => m.code === methodCode);
+    if (conf) {
+      return Boolean(conf.requiresReference);
+    }
+    return ['PAGO_MOVIL', 'DEBIT_CARD', 'CREDIT_CARD', 'TRANSFER', 'ZELLE'].includes(methodCode);
+  };
+
+  const getMethodName = (methodCode: string): string => {
+    const conf = availablePaymentMethods.find((m) => m.code === methodCode);
+    if (conf?.name) return conf.name;
+    switch (methodCode) {
+      case 'DEBIT_CARD':
+        return 'Punto Débito';
+      case 'CREDIT_CARD':
+        return 'Punto Crédito';
+      case 'PAGO_MOVIL':
+        return 'Pago Móvil';
+      case 'CASH_USD':
+        return 'Efectivo $';
+      case 'CASH_VES':
+        return 'Efectivo Bs';
+      case 'TRANSFER':
+        return 'Transferencia Bancaria';
+      case 'ZELLE':
+        return 'Zelle';
+      default:
+        return methodCode;
+    }
+  };
+
+  // Cobro rápido con verificación automática de referencia bancaria
+  const handleQuickPay = (method: string, amount: number, isAmountInVES = false) => {
+    if (amount <= 0.005) return;
+    setCurrentMethod(method);
+
+    const requiresRef = isMethodRequiringReference(method);
+    const currentRef = paymentRefInput.trim();
+
+    // Si requiere referencia y no se ha especificado, abrir modal prompt de captura
+    if (requiresRef && !currentRef) {
+      const amtUSD = isAmountInVES ? Number((amount / exchangeRateBCV).toFixed(2)) : amount;
+      const amtVES = Number((amtUSD * exchangeRateBCV).toFixed(2));
+      setQuickRefPrompt({
+        isOpen: true,
+        method,
+        methodName: getMethodName(method),
+        amountUSD: amtUSD,
+        amountVES: amtVES,
+        isVES: isAmountInVES,
+        refValue: '',
+      });
+      return;
+    }
+
+    // Agregar directamente el pago con la referencia ya indicada o sin referencia si no la requiere
+    handleAddPayment(method, amount, isAmountInVES, currentRef || undefined);
+  };
+
+  // Confirmar la referencia bancaria del modal prompt
+  const handleConfirmQuickRef = () => {
+    const trimmed = quickRefPrompt.refValue.trim();
+    if (!trimmed) {
+      toast.error('Por favor ingrese el número de referencia para continuar');
+      return;
+    }
+
+    if (quickRefPrompt.isEditingPaymentIndex !== undefined) {
+      const idx = quickRefPrompt.isEditingPaymentIndex;
+      setPayments((prev) =>
+        prev.map((p, i) =>
+          i === idx ? { ...p, referenceNumber: trimmed } : p
+        )
+      );
+      toast.success('Referencia bancaria actualizada');
+    } else {
+      handleAddPayment(
+        quickRefPrompt.method,
+        quickRefPrompt.isVES ? quickRefPrompt.amountVES : quickRefPrompt.amountUSD,
+        quickRefPrompt.isVES,
+        trimmed
+      );
+    }
+
+    setQuickRefPrompt({
+      isOpen: false,
+      method: '',
+      methodName: '',
+      amountUSD: 0,
+      amountVES: 0,
+      isVES: false,
+      refValue: '',
+    });
+  };
+
   // Agregar forma de pago
   const handleAddPayment = (method: string, amount: number, isAmountInVES = false, ref?: string) => {
     let amountUSD = amount;
@@ -458,6 +872,22 @@ export const POSRegister: React.FC = () => {
       amountUSD = Number((amount / exchangeRateBCV).toFixed(2));
     }
     if (amountUSD <= 0) return;
+
+    const requiresRef = isMethodRequiringReference(method);
+    const trimmedRef = ref?.trim();
+    if (requiresRef && !trimmedRef) {
+      const amtVES = Number((amountUSD * exchangeRateBCV).toFixed(2));
+      setQuickRefPrompt({
+        isOpen: true,
+        method,
+        methodName: getMethodName(method),
+        amountUSD,
+        amountVES: amtVES,
+        isVES: isAmountInVES,
+        refValue: '',
+      });
+      return;
+    }
 
     // Si ya se cubrió el valor de la mercancía (subtotal previo a IGTF), los pagos subsiguientes
     // corresponden a la liquidación del IGTF. Por principio de no doble tributación (COT Art. 3),
@@ -471,11 +901,11 @@ export const POSRegister: React.FC = () => {
 
     const newPayment: PaymentEntry = {
       method,
-      methodName: methodConfig?.name || method,
+      methodName: methodConfig?.name || getMethodName(method),
       amountUSD,
       amountVES,
       exchangeRate: exchangeRateBCV,
-      referenceNumber: ref || (null as any),
+      referenceNumber: trimmedRef || (null as any),
       appliesIGTF,
       igtfAmountUSD,
       igtfAmountVES,
@@ -505,7 +935,7 @@ export const POSRegister: React.FC = () => {
     try {
       const payload = {
         branchId: activeBranchId || 'b1111111-1111-1111-1111-111111111111',
-        warehouseId: activeWarehouseId || 'w1111111-1111-1111-1111-111111111111',
+        warehouseId: activeShift?.warehouseId || activeWarehouseId || 'w1111111-1111-1111-1111-111111111111',
         customerId: selectedCustomerId || undefined,
         customerDocType,
         customerDocNumber: customerDocNumber.trim(),
@@ -568,7 +998,7 @@ export const POSRegister: React.FC = () => {
         invoiceNumber: json.data.invoiceNumber || 'FACT-00010452',
         controlNumber: json.data.controlNumber || '00-0010452',
         invoiceDate: new Date().toISOString(),
-        cashierName: activeShift?.cashierName || user?.fullName || 'Cajero Demo',
+        cashierName: activeShift?.cashierName || user?.fullName || 'Cajero',
         customerName,
         customerRif: `${customerDocType}-${customerDocNumber}`,
         customerAddress: customerAddress || 'Caracas, Venezuela',
@@ -627,7 +1057,14 @@ export const POSRegister: React.FC = () => {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => navigate('/pos/cierre')}
+              onClick={async () => {
+                if (cart.length > 0) {
+                  const confirmLeave = await showLeaveCartAlert();
+                  if (!confirmLeave) return;
+                  setCart([]);
+                }
+                navigate('/pos/cierre');
+              }}
               className="text-amber-900 border-amber-300 hover:bg-amber-100"
             >
               <Unlock className="w-3.5 h-3.5 mr-1" />
@@ -650,6 +1087,11 @@ export const POSRegister: React.FC = () => {
               <span className="text-neutral-300">•</span>
               <span className="text-neutral-500">
                 Cajero: <strong className="text-neutral-700">{activeShift.cashierName || user?.fullName}</strong>
+              </span>
+              <span className="text-neutral-300">•</span>
+              <span className="text-neutral-500 flex items-center gap-1 font-medium">
+                <Warehouse className="w-3.5 h-3.5 text-neutral-400" />
+                Almacén: <strong className="text-neutral-700">{activeShift.warehouseName || 'Almacén Principal'}</strong>
               </span>
             </div>
             <div>
@@ -701,15 +1143,27 @@ export const POSRegister: React.FC = () => {
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
             {filteredProducts.map((p) => {
               const priceVES = p.priceUSD * exchangeRateBCV;
+              const hasNoStock = (p.stock ?? 0) <= 0;
               return (
                 <button
                   key={p.id}
                   onClick={() => addToCart(p)}
                   className="flex flex-col text-left p-3 rounded-lg border border-neutral-200 hover:border-sky-500 hover:bg-sky-50/20 transition-colors cursor-pointer group bg-neutral-50/30"
                 >
-                  <span className="text-[10px] font-mono text-neutral-400 group-hover:text-sky-600">
-                    {p.sku}
-                  </span>
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-[10px] font-mono text-neutral-400 group-hover:text-sky-600">
+                      {p.sku}
+                    </span>
+                    {hasNoStock ? (
+                      <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                        Sin stock ({p.stock ?? 0})
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-mono text-neutral-500">
+                        Stock: {p.stock}
+                      </span>
+                    )}
+                  </div>
                   <span className="text-xs font-semibold text-neutral-800 mt-1 line-clamp-2">
                     {p.name}
                   </span>
@@ -907,14 +1361,31 @@ export const POSRegister: React.FC = () => {
               <p className="text-xs">El carrito está vacío</p>
             </div>
           ) : (
-            cart.map((item) => (
-              <div key={item.productId} className="py-2.5 flex items-center justify-between">
-                <div className="flex-1 pr-2">
-                  <div className="text-xs font-semibold text-neutral-800">{item.name}</div>
-                  <div className="text-[11px] text-neutral-500 font-mono">
-                    {formatMoneyUSD(item.unitPrice)} c/u • {item.taxRatePercent === 0 ? 'Exento' : `IVA ${formatPercent(item.taxRatePercent, 0)}`}
+            cart.map((item) => {
+              const prod = products.find((p) => p.id === item.productId);
+              const availableStock = prod?.stock ?? 0;
+              const isNegative = item.quantity > availableStock;
+              return (
+                <div key={item.productId} className="py-2.5 flex items-center justify-between">
+                  <div className="flex-1 pr-2">
+                    <div className="text-xs font-semibold text-neutral-800">{item.name}</div>
+                    <div className="text-[11px] text-neutral-500 font-mono">
+                      {formatMoneyUSD(item.unitPrice)} c/u • {item.taxRatePercent === 0 ? 'Exento' : `IVA ${formatPercent(item.taxRatePercent, 0)}`}
+                    </div>
+                    {isNegative && (
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <span className="text-[10px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                          Stock neg ({availableStock - item.quantity})
+                        </span>
+                        {item.isNegativeStockAuthorized && (
+                          <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200 flex items-center gap-0.5 font-medium">
+                            <ShieldCheck className="w-2.5 h-2.5 text-emerald-600" />
+                            {item.supervisorApprovedBy || 'Autorizado'}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
-                </div>
 
                 <div className="flex items-center gap-1.5">
                   <button
@@ -943,7 +1414,8 @@ export const POSRegister: React.FC = () => {
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
-            ))
+            );
+          })
           )}
         </div>
 
@@ -989,8 +1461,9 @@ export const POSRegister: React.FC = () => {
               size="sm"
               type="button"
               disabled={cart.length === 0}
-              onClick={() => {
-                if (confirm('¿Desea vaciar todos los productos del carrito actual?')) setCart([]);
+              onClick={async () => {
+                const confirmed = await showClearCartAlert();
+                if (confirmed) setCart([]);
               }}
               className="h-8 px-2 text-neutral-400 hover:text-red-600"
               title="Vaciar Carrito"
@@ -1015,378 +1488,515 @@ export const POSRegister: React.FC = () => {
 
       {/* Modal de Pago Multi-Moneda y Mixto */}
       {isPaymentModalOpen && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-lg w-full p-6 shadow-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-xl w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
+            {/* Header (Fijo / Pinned) */}
+            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
               <div className="flex items-center gap-2">
                 <CreditCard className="w-5 h-5 text-sky-600" />
-                <h3 className="text-sm font-bold text-neutral-900">Cobro Multi-Moneda & Fiscal</h3>
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-900">Cobro Multi-Moneda & Facturación Fiscal</h3>
+                  <p className="text-[11px] text-neutral-500">
+                    Tasa Oficial BCV: Bs. {formatExchangeRate(exchangeRateBCV, 2)}
+                  </p>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setIsPaymentMethodsModalOpen(true)}
-                  className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium text-neutral-700 hover:text-sky-700 hover:bg-sky-50 rounded-lg border border-neutral-300 transition-colors cursor-pointer"
-                  title="Configurar y crear métodos de pago"
-                >
-                  <Settings2 className="w-3.5 h-3.5 text-sky-600" />
-                  <span>Gestionar Medios</span>
-                </button>
-                <button
                   onClick={() => setIsPaymentModalOpen(false)}
-                  className="text-neutral-400 hover:text-neutral-600 cursor-pointer p-1"
+                  className="text-neutral-400 hover:text-neutral-600 cursor-pointer p-1 rounded-lg hover:bg-neutral-100"
+                  title="Cerrar modal (Esc)"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
 
-            {/* Totalizador & Pendiente */}
-            <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 grid grid-cols-2 gap-3 text-xs">
-              <div>
-                <span className="text-neutral-500 block">Total a Pagar:</span>
-                <span className="text-base font-bold font-mono text-neutral-900">
-                  {formatMoneyUSD(finalTotalUSD)}
-                </span>
-                <span className="text-[10px] text-neutral-500 font-mono block">
-                  {formatMoneyVES(finalTotalVES)}
-                </span>
-              </div>
-              <div>
-                <span className="text-neutral-500 block">Restante por Pagar:</span>
-                <span className={`text-base font-bold font-mono ${remainingUSD <= 0.01 ? 'text-emerald-600' : 'text-red-600'}`}>
-                  {formatMoneyUSD(remainingUSD)}
-                </span>
-                <span className="text-[10px] text-neutral-500 font-mono block">
-                  {formatMoneyVES(remainingVES)}
-                </span>
-              </div>
-            </div>
-
-            {/* Banner de Liquidación de Diferencia por IGTF (Permite cancelar diferencia con 1-click) */}
-            {totalIGTFUSD > 0 && remainingUSD > 0.005 && (
-              <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-xs space-y-2">
-                <div className="flex items-center justify-between font-semibold text-indigo-950">
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
-                    Diferencia IGTF (3%) por cancelar:
+            {/* Body (Scrollable con overflow-y-auto) */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+              {/* Totalizador & Pendiente */}
+              <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-neutral-500 block">Total a Pagar:</span>
+                  <span className="text-base font-bold font-mono text-neutral-900">
+                    {formatMoneyUSD(finalTotalUSD)}
                   </span>
-                  <span className="font-mono text-indigo-800 font-extrabold text-sm">
-                    {formatMoneyUSD(remainingUSD)} <span className="text-[11px] font-normal text-indigo-600">({formatMoneyVES(remainingVES)})</span>
+                  <span className="text-[10px] text-neutral-500 font-mono block">
+                    {formatMoneyVES(finalTotalVES)}
                   </span>
                 </div>
-                <p className="text-[11px] text-indigo-800 leading-tight">
-                  Seleccione el método de pago para liquidar la diferencia remanente:
-                </p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 pt-0.5">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    type="button"
-                    onClick={() => {
-                      setCurrentMethod('DEBIT_CARD');
-                      handleAddPayment('DEBIT_CARD', remainingUSD, false, paymentRefInput);
-                    }}
-                    className="text-[11px] h-8 px-2 border-indigo-300 text-indigo-900 bg-white hover:bg-indigo-100 justify-start"
-                  >
-                    Punto Débito ({formatMoneyVES(remainingVES)})
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    type="button"
-                    onClick={() => {
-                      setCurrentMethod('CREDIT_CARD');
-                      handleAddPayment('CREDIT_CARD', remainingUSD, false, paymentRefInput);
-                    }}
-                    className="text-[11px] h-8 px-2 border-indigo-300 text-indigo-900 bg-white hover:bg-indigo-100 justify-start"
-                  >
-                    Punto Crédito ({formatMoneyVES(remainingVES)})
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    type="button"
-                    onClick={() => {
-                      setCurrentMethod('PAGO_MOVIL');
-                      handleAddPayment('PAGO_MOVIL', remainingUSD, false, paymentRefInput);
-                    }}
-                    className="text-[11px] h-8 px-2 border-indigo-300 text-indigo-900 bg-white hover:bg-indigo-100 justify-start"
-                  >
-                    Pago Móvil ({formatMoneyVES(remainingVES)})
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    type="button"
-                    onClick={() => {
-                      setCurrentMethod('CASH_VES');
-                      handleAddPayment('CASH_VES', remainingUSD, false);
-                    }}
-                    className="text-[11px] h-8 px-2 border-indigo-300 text-indigo-900 bg-white hover:bg-indigo-100 justify-start"
-                  >
-                    Efectivo Bs ({formatMoneyVES(remainingVES)})
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    type="button"
-                    onClick={() => {
-                      setCurrentMethod('CASH_USD');
-                      handleAddPayment('CASH_USD', remainingUSD, false);
-                    }}
-                    className="text-[11px] h-8 px-2 border-indigo-300 text-indigo-900 bg-white hover:bg-indigo-100 justify-start"
-                  >
-                    Efectivo $ ({formatMoneyUSD(remainingUSD)})
-                  </Button>
+                <div>
+                  <span className="text-neutral-500 block">Restante por Pagar:</span>
+                  <span className={`text-base font-bold font-mono ${remainingUSD <= 0.01 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {formatMoneyUSD(remainingUSD)}
+                  </span>
+                  <span className="text-[10px] text-neutral-500 font-mono block">
+                    {formatMoneyVES(remainingVES)}
+                  </span>
                 </div>
               </div>
-            )}
 
-            {/* Accesos Rápidos de Cobro (1-click para pagar saldo completo con método predilecto) */}
-            <div className="p-2.5 bg-neutral-50 rounded-lg border border-neutral-200 space-y-1.5">
-              <span className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider block">
-                Cobro Rápido Total:
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCurrentMethod('DEBIT_CARD');
-                    handleAddPayment('DEBIT_CARD', remainingUSD, false, paymentRefInput);
-                  }}
-                  disabled={remainingUSD <= 0.01}
-                  className="px-2.5 py-1 text-xs font-semibold rounded bg-sky-100 text-sky-800 hover:bg-sky-200 transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                  Punto Débito ({formatMoneyVES(remainingVES)})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCurrentMethod('CREDIT_CARD');
-                    handleAddPayment('CREDIT_CARD', remainingUSD, false, paymentRefInput);
-                  }}
-                  disabled={remainingUSD <= 0.01}
-                  className="px-2.5 py-1 text-xs font-semibold rounded bg-indigo-100 text-indigo-800 hover:bg-indigo-200 transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                  Punto Crédito ({formatMoneyVES(remainingVES)})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCurrentMethod('PAGO_MOVIL');
-                    handleAddPayment('PAGO_MOVIL', remainingUSD, false, paymentRefInput);
-                  }}
-                  disabled={remainingUSD <= 0.01}
-                  className="px-2.5 py-1 text-xs font-semibold rounded bg-amber-100 text-amber-800 hover:bg-amber-200 transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                  Pago Móvil ({formatMoneyVES(remainingVES)})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCurrentMethod('CASH_USD');
-                    handleAddPayment('CASH_USD', remainingUSD, false);
-                  }}
-                  disabled={remainingUSD <= 0.01}
-                  className="px-2.5 py-1 text-xs font-semibold rounded bg-emerald-100 text-emerald-800 hover:bg-emerald-200 transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                  Efectivo $ ({formatMoneyUSD(remainingUSD)})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCurrentMethod('CASH_VES');
-                    handleAddPayment('CASH_VES', remainingUSD, false);
-                  }}
-                  disabled={remainingUSD <= 0.01}
-                  className="px-2.5 py-1 text-xs font-semibold rounded bg-neutral-200 text-neutral-800 hover:bg-neutral-300 transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                  Efectivo Bs ({formatMoneyVES(remainingVES)})
-                </button>
-              </div>
-            </div>
-
-            {/* Formulario de Agregar Pago */}
-            <div className="space-y-3 text-xs border border-neutral-200 p-3 rounded-lg bg-neutral-50/40">
-              <span className="font-semibold text-neutral-800 block">Agregar Forma de Pago Personalizada:</span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-neutral-600 mb-1">Medio de Pago</label>
-                  <select
-                    value={currentMethod}
-                    onChange={(e) => {
-                      const m = e.target.value;
-                      setCurrentMethod(m);
-                      const conf = availablePaymentMethods.find((c) => c.code === m);
-                      if (conf && conf.currency === 'VES') {
-                        setPaymentCurrencyMode('VES');
-                      } else if (conf && conf.currency === 'USD') {
-                        setPaymentCurrencyMode('USD');
-                      }
-                    }}
-                    className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs bg-white font-medium focus-visible:ring-2 focus-visible:ring-sky-500"
-                  >
-                    {availablePaymentMethods
-                      .filter((m) => m.isActive)
-                      .map((m) => (
-                        <option key={m.code} value={m.code}>
-                          {m.name} {m.appliesIGTF ? '[+3% IGTF]' : ''}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <div className="flex items-center gap-1.5">
-                      <label className="text-neutral-600">Monto</label>
-                      <button
-                        type="button"
-                        onClick={() => setPaymentCurrencyMode((prev) => (prev === 'USD' ? 'VES' : 'USD'))}
-                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-neutral-100 hover:bg-sky-100 text-sky-800 transition-colors cursor-pointer"
-                        title="Cambiar moneda de entrada"
-                      >
-                        <ArrowLeftRight className="w-2.5 h-2.5" />
-                        {paymentCurrencyMode === 'USD' ? 'USD ($)' : 'Bs (VES)'}
-                      </button>
-                    </div>
-                    <span className="text-[10px] text-neutral-400 font-mono">
-                      {paymentCurrencyMode === 'USD' ? (
-                        <>Equiv: {formatMoneyVES(((parseFormattedNumber(paymentAmountInput) || remainingUSD)) * exchangeRateBCV)}</>
-                      ) : (
-                        <>Equiv: {formatMoneyUSD(((parseFormattedNumber(paymentAmountInput) || remainingVES)) / exchangeRateBCV)}</>
-                      )}
+              {/* Banner de Liquidación de Diferencia por IGTF (Permite cancelar diferencia con 1-click) */}
+              {totalIGTFUSD > 0 && remainingUSD > 0.005 && (
+                <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-xs space-y-2">
+                  <div className="flex items-center justify-between font-semibold text-indigo-950">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
+                      Diferencia IGTF (3%) por cancelar:
+                    </span>
+                    <span className="font-mono text-indigo-800 font-extrabold text-sm">
+                      {formatMoneyUSD(remainingUSD)} <span className="text-[11px] font-normal text-indigo-600">({formatMoneyVES(remainingVES)})</span>
                     </span>
                   </div>
-                  <input
-                    type="text"
-                    value={paymentAmountInput}
-                    onChange={(e) => setPaymentAmountInput(e.target.value)}
-                    placeholder={
-                      paymentCurrencyMode === 'USD'
-                        ? (remainingUSD > 0 ? remainingUSD.toFixed(2) : '0.00')
-                        : (remainingVES > 0 ? remainingVES.toFixed(2) : '0.00')
-                    }
-                    className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs font-mono font-bold focus-visible:ring-2 focus-visible:ring-sky-500"
-                  />
+                  <p className="text-[11px] text-indigo-800 leading-tight">
+                    Seleccione el método de pago para liquidar la diferencia remanente:
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 pt-0.5">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      type="button"
+                      onClick={() => handleQuickPay('DEBIT_CARD', remainingUSD, false)}
+                      className="text-[11px] h-8 px-2 border-indigo-300 text-indigo-900 bg-white hover:bg-indigo-100 justify-start"
+                    >
+                      Punto Débito ({formatMoneyVES(remainingVES)})
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      type="button"
+                      onClick={() => handleQuickPay('CREDIT_CARD', remainingUSD, false)}
+                      className="text-[11px] h-8 px-2 border-indigo-300 text-indigo-900 bg-white hover:bg-indigo-100 justify-start"
+                    >
+                      Punto Crédito ({formatMoneyVES(remainingVES)})
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      type="button"
+                      onClick={() => handleQuickPay('PAGO_MOVIL', remainingUSD, false)}
+                      className="text-[11px] h-8 px-2 border-indigo-300 text-indigo-900 bg-white hover:bg-indigo-100 justify-start"
+                    >
+                      Pago Móvil ({formatMoneyVES(remainingVES)})
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      type="button"
+                      onClick={() => handleQuickPay('CASH_VES', remainingUSD, false)}
+                      className="text-[11px] h-8 px-2 border-indigo-300 text-indigo-900 bg-white hover:bg-indigo-100 justify-start"
+                    >
+                      Efectivo Bs ({formatMoneyVES(remainingVES)})
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      type="button"
+                      onClick={() => handleQuickPay('CASH_USD', remainingUSD, false)}
+                      className="text-[11px] h-8 px-2 border-indigo-300 text-indigo-900 bg-white hover:bg-indigo-100 justify-start"
+                    >
+                      Efectivo $ ({formatMoneyUSD(remainingUSD)})
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {(() => {
-                const conf = availablePaymentMethods.find((m) => m.code === currentMethod);
-                const showRef = conf ? conf.requiresReference : ['PAGO_MOVIL', 'DEBIT_CARD', 'CREDIT_CARD', 'ZELLE'].includes(currentMethod);
-                if (!showRef) return null;
-                return (
-                  <div>
-                    <label className="block text-neutral-600 mb-1">
-                      Número de Referencia / Lote Bancario {conf?.requiresReference && <span className="text-red-500">*</span>}
-                    </label>
+              {/* Accesos Rápidos de Cobro Total (1-click para pagar saldo completo con método predilecto) */}
+              <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                  <span className="text-[10px] uppercase font-bold text-neutral-600 tracking-wider">
+                    Cobro Rápido Total:
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-neutral-500 font-medium">Ref / Lote:</span>
                     <input
                       type="text"
                       value={paymentRefInput}
                       onChange={(e) => setPaymentRefInput(e.target.value)}
-                      placeholder="Últimos 4 o 6 dígitos del lote o confirmación"
-                      className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs font-mono focus-visible:ring-2 focus-visible:ring-sky-500"
+                      placeholder="N° Referencia..."
+                      className="h-6 w-36 px-2 border border-neutral-300 rounded text-[11px] font-mono bg-white focus-visible:ring-1 focus-visible:ring-sky-500"
+                      title="Opcional: Si ingresa la referencia aquí, se aplicará directamente al presionar el medio."
                     />
                   </div>
-                );
-              })()}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleQuickPay('DEBIT_CARD', remainingUSD, false)}
+                    disabled={remainingUSD <= 0.01}
+                    className="px-2.5 py-1 text-xs font-semibold rounded bg-sky-100 text-sky-800 hover:bg-sky-200 transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    Punto Débito ({formatMoneyVES(remainingVES)})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickPay('CREDIT_CARD', remainingUSD, false)}
+                    disabled={remainingUSD <= 0.01}
+                    className="px-2.5 py-1 text-xs font-semibold rounded bg-indigo-100 text-indigo-800 hover:bg-indigo-200 transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    Punto Crédito ({formatMoneyVES(remainingVES)})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickPay('PAGO_MOVIL', remainingUSD, false)}
+                    disabled={remainingUSD <= 0.01}
+                    className="px-2.5 py-1 text-xs font-semibold rounded bg-amber-100 text-amber-800 hover:bg-amber-200 transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    Pago Móvil ({formatMoneyVES(remainingVES)})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickPay('CASH_USD', remainingUSD, false)}
+                    disabled={remainingUSD <= 0.01}
+                    className="px-2.5 py-1 text-xs font-semibold rounded bg-emerald-100 text-emerald-800 hover:bg-emerald-200 transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    Efectivo $ ({formatMoneyUSD(remainingUSD)})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickPay('CASH_VES', remainingUSD, false)}
+                    disabled={remainingUSD <= 0.01}
+                    className="px-2.5 py-1 text-xs font-semibold rounded bg-neutral-200 text-neutral-800 hover:bg-neutral-300 transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    Efectivo Bs ({formatMoneyVES(remainingVES)})
+                  </button>
+                </div>
+              </div>
 
-              <div className="flex gap-2 pt-1">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    const parsed = parseFormattedNumber(paymentAmountInput);
-                    const isVES = paymentCurrencyMode === 'VES';
-                    const amt = parsed > 0 ? parsed : (isVES ? remainingVES : remainingUSD);
-                    handleAddPayment(currentMethod, amt, isVES, paymentRefInput);
-                  }}
-                  disabled={remainingUSD <= 0.01 && !paymentAmountInput}
-                >
-                  <Plus className="w-3.5 h-3.5 mr-1" />
-                  Agregar Pago
-                </Button>
+              {/* Formulario de Agregar Pago Personalizado */}
+              <div className="space-y-3 text-xs border border-neutral-200 p-3 rounded-lg bg-neutral-50/40">
+                <span className="font-semibold text-neutral-800 block">Agregar Forma de Pago Personalizada:</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-neutral-600 mb-1">Medio de Pago</label>
+                    <select
+                      value={currentMethod}
+                      onChange={(e) => {
+                        const m = e.target.value;
+                        setCurrentMethod(m);
+                        const conf = availablePaymentMethods.find((c) => c.code === m);
+                        if (conf && conf.currency === 'VES') {
+                          setPaymentCurrencyMode('VES');
+                        } else if (conf && conf.currency === 'USD') {
+                          setPaymentCurrencyMode('USD');
+                        }
+                      }}
+                      className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs bg-white font-medium focus-visible:ring-2 focus-visible:ring-sky-500"
+                    >
+                      {availablePaymentMethods
+                        .filter((m) => m.isActive)
+                        .map((m) => (
+                          <option key={m.code} value={m.code}>
+                            {m.name} {m.appliesIGTF ? '[+3% IGTF]' : ''}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-neutral-600">Monto</label>
+                        <button
+                          type="button"
+                          onClick={() => setPaymentCurrencyMode((prev) => (prev === 'USD' ? 'VES' : 'USD'))}
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-neutral-100 hover:bg-sky-100 text-sky-800 transition-colors cursor-pointer"
+                          title="Cambiar moneda de entrada"
+                        >
+                          <ArrowLeftRight className="w-2.5 h-2.5" />
+                          {paymentCurrencyMode === 'USD' ? 'USD ($)' : 'Bs (VES)'}
+                        </button>
+                      </div>
+                      <span className="text-[10px] text-neutral-400 font-mono">
+                        {paymentCurrencyMode === 'USD' ? (
+                          <>Equiv: {formatMoneyVES(((parseFormattedNumber(paymentAmountInput) || remainingUSD)) * exchangeRateBCV)}</>
+                        ) : (
+                          <>Equiv: {formatMoneyUSD(((parseFormattedNumber(paymentAmountInput) || remainingVES)) / exchangeRateBCV)}</>
+                        )}
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      value={paymentAmountInput}
+                      onChange={(e) => setPaymentAmountInput(e.target.value)}
+                      placeholder={
+                        paymentCurrencyMode === 'USD'
+                          ? (remainingUSD > 0 ? remainingUSD.toFixed(2) : '0.00')
+                          : (remainingVES > 0 ? remainingVES.toFixed(2) : '0.00')
+                      }
+                      className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs font-mono font-bold focus-visible:ring-2 focus-visible:ring-sky-500"
+                    />
+                  </div>
+                </div>
 
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    if (paymentCurrencyMode === 'VES') {
-                      handleAddPayment(currentMethod, remainingVES, true, paymentRefInput);
-                    } else {
-                      handleAddPayment(currentMethod, remainingUSD, false, paymentRefInput);
-                    }
-                  }}
-                  disabled={remainingUSD <= 0.01}
-                  className="text-sky-700 border-sky-300 hover:bg-sky-50"
-                >
-                  Pagar Restante Total ({formatMoneyUSD(remainingUSD)} / {formatMoneyVES(remainingVES)})
-                </Button>
+                {(() => {
+                  const showRef = isMethodRequiringReference(currentMethod);
+                  if (!showRef) return null;
+                  return (
+                    <div>
+                      <label className="block text-neutral-600 mb-1">
+                        Número de Referencia / Lote Bancario <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={paymentRefInput}
+                        onChange={(e) => setPaymentRefInput(e.target.value)}
+                        placeholder="Últimos 4 o 6 dígitos del lote o confirmación"
+                        className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs font-mono focus-visible:ring-2 focus-visible:ring-sky-500"
+                      />
+                    </div>
+                  );
+                })()}
+
+                <div className="flex gap-2 pt-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    type="button"
+                    onClick={() => {
+                      const parsed = parseFormattedNumber(paymentAmountInput);
+                      const isVES = paymentCurrencyMode === 'VES';
+                      const amt = parsed > 0 ? parsed : (isVES ? remainingVES : remainingUSD);
+                      handleAddPayment(currentMethod, amt, isVES, paymentRefInput);
+                    }}
+                    disabled={remainingUSD <= 0.01 && !paymentAmountInput}
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1" />
+                    Agregar Pago
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    type="button"
+                    onClick={() => {
+                      if (paymentCurrencyMode === 'VES') {
+                        handleAddPayment(currentMethod, remainingVES, true, paymentRefInput);
+                      } else {
+                        handleAddPayment(currentMethod, remainingUSD, false, paymentRefInput);
+                      }
+                    }}
+                    disabled={remainingUSD <= 0.01}
+                    className="text-sky-700 border-sky-300 hover:bg-sky-50"
+                  >
+                    Pagar Restante Total ({formatMoneyUSD(remainingUSD)} / {formatMoneyVES(remainingVES)})
+                  </Button>
+                </div>
+              </div>
+
+              {/* Lista de Pagos Agregados */}
+              <div className="space-y-2">
+                <span className="text-xs font-semibold text-neutral-800 block">
+                  Pagos Registrados ({payments.length}):
+                </span>
+                {payments.length === 0 ? (
+                  <div className="p-3 text-center text-xs text-neutral-400 bg-neutral-50 rounded-lg border border-dashed border-neutral-200">
+                    No se han registrado pagos aún
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                    {payments.map((p, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between p-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <div>
+                            <span className="font-semibold text-neutral-800">{p.methodName || p.method}</span>
+                            {p.referenceNumber ? (
+                              <span className="font-mono text-[11px] text-neutral-600 bg-neutral-200/60 px-1.5 py-0.5 rounded ml-1.5">
+                                Ref: {p.referenceNumber}
+                              </span>
+                            ) : isMethodRequiringReference(p.method) ? (
+                              <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded ml-1.5">
+                                Sin Referencia
+                              </span>
+                            ) : null}
+                            {p.appliesIGTF && (
+                              <span className="text-[10px] text-indigo-600 block">
+                                +IGTF 3%: {formatMoneyUSD(p.igtfAmountUSD)}
+                              </span>
+                            )}
+                          </div>
+                          {isMethodRequiringReference(p.method) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setQuickRefPrompt({
+                                  isOpen: true,
+                                  method: p.method,
+                                  methodName: p.methodName || p.method,
+                                  amountUSD: p.amountUSD,
+                                  amountVES: p.amountVES,
+                                  isVES: false,
+                                  refValue: p.referenceNumber || '',
+                                  isEditingPaymentIndex: idx,
+                                });
+                              }}
+                              className="text-neutral-400 hover:text-sky-600 p-1 rounded hover:bg-neutral-200/50"
+                              title="Editar o agregar número de referencia"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold">{formatMoneyUSD(p.amountUSD)}</span>
+                          <span className="font-mono text-neutral-400 text-[10px]">({formatMoneyVES(p.amountVES)})</span>
+                          <button
+                            type="button"
+                            onClick={() => removePayment(idx)}
+                            className="text-neutral-400 hover:text-red-500 p-1 rounded hover:bg-red-50"
+                            title="Eliminar este pago"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Lista de Pagos Agregados */}
-            <div className="space-y-2">
-              <span className="text-xs font-semibold text-neutral-800 block">
-                Pagos Registrados ({payments.length}):
-              </span>
-              {payments.length === 0 ? (
-                <div className="p-3 text-center text-xs text-neutral-400 bg-neutral-50 rounded-lg border border-dashed border-neutral-200">
-                  No se han registrado pagos aún
-                </div>
-              ) : (
-                <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                  {payments.map((p, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between p-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs"
-                    >
-                      <div>
-                        <span className="font-semibold text-neutral-800">{p.methodName || p.method}</span>
-                        {p.referenceNumber && (
-                          <span className="font-mono text-[11px] text-neutral-500 ml-1.5">
-                            Ref: {p.referenceNumber}
-                          </span>
-                        )}
-                        {p.appliesIGTF && (
-                          <span className="text-[10px] text-indigo-600 block">
-                            +IGTF 3%: {formatMoneyUSD(p.igtfAmountUSD)}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold">{formatMoneyUSD(p.amountUSD)}</span>
-                        <span className="font-mono text-neutral-400 text-[10px]">({formatMoneyVES(p.amountVES)})</span>
-                        <button
-                          onClick={() => removePayment(idx)}
-                          className="text-neutral-400 hover:text-red-500 p-1"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+            {/* Footer Pinned (Acciones siempre visibles sin importar scroll o altura) */}
+            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-between gap-3 shrink-0">
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-neutral-500">Saldo pendiente:</span>
+                <span className={`font-mono font-bold ${remainingUSD <= 0.01 ? 'text-emerald-700' : 'text-red-600'}`}>
+                  {remainingUSD <= 0.01 ? 'Pagado Totalmente' : `${formatMoneyUSD(remainingUSD)} (${formatMoneyVES(remainingVES)})`}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  onClick={() => setIsPaymentModalOpen(false)}
+                  title="Cancelar cobro (Esc)"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  size="sm"
+                  type="button"
+                  disabled={isSubmitting || remainingUSD > 0.01}
+                  onClick={handleProcessSale}
+                  className="font-bold shadow-sm"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                      Procesando Venta...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4 mr-1.5" />
+                      Emitir Factura Fiscal SENIAT
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Prompt para Captura / Edición de Referencia de Pago */}
+      {quickRefPrompt.isOpen && (
+        <div className="fixed inset-0 bg-neutral-900/70 z-[60] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-sm w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto animate-in fade-in zoom-in-95 duration-150">
+            {/* Header (Pinned) */}
+            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-sky-600" />
+                <h4 className="text-xs font-bold text-neutral-900">
+                  {quickRefPrompt.isEditingPaymentIndex !== undefined ? 'Editar Referencia' : 'Referencia de Pago Requerida'}
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setQuickRefPrompt({
+                    isOpen: false,
+                    method: '',
+                    methodName: '',
+                    amountUSD: 0,
+                    amountVES: 0,
+                    isVES: false,
+                    refValue: '',
+                  })
+                }
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100"
+                title="Cerrar (Esc)"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
-            {/* Acciones */}
-            <div className="flex justify-end gap-2 pt-3 border-t border-neutral-100">
+            {/* Body (Scrollable) */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3 text-xs">
+              <div className="p-2.5 bg-sky-50 border border-sky-100 rounded-lg text-sky-900">
+                <div className="font-semibold">{quickRefPrompt.methodName}</div>
+                <div className="text-[11px] font-mono">
+                  Monto: {formatMoneyUSD(quickRefPrompt.amountUSD)} ({formatMoneyVES(quickRefPrompt.amountVES)})
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-neutral-700 font-semibold mb-1">
+                  Número de Referencia / Lote / Aprobación *
+                </label>
+                <input
+                  type="text"
+                  autoFocus
+                  value={quickRefPrompt.refValue}
+                  onChange={(e) =>
+                    setQuickRefPrompt((prev) => ({ ...prev, refValue: e.target.value }))
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleConfirmQuickRef();
+                    }
+                  }}
+                  placeholder="Ej: 489201 ó 1234"
+                  className="w-full h-9 px-3 border border-neutral-300 rounded-lg font-mono text-sm focus-visible:ring-2 focus-visible:ring-sky-500"
+                />
+                <p className="text-[10px] text-neutral-400 mt-1">
+                  Presione Enter para confirmar o Esc para cancelar
+                </p>
+              </div>
+            </div>
+
+            {/* Footer (Pinned) */}
+            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setIsPaymentModalOpen(false)}
+                type="button"
+                onClick={() =>
+                  setQuickRefPrompt({
+                    isOpen: false,
+                    method: '',
+                    methodName: '',
+                    amountUSD: 0,
+                    amountVES: 0,
+                    isVES: false,
+                    refValue: '',
+                  })
+                }
               >
                 Cancelar
               </Button>
               <Button
                 size="sm"
-                disabled={isSubmitting || remainingUSD > 0.01}
-                onClick={handleProcessSale}
+                type="button"
+                onClick={handleConfirmQuickRef}
+                className="font-bold"
               >
-                <Check className="w-4 h-4 mr-1.5" />
-                Emitir Factura Fiscal SENIAT
+                <Check className="w-3.5 h-3.5 mr-1" />
+                Confirmar
               </Button>
             </div>
           </div>
@@ -1395,9 +2005,10 @@ export const POSRegister: React.FC = () => {
 
       {/* Modal: Registrar Nuevo Cliente */}
       {isNewCustomerModalOpen && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-md w-full p-6 shadow-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
+            {/* Header (Pinned) */}
+            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
               <div className="flex items-center gap-2">
                 <UserPlus className="w-5 h-5 text-neutral-800" />
                 <h3 className="text-sm font-bold text-neutral-900">Registrar Nuevo Cliente</h3>
@@ -1405,20 +2016,21 @@ export const POSRegister: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsNewCustomerModalOpen(false)}
-                className="text-neutral-400 hover:text-neutral-600 focus-visible:ring-2 rounded"
+                className="text-neutral-400 hover:text-neutral-600 focus-visible:ring-2 rounded p-1"
+                title="Cerrar modal (Esc)"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {newCustomerError && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
-                {newCustomerError}
-              </div>
-            )}
-
-            <form onSubmit={handleCreateCustomer} className="space-y-3 text-xs">
-              <div className="grid grid-cols-3 gap-2">
+            <form onSubmit={handleCreateCustomer} className="flex-1 flex flex-col overflow-hidden">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3 text-xs">
+                {newCustomerError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+                    {newCustomerError}
+                  </div>
+                )}
+                <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="block font-semibold text-neutral-700 mb-1">Tipo</label>
                   <select
@@ -1503,38 +2115,40 @@ export const POSRegister: React.FC = () => {
                   <span>Contribuyente Especial SENIAT (Sujeto a retención)</span>
                 </label>
               </div>
+            </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-neutral-100">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsNewCustomerModalOpen(false)}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={isCreatingCustomer}
-                >
-                  {isCreatingCustomer ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                      Guardando...
-                    </>
-                  ) : (
-                    <>
-                      <Check className="w-3.5 h-3.5 mr-1.5" />
-                      Guardar y Asociar a Venta
-                    </>
-                  )}
-                </Button>
-              </div>
-            </form>
-          </div>
+            {/* Footer (Pinned) */}
+            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex justify-end gap-2 shrink-0">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsNewCustomerModalOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={isCreatingCustomer}
+              >
+                {isCreatingCustomer ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-3.5 h-3.5 mr-1.5" />
+                    Guardar y Asociar a Venta
+                  </>
+                )}
+              </Button>
+            </div>
+          </form>
         </div>
-      )}
+      </div>
+    )}
 
       {/* Modal de Ticket Fiscal Emitido / Ticket de Venta */}
       <FiscalInvoiceModal
@@ -1546,32 +2160,45 @@ export const POSRegister: React.FC = () => {
 
       {/* Modal de Pregunta: ¿Desea imprimir un ticket de venta? (Modo No Fiscal) */}
       {showPrintPromptModal && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-sm w-full p-5 shadow-2xl space-y-4 border border-neutral-200">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center shrink-0">
-                <Printer className="w-5 h-5" />
+        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-sm w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
+            {/* Header (Pinned) */}
+            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
+              <div className="flex items-center gap-2">
+                <Printer className="w-5 h-5 text-sky-600" />
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-900">
+                    ¿Imprimir Ticket de Venta?
+                  </h3>
+                  <p className="text-[11px] text-neutral-500">
+                    Venta completada en modo no fiscal
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-sm font-bold text-neutral-900">
-                  ¿Desea imprimir un ticket de venta?
-                </h3>
-                <p className="text-xs text-neutral-500">
-                  Venta completada en modo no fiscal
+              <button
+                type="button"
+                onClick={() => setShowPrintPromptModal(false)}
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100"
+                title="Cerrar modal (Esc)"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body (Scrollable) */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3 text-xs">
+              <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 text-neutral-600 space-y-1">
+                <p>
+                  La venta ha sido registrada exitosamente y el inventario fue actualizado.
+                </p>
+                <p className="text-[11px] text-neutral-500">
+                  ¿Desea imprimir el comprobante de entrega para el cliente o continuar con la siguiente transacción?
                 </p>
               </div>
             </div>
 
-            <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 text-xs text-neutral-600 space-y-1">
-              <p>
-                La venta ha sido registrada exitosamente y el inventario fue actualizado.
-              </p>
-              <p className="text-[11px] text-neutral-500">
-                ¿Desea imprimir el comprobante de entrega para el cliente o continuar con la siguiente transacción?
-              </p>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-1">
+            {/* Footer (Pinned) */}
+            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
               <Button
                 variant="outline"
                 size="sm"
@@ -1596,31 +2223,33 @@ export const POSRegister: React.FC = () => {
 
       {/* Modal: Verificación y Auditoría del Carrito de Compras */}
       {isCartReviewModalOpen && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-4xl w-full p-6 shadow-xl space-y-4 max-h-[90vh] flex flex-col">
-            {/* Encabezado del Modal */}
-            <div className="flex items-center justify-between border-b border-neutral-200 pb-3">
+        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
+            {/* Header (Pinned) */}
+            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
               <div className="flex items-center gap-2">
                 <ListChecks className="w-5 h-5 text-sky-600" />
                 <div>
                   <h3 className="text-sm font-bold text-neutral-900">
                     Verificación Detallada del Carrito de Compras
                   </h3>
-                  <p className="text-xs text-neutral-500">
+                  <p className="text-[11px] text-neutral-500">
                     {cart.length} líneas de producto • {cart.reduce((s, i) => s + i.quantity, 0)} unidades • Tasa BCV: Bs. {formatExchangeRate(exchangeRateBCV, 2)}
                   </p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setIsCartReviewModalOpen(false)}
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg"
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100"
+                title="Cerrar modal (Esc)"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Contenido / Tabla de Productos */}
-            <div className="flex-1 overflow-y-auto">
+            {/* Body (Scrollable) */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
               {cart.length === 0 ? (
                 <div className="py-12 text-center text-neutral-400 flex flex-col items-center">
                   <ShoppingCart className="w-10 h-10 mb-2 stroke-1 text-neutral-300" />
@@ -1655,7 +2284,28 @@ export const POSRegister: React.FC = () => {
                           <tr key={item.productId} className="hover:bg-neutral-50/70 transition-colors">
                             <td className="py-2 px-3 font-mono text-neutral-400">{idx + 1}</td>
                             <td className="py-2 px-3 font-mono font-medium text-neutral-700">{item.sku}</td>
-                            <td className="py-2 px-3 font-semibold text-neutral-900">{item.name}</td>
+                            <td className="py-2 px-3">
+                              <div className="font-semibold text-neutral-900">{item.name}</div>
+                              {(() => {
+                                const prod = products.find((p) => p.id === item.productId);
+                                const availableStock = prod?.stock ?? 0;
+                                const isNegative = item.quantity > availableStock;
+                                if (!isNegative) return null;
+                                return (
+                                  <div className="flex items-center gap-1 mt-0.5">
+                                    <span className="text-[10px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                                      Stock neg ({availableStock - item.quantity})
+                                    </span>
+                                    {item.isNegativeStockAuthorized && (
+                                      <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200 flex items-center gap-0.5 font-medium">
+                                        <ShieldCheck className="w-2.5 h-2.5 text-emerald-600" />
+                                        {item.supervisorApprovedBy || 'Autorizado'}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+                            </td>
                             <td className="py-2 px-3">
                               <div className="flex items-center justify-center gap-1">
                                 <button
@@ -1752,16 +2402,17 @@ export const POSRegister: React.FC = () => {
               </div>
             )}
 
-            {/* Acciones del Modal */}
-            <div className="pt-3 border-t border-neutral-200 flex items-center justify-between">
+            {/* Footer (Pinned) */}
+            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-between gap-2 shrink-0">
               <div>
                 {cart.length > 0 && (
                   <Button
                     variant="outline"
                     size="sm"
                     type="button"
-                    onClick={() => {
-                      if (confirm('¿Está seguro de que desea vaciar todos los productos del carrito?')) {
+                    onClick={async () => {
+                      const confirmed = await showClearCartAlert();
+                      if (confirmed) {
                         setCart([]);
                         setIsCartReviewModalOpen(false);
                       }
@@ -1799,12 +2450,190 @@ export const POSRegister: React.FC = () => {
         </div>
       )}
 
-      {/* Modal de Configuración y Gestión de Métodos de Pago */}
-      <PaymentMethodsModal
-        isOpen={isPaymentMethodsModalOpen}
-        onClose={() => setIsPaymentMethodsModalOpen(false)}
-        onMethodsUpdated={fetchPaymentMethods}
-      />
+      {/* Modal de Autorización de Supervisor para Stock en Negativo */}
+      {isSupervisorModalOpen && pendingStockApproval && (
+        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-md w-full shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
+            {/* Header */}
+            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-amber-600" />
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-900">
+                    Autorización de Supervisor Requerida
+                  </h3>
+                  <p className="text-[11px] text-neutral-500">
+                    Venta con existencia de inventario en negativo
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSupervisorModalOpen(false);
+                  setPendingStockApproval(null);
+                }}
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100"
+                title="Cerrar modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 space-y-4 text-xs">
+              {/* Tarjeta de Resumen de Stock */}
+              <div className="p-3 bg-amber-50/60 rounded-lg border border-amber-200 space-y-2">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <span className="font-bold text-neutral-900 block text-xs">
+                      {pendingStockApproval.productName}
+                    </span>
+                    <span className="font-mono text-[11px] text-neutral-500">
+                      SKU: {pendingStockApproval.sku}
+                    </span>
+                  </div>
+                  <Badge variant="warning" className="text-[10px]">
+                    Déficit: -{pendingStockApproval.deficit}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-amber-200/60 text-[11px]">
+                  <div>
+                    <span className="text-neutral-500 block">Almacén de la Caja:</span>
+                    <span className="font-semibold text-neutral-800">
+                      {activeShift?.warehouseName || 'Almacén Principal'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-neutral-500 block">Existencia Actual:</span>
+                    <span className={`font-mono font-bold ${pendingStockApproval.availableStock <= 0 ? 'text-red-600' : 'text-neutral-800'}`}>
+                      {pendingStockApproval.availableStock} unidades
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-neutral-500 block">Cantidad a Vender:</span>
+                    <span className="font-mono font-bold text-neutral-900">
+                      {pendingStockApproval.targetQty} unidades
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-neutral-500 block">Saldo Resultante:</span>
+                    <span className="font-mono font-bold text-red-600">
+                      {pendingStockApproval.availableStock - pendingStockApproval.targetQty} unidades
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Opción rápida si el usuario actual es SuperAdmin o Supervisor */}
+              {isSuperAdminRole(user?.role) && (
+                <div className="p-3 bg-sky-50 rounded-lg border border-sky-200 space-y-2">
+                  <p className="text-[11px] text-sky-800">
+                    Su sesión actual posee rango de <strong>{user?.role || 'Administrador'}</strong>. Puede autorizar esta venta inmediatamente:
+                  </p>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    disabled={isAuthorizingSupervisor}
+                    onClick={() => handleConfirmSupervisorApproval(true)}
+                    className="w-full flex items-center justify-center gap-1.5 py-2"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    <span>{isAuthorizingSupervisor ? 'Autorizando...' : 'Autorizar como Administrador'}</span>
+                  </Button>
+                  <div className="relative my-2">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-sky-200"></div>
+                    </div>
+                    <div className="relative flex justify-center text-[10px] uppercase text-sky-500 bg-sky-50 px-2 font-medium">
+                      O ingresar credenciales de otro supervisor
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Formulario de Credenciales de Supervisor */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleConfirmSupervisorApproval(false);
+                }}
+                className="space-y-3"
+              >
+                <div>
+                  <label className="block text-xs font-medium text-neutral-700 mb-1">
+                    Usuario o Correo del Supervisor *
+                  </label>
+                  <input
+                    type="text"
+                    value={supervisorUsername}
+                    onChange={(e) => setSupervisorUsername(e.target.value)}
+                    placeholder="ej: supervisor / admin@empresa.com"
+                    className="w-full h-9 rounded-lg border border-neutral-300 bg-white px-3 text-xs text-neutral-900 focus-visible:ring-2 focus-visible:ring-sky-500"
+                    required={!isSuperAdminRole(user?.role)}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-neutral-700 mb-1">
+                    Contraseña del Supervisor *
+                  </label>
+                  <input
+                    type="password"
+                    value={supervisorPassword}
+                    onChange={(e) => setSupervisorPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full h-9 rounded-lg border border-neutral-300 bg-white px-3 text-xs text-neutral-900 focus-visible:ring-2 focus-visible:ring-sky-500"
+                    required={!isSuperAdminRole(user?.role)}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-neutral-700 mb-1">
+                    Motivo u Observación (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={supervisorNotes}
+                    onChange={(e) => setSupervisorNotes(e.target.value)}
+                    placeholder="ej: Mercancía física disponible pendiente por recepción"
+                    className="w-full h-9 rounded-lg border border-neutral-300 bg-white px-3 text-xs text-neutral-900 focus-visible:ring-2 focus-visible:ring-sky-500"
+                  />
+                </div>
+
+                {supervisorAuthError && (
+                  <p className="text-xs text-red-600 bg-red-50 p-2 rounded-lg border border-red-200">
+                    {supervisorAuthError}
+                  </p>
+                )}
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-neutral-200">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setIsSupervisorModalOpen(false);
+                      setPendingStockApproval(null);
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="sm"
+                    disabled={isAuthorizingSupervisor || (!supervisorUsername.trim() || !supervisorPassword)}
+                  >
+                    {isAuthorizingSupervisor ? 'Validando...' : 'Autorizar Venta'}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

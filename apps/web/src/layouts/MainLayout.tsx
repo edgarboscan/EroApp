@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { useAuthStore, isSuperAdminRole } from '../stores/authStore';
+import React, { useState, useEffect } from "react";
+import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
+import { useAuthStore, isSuperAdminRole } from "../stores/authStore";
+import { showConfirmQuestion } from "../lib/sweetalert";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -38,11 +39,13 @@ import {
   Edit2,
   Lock,
   RefreshCw,
-} from 'lucide-react';
-import { useExchangeRateStore } from '../stores/exchangeRateStore';
-import { BcvRateAutoSyncModal } from '../components/BcvRateAutoSyncModal';
-import { toast } from 'sonner';
-import { formatExchangeRate, formatMoneyVES } from '@ero/shared';
+} from "lucide-react";
+import { useExchangeRateStore } from "../stores/exchangeRateStore";
+import { BcvRateAutoSyncModal } from "../components/BcvRateAutoSyncModal";
+import { useEscapeKey } from "../components/ui/Modal";
+import { Button } from "../components/ui/Button";
+import { toast } from "sonner";
+import { formatExchangeRate, formatMoneyVES } from "@ero/shared";
 
 interface NavSubItem {
   label: string;
@@ -64,7 +67,8 @@ interface NavGroup {
 
 export const MainLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { user, logout, activeBranchId, activeWarehouseId, hasPermission } = useAuthStore();
+  const { user, logout, activeBranchId, activeWarehouseId, hasPermission } =
+    useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -81,11 +85,15 @@ export const MainLayout: React.FC = () => {
 
   const [showRateModal, setShowRateModal] = useState(false);
   const [showBcvPromptModal, setShowBcvPromptModal] = useState(false);
-  const [activeRateTab, setActiveRateTab] = useState<'update' | 'history'>('update');
+  const [activeRateTab, setActiveRateTab] = useState<"update" | "history">(
+    "update",
+  );
   const [formRate, setFormRate] = useState(rate.toString());
   const [formSource, setFormSource] = useState(source);
-  const [formNotes, setFormNotes] = useState('');
+  const [formNotes, setFormNotes] = useState("");
   const [isUpdatingRate, setIsUpdatingRate] = useState(false);
+
+  useEscapeKey(() => setShowRateModal(false), showRateModal);
 
   useEffect(() => {
     fetchRate();
@@ -98,15 +106,15 @@ export const MainLayout: React.FC = () => {
 
   const canEditRate =
     isSuperAdminRole(user?.role) ||
-    hasPermission('pricing', 'exchange_rate') ||
-    hasPermission('pricing', 'bulk_update') ||
-    hasPermission('config', 'write');
+    hasPermission("pricing", "exchange_rate") ||
+    hasPermission("pricing", "bulk_update") ||
+    hasPermission("config", "write");
 
   // Tarea automática: verifica periódicamente el BCV siempre que el usuario tenga permitido cambiar la tasa
   useEffect(() => {
     if (!canEditRate) return;
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split("T")[0];
     const dismissedKey = `ero_bcv_prompt_dismissed_${today}`;
 
     const checkRate = async () => {
@@ -132,8 +140,8 @@ export const MainLayout: React.FC = () => {
   }, [canEditRate, checkBcvLiveRate]);
 
   const handleDismissBcvPrompt = () => {
-    const today = new Date().toISOString().split('T')[0];
-    sessionStorage.setItem(`ero_bcv_prompt_dismissed_${today}`, 'true');
+    const today = new Date().toISOString().split("T")[0];
+    sessionStorage.setItem(`ero_bcv_prompt_dismissed_${today}`, "true");
     setShowBcvPromptModal(false);
   };
 
@@ -141,118 +149,291 @@ export const MainLayout: React.FC = () => {
     e.preventDefault();
     const parsed = parseFloat(formRate);
     if (isNaN(parsed) || parsed <= 0) {
-      toast.error('Ingrese una tasa de cambio válida mayor a 0');
+      toast.error("Ingrese una tasa de cambio válida mayor a 0");
       return;
     }
     setIsUpdatingRate(true);
     try {
       await updateRate(parsed, formSource, formNotes);
-      toast.success(`Tasa oficial actualizada a Bs. ${formatExchangeRate(parsed, 4)} por USD`);
+      toast.success(
+        `Tasa oficial actualizada a Bs. ${formatExchangeRate(parsed, 4)} por USD`,
+      );
       setShowRateModal(false);
-      setFormNotes('');
+      setFormNotes("");
     } catch (err: any) {
-      toast.error(err.message || 'Error al actualizar la tasa');
+      toast.error(err.message || "Error al actualizar la tasa");
     } finally {
       setIsUpdatingRate(false);
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const confirmed = await showConfirmQuestion({
+      title: "¿Seguro que desea cerrar sesión?",
+      text: "¿Estás seguro de que deseas cerrar sesión?",
+      confirmButtonText: "Sí, cerrar sesión",
+      cancelButtonText: "Cancelar",
+      icon: "question",
+    });
+    if (!confirmed) return;
     logout();
-    navigate('/login', { replace: true });
+    navigate("/login", { replace: true });
   };
 
   const navGroups: NavGroup[] = [
     {
-      id: 'dashboards',
-      title: 'Dashboard General',
+      id: "dashboards",
+      title: "Dashboard General",
       icon: LayoutDashboard,
-      to: '/dashboard',
-      module: 'dashboards',
-      action: 'read',
+      to: "/dashboard",
+      module: "dashboards",
+      action: "read",
     },
     {
-      id: 'sales',
-      title: 'Ventas & Puntos de Venta',
+      id: "sales",
+      title: "Ventas & Puntos de Venta",
       icon: ShoppingCart,
       children: [
-        { label: 'Punto de Venta (POS)', to: '/pos/caja', icon: ShoppingCart, module: 'pos', action: 'read' },
-        { label: 'Cierre de Caja & Arqueo', to: '/pos/cierre', icon: Calculator, module: 'pos', action: 'read' },
-        { label: 'Cotizaciones (Presupuestos)', to: '/sales/quotations', icon: FileSpreadsheet, module: 'sales', action: 'read' },
-        { label: 'Notas de Entrega (Despachos)', to: '/sales/deliveries', icon: Send, module: 'sales', action: 'read' },
-        { label: 'Directorio de Clientes', to: '/customers', icon: Users, module: 'customers', action: 'read' },
-        { label: 'Cuentas por Cobrar (CxC)', to: '/receivables', icon: CreditCard, module: 'receivables', action: 'read' },
+        {
+          label: "Punto de Venta (POS)",
+          to: "/pos/caja",
+          icon: ShoppingCart,
+          module: "pos",
+          action: "read",
+        },
+        {
+          label: "Cierre de Caja & Arqueo",
+          to: "/pos/cierre",
+          icon: Calculator,
+          module: "pos",
+          action: "read",
+        },
+        {
+          label: "Cotizaciones (Presupuestos)",
+          to: "/sales/quotations",
+          icon: FileSpreadsheet,
+          module: "sales",
+          action: "read",
+        },
+        {
+          label: "Notas de Entrega (Despachos)",
+          to: "/sales/deliveries",
+          icon: Send,
+          module: "sales",
+          action: "read",
+        },
+        {
+          label: "Directorio de Clientes",
+          to: "/customers",
+          icon: Users,
+          module: "customers",
+          action: "read",
+        },
+        {
+          label: "Cuentas por Cobrar (CxC)",
+          to: "/receivables",
+          icon: CreditCard,
+          module: "receivables",
+          action: "read",
+        },
       ],
     },
     {
-      id: 'purchases',
-      title: 'Compras & Abastecimiento',
+      id: "purchases",
+      title: "Compras & Abastecimiento",
       icon: ShoppingBag,
       children: [
-        { label: 'Directorio de Proveedores', to: '/suppliers', icon: Truck, module: 'suppliers', action: 'read' },
-        { label: 'Órdenes de Compra', to: '/purchases/orders', icon: ShoppingBag, module: 'purchases', action: 'read' },
-        { label: 'Recepción de Mercancía', to: '/purchases/receipts', icon: PackageCheck, module: 'purchases', action: 'read' },
-        { label: 'Cuentas por Pagar (CxP)', to: '/payables', icon: Clock, module: 'payables', action: 'read' },
+        {
+          label: "Directorio de Proveedores",
+          to: "/suppliers",
+          icon: Truck,
+          module: "suppliers",
+          action: "read",
+        },
+        {
+          label: "Órdenes de Compra",
+          to: "/purchases/orders",
+          icon: ShoppingBag,
+          module: "purchases",
+          action: "read",
+        },
+        {
+          label: "Recepción de Mercancía",
+          to: "/purchases/receipts",
+          icon: PackageCheck,
+          module: "purchases",
+          action: "read",
+        },
+        {
+          label: "Cuentas por Pagar (CxP)",
+          to: "/payables",
+          icon: Clock,
+          module: "payables",
+          action: "read",
+        },
       ],
     },
     {
-      id: 'inventory',
-      title: 'Inventario & Almacenes',
+      id: "inventory",
+      title: "Inventario & Almacenes",
       icon: Package,
       children: [
-        { label: 'Catálogo de Productos', to: '/inventory/products', icon: Package, module: 'inventory', action: 'read' },
-        { label: 'Jerarquía de Productos', to: '/inventory/hierarchy', icon: Layers, module: 'inventory', action: 'read' },
-        { label: 'Ubicaciones Físicas', to: '/inventory/locations', icon: MapPin, module: 'inventory', action: 'read' },
-        { label: 'Kardex Valorizado', to: '/inventory/kardex', icon: History, module: 'inventory', action: 'read' },
-        { label: 'Ajustes de Inventario', to: '/inventory/adjustments', icon: SlidersHorizontal, module: 'inventory', action: 'adjust' },
-        { label: 'Traslados entre Depósitos', to: '/inventory/transfers', icon: ArrowRightLeft, module: 'inventory', action: 'transfer' },
+        {
+          label: "Catálogo de Productos",
+          to: "/inventory/products",
+          icon: Package,
+          module: "inventory",
+          action: "read",
+        },
+        {
+          label: "Jerarquía de Productos",
+          to: "/inventory/hierarchy",
+          icon: Layers,
+          module: "inventory",
+          action: "read",
+        },
+        {
+          label: "Ubicaciones Físicas",
+          to: "/inventory/locations",
+          icon: MapPin,
+          module: "inventory",
+          action: "read",
+        },
+        {
+          label: "Kardex Valorizado",
+          to: "/inventory/kardex",
+          icon: History,
+          module: "inventory",
+          action: "read",
+        },
+        {
+          label: "Ajustes de Inventario",
+          to: "/inventory/adjustments",
+          icon: SlidersHorizontal,
+          module: "inventory",
+          action: "adjust",
+        },
+        {
+          label: "Traslados entre Depósitos",
+          to: "/inventory/transfers",
+          icon: ArrowRightLeft,
+          module: "inventory",
+          action: "transfer",
+        },
       ],
     },
     {
-      id: 'pricing',
-      title: 'Precios & Tarifas',
+      id: "pricing",
+      title: "Precios & Tarifas",
       icon: TrendingUp,
       children: [
-        { label: 'Cambio Masivo de Precios', to: '/pricing/bulk-update', icon: TrendingUp, module: 'pricing', action: 'bulk_update' },
-        { label: 'Tasas de Impuestos', to: '/pricing/tax-rates', icon: Percent, module: 'pricing', action: 'apply_tax' },
+        {
+          label: "Cambio Masivo de Precios",
+          to: "/pricing/bulk-update",
+          icon: TrendingUp,
+          module: "pricing",
+          action: "bulk_update",
+        },
+        {
+          label: "Tasas de Impuestos",
+          to: "/pricing/tax-rates",
+          icon: Percent,
+          module: "pricing",
+          action: "apply_tax",
+        },
       ],
     },
     {
-      id: 'treasury',
-      title: 'Tesorería & Bancos',
+      id: "treasury",
+      title: "Tesorería & Bancos",
       icon: Landmark,
-      to: '/treasury',
-      module: 'treasury',
-      action: 'read',
+      to: "/treasury",
+      module: "treasury",
+      action: "read",
     },
     {
-      id: 'taxes',
-      title: 'Tributos SENIAT',
+      id: "taxes",
+      title: "Tributos SENIAT",
       icon: BookOpen,
       children: [
-        { label: 'Retenciones IVA/ISLR', to: '/taxes/withholdings', icon: FileText, module: 'taxes', action: 'read' },
-        { label: 'Libro de Compras Fiscal', to: '/taxes/books/purchases', icon: BookOpen, module: 'taxes', action: 'read' },
-        { label: 'Libro de Ventas Fiscal', to: '/taxes/books/sales', icon: BookOpen, module: 'taxes', action: 'read' },
-        { label: 'Certificado ARCV (ISLR)', to: '/taxes/arcv', icon: FileCheck, module: 'taxes', action: 'read' },
+        {
+          label: "Retenciones IVA/ISLR",
+          to: "/taxes/withholdings",
+          icon: FileText,
+          module: "taxes",
+          action: "read",
+        },
+        {
+          label: "Libro de Compras Fiscal",
+          to: "/taxes/books/purchases",
+          icon: BookOpen,
+          module: "taxes",
+          action: "read",
+        },
+        {
+          label: "Libro de Ventas Fiscal",
+          to: "/taxes/books/sales",
+          icon: BookOpen,
+          module: "taxes",
+          action: "read",
+        },
+        {
+          label: "Certificado ARCV (ISLR)",
+          to: "/taxes/arcv",
+          icon: FileCheck,
+          module: "taxes",
+          action: "read",
+        },
       ],
     },
     {
-      id: 'reports',
-      title: 'Reportes & Exportación',
+      id: "reports",
+      title: "Reportes & Exportación",
       icon: FileText,
-      to: '/reports',
-      module: 'reports',
-      action: 'export_pdf',
+      to: "/reports",
+      module: "reports",
+      action: "export_pdf",
     },
     {
-      id: 'config',
-      title: 'Configuración & Auditoría',
+      id: "config",
+      title: "Configuración & Auditoría",
       icon: Building2,
       children: [
-        { label: 'Empresa & Reglas', to: '/config/company', icon: Building2, module: 'config', action: 'read' },
-        { label: 'Usuarios & Permisos', to: '/config/users', icon: Users, module: 'config', action: 'read' },
-        { label: 'Licenciamiento', to: '/config/licenses', icon: KeyRound, module: 'config', action: 'read' },
-        { label: 'Bitácora de Auditoría', to: '/audit/logs', icon: ShieldCheck, module: 'audit', action: 'read' },
+        {
+          label: "Empresa & Reglas",
+          to: "/config/company",
+          icon: Building2,
+          module: "config",
+          action: "read",
+        },
+        {
+          label: "Medios de Pago",
+          to: "/config/payment-methods",
+          icon: CreditCard,
+          module: "config",
+          action: "read",
+        },
+        {
+          label: "Usuarios & Permisos",
+          to: "/config/users",
+          icon: Users,
+          module: "config",
+          action: "read",
+        },
+        {
+          label: "Licenciamiento",
+          to: "/config/licenses",
+          icon: KeyRound,
+          module: "config",
+          action: "read",
+        },
+        {
+          label: "Bitácora de Auditoría",
+          to: "/audit/logs",
+          icon: ShieldCheck,
+          module: "audit",
+          action: "read",
+        },
       ],
     },
   ];
@@ -263,7 +444,9 @@ export const MainLayout: React.FC = () => {
     navGroups.forEach((g) => {
       if (g.children) {
         const matches = g.children.some(
-          (c) => location.pathname === c.to || location.pathname.startsWith(`${c.to}/`)
+          (c) =>
+            location.pathname === c.to ||
+            location.pathname.startsWith(`${c.to}/`),
         );
         if (matches) initial[g.id] = true;
       }
@@ -276,7 +459,9 @@ export const MainLayout: React.FC = () => {
     navGroups.forEach((g) => {
       if (g.children) {
         const matches = g.children.some(
-          (c) => location.pathname === c.to || location.pathname.startsWith(`${c.to}/`)
+          (c) =>
+            location.pathname === c.to ||
+            location.pathname.startsWith(`${c.to}/`),
         );
         if (matches) {
           setOpenGroups((prev) => ({ ...prev, [g.id]: true }));
@@ -300,14 +485,17 @@ export const MainLayout: React.FC = () => {
         .map((group) => {
           if (group.children) {
             const visibleChildren = group.children.filter((child) =>
-              hasPermission(child.module, child.action)
+              hasPermission(child.module, child.action),
             );
             return {
               ...group,
               children: visibleChildren,
             };
           }
-          const isVisible = group.module && group.action ? hasPermission(group.module, group.action) : true;
+          const isVisible =
+            group.module && group.action
+              ? hasPermission(group.module, group.action)
+              : true;
           return isVisible ? group : null;
         })
         .filter((group): group is NavGroup => {
@@ -316,14 +504,60 @@ export const MainLayout: React.FC = () => {
           return true;
         });
 
-  // Etiquetas de sucursal y depósito
-  const branchLabel = activeBranchId === 'b2222222-2222-2222-2222-222222222222'
-    ? 'Las Mercedes (SUC-02)'
-    : 'Principal Caracas (SUC-01)';
+  // Sucursales y almacenes autorizados para etiquetas dinámicas
+  const [branchesList, setBranchesList] = useState<any[]>([]);
+  const token = useAuthStore((s) => s.token);
 
-  const warehouseLabel = activeWarehouseId === 'w2222222-2222-2222-2222-222222222222'
-    ? 'Depósito Piso de Venta (TIENDA-01)'
-    : 'Almacén Central (ALM-01)';
+  useEffect(() => {
+    let isMounted = true;
+    const fetchBranches = async () => {
+      if (!token) return;
+      try {
+        const res = await fetch("/api/auth/branches", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.data) && isMounted) {
+            setBranchesList(json.data);
+          }
+        }
+      } catch {
+        // Fallback silencioso
+      }
+    };
+    fetchBranches();
+    return () => {
+      isMounted = false;
+    };
+  }, [token]);
+
+  // Etiquetas dinámicas de sucursal y depósito
+  const activeBranchObj = branchesList.find((b) => b.id === activeBranchId);
+  const branchLabel = activeBranchObj
+    ? `${activeBranchObj.name} (${activeBranchObj.code})`
+    : activeBranchId === "b2222222-2222-2222-2222-222222222222"
+      ? "Las Mercedes (SUC-02)"
+      : "Principal Caracas (SUC-01)";
+
+  const activeWarehouseObj = activeBranchObj?.warehouses?.find(
+    (w: any) => w.id === activeWarehouseId,
+  );
+  const warehouseLabel = activeWarehouseObj
+    ? `${activeWarehouseObj.name} (${activeWarehouseObj.code})`
+    : activeWarehouseId === "w2222222-2222-2222-2222-222222222222"
+      ? "Depósito Piso de Venta (TIENDA-01)"
+      : "Almacén Central (ALM-01)";
+
+  const canSwitchBranch =
+    isSuper ||
+    (user?.allBranches !== false ? branchesList.length > 1 : (user?.branches || []).length > 1);
+
+  const canSwitchWarehouse =
+    isSuper ||
+    (user?.canSwitchWarehouses !== false && (activeBranchObj?.warehouses || []).length > 1);
+
+  const canSwitchEnv = canSwitchBranch || canSwitchWarehouse;
 
   return (
     <div className="flex h-screen bg-neutral-50 overflow-hidden">
@@ -338,7 +572,7 @@ export const MainLayout: React.FC = () => {
       {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 w-64 bg-neutral-900 text-neutral-300 flex flex-col transition-transform duration-200 lg:static lg:translate-x-0 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         {/* Brand Header */}
@@ -348,8 +582,12 @@ export const MainLayout: React.FC = () => {
               E
             </div>
             <div>
-              <h1 className="text-sm font-bold text-white tracking-wide">ERO ERP VE</h1>
-              <span className="text-[10px] text-sky-400 font-medium">Enterprise Edition</span>
+              <h1 className="text-sm font-bold text-white tracking-wide">
+                ERO ERP
+              </h1>
+              <span className="text-[10px] text-sky-400 font-medium">
+                Enterprise Edition
+              </span>
             </div>
           </div>
           <button
@@ -366,7 +604,9 @@ export const MainLayout: React.FC = () => {
             if (group.children) {
               const isOpen = Boolean(openGroups[group.id]);
               const hasActiveChild = group.children.some(
-                (child) => location.pathname === child.to || location.pathname.startsWith(`${child.to}/`)
+                (child) =>
+                  location.pathname === child.to ||
+                  location.pathname.startsWith(`${child.to}/`),
               );
 
               return (
@@ -376,12 +616,14 @@ export const MainLayout: React.FC = () => {
                     onClick={() => toggleGroup(group.id)}
                     className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                       hasActiveChild
-                        ? 'text-sky-400 bg-neutral-800/80 font-semibold'
-                        : 'text-neutral-300 hover:bg-neutral-800 hover:text-white'
+                        ? "text-sky-400 bg-neutral-800/80 font-semibold"
+                        : "text-neutral-300 hover:bg-neutral-800 hover:text-white"
                     }`}
                   >
                     <div className="flex items-center gap-2.5 overflow-hidden">
-                      <group.icon className={`w-4 h-4 shrink-0 ${hasActiveChild ? 'text-sky-400' : 'text-neutral-400'}`} />
+                      <group.icon
+                        className={`w-4 h-4 shrink-0 ${hasActiveChild ? "text-sky-400" : "text-neutral-400"}`}
+                      />
                       <span className="truncate">{group.title}</span>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
@@ -390,7 +632,7 @@ export const MainLayout: React.FC = () => {
                       </span>
                       <ChevronDown
                         className={`w-3.5 h-3.5 text-neutral-400 transition-transform duration-200 ${
-                          isOpen ? 'rotate-180' : ''
+                          isOpen ? "rotate-180" : ""
                         }`}
                       />
                     </div>
@@ -407,8 +649,8 @@ export const MainLayout: React.FC = () => {
                           className={({ isActive }) =>
                             `flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
                               isActive
-                                ? 'bg-sky-600 text-white font-semibold shadow-xs'
-                                : 'text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200'
+                                ? "bg-sky-600 text-white font-semibold shadow-xs"
+                                : "text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200"
                             }`
                           }
                         >
@@ -431,8 +673,8 @@ export const MainLayout: React.FC = () => {
                 className={({ isActive }) =>
                   `flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
                     isActive
-                      ? 'bg-sky-600 text-white font-semibold shadow-xs'
-                      : 'text-neutral-300 hover:bg-neutral-800 hover:text-white'
+                      ? "bg-sky-600 text-white font-semibold shadow-xs"
+                      : "text-neutral-300 hover:bg-neutral-800 hover:text-white"
                   }`
                 }
               >
@@ -450,8 +692,12 @@ export const MainLayout: React.FC = () => {
               <User className="w-4 h-4" />
             </div>
             <div className="overflow-hidden">
-              <p className="text-xs font-medium text-white truncate">{user?.fullName || user?.username || 'Usuario'}</p>
-              <p className="text-[10px] text-neutral-400 capitalize">{user?.role || 'Rol'}</p>
+              <p className="text-xs font-medium text-white truncate">
+                {user?.fullName || user?.username || "Usuario"}
+              </p>
+              <p className="text-[10px] text-neutral-400 capitalize">
+                {user?.role || "Rol"}
+              </p>
             </div>
           </div>
           <button
@@ -480,24 +726,42 @@ export const MainLayout: React.FC = () => {
             <div className="hidden sm:flex items-center gap-2 text-xs">
               <div className="flex items-center gap-1.5 bg-neutral-100 px-3 py-1.5 rounded-lg border border-neutral-200">
                 <Building2 className="w-3.5 h-3.5 text-neutral-500" />
-                <span className="font-semibold text-neutral-700">Sucursal:</span>
-                <span className="font-medium text-neutral-900">{branchLabel}</span>
+                <span className="font-semibold text-neutral-700">
+                  Sucursal:
+                </span>
+                <span className="font-medium text-neutral-900">
+                  {branchLabel}
+                </span>
               </div>
 
               <div className="flex items-center gap-1.5 bg-neutral-100 px-3 py-1.5 rounded-lg border border-neutral-200">
                 <Warehouse className="w-3.5 h-3.5 text-neutral-500" />
-                <span className="font-semibold text-neutral-700">Depósito:</span>
-                <span className="font-medium text-neutral-900">{warehouseLabel}</span>
+                <span className="font-semibold text-neutral-700">
+                  Depósito:
+                </span>
+                <span className="font-medium text-neutral-900">
+                  {warehouseLabel}
+                </span>
               </div>
 
-              <button
-                onClick={() => navigate('/select-branch')}
-                title="Cambiar sucursal o depósito"
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-neutral-200 hover:bg-neutral-100 text-sky-700 font-medium transition-colors cursor-pointer"
-              >
-                <ArrowRightLeft className="w-3 h-3" />
-                <span>Cambiar</span>
-              </button>
+              {canSwitchEnv ? (
+                <button
+                  onClick={() => navigate("/select-branch")}
+                  title="Cambiar sucursal o depósito"
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-neutral-200 hover:bg-neutral-100 text-sky-700 font-medium transition-colors cursor-pointer"
+                >
+                  <ArrowRightLeft className="w-3 h-3" />
+                  <span>Cambiar</span>
+                </button>
+              ) : (
+                <div
+                  title="Entorno operativo asignado a su perfil (Sin autorización para cambiar)"
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-neutral-200 bg-neutral-50 text-neutral-400 font-medium"
+                >
+                  <Lock className="w-3 h-3 text-neutral-400" />
+                  <span>Fijado</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -506,11 +770,13 @@ export const MainLayout: React.FC = () => {
             <div className="flex items-center gap-1.5 bg-neutral-100 px-3 py-1.5 rounded-lg border border-neutral-200">
               <Coins className="w-3.5 h-3.5 text-neutral-500" />
               <span className="font-semibold text-neutral-700">BCV:</span>
-              <span className="font-mono font-bold text-neutral-900">Bs. {formatExchangeRate(rate, 2)}</span>
+              <span className="font-mono font-bold text-neutral-900">
+                Bs. {formatExchangeRate(rate, 2)}
+              </span>
               <button
                 type="button"
                 onClick={() => {
-                  setActiveRateTab('history');
+                  setActiveRateTab("history");
                   setShowRateModal(true);
                   fetchHistory();
                 }}
@@ -523,7 +789,7 @@ export const MainLayout: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    setActiveRateTab('update');
+                    setActiveRateTab("update");
                     setShowRateModal(true);
                   }}
                   title="Actualizar tasa de cambio oficial (Usuario Autorizado)"
@@ -538,7 +804,7 @@ export const MainLayout: React.FC = () => {
               )}
             </div>
 
-            <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg border border-emerald-200 font-medium">
+            <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg border border-emerald-200 font-medium hidden">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               SENIAT Conectado
             </div>
@@ -553,33 +819,43 @@ export const MainLayout: React.FC = () => {
 
       {/* Modal para Modificar / Ver Historial de Tasa Oficial BCV */}
       {showRateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/50 p-4">
-          <div className="bg-white rounded-lg shadow-xl border border-neutral-200 w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[85vh]">
-            <div className="p-4 border-b border-neutral-200 flex items-center justify-between bg-neutral-50">
-              <div className="flex items-center gap-2">
-                <Coins className="w-4 h-4 text-sky-600" />
-                <h3 className="text-sm font-bold text-neutral-900">
-                  Gestión de Tasa de Cambio Oficial (BCV)
-                </h3>
+        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="relative w-full max-w-lg max-h-[92vh] bg-white rounded-lg border border-neutral-200 shadow-2xl flex flex-col overflow-hidden z-10 my-auto">
+            {/* Header del Modal */}
+            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="p-1.5 bg-neutral-100 text-neutral-700 rounded-lg shrink-0">
+                  <Coins className="w-5 h-5 text-neutral-700" />
+                </div>
+                <div className="truncate">
+                  <h3 className="text-sm font-semibold text-neutral-900 truncate">
+                    Gestión de Tasa de Cambio Oficial (BCV)
+                  </h3>
+                  <p className="text-xs text-neutral-500">
+                    Historial y ajuste de la tasa de referencia en bolívares
+                  </p>
+                </div>
               </div>
               <button
+                type="button"
                 onClick={() => setShowRateModal(false)}
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg"
+                className="text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 p-1.5 rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-neutral-400 cursor-pointer"
+                title="Cerrar modal (Esc)"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Selector de Pestañas */}
-            <div className="flex border-b border-neutral-200 bg-neutral-50/50 px-4 text-xs font-medium">
+            <div className="flex border-b border-neutral-200 bg-neutral-50 px-5 text-xs font-medium shrink-0">
               {canEditRate && (
                 <button
                   type="button"
-                  onClick={() => setActiveRateTab('update')}
+                  onClick={() => setActiveRateTab("update")}
                   className={`py-2.5 px-3 border-b-2 transition-colors cursor-pointer ${
-                    activeRateTab === 'update'
-                      ? 'border-sky-600 text-sky-700 font-bold'
-                      : 'border-transparent text-neutral-500 hover:text-neutral-800'
+                    activeRateTab === "update"
+                      ? "border-neutral-900 text-neutral-900 font-semibold"
+                      : "border-transparent text-neutral-500 hover:text-neutral-800"
                   }`}
                 >
                   Actualizar Tasa
@@ -588,24 +864,27 @@ export const MainLayout: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  setActiveRateTab('history');
+                  setActiveRateTab("history");
                   fetchHistory();
                 }}
                 className={`py-2.5 px-3 border-b-2 transition-colors cursor-pointer ${
-                  activeRateTab === 'history'
-                    ? 'border-sky-600 text-sky-700 font-bold'
-                    : 'border-transparent text-neutral-500 hover:text-neutral-800'
+                  activeRateTab === "history"
+                    ? "border-neutral-900 text-neutral-900 font-semibold"
+                    : "border-transparent text-neutral-500 hover:text-neutral-800"
                 }`}
               >
                 Historial de Cambios ({history.length})
               </button>
             </div>
 
-            <div className="p-5 overflow-y-auto flex-1">
-              {activeRateTab === 'update' && canEditRate ? (
-                <form onSubmit={handleSaveRate} className="space-y-4">
+            {activeRateTab === "update" && canEditRate ? (
+              <form
+                onSubmit={handleSaveRate}
+                className="flex-1 flex flex-col overflow-hidden"
+              >
+                <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
                   {/* Sincronización Directa BCV */}
-                  <div className="flex items-center justify-between p-3 bg-sky-50/70 border border-sky-100 rounded-lg">
+                  <div className="flex items-center justify-between p-3 bg-neutral-50 border border-neutral-200 rounded-lg">
                     <div>
                       <span className="text-xs font-semibold text-neutral-800 block">
                         Sincronización Oficial BCV
@@ -614,27 +893,34 @@ export const MainLayout: React.FC = () => {
                         Consultar portal oficial en tiempo real
                       </span>
                     </div>
-                    <button
+                    <Button
                       type="button"
+                      variant="outline"
+                      size="sm"
                       onClick={async () => {
                         const data = await checkBcvLiveRate();
                         if (data) {
                           setFormRate(data.bcvRate.toString());
                           setFormSource(data.source);
                           setFormNotes(
-                            `Sincronizado desde portal oficial del BCV (${data.bcvFormattedDate || data.bcvEffectiveDate})`
+                            `Sincronizado desde portal oficial del BCV (${data.bcvFormattedDate || data.bcvEffectiveDate})`,
                           );
-                          toast.success(`Tasa obtenida del BCV: Bs. ${formatExchangeRate(data.bcvRate, 4)}`);
+                          toast.success(
+                            `Tasa obtenida del BCV: Bs. ${formatExchangeRate(data.bcvRate, 4)}`,
+                          );
                         } else {
-                          toast.error('No se pudo obtener la tasa del BCV en este momento');
+                          toast.error(
+                            "No se pudo obtener la tasa del BCV en este momento",
+                          );
                         }
                       }}
                       disabled={isBcvChecking}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-sky-700 bg-white border border-sky-200 rounded-lg hover:bg-sky-50 focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-50 transition-colors cursor-pointer"
                     >
-                      <RefreshCw className={`w-3.5 h-3.5 ${isBcvChecking ? 'animate-spin' : ''}`} />
-                      <span>{isBcvChecking ? 'Consultando...' : 'Obtener del BCV'}</span>
-                    </button>
+                      <RefreshCw
+                        className={`w-3.5 h-3.5 mr-1.5 ${isBcvChecking ? "animate-spin" : ""}`}
+                      />
+                      {isBcvChecking ? "Consultando..." : "Obtener del BCV"}
+                    </Button>
                   </div>
 
                   <div>
@@ -652,11 +938,12 @@ export const MainLayout: React.FC = () => {
                         value={formRate}
                         onChange={(e) => setFormRate(e.target.value)}
                         placeholder="ej: 36.8500"
-                        className="w-full pl-9 pr-3 py-2 text-sm font-mono font-bold border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        className="w-full pl-9 pr-3 py-2 text-sm font-mono font-bold border border-neutral-200 rounded-lg focus-visible:ring-2 focus-visible:ring-neutral-400"
                       />
                     </div>
                     <p className="text-[10px] text-neutral-500 mt-1">
-                      Esta tasa se guardará en base de datos con fecha efectiva y se aplicará a todas las operaciones actuales.
+                      Esta tasa se guardará en base de datos con fecha efectiva
+                      y se aplicará a todas las operaciones actuales.
                     </p>
                   </div>
 
@@ -670,7 +957,7 @@ export const MainLayout: React.FC = () => {
                       value={formSource}
                       onChange={(e) => setFormSource(e.target.value)}
                       placeholder="ej: Banco Central de Venezuela (BCV)"
-                      className="w-full px-3 py-2 text-xs border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      className="w-full px-3 py-2 text-xs border border-neutral-200 rounded-lg focus-visible:ring-2 focus-visible:ring-neutral-400"
                     />
                   </div>
 
@@ -683,48 +970,56 @@ export const MainLayout: React.FC = () => {
                       value={formNotes}
                       onChange={(e) => setFormNotes(e.target.value)}
                       placeholder="ej: Cierre oficial publicado por el BCV al término de la jornada"
-                      className="w-full px-3 py-2 text-xs border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      className="w-full px-3 py-2 text-xs border border-neutral-200 rounded-lg focus-visible:ring-2 focus-visible:ring-neutral-400"
                     />
                   </div>
 
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 space-y-1">
-                    <span className="font-semibold block">Aviso de Auditoría:</span>
+                    <span className="font-semibold block">
+                      Aviso de Auditoría:
+                    </span>
                     <p className="text-[11px] leading-relaxed">
-                      El cambio de tasa quedará auditado en base de datos con su usuario ({user?.fullName || user?.username}) y fecha/hora exacta.
+                      El cambio de tasa quedará auditado en base de datos con su
+                      usuario ({user?.fullName || user?.username}) y fecha/hora
+                      exacta.
                     </p>
                   </div>
+                </div>
 
-                  <div className="pt-3 border-t border-neutral-200 flex justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowRateModal(false)}
-                      disabled={isUpdatingRate}
-                      className="px-3 py-2 text-xs font-medium text-neutral-700 border border-neutral-200 rounded-lg hover:bg-neutral-50 cursor-pointer"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isUpdatingRate}
-                      className="px-3 py-2 text-xs font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50 cursor-pointer"
-                    >
-                      {isUpdatingRate ? 'Guardando en BD...' : 'Guardar y Aplicar Tasa'}
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                <div className="space-y-3">
+                {/* Pinned Footer */}
+                <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowRateModal(false)}
+                    disabled={isUpdatingRate}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button type="submit" size="sm" disabled={isUpdatingRate}>
+                    {isUpdatingRate
+                      ? "Guardando en BD..."
+                      : "Guardar y Aplicar Tasa"}
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-neutral-700">
                       Registro Histórico de Tasas en Base de Datos:
                     </span>
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="sm"
                       onClick={() => fetchHistory()}
-                      className="text-xs text-sky-600 hover:text-sky-800 font-medium cursor-pointer"
                     >
+                      <RefreshCw className="w-3.5 h-3.5 mr-1" />
                       Refrescar
-                    </button>
+                    </Button>
                   </div>
 
                   {isHistoryLoading ? (
@@ -733,7 +1028,8 @@ export const MainLayout: React.FC = () => {
                     </div>
                   ) : history.length === 0 ? (
                     <div className="py-8 text-center text-xs text-neutral-400 border border-dashed border-neutral-200 rounded-lg">
-                      No se encontraron registros de tasas previas en base de datos.
+                      No se encontraron registros de tasas previas en base de
+                      datos.
                     </div>
                   ) : (
                     <div className="overflow-x-auto border border-neutral-200 rounded-lg">
@@ -748,7 +1044,10 @@ export const MainLayout: React.FC = () => {
                         </thead>
                         <tbody className="divide-y divide-neutral-100">
                           {history.map((h, i) => (
-                            <tr key={h.id || i} className="hover:bg-neutral-50/60">
+                            <tr
+                              key={h.id || i}
+                              className="hover:bg-neutral-50/60"
+                            >
                               <td className="py-2 px-3 font-mono text-[11px] text-neutral-700">
                                 {h.effectiveDate}
                               </td>
@@ -767,19 +1066,21 @@ export const MainLayout: React.FC = () => {
                       </table>
                     </div>
                   )}
-
-                  <div className="pt-3 border-t border-neutral-200 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setShowRateModal(false)}
-                      className="px-3 py-2 text-xs font-medium text-neutral-700 border border-neutral-200 rounded-lg hover:bg-neutral-50 cursor-pointer"
-                    >
-                      Cerrar
-                    </button>
-                  </div>
                 </div>
-              )}
-            </div>
+
+                {/* Pinned Footer */}
+                <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowRateModal(false)}
+                  >
+                    Cerrar
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

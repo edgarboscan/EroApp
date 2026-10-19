@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { ReportsService } from './reports.service';
+import { ReportsPdfEngine } from './reports-pdf';
 import { authenticate, AppEnv } from '../../middleware/auth';
 import { authorize } from '../../middleware/rbac';
 
@@ -15,7 +16,8 @@ reportsRouter.get('/sales', authenticate, authorize('reports', 'export_pdf'), as
   const userId = c.req.query('userId');
   const paymentMethod = c.req.query('paymentMethod');
   const status = c.req.query('status');
-  const format = c.req.query('format') || 'json';
+  const isDetailed = c.req.query('detailed') === 'true';
+  const format = c.req.query('format') || c.req.query('export') || 'json';
 
   try {
     const data = await ReportsService.getSalesReport(user.companyId, {
@@ -27,6 +29,25 @@ reportsRouter.get('/sales', authenticate, authorize('reports', 'export_pdf'), as
       paymentMethod,
       status,
     });
+
+    if (format === 'pdf') {
+      const [company, userName, branchName] = await Promise.all([
+        ReportsService.getCompanyPdfInfo(user.companyId),
+        ReportsService.getUserFullName(user.sub),
+        ReportsService.getBranchName(branchId),
+      ]);
+
+      const buffer = ReportsPdfEngine.generateSalesReportPDF(data, company, userName, {
+        detailed: isDetailed,
+        startDate,
+        endDate,
+        branchName,
+      });
+
+      c.header('Content-Type', 'application/pdf');
+      c.header('Content-Disposition', `inline; filename="reporte_ventas_${startDate || 'inicio'}_${endDate || 'fin'}.pdf"`);
+      return c.body(new Uint8Array(buffer));
+    }
 
     if (format === 'csv') {
       const flatRows = data.invoices.map((inv) => ({
@@ -93,7 +114,8 @@ reportsRouter.get('/cash-shifts', authenticate, authorize('reports', 'export_pdf
   const cashRegisterId = c.req.query('cashRegisterId');
   const userId = c.req.query('userId');
   const status = c.req.query('status');
-  const format = c.req.query('format') || 'json';
+  const isDetailed = c.req.query('detailed') === 'true';
+  const format = c.req.query('format') || c.req.query('export') || 'json';
 
   try {
     const data = await ReportsService.getCashShiftsReport(user.companyId, {
@@ -104,6 +126,25 @@ reportsRouter.get('/cash-shifts', authenticate, authorize('reports', 'export_pdf
       userId,
       status,
     });
+
+    if (format === 'pdf') {
+      const [company, userName, branchName] = await Promise.all([
+        ReportsService.getCompanyPdfInfo(user.companyId),
+        ReportsService.getUserFullName(user.sub),
+        ReportsService.getBranchName(branchId),
+      ]);
+
+      const buffer = ReportsPdfEngine.generateCashShiftsReportPDF(data, company, userName, {
+        detailed: isDetailed,
+        startDate,
+        endDate,
+        branchName,
+      });
+
+      c.header('Content-Type', 'application/pdf');
+      c.header('Content-Disposition', `inline; filename="reporte_cierres_caja_${startDate || 'inicio'}_${endDate || 'fin'}.pdf"`);
+      return c.body(new Uint8Array(buffer));
+    }
 
     if (format === 'csv') {
       const flatRows = data.shifts.map((s) => ({
@@ -178,10 +219,29 @@ reportsRouter.get('/sales-by-product', authenticate, authorize('reports', 'expor
   const user = c.get('user');
   const startDate = c.req.query('startDate');
   const endDate = c.req.query('endDate');
-  const format = c.req.query('format') || 'json';
+  const branchId = c.req.query('branchId');
+  const format = c.req.query('format') || c.req.query('export') || 'json';
 
   try {
     const data = await ReportsService.getSalesByProductReport(user.companyId, startDate, endDate);
+
+    if (format === 'pdf') {
+      const [company, userName, branchName] = await Promise.all([
+        ReportsService.getCompanyPdfInfo(user.companyId),
+        ReportsService.getUserFullName(user.sub),
+        ReportsService.getBranchName(branchId),
+      ]);
+
+      const buffer = ReportsPdfEngine.generateSalesByProductReportPDF(data, company, userName, {
+        startDate,
+        endDate,
+        branchName,
+      });
+
+      c.header('Content-Type', 'application/pdf');
+      c.header('Content-Disposition', `inline; filename="ventas_por_producto_${startDate || 'inicio'}_${endDate || 'fin'}.pdf"`);
+      return c.body(new Uint8Array(buffer));
+    }
 
     if (format === 'csv') {
       const flatRows = data.map((p) => ({
@@ -232,10 +292,29 @@ reportsRouter.get('/sales-by-cashier', authenticate, authorize('reports', 'expor
   const user = c.get('user');
   const startDate = c.req.query('startDate');
   const endDate = c.req.query('endDate');
-  const format = c.req.query('format') || 'json';
+  const branchId = c.req.query('branchId');
+  const format = c.req.query('format') || c.req.query('export') || 'json';
 
   try {
     const data = await ReportsService.getSalesByCashierReport(user.companyId, startDate, endDate);
+
+    if (format === 'pdf') {
+      const [company, userName, branchName] = await Promise.all([
+        ReportsService.getCompanyPdfInfo(user.companyId),
+        ReportsService.getUserFullName(user.sub),
+        ReportsService.getBranchName(branchId),
+      ]);
+
+      const buffer = ReportsPdfEngine.generateSalesByCashierReportPDF(data, company, userName, {
+        startDate,
+        endDate,
+        branchName,
+      });
+
+      c.header('Content-Type', 'application/pdf');
+      c.header('Content-Disposition', `inline; filename="ventas_por_cajero_${startDate || 'inicio'}_${endDate || 'fin'}.pdf"`);
+      return c.body(new Uint8Array(buffer));
+    }
 
     if (format === 'csv') {
       const csv = ReportsService.exportToCSV(data);
@@ -253,8 +332,21 @@ reportsRouter.get('/sales-by-cashier', authenticate, authorize('reports', 'expor
 // GET /api/reports/inventory-hierarchy
 reportsRouter.get('/inventory-hierarchy', authenticate, authorize('reports', 'export_pdf'), async (c) => {
   const user = c.get('user');
-  const format = c.req.query('format') || 'json';
+  const format = c.req.query('format') || c.req.query('export') || 'json';
   const data = await ReportsService.getInventoryHierarchyReport(user.companyId);
+
+  if (format === 'pdf') {
+    const [company, userName] = await Promise.all([
+      ReportsService.getCompanyPdfInfo(user.companyId),
+      ReportsService.getUserFullName(user.sub),
+    ]);
+
+    const buffer = ReportsPdfEngine.generateInventoryHierarchyReportPDF(data, company, userName);
+
+    c.header('Content-Type', 'application/pdf');
+    c.header('Content-Disposition', 'inline; filename="inventario_jerarquia.pdf"');
+    return c.body(new Uint8Array(buffer));
+  }
 
   if (format === 'csv') {
     const csv = ReportsService.exportToCSV(data);
@@ -277,8 +369,23 @@ reportsRouter.get('/inventory-hierarchy', authenticate, authorize('reports', 'ex
 reportsRouter.get('/sales-book', authenticate, authorize('taxes', 'read'), async (c) => {
   const user = c.get('user');
   const period = c.req.query('period');
-  const format = c.req.query('format') || 'json';
+  const format = c.req.query('format') || c.req.query('export') || 'json';
   const data = await ReportsService.getSalesBookReport(user.companyId, period);
+
+  if (format === 'pdf') {
+    const [company, userName] = await Promise.all([
+      ReportsService.getCompanyPdfInfo(user.companyId),
+      ReportsService.getUserFullName(user.sub),
+    ]);
+
+    const buffer = ReportsPdfEngine.generateSalesBookReportPDF(data, company, userName, {
+      period,
+    });
+
+    c.header('Content-Type', 'application/pdf');
+    c.header('Content-Disposition', `inline; filename="libro_ventas_${period || 'periodo'}.pdf"`);
+    return c.body(new Uint8Array(buffer));
+  }
 
   if (format === 'csv') {
     const csv = ReportsService.exportToCSV(data);

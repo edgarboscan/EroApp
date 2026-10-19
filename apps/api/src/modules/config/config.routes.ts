@@ -3,12 +3,16 @@ import { zValidator } from '@hono/zod-validator';
 import {
   updateCompanySchema,
   branchSchema,
+  updateBranchSchema,
   warehouseSchema,
+  updateWarehouseSchema,
   updateBusinessRulesSchema,
+  paymentMethodSchema,
   isSuperAdminRole,
 } from '@ero/shared';
 import { ConfigService } from './config.service';
 import { BcvService } from './bcv.service';
+import { POSService } from '../pos/pos.service';
 import { authenticate, AppEnv } from '../../middleware/auth';
 import { authorize } from '../../middleware/rbac';
 
@@ -74,6 +78,40 @@ configRouter.post(
   }
 );
 
+configRouter.put(
+  '/branches/:id',
+  authenticate,
+  authorize('config', 'update'),
+  zValidator('json', updateBranchSchema),
+  async (c) => {
+    const user = c.get('user');
+    const id = c.req.param('id')!;
+    const input = c.req.valid('json');
+    try {
+      const branch = await ConfigService.updateBranch(user.companyId, id, input);
+      return c.json({ success: true, data: branch });
+    } catch (error: any) {
+      return c.json({ success: false, error: { code: 'BRANCH_UPDATE_ERROR', message: error.message } }, 500);
+    }
+  }
+);
+
+configRouter.delete(
+  '/branches/:id',
+  authenticate,
+  authorize('config', 'delete'),
+  async (c) => {
+    const user = c.get('user');
+    const id = c.req.param('id')!;
+    try {
+      const result = await ConfigService.deleteBranch(user.companyId, id);
+      return c.json(result);
+    } catch (error: any) {
+      return c.json({ success: false, error: { code: 'BRANCH_DELETE_ERROR', message: error.message } }, 500);
+    }
+  }
+);
+
 // ==========================================
 // 3. Depósitos / Almacenes
 // ==========================================
@@ -101,6 +139,40 @@ configRouter.post(
       return c.json({ success: true, data: warehouse }, 201);
     } catch (error: any) {
       return c.json({ success: false, error: { code: 'WAREHOUSE_CREATE_ERROR', message: error.message } }, 500);
+    }
+  }
+);
+
+configRouter.put(
+  '/warehouses/:id',
+  authenticate,
+  authorize('config', 'update'),
+  zValidator('json', updateWarehouseSchema),
+  async (c) => {
+    const user = c.get('user');
+    const id = c.req.param('id')!;
+    const input = c.req.valid('json');
+    try {
+      const warehouse = await ConfigService.updateWarehouse(user.companyId, id, input);
+      return c.json({ success: true, data: warehouse });
+    } catch (error: any) {
+      return c.json({ success: false, error: { code: 'WAREHOUSE_UPDATE_ERROR', message: error.message } }, 500);
+    }
+  }
+);
+
+configRouter.delete(
+  '/warehouses/:id',
+  authenticate,
+  authorize('config', 'delete'),
+  async (c) => {
+    const user = c.get('user');
+    const id = c.req.param('id')!;
+    try {
+      const result = await ConfigService.deleteWarehouse(user.companyId, id);
+      return c.json(result);
+    } catch (error: any) {
+      return c.json({ success: false, error: { code: 'WAREHOUSE_DELETE_ERROR', message: error.message } }, 500);
     }
   }
 );
@@ -375,3 +447,53 @@ configRouter.post('/exchange-rate/sync-bcv', authenticate, async (c) => {
     );
   }
 });
+
+// ==========================================
+// 7. Medios de Pago (Configuración)
+// ==========================================
+configRouter.get('/payment-methods', authenticate, authorize('config', 'read'), async (c) => {
+  const user = c.get('user');
+  const all = c.req.query('all') !== 'false';
+  try {
+    const methods = await POSService.getPaymentMethods(user.companyId, !all);
+    return c.json({ success: true, data: methods });
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'PAYMENT_METHODS_FETCH_FAILED', message: error.message } }, 500);
+  }
+});
+
+configRouter.post('/payment-methods', authenticate, authorize('config', 'create'), async (c) => {
+  const user = c.get('user');
+  try {
+    const body = await c.req.json();
+    const parsed = paymentMethodSchema.parse(body);
+    const method = await POSService.createPaymentMethod(user.companyId, parsed);
+    return c.json({ success: true, data: method }, 201);
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'PAYMENT_METHOD_CREATE_FAILED', message: error.message } }, 400);
+  }
+});
+
+configRouter.put('/payment-methods/:id', authenticate, authorize('config', 'update'), async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id')!;
+  try {
+    const body = await c.req.json();
+    const method = await POSService.updatePaymentMethod(id, user.companyId, body);
+    return c.json({ success: true, data: method });
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'PAYMENT_METHOD_UPDATE_FAILED', message: error.message } }, 400);
+  }
+});
+
+configRouter.delete('/payment-methods/:id', authenticate, authorize('config', 'delete'), async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id')!;
+  try {
+    await POSService.deletePaymentMethod(id, user.companyId);
+    return c.json({ success: true, message: 'Método de pago desactivado' });
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'PAYMENT_METHOD_DELETE_FAILED', message: error.message } }, 400);
+  }
+});
+

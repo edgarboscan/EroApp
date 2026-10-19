@@ -26,6 +26,8 @@ export const userTokenPayloadSchema = z.object({
   permissions: z.array(z.string()),
   branches: z.array(z.string().uuid()),
   warehouses: z.array(z.string().uuid()),
+  allBranches: z.boolean().optional(),
+  canSwitchWarehouses: z.boolean().optional(),
 });
 
 export type UserTokenPayload = z.infer<typeof userTokenPayloadSchema>;

@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { toast } from 'sonner';
+import { showConfirmQuestion } from '../../lib/sweetalert';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -35,9 +36,6 @@ interface StatementLine {
   matchedMovementId?: string;
 }
 
-const DEMO_EXTRACT_CSV = `2026-09-20,DEP-001092,Aporte de capital de trabajo,50000.00
-2026-09-25,COM-000841,Comision bancaria e IGTF,-4150.00`;
-
 export const BankReconciliationView: React.FC = () => {
   const navigate = useNavigate();
   const { token } = useAuthStore();
@@ -53,7 +51,7 @@ export const BankReconciliationView: React.FC = () => {
   const [periodStart, setPeriodStart] = useState(defaultPeriodStart);
   const [periodEnd, setPeriodEnd] = useState(defaultPeriodEnd);
   const [statementEndingBalance, setStatementEndingBalance] = useState<number>(0);
-  const [csvText, setCsvText] = useState(DEMO_EXTRACT_CSV);
+  const [csvText, setCsvText] = useState('');
   const [parsedLines, setParsedLines] = useState<StatementLine[]>([]);
   const [bookMovements, setBookMovements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,39 +66,23 @@ export const BankReconciliationView: React.FC = () => {
         });
         if (res.ok) {
           const json = await res.json();
-          setAccounts(json.data || []);
-          if (json.data?.length > 0) {
-            setSelectedAccountId(json.data[0].id);
+          const list = json.data || [];
+          setAccounts(list);
+          if (list.length > 0) {
+            setSelectedAccountId(list[0].id);
+          } else {
+            setSelectedAccountId('');
           }
         } else {
-          fallbackAccounts();
+          setAccounts([]);
+          setSelectedAccountId('');
         }
       } catch {
-        fallbackAccounts();
+        setAccounts([]);
+        setSelectedAccountId('');
       } finally {
         setLoading(false);
       }
-    };
-
-    const fallbackAccounts = () => {
-      const fallback: BankAccount[] = [
-        {
-          id: 'ba1',
-          bankName: 'Banesco Banco Universal',
-          accountNumber: '01340012345678901234',
-          currency: 'VES',
-          currentBalance: 45850.0,
-        },
-        {
-          id: 'ba2',
-          bankName: 'Bancamiga Banco Universal',
-          accountNumber: '01720098765432109876',
-          currency: 'USD',
-          currentBalance: 12450.0,
-        },
-      ];
-      setAccounts(fallback);
-      setSelectedAccountId(fallback[0].id);
     };
 
     fetchAccounts();
@@ -108,7 +90,10 @@ export const BankReconciliationView: React.FC = () => {
 
   // Load movements when selected account changes
   useEffect(() => {
-    if (!selectedAccountId) return;
+    if (!selectedAccountId) {
+      setBookMovements([]);
+      return;
+    }
     const fetchMovements = async () => {
       try {
         const res = await fetch(
@@ -119,51 +104,25 @@ export const BankReconciliationView: React.FC = () => {
           const json = await res.json();
           setBookMovements(json.data || []);
         } else {
-          setBookMovements([
-            {
-              id: 'm1',
-              referenceNumber: 'DEP-001092',
-              amount: 50000.0,
-              concept: 'Aporte inicial de capital de trabajo',
-              movementDate: '2026-09-20',
-              isReconciled: true,
-            },
-            {
-              id: 'm2',
-              referenceNumber: 'COM-000841',
-              amount: -4150.0,
-              concept: 'Mantenimiento de cuenta y comisión IGTF mensual',
-              movementDate: '2026-09-25',
-              isReconciled: true,
-            },
-          ]);
+          setBookMovements([]);
         }
       } catch {
-        setBookMovements([
-          {
-            id: 'm1',
-            referenceNumber: 'DEP-001092',
-            amount: 50000.0,
-            concept: 'Aporte inicial de capital de trabajo',
-            movementDate: '2026-09-20',
-            isReconciled: true,
-          },
-          {
-            id: 'm2',
-            referenceNumber: 'COM-000841',
-            amount: -4150.0,
-            concept: 'Mantenimiento de cuenta y comisión IGTF mensual',
-            movementDate: '2026-09-25',
-            isReconciled: true,
-          },
-        ]);
+        setBookMovements([]);
       }
     };
 
     fetchMovements();
   }, [selectedAccountId, periodStart, periodEnd, token]);
 
-  const parseCsvExtract = () => {
+  const parseCsvExtract = (showNotification = false) => {
+    if (!csvText.trim()) {
+      setParsedLines([]);
+      if (showNotification) {
+        toast.error('El campo de extracto está vacío');
+      }
+      return;
+    }
+
     const lines = csvText.trim().split('\n');
     const result: StatementLine[] = [];
 
@@ -181,12 +140,10 @@ export const BankReconciliationView: React.FC = () => {
     }
 
     setParsedLines(result);
-    toast.success(`Se importaron ${result.length} líneas del extracto bancario`);
+    if (showNotification) {
+      toast.success(`Se importaron ${result.length} líneas del extracto bancario`);
+    }
   };
-
-  useEffect(() => {
-    parseCsvExtract();
-  }, []);
 
   const activeAccount = accounts.find((a) => a.id === selectedAccountId);
 
@@ -216,6 +173,15 @@ export const BankReconciliationView: React.FC = () => {
       return;
     }
 
+    const confirmed = await showConfirmQuestion({
+      title: '¿Procesar conciliación bancaria?',
+      text: isBalanced
+        ? 'La conciliación está cuadrada con saldo cero de diferencia.'
+        : `Se registrará la conciliación con una diferencia de cuadre de ${activeAccount?.currency || ''} ${difference}.`,
+      confirmButtonText: 'Sí, procesar conciliación',
+    });
+    if (!confirmed) return;
+
     setSubmitting(true);
     try {
       const res = await fetch('/api/treasury/reconcile', {
@@ -244,8 +210,7 @@ export const BankReconciliationView: React.FC = () => {
         toast.error(json.error?.message || 'Error al ejecutar la conciliación');
       }
     } catch {
-      toast.success('Conciliación procesada en modo local exitosamente');
-      navigate('/treasury');
+      toast.error('Error de comunicación al procesar la conciliación en el servidor');
     } finally {
       setSubmitting(false);
     }
@@ -471,7 +436,7 @@ export const BankReconciliationView: React.FC = () => {
           </h2>
           <button
             type="button"
-            onClick={parseCsvExtract}
+            onClick={() => parseCsvExtract(true)}
             className="text-xs text-sky-600 font-semibold hover:text-sky-700 flex items-center gap-1"
           >
             <RefreshCw className="w-3.5 h-3.5" />

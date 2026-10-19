@@ -6,39 +6,48 @@ import { z } from 'zod';
 
 export const departmentSchema = z.object({
   id: z.string().uuid().optional(),
-  companyId: z.string().uuid(),
+  companyId: z.string().uuid().optional(),
   code: z.string().min(1).max(20),
   name: z.string().min(1).max(100),
-  description: z.string().max(255).optional(),
+  description: z.string().max(255).optional().nullable(),
   isActive: z.boolean().default(true),
 });
 
 export type DepartmentInput = z.infer<typeof departmentSchema>;
+
+export const updateDepartmentSchema = departmentSchema.partial();
+export type UpdateDepartmentInput = z.infer<typeof updateDepartmentSchema>;
 
 export const groupSchema = z.object({
   id: z.string().uuid().optional(),
   departmentId: z.string().uuid('ID de departamento requerido'),
   code: z.string().min(1).max(20),
   name: z.string().min(1).max(100),
-  description: z.string().max(255).optional(),
+  description: z.string().max(255).optional().nullable(),
   isActive: z.boolean().default(true),
 });
 
 export type GroupInput = z.infer<typeof groupSchema>;
+
+export const updateGroupSchema = groupSchema.partial();
+export type UpdateGroupInput = z.infer<typeof updateGroupSchema>;
 
 export const subgroupSchema = z.object({
   id: z.string().uuid().optional(),
   groupId: z.string().uuid('ID de grupo requerido'),
   code: z.string().min(1).max(20),
   name: z.string().min(1).max(100),
-  description: z.string().max(255).optional(),
+  description: z.string().max(255).optional().nullable(),
   isActive: z.boolean().default(true),
 });
 
 export type SubgroupInput = z.infer<typeof subgroupSchema>;
 
+export const updateSubgroupSchema = subgroupSchema.partial();
+export type UpdateSubgroupInput = z.infer<typeof updateSubgroupSchema>;
+
 // ==========================================
-// Ubicación Física Opcional
+// Ubicación Física Opcional / Por Depósito
 // ==========================================
 
 export const productLocationSchema = z.object({
@@ -53,13 +62,28 @@ export const productLocationSchema = z.object({
 
 export type ProductLocationInput = z.infer<typeof productLocationSchema>;
 
+export const warehouseLocationSchema = z.object({
+  id: z.string().uuid().optional(),
+  warehouseId: z.string().uuid('ID de depósito requerido'),
+  productId: z.string().uuid().optional().nullable(),
+  aisle: z.string().min(1, 'El pasillo es requerido').max(30),
+  shelf: z.string().max(30).optional().nullable(),
+  compartment: z.string().max(30).optional().nullable(),
+  notes: z.string().max(255).optional().nullable(),
+});
+
+export type WarehouseLocationInput = z.infer<typeof warehouseLocationSchema>;
+
+export const updateWarehouseLocationSchema = warehouseLocationSchema.partial();
+export type UpdateWarehouseLocationInput = z.infer<typeof updateWarehouseLocationSchema>;
+
 // ==========================================
 // Producto Completo con Jerarquía y Precios
 // ==========================================
 
 export const productSchema = z.object({
   id: z.string().uuid().optional(),
-  companyId: z.string().uuid(),
+  companyId: z.string().uuid().optional(),
   sku: z.string().min(1).max(50),
   barcode: z.string().max(50).optional().nullable(),
   name: z.string().min(2).max(150),
@@ -96,6 +120,9 @@ export const productSchema = z.object({
 });
 
 export type ProductInput = z.infer<typeof productSchema>;
+
+export const updateProductSchema = productSchema.partial();
+export type UpdateProductInput = z.infer<typeof updateProductSchema>;
 
 // ==========================================
 // Ajustes y Movimientos Kardex

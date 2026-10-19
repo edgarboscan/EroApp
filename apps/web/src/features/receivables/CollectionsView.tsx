@@ -13,7 +13,10 @@ import {
   AlertCircle,
   Receipt,
   Building2,
+  Search,
 } from 'lucide-react';
+import { InvoiceSearchModal } from '../../components/search';
+import { useEscapeKey } from '../../components/ui/Modal';
 import {
   formatNumber,
   formatCurrency,
@@ -21,6 +24,7 @@ import {
   formatMoneyVES,
   formatExchangeRate,
 } from '@ero/shared';
+import { PdfViewerModal } from '../../components/ui/PdfViewerModal';
 
 interface BankAccountOption {
   id: string;
@@ -41,49 +45,17 @@ interface ReceivableOption {
   dueDate: string;
 }
 
-const DEMO_PENDING_RECEIVABLES: ReceivableOption[] = [
-  {
-    id: 'r1',
-    customerName: 'INVERSIONES EL SOL DE CARACAS C.A.',
-    customerDoc: 'J-30999888-1',
-    invoiceNumber: 'FACT-001042',
-    amountTotal: 1420.50,
-    amountPaid: 0.00,
-    amountBalance: 1420.50,
-    dueDate: '2026-10-15',
-  },
-  {
-    id: 'r2',
-    customerName: 'SUMINISTROS Y ALIMENTOS INDUSTRIALES S.A.',
-    customerDoc: 'J-40111222-3',
-    invoiceNumber: 'FACT-000950',
-    amountTotal: 1200.00,
-    amountPaid: 350.00,
-    amountBalance: 850.00,
-    dueDate: '2026-08-25',
-  },
-  {
-    id: 'r3',
-    customerName: 'COMERCIALIZADORA DEL CENTRO C.A.',
-    customerDoc: 'J-50123456-7',
-    invoiceNumber: 'FACT-000810',
-    amountTotal: 620.00,
-    amountPaid: 0.00,
-    amountBalance: 620.00,
-    dueDate: '2026-06-30',
-  },
-];
-
 export const CollectionsView: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const token = useAuthStore((state) => state.token);
   const activeBranchId = useAuthStore((state) => state.activeBranchId);
 
-  const initialReceivableId = (location.state as any)?.selectedReceivableId || DEMO_PENDING_RECEIVABLES[0].id;
+  const initialReceivableId = (location.state as any)?.selectedReceivableId || '';
 
-  const [receivables, setReceivables] = useState<ReceivableOption[]>(DEMO_PENDING_RECEIVABLES);
+  const [receivables, setReceivables] = useState<ReceivableOption[]>([]);
   const [selectedReceivableId, setSelectedReceivableId] = useState<string>(initialReceivableId);
+  const [showInvoiceSearch, setShowInvoiceSearch] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'CASH_USD' | 'CASH_VES' | 'PAGO_MOVIL' | 'DEBIT_CARD' | 'ZELLE' | 'TRANSFER'>('PAGO_MOVIL');
   const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>([]);
   const [selectedBankAccountId, setSelectedBankAccountId] = useState<string>('');
@@ -91,6 +63,18 @@ export const CollectionsView: React.FC = () => {
   const [referenceNumber, setReferenceNumber] = useState('');
   const [notes, setNotes] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [pdfModal, setPdfModal] = useState<{
+    isOpen: boolean;
+    endpoint: string | null;
+    title: string;
+    filename?: string;
+  }>({
+    isOpen: false,
+    endpoint: null,
+    title: '',
+  });
+
+  useEscapeKey(() => setShowInvoiceSearch(false), showInvoiceSearch);
 
   const exchangeRateBCV = 37.00;
 
@@ -107,9 +91,11 @@ export const CollectionsView: React.FC = () => {
           if (!json.data.some((r: ReceivableOption) => r.id === selectedReceivableId)) {
             setSelectedReceivableId(json.data[0].id);
           }
+        } else {
+          setReceivables([]);
         }
       } catch {
-        // Fallback a demo data
+        setReceivables([]);
       }
     };
 
@@ -193,13 +179,18 @@ export const CollectionsView: React.FC = () => {
       }
 
       toast.success('Cobranza registrada exitosamente y fondos acreditados en Tesorería');
-      navigate('/receivables');
-    } catch {
-      // Fallback local
-      toast.success(`Cobranza de ${formatMoneyUSD(amount)} aplicada exitosamente (modo local)`);
-      setTimeout(() => {
+      if (json.data?.id) {
+        setPdfModal({
+          isOpen: true,
+          endpoint: `/api/receivables/collections/${json.data.id}/pdf`,
+          title: 'Recibo Oficial de Cobranza',
+          filename: `recibo_cobro_${json.data.id}.pdf`,
+        });
+      } else {
         navigate('/receivables');
-      }, 500);
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Error al procesar cobranza');
     } finally {
       setIsLoading(false);
     }
@@ -231,20 +222,42 @@ export const CollectionsView: React.FC = () => {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Selección de Cuenta por Cobrar */}
           <div>
-            <label className="text-xs font-semibold text-neutral-700 block mb-1">
-              Seleccione la Factura / Cuenta por Cobrar Pendiente
-            </label>
-            <select
-              value={selectedReceivableId}
-              onChange={(e) => setSelectedReceivableId(e.target.value)}
-              className="w-full h-11 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500"
-            >
-              {receivables.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.invoiceNumber} — {r.customerName} (Saldo: {formatMoneyUSD(r.amountBalance)})
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-semibold text-neutral-700">
+                Seleccione la Factura / Cuenta por Cobrar Pendiente
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowInvoiceSearch(true)}
+                className="text-xs text-sky-600 hover:text-sky-700 font-medium flex items-center gap-1 cursor-pointer"
+              >
+                <Search className="w-3.5 h-3.5" />
+                <span>Buscar en modal</span>
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedReceivableId}
+                onChange={(e) => setSelectedReceivableId(e.target.value)}
+                className="flex-1 h-11 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500"
+              >
+                {receivables.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.invoiceNumber} — {r.customerName} (Saldo: {formatMoneyUSD(r.amountBalance)})
+                  </option>
+                ))}
+              </select>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowInvoiceSearch(true)}
+                title="Buscar factura o cliente pendiente"
+                className="h-11 px-3 shrink-0 flex items-center gap-1.5 text-xs"
+              >
+                <Search className="w-4 h-4 text-neutral-500" />
+                <span>Buscar</span>
+              </Button>
+            </div>
           </div>
 
           {/* Resumen de la Factura Seleccionada */}
@@ -393,6 +406,38 @@ export const CollectionsView: React.FC = () => {
           </div>
         </form>
       </Card>
+
+      {/* Modal Buscador de Facturas por Cobrar */}
+      <InvoiceSearchModal
+        isOpen={showInvoiceSearch}
+        onClose={() => setShowInvoiceSearch(false)}
+        onSelect={(inv) => {
+          setSelectedReceivableId(inv.id);
+          setShowInvoiceSearch(false);
+        }}
+        invoices={receivables.map((r) => ({
+          id: r.id,
+          documentNumber: r.invoiceNumber,
+          partyName: r.customerName,
+          partyDoc: r.customerDoc,
+          dueDate: r.dueDate,
+          amountTotal: r.amountTotal,
+          amountBalance: r.amountBalance,
+        }))}
+        mode="receivable"
+      />
+
+      {/* Modal Visor / Descarga PDF Recibo de Cobranza */}
+      <PdfViewerModal
+        isOpen={pdfModal.isOpen}
+        onClose={() => {
+          setPdfModal((prev) => ({ ...prev, isOpen: false }));
+          navigate('/receivables');
+        }}
+        title={pdfModal.title}
+        endpoint={pdfModal.endpoint}
+        filename={pdfModal.filename}
+      />
     </div>
   );
 };

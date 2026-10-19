@@ -2,10 +2,16 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import {
   departmentSchema,
+  updateDepartmentSchema,
   groupSchema,
+  updateGroupSchema,
   subgroupSchema,
+  updateSubgroupSchema,
   productSchema,
+  updateProductSchema,
   productLocationSchema,
+  warehouseLocationSchema,
+  updateWarehouseLocationSchema,
   inventoryMovementSchema,
   createInventoryAdjustmentSchema,
   createInventoryTransferSchema,
@@ -15,6 +21,14 @@ import {
 import { InventoryService } from './inventory.service';
 import { authenticate, AppEnv } from '../../middleware/auth';
 import { authorize } from '../../middleware/rbac';
+import { query } from '../../db';
+import {
+  generateKardexReportPDF,
+  generateInventoryAdjustmentPDF,
+  generateInventoryTransferPDF,
+  generateProductsReportPDF,
+} from '../reports/reports-pdf';
+import { ReportsService } from '../reports/reports.service';
 
 export const inventoryRouter = new Hono<AppEnv>();
 
@@ -29,9 +43,34 @@ inventoryRouter.get('/departments', authenticate, authorize('inventory', 'read')
 });
 
 inventoryRouter.post('/departments', authenticate, authorize('inventory', 'create'), zValidator('json', departmentSchema), async (c) => {
+  const user = c.get('user');
   const body = c.req.valid('json');
-  const result = await InventoryService.createDepartment(body);
+  const result = await InventoryService.createDepartment({
+    ...body,
+    companyId: body.companyId || user.companyId,
+  });
   return c.json({ success: true, data: result }, 201);
+});
+
+inventoryRouter.put('/departments/:id', authenticate, authorize('inventory', 'update'), zValidator('json', updateDepartmentSchema), async (c) => {
+  const id = c.req.param('id');
+  const body = c.req.valid('json');
+  try {
+    const result = await InventoryService.updateDepartment(id!, body);
+    return c.json({ success: true, data: result });
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'DEPARTMENT_UPDATE_ERROR', message: error.message } }, 400);
+  }
+});
+
+inventoryRouter.delete('/departments/:id', authenticate, authorize('inventory', 'delete'), async (c) => {
+  const id = c.req.param('id');
+  try {
+    const result = await InventoryService.deleteDepartment(id!);
+    return c.json(result);
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'DEPARTMENT_DELETE_ERROR', message: error.message } }, 400);
+  }
 });
 
 inventoryRouter.get('/groups', authenticate, authorize('inventory', 'read'), async (c) => {
@@ -46,6 +85,27 @@ inventoryRouter.post('/groups', authenticate, authorize('inventory', 'create'), 
   return c.json({ success: true, data: result }, 201);
 });
 
+inventoryRouter.put('/groups/:id', authenticate, authorize('inventory', 'update'), zValidator('json', updateGroupSchema), async (c) => {
+  const id = c.req.param('id');
+  const body = c.req.valid('json');
+  try {
+    const result = await InventoryService.updateGroup(id!, body);
+    return c.json({ success: true, data: result });
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'GROUP_UPDATE_ERROR', message: error.message } }, 400);
+  }
+});
+
+inventoryRouter.delete('/groups/:id', authenticate, authorize('inventory', 'delete'), async (c) => {
+  const id = c.req.param('id');
+  try {
+    const result = await InventoryService.deleteGroup(id!);
+    return c.json(result);
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'GROUP_DELETE_ERROR', message: error.message } }, 400);
+  }
+});
+
 inventoryRouter.get('/subgroups', authenticate, authorize('inventory', 'read'), async (c) => {
   const groupId = c.req.query('groupId');
   const result = await InventoryService.getSubgroups(groupId);
@@ -58,11 +118,73 @@ inventoryRouter.post('/subgroups', authenticate, authorize('inventory', 'create'
   return c.json({ success: true, data: result }, 201);
 });
 
+inventoryRouter.put('/subgroups/:id', authenticate, authorize('inventory', 'update'), zValidator('json', updateSubgroupSchema), async (c) => {
+  const id = c.req.param('id');
+  const body = c.req.valid('json');
+  try {
+    const result = await InventoryService.updateSubgroup(id!, body);
+    return c.json({ success: true, data: result });
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'SUBGROUP_UPDATE_ERROR', message: error.message } }, 400);
+  }
+});
+
+inventoryRouter.delete('/subgroups/:id', authenticate, authorize('inventory', 'delete'), async (c) => {
+  const id = c.req.param('id');
+  try {
+    const result = await InventoryService.deleteSubgroup(id!);
+    return c.json(result);
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'SUBGROUP_DELETE_ERROR', message: error.message } }, 400);
+  }
+});
+
 // ==========================================
-// Rutas de Ubicación Física Opcional
+// Rutas de Ubicación Física (Pasillo, Estante, Compartimiento)
 // ==========================================
 
-inventoryRouter.get('/products/:id/locations', authenticate, authorize('inventory', 'read'), async (c) => {
+inventoryRouter.get('/warehouse-locations', authenticate, authorize('inventory', 'read'), async (c) => {
+  const user = c.get('user');
+  const warehouseId = c.req.query('warehouseId');
+  const result = await InventoryService.getWarehouseLocations(user.companyId, warehouseId);
+  return c.json({ success: true, data: result });
+});
+
+inventoryRouter.post('/warehouse-locations', authenticate, authorize('inventory', 'create'), zValidator('json', warehouseLocationSchema), async (c) => {
+  const user = c.get('user');
+  const body = c.req.valid('json');
+  try {
+    const result = await InventoryService.createWarehouseLocation(user.companyId, body);
+    return c.json({ success: true, data: result }, 201);
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'LOCATION_CREATE_ERROR', message: error.message } }, 400);
+  }
+});
+
+inventoryRouter.put('/warehouse-locations/:id', authenticate, authorize('inventory', 'update'), zValidator('json', updateWarehouseLocationSchema), async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id')!;
+  const body = c.req.valid('json');
+  try {
+    const result = await InventoryService.updateWarehouseLocation(user.companyId, id, body);
+    return c.json({ success: true, data: result });
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'LOCATION_UPDATE_ERROR', message: error.message } }, 400);
+  }
+});
+
+inventoryRouter.delete('/warehouse-locations/:id', authenticate, authorize('inventory', 'delete'), async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id')!;
+  try {
+    const result = await InventoryService.deleteWarehouseLocation(user.companyId, id);
+    return c.json(result);
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'LOCATION_DELETE_ERROR', message: error.message } }, 400);
+  }
+});
+
+inventoryRouter.get('/products/:id/locations', authenticate, authorize(['inventory.read', 'pos.read', 'sales.read']), async (c) => {
   const productId = c.req.param('id');
   const result = await InventoryService.getProductLocations(productId!);
   return c.json({ success: true, data: result });
@@ -87,7 +209,7 @@ inventoryRouter.get('/locations/search', authenticate, authorize('inventory', 'r
 // Rutas de Catálogo de Productos y Kardex
 // ==========================================
 
-inventoryRouter.get('/products', authenticate, authorize('inventory', 'read'), async (c) => {
+inventoryRouter.get('/products', authenticate, authorize(['inventory.read', 'pos.read', 'sales.read']), async (c) => {
   const user = c.get('user');
   const departmentId = c.req.query('departmentId');
   const groupId = c.req.query('groupId');
@@ -99,10 +221,76 @@ inventoryRouter.get('/products', authenticate, authorize('inventory', 'read'), a
   return c.json({ success: true, data: result });
 });
 
+inventoryRouter.get('/products/pdf', authenticate, authorize(['inventory.read', 'pos.read', 'sales.read']), async (c) => {
+  const user = c.get('user');
+  const departmentId = c.req.query('departmentId');
+  const groupId = c.req.query('groupId');
+  const subgroupId = c.req.query('subgroupId');
+  const search = c.req.query('search');
+  const warehouseId = c.req.query('warehouseId') || c.get('activeWarehouseId');
+
+  try {
+    const [products, company, userName] = await Promise.all([
+      InventoryService.getProducts(user.companyId, { departmentId, groupId, subgroupId, search, warehouseId }),
+      ReportsService.getCompanyPdfInfo(user.companyId),
+      ReportsService.getUserFullName(user.sub),
+    ]);
+
+    const pdfBuffer = await generateProductsReportPDF({
+      company,
+      products,
+      userName,
+      options: {
+        filterSummary: search ? `Búsqueda: "${search}"` : undefined,
+      },
+    });
+
+    c.header('Content-Type', 'application/pdf');
+    c.header('Content-Disposition', 'inline; filename="catalogo_productos.pdf"');
+    return c.body(new Uint8Array(pdfBuffer));
+  } catch (error: any) {
+    console.error('[Products PDF Error]', error);
+    return c.json({ success: false, error: { code: 'PRODUCTS_PDF_FAILED', message: error.message } }, 500);
+  }
+});
+
+inventoryRouter.get('/products/:id', authenticate, authorize(['inventory.read', 'pos.read', 'sales.read']), async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id')!;
+  const result = await InventoryService.getProductById(user.companyId, id);
+  if (!result) {
+    return c.json({ success: false, error: { code: 'PRODUCT_NOT_FOUND', message: 'Producto no encontrado' } }, 404);
+  }
+  return c.json({ success: true, data: result });
+});
+
 inventoryRouter.post('/products', authenticate, authorize('inventory', 'create'), zValidator('json', productSchema), async (c) => {
   const body = c.req.valid('json');
   const result = await InventoryService.createProduct(body);
   return c.json({ success: true, data: result }, 201);
+});
+
+inventoryRouter.put('/products/:id', authenticate, authorize('inventory', 'update'), zValidator('json', updateProductSchema), async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id')!;
+  const body = c.req.valid('json');
+  try {
+    const result = await InventoryService.updateProduct(user.companyId, id, body);
+    return c.json({ success: true, data: result });
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'PRODUCT_UPDATE_ERROR', message: error.message } }, 400);
+  }
+});
+
+inventoryRouter.delete('/products/:id', authenticate, authorize('inventory', 'delete'), async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id')!;
+  try {
+    const result = await InventoryService.deleteProduct(user.companyId, id);
+    return c.json(result);
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'PRODUCT_DELETE_ERROR', message: error.message } }, 400);
+  }
 });
 
 inventoryRouter.post('/movements', authenticate, authorize('inventory', 'adjust'), zValidator('json', inventoryMovementSchema), async (c) => {
@@ -123,6 +311,7 @@ inventoryRouter.get('/kardex', authenticate, authorize('inventory', 'read'), asy
   const movementType = c.req.query('movementType') as any;
   const startDate = c.req.query('startDate');
   const endDate = c.req.query('endDate');
+  const format = c.req.query('format');
 
   try {
     const result = await InventoryService.getKardex(user.companyId, {
@@ -133,8 +322,48 @@ inventoryRouter.get('/kardex', authenticate, authorize('inventory', 'read'), asy
       startDate,
       endDate,
     });
+
+    if (format === 'pdf') {
+      const [company, userName] = await Promise.all([
+        ReportsService.getCompanyPdfInfo(user.companyId),
+        ReportsService.getUserFullName(user.sub),
+      ]);
+
+      const movementList = result.movements || [];
+      const pdfBuffer = await generateKardexReportPDF({
+        company,
+        filter: {
+          startDate,
+          endDate,
+          warehouseName: warehouseId ? movementList[0]?.warehouseName : undefined,
+          branchName: branchId ? movementList[0]?.branchName : undefined,
+          productName: productId ? movementList[0]?.productName : undefined,
+          movementType,
+        },
+        movements: movementList.map((m: any) => ({
+          date: m.createdAt ? new Date(m.createdAt).toISOString() : new Date().toISOString(),
+          productSku: m.sku || 'N/A',
+          productName: m.productName,
+          warehouseName: m.warehouseName,
+          movementType: m.movementType,
+          quantity: Number(m.quantity || 0),
+          unitCost: Number(m.unitCost || 0),
+          totalCost: Number(m.totalCost || 0),
+          previousStock: Number(m.previousStock || 0),
+          newStock: Number(m.newStock || 0),
+          referenceDocument: m.referenceDocument || undefined,
+        })),
+        userName,
+      });
+
+      c.header('Content-Type', 'application/pdf');
+      c.header('Content-Disposition', `inline; filename="kardex_inventario_${new Date().toISOString().slice(0, 10)}.pdf"`);
+      return c.body(new Uint8Array(pdfBuffer));
+    }
+
     return c.json({ success: true, data: result });
   } catch (error: any) {
+    console.error('[Kardex PDF Error]', error);
     return c.json({ success: false, error: { code: 'KARDEX_FETCH_FAILED', message: error.message } }, 500);
   }
 });
@@ -240,4 +469,66 @@ inventoryRouter.post(
     }
   }
 );
+
+// GET /api/inventory/adjustments/:id/pdf - Descarga / Visualización de Comprobante de Ajuste de Inventario
+inventoryRouter.get('/adjustments/:id/pdf', authenticate, authorize('inventory', 'read'), async (c) => {
+  const user = c.get('user');
+  const adjustmentId = c.req.param('id')!;
+
+  try {
+    const adjustment = await InventoryService.getAdjustmentById(user.companyId, adjustmentId);
+    if (!adjustment) {
+      return c.json({ success: false, error: { code: 'ADJUSTMENT_NOT_FOUND', message: 'Ajuste de inventario no encontrado' } }, 404);
+    }
+
+    const [company, userName] = await Promise.all([
+      ReportsService.getCompanyPdfInfo(user.companyId),
+      ReportsService.getUserFullName(user.sub),
+    ]);
+
+    const pdfBuffer = await generateInventoryAdjustmentPDF({
+      company,
+      adjustment,
+      userName,
+    });
+
+    c.header('Content-Type', 'application/pdf');
+    c.header('Content-Disposition', `inline; filename="ajuste_inventario_${adjustment.adjustmentNumber}.pdf"`);
+    return c.body(new Uint8Array(pdfBuffer));
+  } catch (error: any) {
+    console.error('[Adjustment PDF Error]', error);
+    return c.json({ success: false, error: { code: 'ADJUSTMENT_PDF_FAILED', message: error.message } }, 500);
+  }
+});
+
+// GET /api/inventory/transfers/:id/pdf - Descarga / Visualización de Guía de Traslado de Mercancía
+inventoryRouter.get('/transfers/:id/pdf', authenticate, authorize('inventory', 'read'), async (c) => {
+  const user = c.get('user');
+  const transferId = c.req.param('id')!;
+
+  try {
+    const transfer = await InventoryService.getTransferById(user.companyId, transferId);
+    if (!transfer) {
+      return c.json({ success: false, error: { code: 'TRANSFER_NOT_FOUND', message: 'Traslado no encontrado' } }, 404);
+    }
+
+    const [company, userName] = await Promise.all([
+      ReportsService.getCompanyPdfInfo(user.companyId),
+      ReportsService.getUserFullName(user.sub),
+    ]);
+
+    const pdfBuffer = await generateInventoryTransferPDF({
+      company,
+      transfer,
+      userName,
+    });
+
+    c.header('Content-Type', 'application/pdf');
+    c.header('Content-Disposition', `inline; filename="guia_traslado_${transfer.transferNumber}.pdf"`);
+    return c.body(new Uint8Array(pdfBuffer));
+  } catch (error: any) {
+    console.error('[Transfer PDF Error]', error);
+    return c.json({ success: false, error: { code: 'TRANSFER_PDF_FAILED', message: error.message } }, 500);
+  }
+});
 
