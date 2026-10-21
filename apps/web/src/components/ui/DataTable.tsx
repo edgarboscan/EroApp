@@ -16,6 +16,7 @@ interface DataTableProps<T> {
   searchKey?: keyof T;
   onExportCSV?: () => void;
   isLoading?: boolean;
+  emptyMessage?: string;
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -25,6 +26,7 @@ export function DataTable<T extends Record<string, any>>({
   searchKey,
   onExportCSV,
   isLoading = false,
+  emptyMessage = 'No se encontraron registros para mostrar',
 }: DataTableProps<T>) {
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -101,7 +103,7 @@ export function DataTable<T extends Record<string, any>>({
               ) : paginatedData.length === 0 ? (
                 <tr>
                   <td colSpan={columns.length} className="py-12 text-center text-neutral-500">
-                    No se encontraron registros para mostrar
+                    {emptyMessage}
                   </td>
                 </tr>
               ) : (

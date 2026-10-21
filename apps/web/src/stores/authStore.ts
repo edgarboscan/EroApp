@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import { isSuperAdminRole } from '@ero/shared';
+import { isSuperAdminRole, isSupervisorOrAdminRole, canAuthorizeOperations } from '@ero/shared';
 
-export { isSuperAdminRole };
+export { isSuperAdminRole, isSupervisorOrAdminRole, canAuthorizeOperations };
 
 export interface UserSession {
   id: string;

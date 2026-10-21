@@ -28,6 +28,13 @@ receivablesRouter.get('/aging', authenticate, authorize('receivables', 'read'), 
   return c.json({ success: true, data });
 });
 
+// GET /api/receivables/payment-methods - Listado de medios de pago configurados en base de datos
+receivablesRouter.get('/payment-methods', authenticate, async (c) => {
+  const user = c.get('user');
+  const data = await ReceivablesService.getPaymentMethods(user.companyId);
+  return c.json({ success: true, data });
+});
+
 // POST /api/receivables/collections - Registrar cobro o abono a cuenta por cobrar
 receivablesRouter.post('/collections', authenticate, authorize('receivables', 'create'), zValidator('json', createCollectionSchema), async (c) => {
   const user = c.get('user');

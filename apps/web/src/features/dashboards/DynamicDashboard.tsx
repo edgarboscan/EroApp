@@ -65,6 +65,8 @@ export interface WarehouseOption {
   code: string;
   name: string;
   isDefault?: boolean;
+  isDefaultSales?: boolean;
+  isDefaultPurchases?: boolean;
 }
 
 export interface BranchOption {
@@ -279,7 +281,7 @@ export const DynamicDashboard: React.FC = () => {
               if (branchObj && branchObj.warehouses.length > 0) {
                 const initialWh = branchObj.warehouses.some((w) => w.id === activeWarehouseId)
                   ? activeWarehouseId!
-                  : (branchObj.warehouses.find((w) => w.isDefault)?.id || branchObj.warehouses[0].id);
+                  : (branchObj.warehouses.find((w) => w.isDefaultSales)?.id || branchObj.warehouses.find((w) => w.isDefault)?.id || branchObj.warehouses[0].id);
                 setSelectedWarehouse(initialWh);
               }
             }
@@ -394,7 +396,10 @@ export const DynamicDashboard: React.FC = () => {
     if (branchId !== 'ALL') {
       const branch = branches.find((b) => b.id === branchId);
       if (branch && branch.warehouses.length > 0) {
-        const defaultWh = branch.warehouses.find((w) => w.isDefault)?.id || branch.warehouses[0].id;
+        const defaultWh =
+          branch.warehouses.find((w) => w.isDefaultSales)?.id ||
+          branch.warehouses.find((w) => w.isDefault)?.id ||
+          branch.warehouses[0].id;
         setSelectedWarehouse(defaultWh);
         setActiveBranch(branchId, defaultWh);
       } else {

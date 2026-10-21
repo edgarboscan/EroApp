@@ -44,11 +44,11 @@ VALUES
 ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
 
 -- 3. Depósitos
-INSERT INTO `warehouses` (`id`, `branch_id`, `code`, `name`, `is_default`, `is_active`)
+INSERT INTO `warehouses` (`id`, `branch_id`, `code`, `name`, `is_default`, `is_default_sales`, `is_default_purchases`, `is_active`)
 VALUES 
-  (@wh_main_id, @branch_main_id, 'ALM-01', 'Almacén Central Mayorista', 1, 1),
-  (@wh_store_id, @branch_main_id, 'TIENDA-01', 'Depósito Piso de Venta', 0, 1)
-ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
+  (@wh_main_id, @branch_main_id, 'ALM-01', 'Almacén Central Mayorista', 1, 1, 1, 1),
+  (@wh_store_id, @branch_main_id, 'TIENDA-01', 'Depósito Piso de Venta', 0, 0, 0, 1)
+ON DUPLICATE KEY UPDATE `name` = VALUES(`name`), `is_default_sales` = VALUES(`is_default_sales`), `is_default_purchases` = VALUES(`is_default_purchases`);
 
 -- 4. Tasas de Impuestos Venezolanas
 SET @tax_iva_gen = 't1111111-1111-1111-1111-111111111111';
@@ -118,7 +118,11 @@ VALUES
   (UUID(), 'pricing', 'exchange_rate', 'Modificar tasa de cambio oficial BCV'),
   (UUID(), 'sales', 'update', 'Modificar cotizaciones y documentos de venta'),
   (UUID(), 'sales', 'delete', 'Anular documentos de venta'),
+  (UUID(), 'sales', 'approve', 'Aprobar ventas especiales y autorizaciones de caja'),
   (UUID(), 'sales', 'approve_discount', 'Aprobar descuentos comerciales'),
+  (UUID(), 'pos', 'authorize', 'Autorizar operaciones restringidas en caja (Stock negativo, presentaciones, precios)'),
+  (UUID(), 'pos', 'audit_shifts', 'Auditar, verificar arqueos de caja y registrar depósitos bancarios de recaudación'),
+  (UUID(), 'inventory', 'approve', 'Aprobar operaciones especiales de inventario'),
   (UUID(), 'purchases', 'update', 'Modificar órdenes de compra'),
   (UUID(), 'purchases', 'delete', 'Anular órdenes de compra');
 
@@ -126,7 +130,7 @@ VALUES
 INSERT IGNORE INTO `role_permissions` (`role_id`, `permission_id`)
 SELECT @role_admin_id, id FROM `permissions`;
 
--- Asignar permisos básicos a Cajero (POS + Sales + Customers + Inventory + Pricing)
+-- Asignar permisos básicos a Cajero (POS + Sales + Customers + Inventory + Pricing) SIN permisos de autorización
 INSERT IGNORE INTO `role_permissions` (`role_id`, `permission_id`)
 SELECT @role_cashier_id, id FROM `permissions` 
 WHERE module IN ('pos', 'sales', 'dashboards', 'customers', 'inventory', 'pricing') AND action IN ('read', 'create', 'close_register');
@@ -193,6 +197,36 @@ INSERT INTO `suppliers` (`id`, `company_id`, `rif`, `name`, `fiscal_address`, `p
 VALUES 
   (@sup_1, @company_id, 'J-30555666-0', 'ALIMENTOS POLAR COMERCIAL C.A.', 'Los Cortijos, Caracas', '+58 212 202 3111', 'ventas@polar.com.ve', 1, 'SERV_IND');
 
+-- 8.1 Marcas Demo
+INSERT IGNORE INTO `brands` (`id`, `company_id`, `name`, `description`) VALUES
+  (UUID(), @company_id, 'P.A.N.', 'Harinas y derivados de maíz'),
+  (UUID(), @company_id, 'La Campesina', 'Lácteos y leches en polvo'),
+  (UUID(), @company_id, 'Stanley', 'Herramientas de alta durabilidad'),
+  (UUID(), @company_id, 'Mavesa', 'Margarinas, mayonesas y salsas'),
+  (UUID(), @company_id, 'Nestlé', 'Alimentos infantiles y confitería');
+
+-- 8.2 Unidades de Medida
+INSERT IGNORE INTO `units_of_measure` (`id`, `company_id`, `code`, `name`, `symbol`) VALUES
+  (UUID(), @company_id, 'UND', 'Unidad', 'und'),
+  (UUID(), @company_id, 'KG', 'Kilogramo', 'kg'),
+  (UUID(), @company_id, 'GR', 'Gramo', 'g'),
+  (UUID(), @company_id, 'LTS', 'Litro', 'L'),
+  (UUID(), @company_id, 'ML', 'Mililitro', 'mL'),
+  (UUID(), @company_id, 'CAJA', 'Caja', 'cja'),
+  (UUID(), @company_id, 'PAQ', 'Paquete', 'paq'),
+  (UUID(), @company_id, 'BULTO', 'Bulto', 'blt'),
+  (UUID(), @company_id, 'MTR', 'Metro', 'm');
+
+-- 8.3 Plantillas de Presentaciones
+INSERT IGNORE INTO `presentations` (`id`, `company_id`, `name`, `description`, `default_multiplier`, `default_unit`) VALUES
+  (UUID(), @company_id, 'Unidad Individual', 'Presentación individual al detal', 1.0000, 'UND'),
+  (UUID(), @company_id, 'Display x 6', 'Empaque intermedio por 6 unidades', 6.0000, 'UND'),
+  (UUID(), @company_id, 'Display x 12', 'Empaque por 12 unidades', 12.0000, 'UND'),
+  (UUID(), @company_id, 'Caja x 24', 'Caja corrugada estándar por 24 unidades', 24.0000, 'CAJA'),
+  (UUID(), @company_id, 'Caja x 48', 'Caja por 48 unidades', 48.0000, 'CAJA'),
+  (UUID(), @company_id, 'Bulto x 20Kg', 'Saco o bulto por 20 kilogramos', 20.0000, 'KG'),
+  (UUID(), @company_id, 'Bulto x 50Kg', 'Saco industrial por 50 kilogramos', 50.0000, 'KG');
+
 -- 9. Catálogo de Productos Inicial
 SET @prod_1 = 'a1111111-1111-1111-1111-111111111111';
 SET @prod_2 = 'a2222222-2222-2222-2222-222222222222';
@@ -208,6 +242,21 @@ INSERT INTO `products` (
   (@prod_2, @company_id, 'LEC-POL-01', '7591098765432', 'Leche en Polvo Completa 1Kg', 'Leche pasteurizada enriquecida con vitaminas', 'physical', @dept_alimentos, @group_lacteos, @subgroup_leches, @sup_1, 'La Campesina', 'KG', 6.5000, 9.2000, 'USD', @tax_iva_gen, 0, 20, 200, 1),
   (@prod_3, @company_id, 'DES-SET-06', '7591055554444', 'Juego de Destornilladores 6 Piezas', 'Acero cromo vanadio imantados', 'physical', @dept_ferreteria, @group_herramientas, @subgroup_destornilladores, NULL, 'Stanley', 'UND', 8.0000, 14.5000, 'USD', @tax_iva_gen, 0, 10, 80, 1)
 ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
+
+-- 9.1 SKUs Secundarios y Códigos de Barras
+INSERT IGNORE INTO `product_skus` (`id`, `product_id`, `sku`, `barcode`, `description`, `is_primary`, `price`, `currency`) VALUES
+  (UUID(), @prod_1, 'HAR-PAN-01', '7591012345678', 'SKU Principal Harina PAN 1Kg', 1, 1.4000, 'USD'),
+  (UUID(), @prod_1, 'HAR-PAN-AMAR', '7591012345679', 'Harina PAN Maíz Amarillo 1Kg', 0, 1.4500, 'USD'),
+  (UUID(), @prod_2, 'LEC-POL-01', '7591098765432', 'SKU Principal Leche Completa 1Kg', 1, 9.2000, 'USD'),
+  (UUID(), @prod_2, 'LEC-POL-DESM', '7591098765433', 'Leche Descremada 1Kg', 0, 9.8000, 'USD'),
+  (UUID(), @prod_3, 'DES-SET-06', '7591055554444', 'SKU Principal Juego 6 Piezas', 1, 14.5000, 'USD');
+
+-- 9.2 Presentaciones y Empaques con Precios Diferenciados
+INSERT IGNORE INTO `product_presentations` (`id`, `product_id`, `name`, `sku`, `barcode`, `unit_of_measure`, `multiplier`, `cost_price`, `base_price`, `currency`, `is_default`) VALUES
+  (UUID(), @prod_1, 'Unidad 1 Kg', 'HAR-PAN-01', '7591012345678', 'KG', 1.0000, 1.0000, 1.4000, 'USD', 1),
+  (UUID(), @prod_1, 'Bulto x 20 Unidades', 'HAR-PAN-BLT20', '7591012345680', 'BULTO', 20.0000, 19.0000, 26.5000, 'USD', 0),
+  (UUID(), @prod_2, 'Lata / Bolsa 1 Kg', 'LEC-POL-01', '7591098765432', 'KG', 1.0000, 6.5000, 9.2000, 'USD', 1),
+  (UUID(), @prod_2, 'Caja x 12 Unidades', 'LEC-POL-CJ12', '7591098765434', 'CAJA', 12.0000, 75.0000, 105.0000, 'USD', 0);
 
 -- 10. Ubicación Física Inicial de Productos (Pasillo / Estante / Compartimiento)
 INSERT INTO `product_locations` (`id`, `product_id`, `warehouse_id`, `aisle`, `shelf`, `compartment`, `notes`)

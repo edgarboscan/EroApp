@@ -34,11 +34,16 @@ import {
   Send,
   KeyRound,
   ShieldCheck,
+  ClipboardCheck,
   ChevronDown,
   Coins,
   Edit2,
   Lock,
   RefreshCw,
+  Maximize2,
+  Minimize2,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { useExchangeRateStore } from "../stores/exchangeRateStore";
 import { BcvRateAutoSyncModal } from "../components/BcvRateAutoSyncModal";
@@ -67,6 +72,74 @@ interface NavGroup {
 
 export const MainLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Estado para colapsar / ocultar el sidebar en pantallas grandes (Desktop)
+  const [desktopSidebarVisible, setDesktopSidebarVisible] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem("ero_desktop_sidebar_visible");
+      return saved !== null ? saved === "true" : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const toggleDesktopSidebar = () => {
+    setDesktopSidebarVisible((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("ero_desktop_sidebar_visible", String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
+  // Estado y listeners para el modo Pantalla Completa
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(
+    typeof document !== "undefined" ? Boolean(document.fullscreenElement) : false
+  );
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, []);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        if (document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen();
+        }
+      } else {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        }
+      }
+    } catch {
+      // Ignorar rechazo si el navegador bloquea fullscreen
+    }
+  };
+
+  // Atajo de teclado: Ctrl+B o Cmd+B para alternar el menú lateral
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        toggleDesktopSidebar();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
   const { user, logout, activeBranchId, activeWarehouseId, hasPermission } =
     useAuthStore();
   const navigate = useNavigate();
@@ -209,6 +282,13 @@ export const MainLayout: React.FC = () => {
           action: "read",
         },
         {
+          label: "Verificación de Arqueos",
+          to: "/pos/auditoria-arqueos",
+          icon: ClipboardCheck,
+          module: "pos",
+          action: "audit_shifts",
+        },
+        {
           label: "Cotizaciones (Presupuestos)",
           to: "/sales/quotations",
           icon: FileSpreadsheet,
@@ -219,6 +299,13 @@ export const MainLayout: React.FC = () => {
           label: "Notas de Entrega (Despachos)",
           to: "/sales/deliveries",
           icon: Send,
+          module: "sales",
+          action: "read",
+        },
+        {
+          label: "Notas de Crédito & Débito",
+          to: "/sales/credit-debit-notes",
+          icon: ArrowRightLeft,
           module: "sales",
           action: "read",
         },
@@ -571,32 +658,49 @@ export const MainLayout: React.FC = () => {
 
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-neutral-900 text-neutral-300 flex flex-col transition-transform duration-200 lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 bg-neutral-900 text-neutral-300 flex flex-col transition-all duration-300 ease-in-out shrink-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
+        } ${
+          desktopSidebarVisible
+            ? "lg:static lg:translate-x-0 lg:w-64"
+            : "lg:static lg:w-0 lg:overflow-hidden lg:opacity-0 lg:p-0 lg:pointer-events-none"
+        } w-64`}
       >
-        {/* Brand Header */}
-        <div className="flex items-center justify-between h-16 px-5 border-b border-neutral-800">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-sky-600 flex items-center justify-center text-white font-bold text-base">
-              E
+        <div className="w-64 flex flex-col h-full shrink-0">
+          {/* Brand Header */}
+          <div className="flex items-center justify-between h-16 px-5 border-b border-neutral-800">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-sky-600 flex items-center justify-center text-white font-bold text-base">
+                E
+              </div>
+              <div>
+                <h1 className="text-sm font-bold text-white tracking-wide">
+                  ERO ERP
+                </h1>
+                <span className="text-[10px] text-sky-400 font-medium">
+                  Enterprise Edition
+                </span>
+              </div>
             </div>
-            <div>
-              <h1 className="text-sm font-bold text-white tracking-wide">
-                ERO ERP
-              </h1>
-              <span className="text-[10px] text-sky-400 font-medium">
-                Enterprise Edition
-              </span>
-            </div>
+            {/* Botón cerrar en móvil */}
+            <button
+              type="button"
+              className="lg:hidden text-neutral-400 hover:text-white p-1 rounded-lg hover:bg-neutral-800 transition-colors cursor-pointer"
+              onClick={() => setSidebarOpen(false)}
+              title="Cerrar menú móvil"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            {/* Botón ocultar sidebar en desktop */}
+            <button
+              type="button"
+              className="hidden lg:flex text-neutral-400 hover:text-white p-1.5 rounded-lg hover:bg-neutral-800 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-neutral-400"
+              onClick={toggleDesktopSidebar}
+              title="Ocultar menú lateral (Ctrl+B)"
+            >
+              <PanelLeftClose className="w-4 h-4" />
+            </button>
           </div>
-          <button
-            className="lg:hidden text-neutral-400 hover:text-white"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
 
         {/* Navigation Links Grouped by Module */}
         <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
@@ -708,18 +812,36 @@ export const MainLayout: React.FC = () => {
             <LogOut className="w-4 h-4" />
           </button>
         </div>
+        </div>
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden ">
         {/* Topbar */}
         <header className="h-16 bg-white border-b border-neutral-200 flex items-center justify-between px-4 lg:px-8 shrink-0">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Botón abrir menú en móvil */}
             <button
-              className="lg:hidden text-neutral-600 hover:text-neutral-900 p-2 rounded-lg"
+              type="button"
+              className="lg:hidden text-neutral-600 hover:text-neutral-900 p-2 rounded-lg hover:bg-neutral-100 transition-colors cursor-pointer"
               onClick={() => setSidebarOpen(true)}
+              title="Abrir menú"
             >
               <Menu className="w-5 h-5" />
+            </button>
+
+            {/* Botón alternar menú lateral en Desktop */}
+            <button
+              type="button"
+              onClick={toggleDesktopSidebar}
+              title={desktopSidebarVisible ? "Ocultar menú lateral (Ctrl+B)" : "Mostrar menú lateral (Ctrl+B)"}
+              className="hidden lg:flex items-center justify-center p-2 rounded-lg border border-neutral-200 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-neutral-400"
+            >
+              {desktopSidebarVisible ? (
+                <PanelLeftClose className="w-4 h-4" />
+              ) : (
+                <PanelLeftOpen className="w-4 h-4 text-sky-600" />
+              )}
             </button>
 
             {/* Selectores de Sucursal y Depósito */}
@@ -751,7 +873,7 @@ export const MainLayout: React.FC = () => {
                   className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-neutral-200 hover:bg-neutral-100 text-sky-700 font-medium transition-colors cursor-pointer"
                 >
                   <ArrowRightLeft className="w-3 h-3" />
-                  <span>Cambiar</span>
+                  {/* <span>Cambiar</span> */}
                 </button>
               ) : (
                 <div
@@ -808,6 +930,23 @@ export const MainLayout: React.FC = () => {
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               SENIAT Conectado
             </div>
+
+            {/* Botón Pantalla Completa */}
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              title={isFullscreen ? "Salir de pantalla completa (Esc o F11)" : "Modo pantalla completa (F11)"}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-neutral-200 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-neutral-400"
+            >
+              {isFullscreen ? (
+                <Minimize2 className="w-3.5 h-3.5 text-neutral-600 shrink-0" />
+              ) : (
+                <Maximize2 className="w-3.5 h-3.5 text-neutral-600 shrink-0" />
+              )}
+              <span className="hidden sm:inline">
+                {isFullscreen ? "Restaurar" : "Pantalla completa"}
+              </span>
+            </button>
           </div>
         </header>
 

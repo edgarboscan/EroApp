@@ -130,7 +130,12 @@ configRouter.post(
   '/warehouses',
   authenticate,
   authorize('config', 'create'),
-  zValidator('json', warehouseSchema),
+  zValidator('json', warehouseSchema, (result, c) => {
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(' | ');
+      return c.json({ success: false, error: { code: 'VALIDATION_ERROR', message: messages } }, 400);
+    }
+  }),
   async (c) => {
     const user = c.get('user');
     const input = c.req.valid('json');
@@ -147,7 +152,12 @@ configRouter.put(
   '/warehouses/:id',
   authenticate,
   authorize('config', 'update'),
-  zValidator('json', updateWarehouseSchema),
+  zValidator('json', updateWarehouseSchema, (result, c) => {
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(' | ');
+      return c.json({ success: false, error: { code: 'VALIDATION_ERROR', message: messages } }, 400);
+    }
+  }),
   async (c) => {
     const user = c.get('user');
     const id = c.req.param('id')!;

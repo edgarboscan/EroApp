@@ -2088,7 +2088,88 @@ export class ReportsPdfEngine {
       margin: { left: 14, right: 14, bottom: 12 },
     });
 
-    const signY = (doc as any).lastAutoTable.finalY + 12;
+    let currentTableEndY = (doc as any).lastAutoTable.finalY;
+
+    if (quotation.invoice) {
+      const inv = quotation.invoice;
+      const isCredit = Boolean(inv.isCredit);
+
+      const formatMethod = (m: string) => {
+        const map: Record<string, string> = {
+          CASH_USD: 'Efectivo Dólares (USD)',
+          CASH_VES: 'Efectivo Bolívares (VES)',
+          TRANSFER: 'Transferencia Bancaria',
+          PAGO_MOVIL: 'Pago Móvil',
+          DEBIT_CARD: 'Tarjeta de Débito (POS)',
+          CREDIT_CARD: 'Tarjeta de Crédito',
+          ZELLE: 'Zelle (USD)',
+          CREDIT: 'Crédito Comercial',
+          OTHER: 'Otro Medio',
+        };
+        return map[m] || m;
+      };
+
+      const invHeaderTitle = `DATOS DE FACTURACIÓN Y LIQUIDACIÓN / COBRO  (Factura N° ${inv.invoiceNumber}${inv.controlNumber ? ` • Control SENIAT: ${inv.controlNumber}` : ''} • Fecha: ${String(inv.invoiceDate || '').slice(0, 10)})`;
+
+      let paymentHeaders: string[] = [];
+      let paymentRows: any[][] = [];
+
+      if (isCredit) {
+        paymentHeaders = ['Condición Comercial', 'Plazo / Vencimiento', 'Estado CxC', 'Monto CxC ($)', 'Equivalente (Bs.)'];
+        paymentRows = [
+          [
+            'Venta a Crédito Comercial',
+            `Vence: ${inv.receivable?.dueDate || '15 días'}`,
+            inv.receivable?.receivableStatus === 'PAID' ? 'PAGADO EN TOTALIDAD' : 'PENDIENTE DE PAGO (CxC)',
+            `USD ${this.fmtUSD(inv.receivable?.amountTotal || inv.invoiceTotalAmount || total)}`,
+            this.fmtVES(Number(inv.receivable?.amountTotal || inv.invoiceTotalAmount || total) * rate),
+          ],
+        ];
+      } else if (inv.payments && inv.payments.length > 0) {
+        paymentHeaders = ['Método de Pago', 'Monto ($)', 'Monto (Bs.)', 'Cuenta / Banco Receptor', 'N° Referencia'];
+        paymentRows = inv.payments.map((p: any) => [
+          formatMethod(p.method),
+          `USD ${this.fmtUSD(p.amountUSD)}`,
+          `Bs. ${this.fmtVES(p.amountVES)}`,
+          p.bankName ? `${p.bankName} (${p.bankAccountDescription || ''})` : (p.bankAccountDescription || 'Caja / Banco'),
+          p.referenceNumber ? `Ref: ${p.referenceNumber}` : '-',
+        ]);
+      } else {
+        paymentHeaders = ['Condición', 'Monto ($)', 'Monto (Bs.)', 'Destino', 'Comprobante'];
+        paymentRows = [
+          ['Contado Directo', `USD ${this.fmtUSD(total)}`, `Bs. ${this.fmtVES(total * rate)}`, 'Caja General', '-'],
+        ];
+      }
+
+      autoTable(doc, {
+        head: [
+          [{ content: invHeaderTitle, colSpan: 5, styles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold', fontSize: 6.8, halign: 'left' } }],
+          paymentHeaders,
+        ],
+        body: paymentRows,
+        startY: currentTableEndY + 6,
+        theme: 'grid',
+        headStyles: { fillColor: [241, 245, 249], textColor: [30, 41, 59], fontSize: 6.3, fontStyle: 'bold', halign: 'center', cellPadding: 1.5 },
+        bodyStyles: { fontSize: 6.2, cellPadding: 1.5, textColor: this.COLOR_PRIMARY },
+        columnStyles: {
+          0: { halign: 'left' },
+          1: { halign: 'right' },
+          2: { halign: 'right' },
+          3: { halign: 'left' },
+          4: { halign: 'center' },
+        },
+        margin: { left: 14, right: 14, bottom: 12 },
+      });
+
+      currentTableEndY = (doc as any).lastAutoTable.finalY;
+    }
+
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let signY = currentTableEndY + 12;
+    if (signY + 28 > pageHeight - 14) {
+      doc.addPage();
+      signY = 25;
+    }
 
     this.drawSignatureBoxes(
       doc,
@@ -2281,6 +2362,232 @@ export class ReportsPdfEngine {
       [
         { title: 'DEPARTAMENTO DE COBRANZAS', subtitle: `${userName} (Firma y Sello)` },
         { title: 'CLIENTE / PAGADOR', subtitle: 'Firma Conforme' },
+      ],
+      pageWidth
+    );
+
+    return this.finalize(doc);
+  }
+
+  /**
+   * 13.1. NOTA DE CRÉDITO Y NOTA DE DÉBITO FISCAL (SENIAT)
+   */
+  static generateCustomerNotePDF(
+    note: any,
+    company: CompanyPdfInfo,
+    userName: string
+  ): Buffer {
+    const isCredit = note.type === 'CREDIT';
+    const docTitle = isCredit ? 'NOTA DE CRÉDITO' : 'NOTA DE DÉBITO';
+    const docSubtitle = isCredit
+      ? 'Documento Fiscal de Ajuste y Compensación a Favor del Cliente'
+      : 'Documento Fiscal de Ajuste y Recargo Comercial a Cargo del Cliente';
+
+    const issueDateStr = String(note.issueDate || '').slice(0, 10);
+    const periodText = `N° Documento: ${note.noteNumber}${note.controlNumber ? `  •  Control SENIAT: ${note.controlNumber}` : ''}  •  Emisión: ${issueDateStr}  •  Sucursal: ${note.branchName || 'Principal'}`;
+
+    const { doc, startY, pageWidth } = this.initDocument(company, {
+      title: docTitle,
+      subtitle: docSubtitle,
+      periodText,
+      userName,
+      orientation: 'portrait',
+      auditId: `${note.type === 'CREDIT' ? 'NC' : 'ND'}-${note.noteNumber}`,
+    });
+
+    // Si está anulada, dibujamos una marca de agua destacada
+    if (note.status === 'ANNULLED') {
+      doc.saveGraphicsState();
+      doc.setTextColor(220, 38, 38);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(24);
+      doc.text('DOCUMENTO ANULADO', pageWidth / 2, startY + 14, { align: 'center' });
+      doc.restoreGraphicsState();
+    }
+
+    const reasonLabels: Record<string, string> = {
+      RETURN: 'Devolución de Mercancía',
+      DISCOUNT: 'Descuento o Rebaja Concedida',
+      PRICE_CORRECTION: 'Corrección por Sobrefacturación',
+      ANNULMENT: 'Rescisión o Anulación de Factura',
+      PRICE_DIFFERENCE: 'Diferencia de Precio / Subfacturación',
+      LATE_FEE: 'Intereses de Mora',
+      COLLECTION_FEE: 'Gastos de Cobranza y Transporte',
+      OTHER: 'Otro Ajuste Comercial',
+    };
+
+    const clientLines = [
+      `Cliente / Razón Social: ${(note.customerName || 'CLIENTE').toUpperCase()}`,
+      `RIF / C.I.: ${note.customerDoc || 'V-00000000'}`,
+      `Dirección Fiscal: ${(note.customerAddress || 'No especificada').slice(0, 48)}`,
+      `Teléfono de Contacto: ${note.customerPhone || '-'}`,
+    ];
+
+    const fiscalLines = [
+      `Tipo de Operación: ${isCredit ? 'CRÉDITO (Disminuye deuda)' : 'DÉBITO (Aumenta deuda)'}`,
+      `Motivo Legal: ${reasonLabels[note.reasonType] || note.reasonType || 'Ajuste Comercial'}`,
+      `Factura Afectada: ${note.affectedInvoiceNumber ? `N° ${note.affectedInvoiceNumber}${note.affectedInvoiceControlNumber ? ` (Control: ${note.affectedInvoiceControlNumber})` : ''}` : 'Sin Factura Directa (Ajuste Global)'}`,
+      `Tasa Oficial BCV: ${this.fmtVES(note.exchangeRate || 1)}${note.warehouseName ? `  •  Almacén: ${note.warehouseName}` : ''}`,
+    ];
+
+    let currentY = this.drawTwoColumnInfoCards(
+      doc,
+      startY,
+      { title: 'DATOS DEL CLIENTE / RECEPTOR', lines: clientLines },
+      { title: 'DATOS FISCALES Y ORIGEN DEL AJUSTE', lines: fiscalLines },
+      pageWidth
+    );
+
+    const headers = ['#', 'SKU / Código', 'Descripción del Concepto / Renglón', 'Cant.', 'Precio Unit. ($)', 'IVA %', 'Subtotal ($)', 'Total ($)'];
+
+    const items = note.items || [];
+    const rows = items.map((it: any, idx: number) => {
+      const returnBadge = it.returnToInventory ? ' [Devuelto a Stock]' : '';
+      return [
+        String(idx + 1),
+        it.productCode || it.productSku || '-',
+        `${(it.description || it.productName || '').slice(0, 45)}${returnBadge}`,
+        this.fmtQty(it.quantity),
+        this.fmtUSD(it.unitPrice),
+        `${Number(it.taxRate || 0).toFixed(0)}%`,
+        this.fmtUSD(it.subtotal),
+        this.fmtUSD(it.subtotal + (it.taxAmount || 0)),
+      ];
+    });
+
+    const tax = Number(note.taxAmount || 0);
+    const total = Number(note.totalAmount || 0);
+    const rate = Number(note.exchangeRate || 1);
+
+    const footRow = [
+      {
+        content: `BASE GRAVABLE: USD ${this.fmtUSD(note.baseTaxableAmount || 0)}  |  EXENTO: USD ${this.fmtUSD(note.baseExemptAmount || 0)}  |  IVA: USD ${this.fmtUSD(tax)}  |  TOTAL ${isCredit ? 'N. CRÉDITO' : 'N. DÉBITO'}: USD ${this.fmtUSD(total)} (${this.fmtVES(total * rate)})`,
+        colSpan: 8,
+        styles: { halign: 'right' as const, fontStyle: 'bold' as const, fontSize: 6.8 },
+      },
+    ];
+
+    autoTable(doc, {
+      head: [headers],
+      body: rows,
+      foot: [footRow],
+      startY: currentY,
+      theme: 'striped',
+      headStyles: { fillColor: this.COLOR_HEADER, textColor: 255, fontSize: 6.8, fontStyle: 'bold', halign: 'center', cellPadding: 1.8 },
+      bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: this.COLOR_PRIMARY },
+      footStyles: { fillColor: this.COLOR_TOTALS, textColor: this.COLOR_PRIMARY, fontStyle: 'bold', fontSize: 6.8, cellPadding: 2 },
+      columnStyles: {
+        0: { halign: 'center', cellWidth: 8 },
+        1: { halign: 'center', cellWidth: 22 },
+        2: { halign: 'left', cellWidth: 62 },
+        3: { halign: 'right', cellWidth: 14 },
+        4: { halign: 'right', cellWidth: 20 },
+        5: { halign: 'center', cellWidth: 14 },
+        6: { halign: 'right', cellWidth: 20 },
+        7: { halign: 'right', cellWidth: 22, fontStyle: 'bold' },
+      },
+      margin: { left: 14, right: 14, bottom: 12 },
+    });
+
+    let currentTableEndY = (doc as any).lastAutoTable.finalY;
+
+    // Resumen de Saldo / Aplicaciones si es Nota de Crédito o Débito
+    const statusBoxRows: any[][] = [];
+    if (isCredit) {
+      statusBoxRows.push([
+        `Monto Original: USD ${this.fmtUSD(total)} (${this.fmtVES(total * rate)})`,
+        `Aplicado a Cuentas por Cobrar: USD ${this.fmtUSD(note.amountApplied || 0)}`,
+        `SALDO DISPONIBLE A FAVOR: USD ${this.fmtUSD(note.amountBalance || 0)} (${this.fmtVES((note.amountBalance || 0) * rate)})`,
+      ]);
+    } else {
+      statusBoxRows.push([
+        `Monto Exigible: USD ${this.fmtUSD(total)} (${this.fmtVES(total * rate)})`,
+        `Fecha de Vencimiento: ${note.dueDate ? String(note.dueDate).slice(0, 10) : 'Contado Inmediato'}`,
+        `SALDO PENDIENTE POR COBRAR: USD ${this.fmtUSD(note.amountBalance || total)}`,
+      ]);
+    }
+
+    autoTable(doc, {
+      head: [
+        [
+          {
+            content: isCredit ? 'ESTADO DE LIQUIDACIÓN Y SALDO DISPONIBLE' : 'CONDICIONES DE COBRANZA (CxC)',
+            colSpan: 3,
+            styles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold', fontSize: 6.8, halign: 'left' },
+          },
+        ],
+      ],
+      body: statusBoxRows,
+      startY: currentTableEndY + 5,
+      theme: 'grid',
+      bodyStyles: { fontSize: 6.6, fontStyle: 'bold', halign: 'center', cellPadding: 2, textColor: this.COLOR_PRIMARY },
+      margin: { left: 14, right: 14, bottom: 12 },
+    });
+
+    currentTableEndY = (doc as any).lastAutoTable.finalY;
+
+    // Si tiene aplicaciones registradas a CxC, listarlas
+    if (note.applications && note.applications.length > 0) {
+      const appHeaders = ['Fecha Aplicación', 'Factura / CxC Afectada', 'Monto Compensado ($)', 'Equivalente (Bs.)', 'Registrado Por'];
+      const appRows = note.applications.map((app: any) => [
+        String(app.appliedDate || app.createdAt || '').slice(0, 10),
+        `Factura N° ${app.invoiceNumber || app.receivableId?.slice(0, 8)}`,
+        `USD ${this.fmtUSD(app.amountApplied)}`,
+        this.fmtVES(Number(app.amountApplied) * rate),
+        app.userName || 'Sistema',
+      ]);
+
+      autoTable(doc, {
+        head: [
+          [{ content: 'HISTORIAL DE COMPENSACIONES / APLICACIONES A CUENTAS POR COBRAR', colSpan: 5, styles: { fillColor: [71, 85, 105], textColor: 255, fontStyle: 'bold', fontSize: 6.5, halign: 'left' } }],
+          appHeaders,
+        ],
+        body: appRows,
+        startY: currentTableEndY + 4,
+        theme: 'striped',
+        headStyles: { fillColor: [241, 245, 249], textColor: [30, 41, 59], fontSize: 6.2, fontStyle: 'bold', halign: 'center', cellPadding: 1.5 },
+        bodyStyles: { fontSize: 6.2, cellPadding: 1.5, textColor: this.COLOR_PRIMARY },
+        columnStyles: {
+          0: { halign: 'center' },
+          1: { halign: 'left' },
+          2: { halign: 'right', fontStyle: 'bold' },
+          3: { halign: 'right' },
+          4: { halign: 'center' },
+        },
+        margin: { left: 14, right: 14, bottom: 12 },
+      });
+
+      currentTableEndY = (doc as any).lastAutoTable.finalY;
+    }
+
+    // Observaciones o motivo descriptivo
+    if (note.reasonDescription) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.8);
+      doc.setTextColor(this.COLOR_PRIMARY[0], this.COLOR_PRIMARY[1], this.COLOR_PRIMARY[2]);
+      doc.text('JUSTIFICACIÓN / OBSERVACIONES:', 14, currentTableEndY + 5);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.5);
+      doc.setTextColor(this.COLOR_MUTED[0], this.COLOR_MUTED[1], this.COLOR_MUTED[2]);
+      const splitObs = doc.splitTextToSize(note.reasonDescription, pageWidth - 28);
+      doc.text(splitObs, 14, currentTableEndY + 8.5);
+      currentTableEndY += 8.5 + (splitObs.length * 3.5);
+    }
+
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let signY = currentTableEndY + 12;
+    if (signY + 28 > pageHeight - 14) {
+      doc.addPage();
+      signY = 25;
+    }
+
+    this.drawSignatureBoxes(
+      doc,
+      signY,
+      [
+        { title: 'EMITIDO POR (ADMINISTRACIÓN / VENTAS)', subtitle: `${userName} (Firma Autorizada)` },
+        { title: 'CONFORMIDAD DEL CLIENTE', subtitle: 'Firma, Cédula / RIF y Sello de Recepción' },
       ],
       pageWidth
     );
@@ -3482,5 +3789,13 @@ export async function generateProductsReportPDF(data: {
   options?: any;
 }): Promise<Buffer> {
   return ReportsPdfEngine.generateProductsReportPDF(data.products, data.company, data.userName || 'Gerencia de Inventario', data.options || {});
+}
+
+export async function generateCustomerNotePDF(data: {
+  company: CompanyPdfInfo;
+  note: any;
+  userName?: string;
+}): Promise<Buffer> {
+  return ReportsPdfEngine.generateCustomerNotePDF(data.note, data.company, data.userName || 'Administración de Ventas');
 }
 

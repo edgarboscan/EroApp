@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
+import { useExchangeRateStore } from '../../stores/exchangeRateStore';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -14,6 +15,7 @@ import {
   Receipt,
   Building2,
   Search,
+  RotateCcw,
 } from 'lucide-react';
 import { InvoiceSearchModal } from '../../components/search';
 import { useEscapeKey } from '../../components/ui/Modal';
@@ -36,13 +38,27 @@ interface BankAccountOption {
 
 interface ReceivableOption {
   id: string;
+  customerId: string;
   customerName: string;
   customerDoc: string;
   invoiceNumber: string;
+  documentType?: 'INVOICE' | 'DEBIT_NOTE';
   amountTotal: number;
   amountPaid: number;
   amountBalance: number;
   dueDate: string;
+}
+
+export interface PaymentMethodOption {
+  id: string;
+  code: string;
+  name: string;
+  currency: 'USD' | 'VES';
+  type: 'CASH' | 'CARD' | 'ELECTRONIC' | 'CREDIT' | 'OTHER';
+  appliesIGTF: boolean;
+  requiresReference: boolean;
+  requiresBankAccount: boolean;
+  displayOrder: number;
 }
 
 export const CollectionsView: React.FC = () => {
@@ -50,13 +66,16 @@ export const CollectionsView: React.FC = () => {
   const location = useLocation();
   const token = useAuthStore((state) => state.token);
   const activeBranchId = useAuthStore((state) => state.activeBranchId);
+  const liveRate = useExchangeRateStore((state) => state.rate);
 
   const initialReceivableId = (location.state as any)?.selectedReceivableId || '';
 
   const [receivables, setReceivables] = useState<ReceivableOption[]>([]);
   const [selectedReceivableId, setSelectedReceivableId] = useState<string>(initialReceivableId);
   const [showInvoiceSearch, setShowInvoiceSearch] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<'CASH_USD' | 'CASH_VES' | 'PAGO_MOVIL' | 'DEBIT_CARD' | 'ZELLE' | 'TRANSFER'>('PAGO_MOVIL');
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([]);
+  const [paymentMethodCode, setPaymentMethodCode] = useState<string>('PAGO_MOVIL');
+  const [isPaymentMethodsLoading, setIsPaymentMethodsLoading] = useState(true);
   const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>([]);
   const [selectedBankAccountId, setSelectedBankAccountId] = useState<string>('');
   const [amount, setAmount] = useState<number>(0);
@@ -76,7 +95,7 @@ export const CollectionsView: React.FC = () => {
 
   useEscapeKey(() => setShowInvoiceSearch(false), showInvoiceSearch);
 
-  const exchangeRateBCV = 37.00;
+  const exchangeRateBCV = liveRate && liveRate > 0 ? liveRate : 37.00;
 
   useEffect(() => {
     const fetchReceivables = async () => {
@@ -108,7 +127,7 @@ export const CollectionsView: React.FC = () => {
           const json = await res.json();
           if (json.success && Array.isArray(json.data)) {
             setBankAccounts(json.data);
-            // Pre-seleccionar cuenta bancaria VES por defecto si el método inicial es PAGO_MOVIL
+            // Pre-seleccionar cuenta bancaria VES por defecto
             const vesAcc = json.data.find((a: BankAccountOption) => a.currency === 'VES');
             if (vesAcc) {
               setSelectedBankAccountId(vesAcc.id);
@@ -120,11 +139,62 @@ export const CollectionsView: React.FC = () => {
       }
     };
 
+    const fetchPaymentMethods = async () => {
+      try {
+        setIsPaymentMethodsLoading(true);
+        const res = await fetch('/api/receivables/payment-methods', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+            setPaymentMethods(json.data);
+            const defaultMethod = json.data.find((m: PaymentMethodOption) => m.code === 'PAGO_MOVIL') || json.data[0];
+            setPaymentMethodCode(defaultMethod.code);
+          }
+        }
+      } catch {
+        // Ignorar
+      } finally {
+        setIsPaymentMethodsLoading(false);
+      }
+    };
+
     fetchReceivables();
     fetchBankAccounts();
+    fetchPaymentMethods();
   }, [activeBranchId, token]);
 
+  const [availableCredits, setAvailableCredits] = useState<any[]>([]);
+
   const selectedReceivable = receivables.find((r) => r.id === selectedReceivableId) || receivables[0];
+  const selectedMethod = paymentMethods.find((m) => m.code === paymentMethodCode) || paymentMethods[0];
+
+  // Consultar notas de crédito con saldo a favor del cliente seleccionado
+  useEffect(() => {
+    if (!selectedReceivable?.customerId) {
+      setAvailableCredits([]);
+      return;
+    }
+
+    fetch(`/api/customer-notes/customer/${selectedReceivable.customerId}/available-credits`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.success && Array.isArray(json.data)) {
+          setAvailableCredits(json.data);
+        } else {
+          setAvailableCredits([]);
+        }
+      })
+      .catch(() => setAvailableCredits([]));
+  }, [selectedReceivable?.customerId, token]);
+
+  const totalAvailableCreditUSD = availableCredits.reduce(
+    (acc, c) => acc + (Number(c.amountBalance) || 0),
+    0
+  );
 
   useEffect(() => {
     if (selectedReceivable) {
@@ -135,6 +205,21 @@ export const CollectionsView: React.FC = () => {
   const handlePayFull = () => {
     if (selectedReceivable) {
       setAmount(selectedReceivable.amountBalance);
+    }
+  };
+
+  const handleSelectPaymentMethod = (m: PaymentMethodOption) => {
+    setPaymentMethodCode(m.code);
+
+    // Ajustar automáticamente la cuenta bancaria de destino según la moneda del método de pago
+    const currentAcc = bankAccounts.find((b) => b.id === selectedBankAccountId);
+    if (!currentAcc || currentAcc.currency !== m.currency) {
+      const matchingAcc = bankAccounts.find((b) => b.currency === m.currency);
+      if (matchingAcc) {
+        setSelectedBankAccountId(matchingAcc.id);
+      } else if (m.requiresBankAccount && bankAccounts.length > 0) {
+        setSelectedBankAccountId(bankAccounts[0].id);
+      }
     }
   };
 
@@ -152,6 +237,28 @@ export const CollectionsView: React.FC = () => {
       return;
     }
 
+    if (selectedMethod?.requiresReference && !referenceNumber.trim()) {
+      toast.error(`El número de referencia es obligatorio para pagos con ${selectedMethod.name}`);
+      return;
+    }
+
+    if (paymentMethodCode === 'NOTA_CREDITO') {
+      const creditNote = availableCredits.find((c) => c.noteNumber === referenceNumber || c.id === referenceNumber);
+      if (!creditNote) {
+        toast.error('Debe seleccionar una Nota de Crédito con saldo a favor para compensar la deuda');
+        return;
+      }
+      if (amount > creditNote.amountBalance + 0.01) {
+        toast.error(`El monto a compensar no puede superar el saldo disponible de la Nota de Crédito (${formatMoneyUSD(creditNote.amountBalance)})`);
+        return;
+      }
+    }
+
+    if (selectedMethod?.requiresBankAccount && !selectedBankAccountId) {
+      toast.error('Debe seleccionar una cuenta bancaria receptora para generar el movimiento de conciliación bancaria');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -165,7 +272,7 @@ export const CollectionsView: React.FC = () => {
           receivableId: selectedReceivable.id,
           amount,
           currency: 'USD',
-          paymentMethod,
+          paymentMethod: selectedMethod ? selectedMethod.code : paymentMethodCode,
           bankAccountId: selectedBankAccountId || undefined,
           exchangeRate: exchangeRateBCV,
           referenceNumber: referenceNumber.trim() || undefined,
@@ -241,11 +348,14 @@ export const CollectionsView: React.FC = () => {
                 onChange={(e) => setSelectedReceivableId(e.target.value)}
                 className="flex-1 h-11 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500"
               >
-                {receivables.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.invoiceNumber} — {r.customerName} (Saldo: {formatMoneyUSD(r.amountBalance)})
-                  </option>
-                ))}
+                {receivables.map((r) => {
+                  const typeLabel = r.documentType === 'DEBIT_NOTE' ? '[ND]' : '[FAC]';
+                  return (
+                    <option key={r.id} value={r.id}>
+                      {typeLabel} {r.invoiceNumber} — {r.customerName} (Saldo: {formatMoneyUSD(r.amountBalance)})
+                    </option>
+                  );
+                })}
               </select>
               <Button
                 type="button"
@@ -260,6 +370,40 @@ export const CollectionsView: React.FC = () => {
             </div>
           </div>
 
+          {/* Banner de Saldo a Favor por Notas de Crédito Disponibles */}
+          {totalAvailableCreditUSD > 0.005 && (
+            <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-emerald-900">
+              <div className="flex items-start gap-2.5">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-bold text-emerald-950">
+                    Saldo a Favor de Notas de Crédito: {formatMoneyUSD(totalAvailableCreditUSD)}
+                  </div>
+                  <div className="text-[11px] text-emerald-800 mt-0.5">
+                    Este cliente posee {availableCredits.length} Nota(s) de Crédito activas con saldo disponible para compensar esta deuda.
+                  </div>
+                </div>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setPaymentMethodCode('NOTA_CREDITO');
+                  if (availableCredits.length > 0) {
+                    setReferenceNumber(availableCredits[0].noteNumber);
+                    const maxUsable = Math.min(selectedReceivable.amountBalance, availableCredits[0].amountBalance);
+                    setAmount(Number(maxUsable.toFixed(2)));
+                  }
+                }}
+                className="bg-white border-emerald-300 text-emerald-800 hover:bg-emerald-100 shrink-0"
+              >
+                <RotateCcw className="w-3.5 h-3.5 mr-1" />
+                Compensar con Nota de Crédito
+              </Button>
+            </div>
+          )}
+
           {/* Resumen de la Factura Seleccionada */}
           {selectedReceivable && (
             <div className="p-4 bg-neutral-50 rounded-lg border border-neutral-200 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
@@ -273,9 +417,11 @@ export const CollectionsView: React.FC = () => {
                 </span>
               </div>
               <div>
-                <span className="text-neutral-500 block">Monto Original:</span>
+                <span className="text-neutral-500 block">
+                  {selectedReceivable.documentType === 'DEBIT_NOTE' ? 'Tipo Documento:' : 'Monto Original:'}
+                </span>
                 <span className="font-semibold text-neutral-900 block font-mono">
-                  {formatMoneyUSD(selectedReceivable.amountTotal)}
+                  {selectedReceivable.documentType === 'DEBIT_NOTE' ? 'Nota de Débito' : formatMoneyUSD(selectedReceivable.amountTotal)}
                 </span>
               </div>
               <div>
@@ -293,60 +439,111 @@ export const CollectionsView: React.FC = () => {
             </div>
           )}
 
-          {/* Medio de Pago */}
+          {/* Medio de Pago Cargado de la Base de Datos */}
           <div>
-            <label className="text-xs font-semibold text-neutral-700 block mb-2">
-              Forma de Pago del Cliente
-            </label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-              {[
-                { id: 'PAGO_MOVIL', label: 'Pago Móvil (Bs)', desc: 'Moneda local' },
-                { id: 'CASH_USD', label: 'Efectivo Divisas ($)', desc: 'Dólares en efectivo' },
-                { id: 'TRANSFER', label: 'Transferencia Bancaria', desc: 'Bancos nacionales' },
-                { id: 'DEBIT_CARD', label: 'Punto de Venta / Débito', desc: 'Tarjeta' },
-                { id: 'ZELLE', label: 'Zelle / Int. USD', desc: 'Transferencia electrónica' },
-                { id: 'CASH_VES', label: 'Efectivo Bolívares (Bs)', desc: 'Moneda local' },
-              ].map((m) => (
-                <div
-                  key={m.id}
-                  onClick={() => setPaymentMethod(m.id as any)}
-                  className={`p-3 rounded-lg border text-left cursor-pointer transition-colors ${
-                    paymentMethod === m.id
-                      ? 'border-sky-600 bg-sky-50/50 ring-2 ring-sky-500'
-                      : 'border-neutral-200 hover:border-neutral-300'
-                  }`}
-                >
-                  <div className="text-xs font-semibold text-neutral-900">{m.label}</div>
-                  <div className="text-[10px] text-neutral-500 mt-0.5">{m.desc}</div>
-                </div>
-              ))}
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-semibold text-neutral-700">
+                Forma de Pago del Cliente
+              </label>
+              <span className="text-[10px] text-neutral-400">
+                Configurados en base de datos
+              </span>
             </div>
+
+            {isPaymentMethodsLoading ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                {Array.from({ length: 6 }).map((_, idx) => (
+                  <div key={idx} className="h-16 bg-neutral-100 rounded-lg animate-pulse" />
+                ))}
+              </div>
+            ) : paymentMethods.length === 0 ? (
+              <div className="p-4 bg-neutral-50 rounded-lg border border-neutral-200 text-center text-xs text-neutral-500">
+                No se encontraron medios de pago activos en el sistema.
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                {paymentMethods.map((m) => (
+                  <button
+                    key={m.id || m.code}
+                    type="button"
+                    onClick={() => handleSelectPaymentMethod(m)}
+                    className={`p-3 rounded-lg border text-left cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${
+                      paymentMethodCode === m.code
+                        ? 'border-sky-600 bg-sky-50/50 ring-2 ring-sky-500'
+                        : 'border-neutral-200 bg-white hover:border-neutral-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-xs font-semibold text-neutral-900 truncate">
+                        {m.name}
+                      </span>
+                      <span
+                        className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-lg border shrink-0 ${
+                          m.currency === 'USD'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-sky-50 text-sky-700 border-sky-200'
+                        }`}
+                      >
+                        {m.currency}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-neutral-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                      {m.requiresReference && (
+                        <span className="text-rose-600 font-medium">• Ref. requerida</span>
+                      )}
+                      {m.requiresBankAccount ? (
+                        <span className="text-purple-700 font-medium">• Conciliable</span>
+                      ) : (
+                        <span>• Caja / Efectivo</span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Cuenta Bancaria de Destino (Tesorería) */}
-          <div className="p-3.5 bg-sky-50/50 rounded-lg border border-sky-100 space-y-2">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-              <label className="text-xs font-semibold text-neutral-800 flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5 text-sky-600" />
-                Cuenta Bancaria Receptora (Tesorería)
-              </label>
-              <span className="text-[10px] text-neutral-500">
-                Se reflejará en el libro de banco para conciliación bancaria
-              </span>
+          {paymentMethodCode !== 'NOTA_CREDITO' && (
+            <div className="p-3.5 bg-neutral-50 rounded-lg border border-neutral-200 space-y-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                <label className="text-xs font-semibold text-neutral-800 flex items-center gap-1.5">
+                  <Building2 className="w-4 h-4 text-sky-600" />
+                  <span>Cuenta Bancaria Receptora (Tesorería)</span>
+                  {selectedMethod?.requiresBankAccount && (
+                    <span className="text-[10px] text-rose-600 font-bold ml-1">
+                      * Requerido para conciliación
+                    </span>
+                  )}
+                </label>
+                <span className="text-[10px] text-neutral-500">
+                  Se generará el registro en el libro de banco para la conciliación bancaria
+                </span>
+              </div>
+              <select
+                value={selectedBankAccountId}
+                onChange={(e) => setSelectedBankAccountId(e.target.value)}
+                required={selectedMethod?.requiresBankAccount}
+                className={`w-full h-10 px-3 text-xs bg-white border rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500 ${
+                  selectedMethod?.requiresBankAccount && !selectedBankAccountId
+                    ? 'border-rose-400 ring-1 ring-rose-200'
+                    : 'border-neutral-300'
+                }`}
+              >
+                {!selectedMethod?.requiresBankAccount && (
+                  <option value="">-- Sin acreditar a banco (Caja Chica / Efectivo en Custodia) --</option>
+                )}
+                {selectedMethod?.requiresBankAccount && (
+                  <option value="">-- Seleccione la cuenta bancaria de destino (Obligatorio) --</option>
+                )}
+                {bankAccounts.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.bankName} - {b.accountNumber.slice(-4)} ({b.currency}) • Saldo actual: {formatCurrency(b.currentBalance, b.currency)}
+                  </option>
+                ))}
+              </select>
             </div>
-            <select
-              value={selectedBankAccountId}
-              onChange={(e) => setSelectedBankAccountId(e.target.value)}
-              className="w-full h-10 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500"
-            >
-              <option value="">-- Sin acreditar a banco (Caja Chica / Efectivo en Custodia) --</option>
-              {bankAccounts.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.bankName} - {b.accountNumber.slice(-4)} ({b.currency}) • Saldo actual: {formatCurrency(b.currentBalance, b.currency)}
-                </option>
-              ))}
-            </select>
-          </div>
+          )}
 
           {/* Montos y Referencia */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -372,16 +569,86 @@ export const CollectionsView: React.FC = () => {
                 required
               />
               <div className="text-[11px] text-neutral-500 mt-1 font-mono">
-                Equivalente BCV: {formatMoneyVES(amountVES)} (Tasa: {formatExchangeRate(exchangeRateBCV, 2)})
+                {selectedMethod?.currency === 'VES' ? (
+                  <span>
+                    Equivalente en Bolívares: <strong className="text-neutral-900">{formatMoneyVES(amountVES)}</strong> (Tasa: {formatExchangeRate(exchangeRateBCV, 2)})
+                  </span>
+                ) : (
+                  <span>
+                    Equivalente BCV: {formatMoneyVES(amountVES)} (Tasa: {formatExchangeRate(exchangeRateBCV, 2)})
+                  </span>
+                )}
               </div>
             </div>
 
-            <Input
-              label="Número de Referencia / Comprobante"
-              placeholder="Ej: Ref 0098421"
-              value={referenceNumber}
-              onChange={(e) => setReferenceNumber(e.target.value)}
-            />
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-semibold text-neutral-700">
+                  {paymentMethodCode === 'NOTA_CREDITO'
+                    ? 'Nota de Crédito a Aplicar'
+                    : 'Número de Referencia / Comprobante'}
+                </label>
+                {selectedMethod?.requiresReference || paymentMethodCode === 'NOTA_CREDITO' ? (
+                  <span className="text-[10px] text-rose-600 font-bold">
+                    * Obligatorio
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-neutral-400">
+                    Opcional
+                  </span>
+                )}
+              </div>
+              {paymentMethodCode === 'NOTA_CREDITO' ? (
+                availableCredits.length > 0 ? (
+                  <select
+                    value={referenceNumber}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setReferenceNumber(val);
+                      const sel = availableCredits.find(
+                        (c) => c.noteNumber === val || c.id === val
+                      );
+                      if (sel && selectedReceivable) {
+                        const maxCompensable = Math.min(
+                          selectedReceivable.amountBalance,
+                          sel.amountBalance
+                        );
+                        setAmount(Number(maxCompensable.toFixed(2)));
+                      }
+                    }}
+                    required
+                    className="w-full h-10 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500"
+                  >
+                    <option value="">-- Seleccione la Nota de Crédito --</option>
+                    {availableCredits.map((c) => (
+                      <option key={c.id} value={c.noteNumber}>
+                        {c.noteNumber} - Saldo: {formatMoneyUSD(c.amountBalance)} ({c.reasonDescription || c.reasonType})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="p-2.5 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg">
+                    El cliente no posee Notas de Crédito activas con saldo a favor disponible.
+                  </div>
+                )
+              ) : (
+                <Input
+                  placeholder={
+                    selectedMethod?.requiresReference
+                      ? 'Ej: Ref 0098421 (Requerido para conciliar)'
+                      : 'Ej: Ref 0098421 (Opcional)'
+                  }
+                  value={referenceNumber}
+                  onChange={(e) => setReferenceNumber(e.target.value)}
+                  required={selectedMethod?.requiresReference}
+                  className={
+                    selectedMethod?.requiresReference && !referenceNumber.trim()
+                      ? 'border-rose-300 focus-visible:ring-rose-500'
+                      : ''
+                  }
+                />
+              )}
+            </div>
           </div>
 
           <Input

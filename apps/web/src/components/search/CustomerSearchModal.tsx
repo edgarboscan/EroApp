@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, X, Users, Check, AlertCircle, Phone, Mail, MapPin } from 'lucide-react';
+import { Search, X, Users, Check, AlertCircle, Phone, Mail, MapPin, Ban } from 'lucide-react';
 import { useEscapeKey } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
@@ -10,6 +10,8 @@ export interface CustomerSearchItem {
   id: string;
   name: string;
   doc?: string;
+  docType?: string;
+  docNumber?: string;
   documentId?: string;
   rif?: string;
   phone?: string;
@@ -18,6 +20,12 @@ export interface CustomerSearchItem {
   creditEnabled?: boolean;
   creditLimit?: number;
   creditDays?: number;
+  isActive?: boolean;
+  isBlocked?: boolean;
+  is_blocked?: boolean | number;
+  status?: string;
+  blockReason?: string;
+  block_reason?: string;
 }
 
 export interface CustomerSearchModalProps {
@@ -27,6 +35,7 @@ export interface CustomerSearchModalProps {
   customers?: CustomerSearchItem[];
   title?: string;
   subtitle?: string;
+  allowBlocked?: boolean;
 }
 
 export const CustomerSearchModal: React.FC<CustomerSearchModalProps> = ({
@@ -36,6 +45,7 @@ export const CustomerSearchModal: React.FC<CustomerSearchModalProps> = ({
   customers: initialCustomers,
   title = 'Directorio y Búsqueda de Clientes',
   subtitle = 'Busca por Cédula / RIF, Razón Social o Teléfono',
+  allowBlocked = false,
 }) => {
   const { token } = useAuthStore();
   const [searchTerm, setSearchTerm] = useState('');
@@ -102,6 +112,10 @@ export const CustomerSearchModal: React.FC<CustomerSearchModalProps> = ({
   if (!isOpen) return null;
 
   const handleSelectItem = (cust: CustomerSearchItem) => {
+    const isBlocked = Boolean(cust.isBlocked || cust.is_blocked || cust.status === 'BLOCKED');
+    if (isBlocked && !allowBlocked) {
+      return;
+    }
     onSelect(cust);
     onClose();
   };
@@ -189,23 +203,49 @@ export const CustomerSearchModal: React.FC<CustomerSearchModalProps> = ({
                 </thead>
                 <tbody className="divide-y divide-neutral-100">
                   {filteredCustomers.map((c) => {
-                    const docNumber = c.doc || c.documentId || c.rif || 'S/D';
+                    const docNumber = c.doc || c.documentId || c.rif || (c.docType && c.docNumber ? `${c.docType}-${c.docNumber}` : 'S/D');
+                    const isBlocked = Boolean(c.isBlocked || c.is_blocked || c.status === 'BLOCKED');
+                    const blockReason = c.blockReason || c.block_reason;
 
                     return (
                       <tr
                         key={c.id}
-                        onClick={() => handleSelectItem(c)}
-                        className="hover:bg-neutral-50 cursor-pointer transition-colors group"
+                        onClick={() => {
+                          if (isBlocked && !allowBlocked) return;
+                          handleSelectItem(c);
+                        }}
+                        className={`transition-colors group ${
+                          isBlocked
+                            ? 'bg-red-50/40 hover:bg-red-50/60 cursor-not-allowed'
+                            : 'hover:bg-neutral-50 cursor-pointer'
+                        }`}
                       >
                         <td className="py-2.5 px-3 font-mono font-medium text-neutral-800">
-                          <span className="bg-neutral-100 text-neutral-800 px-1.5 py-0.5 rounded text-[11px]">
+                          <span className={`px-1.5 py-0.5 rounded text-[11px] ${
+                            isBlocked ? 'bg-red-100 text-red-800' : 'bg-neutral-100 text-neutral-800'
+                          }`}>
                             {docNumber}
                           </span>
                         </td>
                         <td className="py-2.5 px-3">
-                          <div className="font-semibold text-neutral-900 group-hover:text-sky-700 transition-colors">
-                            {c.name}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className={`font-semibold transition-colors ${
+                              isBlocked ? 'text-neutral-700' : 'text-neutral-900 group-hover:text-sky-700'
+                            }`}>
+                              {c.name}
+                            </span>
+                            {isBlocked && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-700 border border-red-200">
+                                <Ban className="w-3 h-3 shrink-0" />
+                                BLOQUEADO
+                              </span>
+                            )}
                           </div>
+                          {isBlocked && blockReason && (
+                            <div className="text-[11px] text-red-600 mt-0.5 font-medium">
+                              Motivo: {blockReason}
+                            </div>
+                          )}
                           {c.address && (
                             <div className="text-[11px] text-neutral-400 truncate max-w-xs flex items-center gap-1 mt-0.5">
                               <MapPin className="w-3 h-3 shrink-0" />
@@ -240,19 +280,33 @@ export const CustomerSearchModal: React.FC<CustomerSearchModalProps> = ({
                           )}
                         </td>
                         <td className="py-2.5 px-3 text-right">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSelectItem(c);
-                            }}
-                            className="text-xs py-1 px-2.5 group-hover:bg-sky-50 group-hover:border-sky-300 group-hover:text-sky-700"
-                          >
-                            <Check className="w-3.5 h-3.5 mr-1" />
-                            Elegir
-                          </Button>
+                          {isBlocked && !allowBlocked ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled
+                              className="text-xs py-1 px-2.5 opacity-60 cursor-not-allowed bg-red-50 text-red-700 border-red-200"
+                              title={blockReason || 'Cliente bloqueado'}
+                            >
+                              <Ban className="w-3.5 h-3.5 mr-1 shrink-0" />
+                              Bloqueado
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSelectItem(c);
+                              }}
+                              className="text-xs py-1 px-2.5 group-hover:bg-sky-50 group-hover:border-sky-300 group-hover:text-sky-700"
+                            >
+                              <Check className="w-3.5 h-3.5 mr-1" />
+                              Elegir
+                            </Button>
+                          )}
                         </td>
                       </tr>
                     );

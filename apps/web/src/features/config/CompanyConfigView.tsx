@@ -197,6 +197,8 @@ export const CompanyConfigView: React.FC = () => {
     code: "",
     name: "",
     isDefault: false,
+    isDefaultSales: false,
+    isDefaultPurchases: false,
     isActive: true,
   });
 
@@ -239,7 +241,9 @@ export const CompanyConfigView: React.FC = () => {
           setWarehouses(d.data);
           if (d.data.length > 0 && !registerForm.warehouseId) {
             const defWh =
-              d.data.find((w: any) => w.isDefault)?.id || d.data[0].id;
+              d.data.find((w: any) => w.isDefaultSales)?.id ||
+              d.data.find((w: any) => w.isDefault)?.id ||
+              d.data[0].id;
             setRegisterForm((prev) => ({
               ...prev,
               warehouseId: prev.warehouseId || defWh,
@@ -560,6 +564,8 @@ export const CompanyConfigView: React.FC = () => {
       code: "",
       name: "",
       isDefault: false,
+      isDefaultSales: false,
+      isDefaultPurchases: false,
       isActive: true,
     });
     setShowWarehouseModal(true);
@@ -572,6 +578,8 @@ export const CompanyConfigView: React.FC = () => {
       code: w.code,
       name: w.name,
       isDefault: Boolean(w.isDefault),
+      isDefaultSales: Boolean(w.isDefaultSales),
+      isDefaultPurchases: Boolean(w.isDefaultPurchases),
       isActive: w.isActive ?? true,
     });
     setShowWarehouseModal(true);
@@ -610,6 +618,8 @@ export const CompanyConfigView: React.FC = () => {
           code: "",
           name: "",
           isDefault: false,
+          isDefaultSales: false,
+          isDefaultPurchases: false,
         }));
         fetchConfigData();
       } else {
@@ -1179,11 +1189,21 @@ export const CompanyConfigView: React.FC = () => {
                         {w.branchName || w.branchCode}
                       </td>
                       <td className="py-2 px-3">
-                        {w.isDefault ? (
-                          <Badge variant="success">Predeterminado</Badge>
-                        ) : (
-                          <span className="text-neutral-400">Secundario</span>
-                        )}
+                        <div className="flex flex-wrap items-center gap-1">
+                          {w.isDefaultSales && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              Ventas (POS)
+                            </span>
+                          )}
+                          {w.isDefaultPurchases && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-sky-50 text-sky-700 border border-sky-200">
+                              Compras (Recepción)
+                            </span>
+                          )}
+                          {!w.isDefaultSales && !w.isDefaultPurchases && (
+                            <span className="text-neutral-400 text-xs">Secundario</span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-2 px-3">
                         <Badge variant={w.isActive ? "neutral" : "danger"}>
@@ -1929,25 +1949,62 @@ export const CompanyConfigView: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 pt-2">
-            <input
-              type="checkbox"
-              id="warehouseIsDefault"
-              checked={warehouseForm.isDefault}
-              onChange={(e) =>
-                setWarehouseForm({
-                  ...warehouseForm,
-                  isDefault: e.target.checked,
-                })
-              }
-              className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-neutral-300"
-            />
-            <label
-              htmlFor="warehouseIsDefault"
-              className="text-xs text-neutral-700 cursor-pointer"
-            >
-              Establecer como almacén predeterminado para ventas y compras
-            </label>
+          <div className="space-y-2.5 pt-2 border-t border-neutral-100">
+            <span className="block text-xs font-semibold uppercase tracking-wider text-neutral-600">
+              Asignación Predeterminada por Sucursal
+            </span>
+
+            <div className="flex items-start gap-3 p-3 rounded-lg border border-neutral-200 bg-neutral-50/50 hover:bg-neutral-50 transition-colors">
+              <input
+                type="checkbox"
+                id="warehouseIsDefaultSales"
+                checked={Boolean(warehouseForm.isDefaultSales)}
+                onChange={(e) =>
+                  setWarehouseForm({
+                    ...warehouseForm,
+                    isDefaultSales: e.target.checked,
+                  })
+                }
+                className="w-4 h-4 mt-0.5 rounded text-sky-600 focus:ring-sky-500 border-neutral-300 focus-visible:ring-2"
+              />
+              <label
+                htmlFor="warehouseIsDefaultSales"
+                className="text-xs text-neutral-700 cursor-pointer select-none"
+              >
+                <span className="font-semibold text-neutral-900 block">
+                  Predeterminado para Ventas
+                </span>
+                <span className="text-neutral-500 block mt-0.5 leading-relaxed">
+                  Se asignará automáticamente por defecto en el POS, cotizaciones, pedidos, notas de entrega y facturación en esta sucursal (máximo uno por sucursal).
+                </span>
+              </label>
+            </div>
+
+            <div className="flex items-start gap-3 p-3 rounded-lg border border-neutral-200 bg-neutral-50/50 hover:bg-neutral-50 transition-colors">
+              <input
+                type="checkbox"
+                id="warehouseIsDefaultPurchases"
+                checked={Boolean(warehouseForm.isDefaultPurchases)}
+                onChange={(e) =>
+                  setWarehouseForm({
+                    ...warehouseForm,
+                    isDefaultPurchases: e.target.checked,
+                  })
+                }
+                className="w-4 h-4 mt-0.5 rounded text-sky-600 focus:ring-sky-500 border-neutral-300 focus-visible:ring-2"
+              />
+              <label
+                htmlFor="warehouseIsDefaultPurchases"
+                className="text-xs text-neutral-700 cursor-pointer select-none"
+              >
+                <span className="font-semibold text-neutral-900 block">
+                  Predeterminado para Compras
+                </span>
+                <span className="text-neutral-500 block mt-0.5 leading-relaxed">
+                  Se asignará automáticamente por defecto para ingresos de mercancía, recepciones de almacén y compras a proveedores en esta sucursal (máximo uno por sucursal).
+                </span>
+              </label>
+            </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-3 border-t border-neutral-200">

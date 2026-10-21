@@ -7,13 +7,17 @@ export class ReceivablesService {
     let sql = `
       SELECT r.id, r.branch_id, b.name as branch_name,
              r.customer_id, c.doc_type, c.doc_number, c.name as customer_name,
-             r.invoice_id, si.invoice_number, si.control_number, si.invoice_date,
+             r.invoice_id, r.debit_note_id, r.document_type,
+             COALESCE(si.invoice_number, cn.note_number, r.id) as invoice_number,
+             COALESCE(si.control_number, cn.control_number) as control_number,
+             COALESCE(si.invoice_date, cn.issue_date, r.created_at) as invoice_date,
              r.amount_total, r.amount_paid, r.amount_balance, r.due_date, r.status,
              DATEDIFF(CURRENT_DATE(), r.due_date) as days_overdue
       FROM receivables r
       INNER JOIN branches b ON r.branch_id = b.id
       INNER JOIN customers c ON r.customer_id = c.id
-      INNER JOIN sales_invoices si ON r.invoice_id = si.id
+      LEFT JOIN sales_invoices si ON r.invoice_id = si.id
+      LEFT JOIN customer_notes cn ON r.debit_note_id = cn.id
       WHERE b.company_id = ?
     `;
     const params: any[] = [companyId];
@@ -46,6 +50,8 @@ export class ReceivablesService {
       customerDoc: `${r.doc_type}-${r.doc_number}`,
       customerName: r.customer_name,
       invoiceId: r.invoice_id,
+      debitNoteId: r.debit_note_id,
+      documentType: r.document_type || (r.debit_note_id ? 'DEBIT_NOTE' : 'INVOICE'),
       invoiceNumber: r.invoice_number,
       controlNumber: r.control_number,
       invoiceDate: r.invoice_date,
@@ -62,7 +68,10 @@ export class ReceivablesService {
     let sql = `
       SELECT r.branch_id, b.name AS branch_name,
              c.id AS customer_id, c.doc_type, c.doc_number, c.name AS customer_name,
-             r.id AS receivable_id, si.invoice_number, si.invoice_date, r.due_date,
+             r.id AS receivable_id, r.document_type,
+             COALESCE(si.invoice_number, cn.note_number, r.id) AS invoice_number,
+             COALESCE(si.invoice_date, cn.issue_date, r.created_at) AS invoice_date,
+             r.due_date,
              DATEDIFF(CURRENT_DATE(), r.due_date) AS days_overdue,
              r.amount_total, r.amount_paid, r.amount_balance,
              CASE WHEN DATEDIFF(CURRENT_DATE(), r.due_date) <= 0 THEN r.amount_balance ELSE 0 END AS current_due,
@@ -73,7 +82,8 @@ export class ReceivablesService {
       FROM receivables r
       INNER JOIN branches b ON r.branch_id = b.id
       INNER JOIN customers c ON r.customer_id = c.id
-      INNER JOIN sales_invoices si ON r.invoice_id = si.id
+      LEFT JOIN sales_invoices si ON r.invoice_id = si.id
+      LEFT JOIN customer_notes cn ON r.debit_note_id = cn.id
       WHERE b.company_id = ?
         AND r.status IN ('PENDING', 'PARTIAL', 'OVERDUE')
     `;
@@ -117,6 +127,7 @@ export class ReceivablesService {
         customerId: r.customer_id,
         customerDoc: `${r.doc_type}-${r.doc_number}`,
         customerName: r.customer_name,
+        documentType: r.document_type || 'INVOICE',
         invoiceNumber: r.invoice_number,
         invoiceDate: r.invoice_date,
         dueDate: r.due_date,
@@ -146,15 +157,44 @@ export class ReceivablesService {
     };
   }
 
+  /**
+   * Obtiene todos los medios de pago configurados en base de datos para la empresa
+   */
+  static async getPaymentMethods(companyId: string) {
+    const rows = await query<any>(
+      `SELECT id, code, name, currency, type, applies_igtf, requires_reference, requires_bank_account, display_order
+       FROM payment_methods
+       WHERE company_id = ? AND is_active = 1
+       ORDER BY display_order ASC, name ASC`,
+      [companyId]
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      code: r.code,
+      name: r.name,
+      currency: r.currency,
+      type: r.type,
+      appliesIGTF: Boolean(r.applies_igtf),
+      requiresReference: Boolean(r.requires_reference),
+      requiresBankAccount: Boolean(r.requires_bank_account),
+      displayOrder: Number(r.display_order),
+    }));
+  }
+
   static async registerCollection(companyId: string, _userId: string, data: CreateCollectionInput) {
     return withTransaction(async (conn) => {
-      // 1. Obtener la cuenta por cobrar
+      // 1. Obtener la cuenta por cobrar (sea por factura o por nota de débito)
       const [receivables] = await conn.query(
-        `SELECT r.*, si.branch_id, si.customer_id, si.invoice_number, c.name as customer_name
+        `SELECT r.*,
+                COALESCE(si.branch_id, r.branch_id) as branch_id,
+                r.customer_id,
+                COALESCE(si.invoice_number, cn.note_number, r.id) as invoice_number,
+                c.name as customer_name
          FROM receivables r
-         INNER JOIN sales_invoices si ON r.invoice_id = si.id
          INNER JOIN customers c ON r.customer_id = c.id
          INNER JOIN branches b ON r.branch_id = b.id
+         LEFT JOIN sales_invoices si ON r.invoice_id = si.id
+         LEFT JOIN customer_notes cn ON r.debit_note_id = cn.id
          WHERE r.id = ? AND b.company_id = ? FOR UPDATE`,
         [data.receivableId, companyId]
       );
@@ -171,6 +211,35 @@ export class ReceivablesService {
         throw new Error(`El monto a cobrar (${data.amount}$) no puede superar el saldo pendiente (${balance.toFixed(2)}$)`);
       }
 
+      // 1.1 Validar medio de pago desde la base de datos y exigencias de referencia / banco
+      const [pmRows]: any = await conn.query(
+        `SELECT id, code, name, currency, type, requires_reference, requires_bank_account
+         FROM payment_methods
+         WHERE (code = ? OR id = ?) AND company_id = ? AND is_active = 1`,
+        [data.paymentMethod, data.paymentMethod, companyId]
+      );
+      const pm = pmRows && pmRows.length > 0 ? pmRows[0] : null;
+
+      const isCreditNoteMethod = data.paymentMethod === 'NOTA_CREDITO' || pm?.code === 'NOTA_CREDITO';
+
+      if (!isCreditNoteMethod) {
+        const requiresRef = pm
+          ? Boolean(pm.requires_reference)
+          : ['PAGO_MOVIL', 'TRANSFER', 'DEBIT_CARD', 'CREDIT_CARD', 'BIOPAGO', 'ZELLE'].includes(data.paymentMethod);
+
+        if (requiresRef && (!data.referenceNumber || !data.referenceNumber.trim())) {
+          throw new Error(`El medio de pago "${pm?.name || data.paymentMethod}" requiere número de referencia para su registro y conciliación bancaria`);
+        }
+
+        const requiresBank = pm
+          ? Boolean(pm.requires_bank_account)
+          : ['PAGO_MOVIL', 'TRANSFER', 'DEBIT_CARD', 'CREDIT_CARD', 'BIOPAGO', 'ZELLE'].includes(data.paymentMethod);
+
+        if (requiresBank && !data.bankAccountId) {
+          throw new Error(`El medio de pago "${pm?.name || data.paymentMethod}" requiere seleccionar una cuenta bancaria receptora para generar el movimiento de conciliación`);
+        }
+      }
+
       const newAmountPaid = Number(rec.amount_paid) + data.amount;
       const isPaidInFull = newAmountPaid >= Number(rec.amount_total) - 0.001;
       const newStatus = isPaidInFull ? 'PAID' : 'PARTIAL';
@@ -183,74 +252,139 @@ export class ReceivablesService {
         [newAmountPaid, newStatus, rec.id]
       );
 
-      // 3. Registrar en sales_payments
       const paymentId = crypto.randomUUID();
       const amountUSD = data.currency === 'USD' ? data.amount : data.amount / data.exchangeRate;
       const amountVES = data.currency === 'VES' ? data.amount : data.amount * data.exchangeRate;
 
-      await conn.query(
-        `INSERT INTO sales_payments (
-          id, invoice_id, method, amount_ves, amount_usd, exchange_rate,
-          applies_igtf, reference_number, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, NOW())`,
-        [
-          paymentId,
-          rec.invoice_id,
-          data.paymentMethod,
-          amountVES,
-          amountUSD,
-          data.exchangeRate,
-          data.referenceNumber || null,
-        ]
-      );
-
-      // 3.1 Si se especificó cuenta bancaria de destino, reflejar en tesorería
-      let bankMovementId: string | null = null;
-      if (data.bankAccountId) {
-        const [accRows]: any = await conn.query(
-          `SELECT id, currency, current_balance FROM bank_accounts WHERE id = ? AND company_id = ? FOR UPDATE`,
-          [data.bankAccountId, companyId]
-        );
-        if (accRows && accRows.length > 0) {
-          const acc = accRows[0];
-          const depositAmount = acc.currency === 'VES' ? Number(amountVES.toFixed(2)) : Number(amountUSD.toFixed(2));
-          const newBal = Number((Number(acc.current_balance) + depositAmount).toFixed(2));
-          await conn.query(
-            `UPDATE bank_accounts SET current_balance = ? WHERE id = ?`,
-            [newBal, acc.id]
+      // 3. Si se paga con NOTA_CREDITO: descontar de la Nota de Crédito
+      if (isCreditNoteMethod) {
+        // Buscar Nota de Crédito por número de referencia o buscar la nota activa del cliente
+        let creditNoteId: string | null = null;
+        if (data.referenceNumber && data.referenceNumber.trim()) {
+          const [cnRows]: any = await conn.query(
+            `SELECT id, note_number, total_amount, amount_applied, status
+             FROM customer_notes
+             WHERE (note_number = ? OR id = ?) AND customer_id = ? AND type = 'CREDIT' AND company_id = ?
+             FOR UPDATE`,
+            [data.referenceNumber.trim(), data.referenceNumber.trim(), rec.customer_id, companyId]
           );
+          if (cnRows && cnRows.length > 0) {
+            const cn = cnRows[0];
+            const cnBal = Number(cn.total_amount) - Number(cn.amount_applied);
+            if (data.amount > cnBal + 0.01) {
+              throw new Error(`La Nota de Crédito ${cn.note_number} solo posee un saldo disponible de $${cnBal.toFixed(2)}`);
+            }
+            creditNoteId = cn.id;
+            const newCnApplied = Number(cn.amount_applied) + data.amount;
+            const isCnFullyApplied = newCnApplied >= Number(cn.total_amount) - 0.001;
+            await conn.query(
+              `UPDATE customer_notes SET amount_applied = ?, status = ? WHERE id = ?`,
+              [newCnApplied, isCnFullyApplied ? 'APPLIED' : 'ACTIVE', cn.id]
+            );
+          }
+        }
 
-          bankMovementId = crypto.randomUUID();
+        if (creditNoteId) {
           await conn.query(
-            `INSERT INTO bank_movements (
-              id, account_id, user_id, movement_type, amount, balance_after,
-              movement_date, reference_number, concept, is_reconciled
-            ) VALUES (?, ?, ?, 'DEPOSIT', ?, ?, NOW(), ?, ?, 0)`,
+            `INSERT INTO customer_note_applications (
+              id, note_id, receivable_id, user_id, amount_applied, applied_date, notes
+            ) VALUES (?, ?, ?, ?, ?, NOW(), ?)`,
             [
-              bankMovementId,
-              acc.id,
+              crypto.randomUUID(),
+              creditNoteId,
+              rec.id,
               _userId,
-              depositAmount,
-              newBal,
-              data.referenceNumber || null,
-              `Cobro CxC Factura ${rec.invoice_number || rec.id.slice(0, 8)} - ${rec.customer_name} (${data.paymentMethod})`,
+              data.amount,
+              `Cobranza CxC mediante Nota de Crédito ${data.referenceNumber}`,
             ]
           );
         }
       }
 
-      // 4. Si la factura se saldó por completo, actualizar sales_invoices.status
-      if (isPaidInFull) {
+      // 4. Registrar en sales_payments (si la cuenta por cobrar está asociada a una factura)
+      if (rec.invoice_id) {
         await conn.query(
-          `UPDATE sales_invoices SET status = 'PAID' WHERE id = ?`,
-          [rec.invoice_id]
+          `INSERT INTO sales_payments (
+            id, invoice_id, method, amount_ves, amount_usd, exchange_rate,
+            applies_igtf, reference_number, bank_account_id, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, NOW())`,
+          [
+            paymentId,
+            rec.invoice_id,
+            pm?.code || data.paymentMethod,
+            amountVES,
+            amountUSD,
+            data.exchangeRate,
+            data.referenceNumber ? data.referenceNumber.trim() : null,
+            data.bankAccountId || null,
+          ]
         );
+      }
+
+      // 5. Reflejar en tesorería (bank_movements) para conciliación bancaria si usó cuenta bancaria
+      let bankMovementId: string | null = null;
+      if (data.bankAccountId && !isCreditNoteMethod) {
+        const [accRows]: any = await conn.query(
+          `SELECT id, currency, current_balance, description FROM bank_accounts WHERE id = ? AND company_id = ? FOR UPDATE`,
+          [data.bankAccountId, companyId]
+        );
+        if (!accRows || accRows.length === 0) {
+          throw new Error('La cuenta bancaria seleccionada no existe o no pertenece a la empresa');
+        }
+
+        const acc = accRows[0];
+        const depositAmount = acc.currency === 'VES' ? Number(amountVES.toFixed(2)) : Number(amountUSD.toFixed(2));
+        const newBal = Number((Number(acc.current_balance) + depositAmount).toFixed(2));
+
+        await conn.query(
+          `UPDATE bank_accounts SET current_balance = ?, updated_at = NOW() WHERE id = ?`,
+          [newBal, acc.id]
+        );
+
+        bankMovementId = crypto.randomUUID();
+        const refNumber = data.referenceNumber ? data.referenceNumber.trim() : `COB-${Date.now().toString().slice(-6)}`;
+        const docLabel = rec.document_type === 'DEBIT_NOTE' ? 'Nota Débito' : 'Factura';
+        const concept = `Cobranza CxC ${docLabel} ${rec.invoice_number || rec.id.slice(0, 8)} - ${rec.customer_name} (${pm?.name || data.paymentMethod})`;
+
+        await conn.query(
+          `INSERT INTO bank_movements (
+            id, account_id, user_id, movement_type, amount, balance_after,
+            movement_date, reference_number, concept, is_reconciled
+          ) VALUES (?, ?, ?, 'DEPOSIT', ?, ?, NOW(), ?, ?, 0)`,
+          [
+            bankMovementId,
+            acc.id,
+            _userId,
+            depositAmount,
+            newBal,
+            refNumber,
+            concept,
+          ]
+        );
+      }
+
+      // 6. Si se saldó por completo, actualizar estado de la factura o nota de débito
+      if (isPaidInFull) {
+        if (rec.invoice_id) {
+          await conn.query(
+            `UPDATE sales_invoices SET status = 'PAID' WHERE id = ?`,
+            [rec.invoice_id]
+          );
+        }
+        if (rec.debit_note_id) {
+          await conn.query(
+            `UPDATE customer_notes SET status = 'APPLIED' WHERE id = ?`,
+            [rec.debit_note_id]
+          );
+        }
       }
 
       return {
         paymentId,
         receivableId: rec.id,
         invoiceId: rec.invoice_id,
+        debitNoteId: rec.debit_note_id,
+        documentType: rec.document_type || 'INVOICE',
         amountPaid: data.amount,
         remainingBalance: Math.max(0, balance - data.amount),
         status: newStatus,
@@ -275,8 +409,7 @@ export class ReceivablesService {
        INNER JOIN customers c ON si.customer_id = c.id
        INNER JOIN branches b ON si.branch_id = b.id
        LEFT JOIN receivables r ON r.invoice_id = si.id
-       LEFT JOIN bank_movements bm ON bm.reference_number = sp.reference_number AND bm.movement_type = 'DEPOSIT'
-       LEFT JOIN bank_accounts ba ON bm.account_id = ba.id
+       LEFT JOIN bank_accounts ba ON sp.bank_account_id = ba.id
        LEFT JOIN banks bnk ON ba.bank_id = bnk.id
        WHERE sp.id = ? AND b.company_id = ?`,
       [paymentId, companyId]

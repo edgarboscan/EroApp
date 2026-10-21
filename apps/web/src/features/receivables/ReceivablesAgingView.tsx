@@ -95,7 +95,7 @@ export const ReceivablesAgingView: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-neutral-900">
-            Cuentas por Cobrar & Antigüedad de Saldos (Aging)
+            Cuentas por Cobrar & Antigüedad de Saldos
           </h1>
           <p className="text-xs text-neutral-500 mt-0.5">
             Monitoreo de cartera de crédito, vencimientos y morosidad de clientes
@@ -108,7 +108,7 @@ export const ReceivablesAgingView: React.FC = () => {
         </Button>
       </div>
 
-      {/* Grid de Baldes de Vencimiento (Aging Buckets) */}
+      {/* Grid de Baldes de Vencimiento (Buckets) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <Card className="p-3 bg-white">
           <span className="text-[11px] font-semibold text-neutral-500 block">Total Cartera</span>

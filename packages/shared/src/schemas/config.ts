@@ -39,10 +39,12 @@ export type UpdateBranchInput = z.infer<typeof updateBranchSchema>;
 // 3. Depósitos / Almacenes (Warehouses)
 // ==========================================
 export const warehouseSchema = z.object({
-  branchId: z.string().uuid('ID de sucursal requerido'),
+  branchId: z.string().regex(/^[a-zA-Z0-9]{8}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{12}$/, 'ID de sucursal requerido'),
   code: z.string().min(2, 'El código debe tener al menos 2 caracteres').max(20),
   name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').max(100),
   isDefault: z.boolean().default(false),
+  isDefaultSales: z.boolean().default(false),
+  isDefaultPurchases: z.boolean().default(false),
   isActive: z.boolean().default(true),
 });
 

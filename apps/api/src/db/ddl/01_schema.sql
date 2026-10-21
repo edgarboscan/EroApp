@@ -71,6 +71,8 @@ CREATE TABLE `warehouses` (
   `code` VARCHAR(20) NOT NULL,
   `name` VARCHAR(100) NOT NULL,
   `is_default` TINYINT(1) NOT NULL DEFAULT 0,
+  `is_default_sales` TINYINT(1) NOT NULL DEFAULT 0,
+  `is_default_purchases` TINYINT(1) NOT NULL DEFAULT 0,
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -248,6 +250,58 @@ CREATE TABLE `suppliers` (
   CONSTRAINT `fk_suppliers_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+-- 5.1 MARCAS DE PRODUCTOS
+DROP TABLE IF EXISTS `brands`;
+CREATE TABLE `brands` (
+  `id` CHAR(36) NOT NULL,
+  `company_id` CHAR(36) NOT NULL,
+  `name` VARCHAR(100) NOT NULL,
+  `description` VARCHAR(255) DEFAULT NULL,
+  `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_brands_company_name` (`company_id`, `name`),
+  KEY `idx_brands_company_active` (`company_id`, `is_active`),
+  CONSTRAINT `fk_brands_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- 5.2 UNIDADES DE MEDIDA
+DROP TABLE IF EXISTS `units_of_measure`;
+CREATE TABLE `units_of_measure` (
+  `id` CHAR(36) NOT NULL,
+  `company_id` CHAR(36) NOT NULL,
+  `code` VARCHAR(20) NOT NULL,
+  `name` VARCHAR(100) NOT NULL,
+  `symbol` VARCHAR(10) DEFAULT NULL,
+  `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_uom_company_code` (`company_id`, `code`),
+  KEY `idx_uom_company_active` (`company_id`, `is_active`),
+  CONSTRAINT `fk_uom_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- 5.3 PLANTILLAS DE PRESENTACIONES DE PRODUCTOS
+DROP TABLE IF EXISTS `presentations`;
+CREATE TABLE `presentations` (
+  `id` CHAR(36) NOT NULL,
+  `company_id` CHAR(36) NOT NULL,
+  `name` VARCHAR(100) NOT NULL,
+  `description` VARCHAR(255) DEFAULT NULL,
+  `default_multiplier` DECIMAL(12,4) NOT NULL DEFAULT 1.0000,
+  `default_unit` VARCHAR(20) NOT NULL DEFAULT 'UND',
+  `requires_authorization` TINYINT(1) NOT NULL DEFAULT 0,
+  `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_presentations_company_name` (`company_id`, `name`),
+  KEY `idx_presentations_company_active` (`company_id`, `is_active`),
+  CONSTRAINT `fk_presentations_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 DROP TABLE IF EXISTS `products`;
 CREATE TABLE `products` (
   `id` CHAR(36) NOT NULL,
@@ -297,6 +351,56 @@ CREATE TABLE `products` (
   CONSTRAINT `fk_products_tax_rate` FOREIGN KEY (`default_tax_rate_id`) REFERENCES `tax_rates` (`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+-- 5.4 MÚLTIPLES SKUS Y CÓDIGOS POR PRODUCTO
+DROP TABLE IF EXISTS `product_skus`;
+CREATE TABLE `product_skus` (
+  `id` CHAR(36) NOT NULL,
+  `product_id` CHAR(36) NOT NULL,
+  `sku` VARCHAR(50) NOT NULL,
+  `barcode` VARCHAR(50) DEFAULT NULL,
+  `description` VARCHAR(150) DEFAULT NULL,
+  `is_primary` TINYINT(1) NOT NULL DEFAULT 0,
+  `cost_price` DECIMAL(14,4) DEFAULT NULL,
+  `price` DECIMAL(14,4) DEFAULT NULL,
+  `currency` ENUM('USD', 'VES') NOT NULL DEFAULT 'USD',
+  `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_product_skus_sku` (`product_id`, `sku`),
+  KEY `idx_ps_product_id` (`product_id`),
+  KEY `idx_ps_sku` (`sku`),
+  KEY `idx_ps_barcode` (`barcode`),
+  CONSTRAINT `fk_product_skus_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- 5.5 PRESENTACIONES Y EMPAQUES CON PRECIOS DIFERENCIADOS POR PRODUCTO
+DROP TABLE IF EXISTS `product_presentations`;
+CREATE TABLE `product_presentations` (
+  `id` CHAR(36) NOT NULL,
+  `product_id` CHAR(36) NOT NULL,
+  `presentation_id` CHAR(36) DEFAULT NULL,
+  `name` VARCHAR(100) NOT NULL,
+  `sku` VARCHAR(50) DEFAULT NULL,
+  `barcode` VARCHAR(50) DEFAULT NULL,
+  `unit_of_measure` VARCHAR(20) NOT NULL DEFAULT 'UND',
+  `multiplier` DECIMAL(12,4) NOT NULL DEFAULT 1.0000,
+  `cost_price` DECIMAL(14,4) NOT NULL DEFAULT 0.0000,
+  `base_price` DECIMAL(14,4) NOT NULL DEFAULT 0.0000,
+  `currency` ENUM('USD', 'VES') NOT NULL DEFAULT 'USD',
+  `is_default` TINYINT(1) NOT NULL DEFAULT 0,
+  `requires_authorization` TINYINT(1) NOT NULL DEFAULT 0,
+  `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_pp_product_id` (`product_id`),
+  KEY `idx_pp_sku` (`sku`),
+  KEY `idx_pp_barcode` (`barcode`),
+  CONSTRAINT `fk_pp_product_link` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_pp_presentation` FOREIGN KEY (`presentation_id`) REFERENCES `presentations` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 -- 6. UBICACIÓN FÍSICA OPCIONAL DEL PRODUCTO EN DEPÓSITOS (NUEVO)
 DROP TABLE IF EXISTS `product_locations`;
 CREATE TABLE `product_locations` (
@@ -329,6 +433,35 @@ CREATE TABLE `product_stocks` (
   KEY `idx_stock_warehouse` (`warehouse_id`, `current_stock`),
   CONSTRAINT `fk_ps_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_ps_warehouse` FOREIGN KEY (`warehouse_id`) REFERENCES `warehouses` (`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- 7.1 CONTROL DE LOTES Y VENCIMIENTOS DE PRODUCTOS
+DROP TABLE IF EXISTS `product_lots`;
+CREATE TABLE `product_lots` (
+  `id` CHAR(36) NOT NULL,
+  `company_id` CHAR(36) NOT NULL,
+  `product_id` CHAR(36) NOT NULL,
+  `warehouse_id` CHAR(36) NOT NULL,
+  `lot_number` VARCHAR(50) NOT NULL,
+  `manufacturing_date` DATE DEFAULT NULL,
+  `expiration_date` DATE NOT NULL,
+  `initial_quantity` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `current_quantity` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `reserved_quantity` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `cost_price` DECIMAL(14,4) NOT NULL DEFAULT 0.0000,
+  `status` ENUM('ACTIVE', 'EXPIRED', 'DEPLETED', 'QUARANTINE') NOT NULL DEFAULT 'ACTIVE',
+  `notes` VARCHAR(255) DEFAULT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_product_warehouse_lot` (`product_id`, `warehouse_id`, `lot_number`),
+  KEY `idx_lots_product` (`product_id`),
+  KEY `idx_lots_warehouse` (`warehouse_id`),
+  KEY `idx_lots_expiration` (`expiration_date`, `status`),
+  KEY `idx_lots_company` (`company_id`),
+  CONSTRAINT `fk_plot_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_plot_warehouse` FOREIGN KEY (`warehouse_id`) REFERENCES `warehouses` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_plot_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 DROP TABLE IF EXISTS `inventory_movements`;
@@ -577,6 +710,13 @@ CREATE TABLE `customers` (
   `credit_limit` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
   `payment_terms_days` INT NOT NULL DEFAULT 0,
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+  `is_blocked` TINYINT(1) NOT NULL DEFAULT 0,
+  `block_reason` VARCHAR(255) DEFAULT NULL,
+  `blocked_at` DATETIME DEFAULT NULL,
+  `rating_score` DECIMAL(3,1) NOT NULL DEFAULT 5.0,
+  `rating_tier` ENUM('VIP', 'EXCELLENT', 'REGULAR', 'RISKY', 'MOROSO') NOT NULL DEFAULT 'REGULAR',
+  `rating_notes` TEXT DEFAULT NULL,
+  `notes` TEXT DEFAULT NULL,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -591,6 +731,7 @@ CREATE TABLE `sales_invoices` (
   `warehouse_id` CHAR(36) NOT NULL,
   `customer_id` CHAR(36) NOT NULL,
   `user_id` CHAR(36) NOT NULL,
+  `quotation_id` CHAR(36) DEFAULT NULL,
   `invoice_number` VARCHAR(30) NOT NULL, -- Número de Factura o Control
   `control_number` VARCHAR(30) DEFAULT NULL, -- Control Fiscal SENIAT
   `invoice_date` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -673,10 +814,13 @@ CREATE TABLE `sales_payments` (
   `igtf_amount_ves` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
   `igtf_amount_usd` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
   `reference_number` VARCHAR(50) DEFAULT NULL,
+  `bank_account_id` CHAR(36) DEFAULT NULL,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_sp_invoice` (`invoice_id`),
-  CONSTRAINT `fk_sp_invoice` FOREIGN KEY (`invoice_id`) REFERENCES `sales_invoices` (`id`) ON DELETE CASCADE
+  KEY `idx_sp_bank_account` (`bank_account_id`),
+  CONSTRAINT `fk_sp_invoice` FOREIGN KEY (`invoice_id`) REFERENCES `sales_invoices` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_sp_bank_account` FOREIGN KEY (`bank_account_id`) REFERENCES `bank_accounts` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- 9.01 COTIZACIONES Y NOTAS DE ENTREGA (DESPACHOS)
@@ -783,6 +927,88 @@ CREATE TABLE `delivery_note_items` (
   CONSTRAINT `fk_dni_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+-- 9.02 NOTAS DE CRÉDITO Y NOTAS DE DÉBITO A CLIENTES (SENIAT / CXC)
+DROP TABLE IF EXISTS `customer_note_applications`;
+DROP TABLE IF EXISTS `customer_note_items`;
+DROP TABLE IF EXISTS `customer_notes`;
+
+CREATE TABLE `customer_notes` (
+  `id` CHAR(36) NOT NULL,
+  `company_id` CHAR(36) NOT NULL,
+  `branch_id` CHAR(36) NOT NULL,
+  `customer_id` CHAR(36) NOT NULL,
+  `user_id` CHAR(36) NOT NULL,
+  `warehouse_id` CHAR(36) DEFAULT NULL,
+  `affected_invoice_id` CHAR(36) DEFAULT NULL,
+  `type` ENUM('CREDIT', 'DEBIT') NOT NULL,
+  `note_number` VARCHAR(30) NOT NULL,
+  `control_number` VARCHAR(30) DEFAULT NULL,
+  `issue_date` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `due_date` DATE DEFAULT NULL,
+  `reason_type` ENUM('RETURN', 'DISCOUNT', 'PRICE_CORRECTION', 'ANNULMENT', 'LATE_FEE', 'COLLECTION_FEE', 'PRICE_DIFFERENCE', 'OTHER') NOT NULL DEFAULT 'OTHER',
+  `reason_description` TEXT NOT NULL,
+  `currency` ENUM('USD', 'VES') NOT NULL DEFAULT 'USD',
+  `exchange_rate` DECIMAL(14,4) NOT NULL DEFAULT 1.0000,
+  `base_exempt_amount` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `base_taxable_amount` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `tax_amount` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `total_amount` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `amount_applied` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `amount_balance` DECIMAL(14,2) GENERATED ALWAYS AS (`total_amount` - `amount_applied`) STORED,
+  `status` ENUM('ACTIVE', 'APPLIED', 'ANNULLED') NOT NULL DEFAULT 'ACTIVE',
+  `annulled_at` DATETIME DEFAULT NULL,
+  `annulled_by_user_id` CHAR(36) DEFAULT NULL,
+  `annulment_reason` TEXT DEFAULT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_cnot_branch_type_number` (`branch_id`, `type`, `note_number`),
+  KEY `idx_cnot_customer` (`customer_id`),
+  KEY `idx_cnot_invoice` (`affected_invoice_id`),
+  KEY `idx_cnot_branch_date` (`branch_id`, `issue_date`),
+  CONSTRAINT `fk_cnot_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_cnot_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_cnot_customer` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_cnot_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_cnot_warehouse` FOREIGN KEY (`warehouse_id`) REFERENCES `warehouses` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_cnot_invoice` FOREIGN KEY (`affected_invoice_id`) REFERENCES `sales_invoices` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `customer_note_items` (
+  `id` CHAR(36) NOT NULL,
+  `note_id` CHAR(36) NOT NULL,
+  `product_id` CHAR(36) DEFAULT NULL,
+  `description` VARCHAR(255) NOT NULL,
+  `quantity` DECIMAL(12,2) NOT NULL DEFAULT 1.00,
+  `unit_price` DECIMAL(14,4) NOT NULL,
+  `tax_rate` DECIMAL(5,2) NOT NULL DEFAULT 16.00,
+  `tax_amount` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `subtotal` DECIMAL(14,2) NOT NULL,
+  `return_to_inventory` TINYINT(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `idx_cnoti_note` (`note_id`),
+  KEY `idx_cnoti_product` (`product_id`),
+  CONSTRAINT `fk_cnoti_note` FOREIGN KEY (`note_id`) REFERENCES `customer_notes` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_cnoti_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `customer_note_applications` (
+  `id` CHAR(36) NOT NULL,
+  `note_id` CHAR(36) NOT NULL,
+  `receivable_id` CHAR(36) NOT NULL,
+  `user_id` CHAR(36) NOT NULL,
+  `amount_applied` DECIMAL(14,2) NOT NULL,
+  `applied_date` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `notes` VARCHAR(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_cna_note` (`note_id`),
+  KEY `idx_cna_rec` (`receivable_id`),
+  CONSTRAINT `fk_cna_note` FOREIGN KEY (`note_id`) REFERENCES `customer_notes` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_cna_rec` FOREIGN KEY (`receivable_id`) REFERENCES `receivables` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_cna_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
 -- 9.1 CAJAS, TURNOS Y REPORTES FISCALES SENIAT
 DROP TABLE IF EXISTS `cash_registers`;
 CREATE TABLE `cash_registers` (
@@ -817,16 +1043,75 @@ CREATE TABLE `cash_shifts` (
   `final_cash_ves_counted` DECIMAL(14,2) DEFAULT 0.00,
   `difference_usd` DECIMAL(14,2) DEFAULT 0.00,
   `difference_ves` DECIMAL(14,2) DEFAULT 0.00,
+  `has_discrepancy` TINYINT(1) NOT NULL DEFAULT 0,
+  `audit_report_text` TEXT DEFAULT NULL,
   `status` ENUM('OPEN', 'CLOSED') NOT NULL DEFAULT 'OPEN',
+  `verification_status` ENUM('PENDING', 'VERIFIED', 'DEPOSITED') NOT NULL DEFAULT 'PENDING',
+  `verified_by_user_id` CHAR(36) DEFAULT NULL,
+  `verified_at` DATETIME DEFAULT NULL,
+  `verification_notes` TEXT DEFAULT NULL,
+  `deposit_bank_account_ves_id` CHAR(36) DEFAULT NULL,
+  `deposit_amount_ves` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `deposit_reference_ves` VARCHAR(60) DEFAULT NULL,
+  `deposit_bank_account_usd_id` CHAR(36) DEFAULT NULL,
+  `deposit_amount_usd` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `deposit_reference_usd` VARCHAR(60) DEFAULT NULL,
   `notes` VARCHAR(255) DEFAULT NULL,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_cs_register_status` (`cash_register_id`, `status`),
   KEY `idx_cs_branch_date` (`branch_id`, `opened_at`),
+  KEY `idx_cs_verification` (`branch_id`, `verification_status`),
   CONSTRAINT `fk_cs_register` FOREIGN KEY (`cash_register_id`) REFERENCES `cash_registers` (`id`) ON DELETE RESTRICT,
   CONSTRAINT `fk_cs_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE RESTRICT,
   CONSTRAINT `fk_cs_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+DROP TABLE IF EXISTS `cash_shift_deposits`;
+CREATE TABLE `cash_shift_deposits` (
+  `id` CHAR(36) NOT NULL,
+  `shift_id` CHAR(36) NOT NULL,
+  `company_id` CHAR(36) NOT NULL,
+  `bank_account_id` CHAR(36) NOT NULL,
+  `user_id` CHAR(36) NOT NULL,
+  `deposit_type` ENUM('CASH_VES', 'CASH_USD', 'POS_BATCH', 'PAGO_MOVIL', 'TRANSFER', 'ZELLE', 'OTHER') NOT NULL,
+  `amount` DECIMAL(16,2) NOT NULL,
+  `currency` ENUM('USD', 'VES') NOT NULL,
+  `deposit_date` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `reference_number` VARCHAR(60) NOT NULL,
+  `notes` VARCHAR(255) DEFAULT NULL,
+  `bank_movement_id` CHAR(36) DEFAULT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_csd_shift` (`shift_id`),
+  KEY `idx_csd_account` (`bank_account_id`),
+  CONSTRAINT `fk_csd_shift` FOREIGN KEY (`shift_id`) REFERENCES `cash_shifts` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_csd_account` FOREIGN KEY (`bank_account_id`) REFERENCES `bank_accounts` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_csd_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+DROP TABLE IF EXISTS `cash_audit_notifications`;
+CREATE TABLE `cash_audit_notifications` (
+  `id` CHAR(36) NOT NULL,
+  `company_id` CHAR(36) NOT NULL,
+  `branch_id` CHAR(36) NOT NULL,
+  `shift_id` CHAR(36) NOT NULL,
+  `cash_register_id` CHAR(36) NOT NULL,
+  `cashier_user_id` CHAR(36) NOT NULL,
+  `discrepancy_usd` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `discrepancy_ves` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `title` VARCHAR(150) NOT NULL,
+  `message` TEXT NOT NULL,
+  `is_resolved` TINYINT(1) NOT NULL DEFAULT 0,
+  `resolved_by_user_id` CHAR(36) DEFAULT NULL,
+  `resolved_at` DATETIME DEFAULT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_can_company_date` (`company_id`, `created_at`),
+  KEY `idx_can_shift` (`shift_id`),
+  CONSTRAINT `fk_can_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_can_shift` FOREIGN KEY (`shift_id`) REFERENCES `cash_shifts` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 DROP TABLE IF EXISTS `cash_movements`;
@@ -882,7 +1167,9 @@ CREATE TABLE `receivables` (
   `id` CHAR(36) NOT NULL,
   `branch_id` CHAR(36) NOT NULL,
   `customer_id` CHAR(36) NOT NULL,
-  `invoice_id` CHAR(36) NOT NULL,
+  `invoice_id` CHAR(36) DEFAULT NULL,
+  `debit_note_id` CHAR(36) DEFAULT NULL,
+  `document_type` ENUM('INVOICE', 'DEBIT_NOTE') NOT NULL DEFAULT 'INVOICE',
   `amount_total` DECIMAL(14,2) NOT NULL,
   `amount_paid` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
   `amount_balance` DECIMAL(14,2) GENERATED ALWAYS AS (`amount_total` - `amount_paid`) STORED,
@@ -893,9 +1180,11 @@ CREATE TABLE `receivables` (
   PRIMARY KEY (`id`),
   KEY `idx_rec_customer_status` (`customer_id`, `status`),
   KEY `idx_rec_due_date` (`due_date`),
+  KEY `idx_rec_debit_note` (`debit_note_id`),
   CONSTRAINT `fk_rec_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE RESTRICT,
   CONSTRAINT `fk_rec_customer` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE RESTRICT,
-  CONSTRAINT `fk_rec_invoice` FOREIGN KEY (`invoice_id`) REFERENCES `sales_invoices` (`id`) ON DELETE CASCADE
+  CONSTRAINT `fk_rec_invoice` FOREIGN KEY (`invoice_id`) REFERENCES `sales_invoices` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_rec_debit_note` FOREIGN KEY (`debit_note_id`) REFERENCES `customer_notes` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 DROP TABLE IF EXISTS `purchase_invoices`;

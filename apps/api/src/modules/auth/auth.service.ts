@@ -157,7 +157,7 @@ export class AuthService {
         activeWarehouseId = defaultUserWh;
       } else {
         const branchWhs = await query<any>(
-          `SELECT id, is_default FROM warehouses WHERE branch_id = ? AND is_active = 1 ORDER BY is_default DESC LIMIT 1`,
+          `SELECT id, is_default, is_default_sales FROM warehouses WHERE branch_id = ? AND is_active = 1 ORDER BY is_default_sales DESC, is_default DESC LIMIT 1`,
           [activeBranchId]
         );
         activeWarehouseId = branchWhs[0]?.id;
@@ -224,7 +224,10 @@ export class AuthService {
   ) {
     const rows = await query<any>(
       `SELECT b.id as branch_id, b.code as branch_code, b.name as branch_name, b.is_main,
-              w.id as warehouse_id, w.code as warehouse_code, w.name as warehouse_name, w.is_default as warehouse_is_default
+              w.id as warehouse_id, w.code as warehouse_code, w.name as warehouse_name,
+              w.is_default as warehouse_is_default,
+              w.is_default_sales as warehouse_is_default_sales,
+              w.is_default_purchases as warehouse_is_default_purchases
        FROM branches b
        LEFT JOIN warehouses w ON b.id = w.branch_id AND w.is_active = 1
        WHERE b.company_id = ? AND b.is_active = 1
@@ -276,6 +279,8 @@ export class AuthService {
           code: r.warehouse_code,
           name: r.warehouse_name,
           isDefault: Boolean(r.warehouse_is_default),
+          isDefaultSales: Boolean(r.warehouse_is_default_sales),
+          isDefaultPurchases: Boolean(r.warehouse_is_default_purchases),
         });
       }
     }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -20,6 +21,7 @@ import {
   Building2,
   ArrowDownRight,
   ArrowUpRight,
+  ClipboardCheck,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/authStore';
@@ -115,9 +117,12 @@ interface FiscalReportItem {
 }
 
 export const CashRegisterView: React.FC = () => {
-  const { activeBranchId, token } = useAuthStore();
+  const navigate = useNavigate();
+  const { activeBranchId, token, user } = useAuthStore();
   const [activeTab, setActiveTab] = useState<'SHIFT' | 'HISTORY'>('SHIFT');
   const [loading, setLoading] = useState(false);
+
+  const canAudit = user?.permissions?.includes('pos.audit_shifts') || ['admin', 'superadmin', 'supervisor'].includes(user?.role || '');
 
   const [registers, setRegisters] = useState<CashRegister[]>([]);
   const [currentShift, setCurrentShift] = useState<CurrentShift | null>(null);
@@ -329,7 +334,7 @@ export const CashRegisterView: React.FC = () => {
     }
   };
 
-  // Cierre de turno
+  // Cierre de turno (Arqueo de cajero)
   const handleCloseShift = async () => {
     if (!currentShift) return;
     setSubmitting(true);
@@ -345,12 +350,6 @@ export const CashRegisterView: React.FC = () => {
           finalCashUSDCounted: Number(countedCashUSD) || 0,
           finalCashVESCounted: Number(countedCashVES) || 0,
           notes: closeNotes || null,
-          depositBankAccountIdVES: depositBankAccountIdVES || null,
-          depositAmountVES: Number(depositAmountVES) || 0,
-          depositReferenceVES: depositReferenceVES.trim() || null,
-          depositBankAccountIdUSD: depositBankAccountIdUSD || null,
-          depositAmountUSD: Number(depositAmountUSD) || 0,
-          depositReferenceUSD: depositReferenceUSD.trim() || null,
         }),
       });
 
@@ -360,11 +359,19 @@ export const CashRegisterView: React.FC = () => {
       }
 
       const closedShiftId = currentShift.id;
-      toast.success('Turno cerrado exitosamente con arqueo y depósitos registrados en tesorería');
+      if (json.data?.hasDiscrepancy) {
+        toast.warning(
+          'Turno cerrado con diferencia. Se ha generado un Reporte de Auditoría y notificado a la supervisión.',
+          { duration: 6000 }
+        );
+      } else {
+        toast.success('Turno de caja cerrado exitosamente con arqueo cuadrado.');
+      }
+
       setShowCloseShiftModal(false);
       fetchCurrentState();
 
-      // Abrir inmediatamente el comprobante PDF de Cierre y Arqueo de Caja resultante
+      // Abrir comprobante PDF de Cierre y Arqueo de Caja resultante
       setPdfModal({
         isOpen: true,
         endpoint: `/api/pos/shifts/${closedShiftId}/pdf`,
@@ -618,6 +625,17 @@ export const CashRegisterView: React.FC = () => {
 
         {/* Botones de Acción Global */}
         <div className="flex items-center gap-2">
+          {canAudit && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/pos/auditoria-arqueos')}
+              className="border-neutral-300 text-neutral-700 hover:bg-neutral-100"
+            >
+              <ClipboardCheck className="w-4 h-4 mr-1.5 text-sky-600" />
+              Verificación de Arqueos & Depósitos
+            </Button>
+          )}
           {currentShift ? (
             <>
               <Button
@@ -1172,203 +1190,55 @@ export const CashRegisterView: React.FC = () => {
                 </div>
               </div>
 
-              {/* SECCIÓN: Depósito a Bancos / Tesorería */}
-              <div className="p-3.5 bg-sky-50/60 rounded-lg border border-sky-200 space-y-3">
-                <div className="flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-sky-600" />
-                  <span className="font-bold text-neutral-900 text-xs">
-                    Depósito a Bancos / Tesorería (Cierre de Caja y Punto de Venta)
-                  </span>
-                </div>
-                <p className="text-[11px] text-neutral-600 leading-relaxed">
-                  Establezca el banco y la cuenta de destino para depositar la recaudación. Al confirmar el cierre, los fondos se reflejarán automáticamente en Tesorería y quedarán listos para la conciliación bancaria.
-                </p>
-
-                {/* Depósito en Bolívares (VES) */}
-                <div className="p-2.5 bg-white rounded-lg border border-neutral-200 space-y-2">
-                  {(() => {
-                    const posBatchVES = currentShift.summary?.posBatchVES || ((currentShift.summary?.debitVES || 0) + (currentShift.summary?.creditVES || 0));
-                    const totalVES = currentShift.summary?.totalCollectedVES || (currentShift.expectedCashVES + posBatchVES + (currentShift.summary?.pagomovilVES || 0));
-                    return (
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 font-semibold text-neutral-800 text-[11px]">
-                        <span>Depósito en Bolívares (VES)</span>
-                        <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
-                          <span className="text-neutral-500 font-normal">Sugerir:</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setDepositAmountVES(countedCashVES);
-                              setDepositAmountVESInput(String(countedCashVES));
-                            }}
-                            className="px-2 py-0.5 rounded bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-medium cursor-pointer"
-                            title="Depositar efectivo físico en gaveta"
-                          >
-                            Efectivo ({formatMoneyVES(countedCashVES)})
-                          </button>
-                          {posBatchVES > 0 && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setDepositAmountVES(posBatchVES);
-                                setDepositAmountVESInput(String(posBatchVES));
-                              }}
-                              className="px-2 py-0.5 rounded bg-sky-100 hover:bg-sky-200 text-sky-800 font-semibold cursor-pointer"
-                              title="Depositar lote consolidado de puntos de venta"
-                            >
-                              Lote POS ({formatMoneyVES(posBatchVES)})
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setDepositAmountVES(totalVES);
-                              setDepositAmountVESInput(String(totalVES));
-                            }}
-                            className="px-2 py-0.5 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-semibold cursor-pointer"
-                            title="Depositar recaudación total en bolívares"
-                          >
-                            Total Recaudado ({formatMoneyVES(totalVES)})
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <div className="sm:col-span-2">
-                      <label className="text-[10px] text-neutral-500 block mb-0.5">Banco y Cuenta Receptora (VES):</label>
-                      <select
-                        value={depositBankAccountIdVES}
-                        onChange={(e) => setDepositBankAccountIdVES(e.target.value)}
-                        className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs bg-white focus-visible:ring-2 focus-visible:ring-sky-500"
-                      >
-                        <option value="">-- Sin depósito bancario VES --</option>
-                        {bankAccounts
-                          .filter((a) => a.currency === 'VES')
-                          .map((a) => (
-                            <option key={a.id} value={a.id}>
-                              {a.bankName} - {a.accountNumber.slice(-4)} (Saldo: {formatMoneyVES(a.currentBalance)})
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-neutral-500 block mb-0.5">Monto Depósito (Bs):</label>
-                      <input
-                        type="text"
-                        value={depositAmountVESInput}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setDepositAmountVESInput(val);
-                          setDepositAmountVES(parseFormattedNumber(val));
-                        }}
-                        className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs font-mono font-bold focus-visible:ring-2 focus-visible:ring-sky-500"
-                        placeholder="0,00"
-                      />
-                    </div>
+              {/* Dictamen de Cuadre / Alerta de Auditoría */}
+              {diffUSD !== 0 || diffVES !== 0 ? (
+                <div className="p-3.5 bg-amber-50 rounded-lg border border-amber-300 flex items-start gap-2.5">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="font-bold text-amber-900 text-xs">
+                      Aviso de Discrepancia en Arqueo
+                    </p>
+                    <p className="text-[11px] text-amber-800 leading-relaxed">
+                      El conteo físico de gaveta no coincide con el saldo esperado del sistema (
+                      {diffUSD !== 0 ? `USD: ${diffUSD > 0 ? '+' : ''}${formatMoneyUSD(diffUSD)} ` : ''}
+                      {diffVES !== 0 ? `VES: ${diffVES > 0 ? '+' : ''}${formatMoneyVES(diffVES)}` : ''}
+                      ).
+                    </p>
+                    <p className="text-[11px] text-amber-900 font-medium">
+                      Al confirmar el cierre, el sistema generará automáticamente un <strong>Reporte de Auditoría</strong> y notificará al personal supervisor y gerencia para su revisión y dictamen.
+                    </p>
                   </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-300 flex items-start gap-2.5">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                   <div>
-                    <label className="text-[10px] text-neutral-500 block mb-0.5">Nro. de Referencia / Comprobante de Depósito VES:</label>
-                    <input
-                      type="text"
-                      value={depositReferenceVES}
-                      onChange={(e) => setDepositReferenceVES(e.target.value)}
-                      className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs focus-visible:ring-2 focus-visible:ring-sky-500"
-                      placeholder="Ej: DEP-892019 o Lote Punto 0192"
-                    />
+                    <p className="font-bold text-emerald-900 text-xs">Arqueo Cuadrado Exitosamente</p>
+                    <p className="text-[11px] text-emerald-800 leading-relaxed mt-0.5">
+                      El efectivo físico contado coincide exactamente con las ventas en efectivo y movimientos registrados durante el turno.
+                    </p>
                   </div>
                 </div>
+              )}
 
-                {/* Depósito en Divisas (USD) */}
-                <div className="p-2.5 bg-white rounded-lg border border-neutral-200 space-y-2">
-                  {(() => {
-                    const totalUSD = currentShift.summary?.totalCollectedUSD || (currentShift.expectedCashUSD + (currentShift.summary?.zelleUSD || 0));
-                    return (
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 font-semibold text-neutral-800 text-[11px]">
-                        <span>Depósito en Divisas (USD)</span>
-                        <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
-                          <span className="text-neutral-500 font-normal">Sugerir:</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setDepositAmountUSD(countedCashUSD);
-                              setDepositAmountUSDInput(String(countedCashUSD));
-                            }}
-                            className="px-2 py-0.5 rounded bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-medium cursor-pointer"
-                            title="Depositar efectivo físico en gaveta"
-                          >
-                            Efectivo ({formatMoneyUSD(countedCashUSD)})
-                          </button>
-                          {totalUSD > countedCashUSD && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setDepositAmountUSD(totalUSD);
-                                setDepositAmountUSDInput(String(totalUSD));
-                              }}
-                              className="px-2 py-0.5 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-semibold cursor-pointer"
-                              title="Depositar recaudación total en divisas"
-                            >
-                              Total Recaudado ({formatMoneyUSD(totalUSD)})
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <div className="sm:col-span-2">
-                      <label className="text-[10px] text-neutral-500 block mb-0.5">Cuenta Custodia / Divisas USD:</label>
-                      <select
-                        value={depositBankAccountIdUSD}
-                        onChange={(e) => setDepositBankAccountIdUSD(e.target.value)}
-                        className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs bg-white focus-visible:ring-2 focus-visible:ring-sky-500"
-                      >
-                        <option value="">-- Sin depósito bancario USD --</option>
-                        {bankAccounts
-                          .filter((a) => a.currency === 'USD')
-                          .map((a) => (
-                            <option key={a.id} value={a.id}>
-                              {a.bankName} - {a.accountNumber.slice(-4)} (Saldo: {formatMoneyUSD(a.currentBalance)})
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-neutral-500 block mb-0.5">Monto Depósito ($):</label>
-                      <input
-                        type="text"
-                        value={depositAmountUSDInput}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setDepositAmountUSDInput(val);
-                          setDepositAmountUSD(parseFormattedNumber(val));
-                        }}
-                        className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs font-mono font-bold focus-visible:ring-2 focus-visible:ring-sky-500"
-                        placeholder="0.00"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-neutral-500 block mb-0.5">Nro. de Referencia / Comprobante de Depósito USD:</label>
-                    <input
-                      type="text"
-                      value={depositReferenceUSD}
-                      onChange={(e) => setDepositReferenceUSD(e.target.value)}
-                      className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs focus-visible:ring-2 focus-visible:ring-sky-500"
-                      placeholder="Ej: DEP-USD-00219"
-                    />
-                  </div>
-                </div>
+              {/* Nota sobre el flujo de depósitos bancarios */}
+              <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 flex items-center gap-2 text-neutral-600 text-[11px]">
+                <Building2 className="w-4 h-4 text-neutral-500 shrink-0" />
+                <span>
+                  Los depósitos bancarios de efectivo y lotes de punto de venta / electrónicos serán auditados y asignados a cuentas bancarias por Supervisión en el módulo de <strong>Verificación de Arqueos</strong>.
+                </span>
               </div>
 
               <div>
-                <label className="block font-semibold text-neutral-700 mb-1">Notas de Cierre</label>
+                <label className="block font-semibold text-neutral-700 mb-1">
+                  Observaciones / Justificación del Cajero
+                </label>
                 <input
                   type="text"
                   value={closeNotes}
                   onChange={(e) => setCloseNotes(e.target.value)}
                   className="w-full h-9 px-3 border border-neutral-300 rounded-lg text-xs focus-visible:ring-2 focus-visible:ring-sky-500"
-                  placeholder="Justificación de sobrantes/faltantes o novedades en el turno"
+                  placeholder="Ej: Justificación de diferencias en conteo, billetes deteriorados o incidencias en turno"
                 />
               </div>
             </div>
@@ -1387,7 +1257,7 @@ export const CashRegisterView: React.FC = () => {
                 disabled={submitting}
                 onClick={handleCloseShift}
               >
-                Confirmar Cierre y Depósito
+                Confirmar Arqueo y Cerrar Turno
               </Button>
             </div>
           </div>

@@ -309,6 +309,15 @@ export class PurchasesService {
         totalCost += Number((item.quantityReceived * item.unitCost).toFixed(4));
       }
 
+      let effectiveWarehouseId = input.warehouseId;
+      if (!effectiveWarehouseId) {
+        const [defWh]: any = await conn.query(
+          `SELECT id FROM warehouses WHERE branch_id = ? AND is_active = 1 ORDER BY is_default_purchases DESC, is_default DESC LIMIT 1`,
+          [input.branchId]
+        );
+        effectiveWarehouseId = defWh[0]?.id;
+      }
+
       await conn.execute(
         `INSERT INTO goods_receipts (
           id, company_id, branch_id, warehouse_id, supplier_id,
@@ -319,7 +328,7 @@ export class PurchasesService {
           receiptId,
           companyId,
           input.branchId,
-          input.warehouseId,
+          effectiveWarehouseId,
           input.supplierId,
           input.purchaseOrderId || null,
           userId,
@@ -362,10 +371,10 @@ export class PurchasesService {
 
         // Stock disponible actual en el depósito de destino
         const [stockRow] = await conn.execute<any[]>(
-          `SELECT quantity FROM product_stocks WHERE product_id = ? AND warehouse_id = ?`,
+          `SELECT current_stock FROM product_stocks WHERE product_id = ? AND warehouse_id = ?`,
           [item.productId, input.warehouseId]
         );
-        const currentStockInWh = Number(stockRow[0]?.quantity || 0);
+        const currentStockInWh = Number(stockRow[0]?.current_stock || 0);
 
         // Cálculo de nuevo Costo Promedio Ponderado
         const newWeightedCost = calculateWeightedAverageCost(
@@ -384,13 +393,13 @@ export class PurchasesService {
         // Aumentar stock físico en el depósito
         if (stockRow.length === 0) {
           await conn.execute(
-            `INSERT INTO product_stocks (id, product_id, warehouse_id, quantity)
-             VALUES (?, ?, ?, ?)`,
-            [crypto.randomUUID(), item.productId, input.warehouseId, item.quantityReceived]
+            `INSERT INTO product_stocks (product_id, warehouse_id, current_stock, last_movement_at)
+             VALUES (?, ?, ?, NOW())`,
+            [item.productId, input.warehouseId, item.quantityReceived]
           );
         } else {
           await conn.execute(
-            `UPDATE product_stocks SET quantity = quantity + ? WHERE product_id = ? AND warehouse_id = ?`,
+            `UPDATE product_stocks SET current_stock = current_stock + ?, last_movement_at = NOW() WHERE product_id = ? AND warehouse_id = ?`,
             [item.quantityReceived, item.productId, input.warehouseId]
           );
         }
@@ -398,14 +407,15 @@ export class PurchasesService {
         // Registrar movimiento de auditoría en Kardex
         await conn.execute(
           `INSERT INTO inventory_movements (
-            id, branch_id, warehouse_id, product_id, movement_type,
+            id, branch_id, warehouse_id, product_id, user_id, movement_type,
             quantity, unit_cost, reference_document, reason
-          ) VALUES (?, ?, ?, ?, 'PURCHASE', ?, ?, ?, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, 'PURCHASE', ?, ?, ?, ?)`,
           [
             crypto.randomUUID(),
             input.branchId,
             input.warehouseId,
             item.productId,
+            userId,
             item.quantityReceived,
             item.unitCost,
             receiptNumber,

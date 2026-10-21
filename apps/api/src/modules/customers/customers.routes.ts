@@ -1,17 +1,18 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { customerSchema } from '@ero/shared';
+import { customerSchema, blockCustomerSchema, rateCustomerSchema } from '@ero/shared';
 import { CustomersService } from './customers.service';
 import { authenticate, AppEnv } from '../../middleware/auth';
 import { authorize } from '../../middleware/rbac';
 
 export const customersRouter = new Hono<AppEnv>();
 
-// GET /api/customers - Listado de clientes con saldos pendientes
+// GET /api/customers - Listado de clientes con saldos pendientes y filtros
 customersRouter.get('/', authenticate, authorize(['customers.read', 'pos.read', 'sales.read']), async (c) => {
   const user = c.get('user');
   const search = c.req.query('q') || c.req.query('search');
-  const data = await CustomersService.getCustomers(user.companyId, search);
+  const filter = c.req.query('filter');
+  const data = await CustomersService.getCustomers(user.companyId, search, filter);
   return c.json({ success: true, data });
 });
 
@@ -20,6 +21,14 @@ customersRouter.get('/:id', authenticate, authorize(['customers.read', 'pos.read
   const user = c.get('user');
   const id = c.req.param('id');
   const data = await CustomersService.getCustomerById(id!, user.companyId);
+  return c.json({ success: true, data });
+});
+
+// GET /api/customers/:id/history - Historial comercial y estadísticas del cliente
+customersRouter.get('/:id/history', authenticate, authorize(['customers.read', 'sales.read']), async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id');
+  const data = await CustomersService.getCustomerHistory(id!, user.companyId);
   return c.json({ success: true, data });
 });
 
@@ -37,6 +46,24 @@ customersRouter.put('/:id', authenticate, authorize('customers', 'update'), zVal
   const id = c.req.param('id');
   const body = c.req.valid('json');
   const data = await CustomersService.updateCustomer(id!, user.companyId, body);
+  return c.json({ success: true, data });
+});
+
+// POST /api/customers/:id/block - Bloquear o desbloquear cliente
+customersRouter.post('/:id/block', authenticate, authorize('customers', 'update'), zValidator('json', blockCustomerSchema), async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id');
+  const body = c.req.valid('json');
+  const data = await CustomersService.blockCustomer(id!, user.companyId, body.isBlocked, body.blockReason);
+  return c.json({ success: true, data });
+});
+
+// POST /api/customers/:id/rate - Calificar cliente (puntuación, categoría y notas)
+customersRouter.post('/:id/rate', authenticate, authorize('customers', 'update'), zValidator('json', rateCustomerSchema), async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id');
+  const body = c.req.valid('json');
+  const data = await CustomersService.rateCustomer(id!, user.companyId, body.ratingScore, body.ratingTier, body.ratingNotes);
   return c.json({ success: true, data });
 });
 

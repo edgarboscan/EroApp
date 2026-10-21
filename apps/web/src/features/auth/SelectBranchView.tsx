@@ -1,17 +1,28 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuthStore, isSuperAdminRole } from '../../stores/authStore';
-import { Card } from '../../components/ui/Card';
-import { Button } from '../../components/ui/Button';
-import { toast } from 'sonner';
-import { Building2, Warehouse, ArrowRight, Check, LogOut, RefreshCw, Lock } from 'lucide-react';
-import { getDefaultAppRoute } from '../../lib/navigation';
+import React, { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuthStore, isSuperAdminRole } from "../../stores/authStore";
+import { showConfirmQuestion } from "../../lib/sweetalert";
+import { Card } from "../../components/ui/Card";
+import { Button } from "../../components/ui/Button";
+import { toast } from "sonner";
+import {
+  Building2,
+  Warehouse,
+  ArrowRight,
+  Check,
+  LogOut,
+  RefreshCw,
+  Lock,
+} from "lucide-react";
+import { getDefaultAppRoute } from "../../lib/navigation";
 
 interface WarehouseOption {
   id: string;
   code: string;
   name: string;
   isDefault?: boolean;
+  isDefaultSales?: boolean;
+  isDefaultPurchases?: boolean;
 }
 
 interface BranchOption {
@@ -24,11 +35,22 @@ interface BranchOption {
 
 export const SelectBranchView: React.FC = () => {
   const navigate = useNavigate();
-  const { user, token, activeBranchId, activeWarehouseId, setActiveBranch, logout } = useAuthStore();
+  const {
+    user,
+    token,
+    activeBranchId,
+    activeWarehouseId,
+    setActiveBranch,
+    logout,
+  } = useAuthStore();
 
   const [branches, setBranches] = useState<BranchOption[]>([]);
-  const [selectedBranchId, setSelectedBranchId] = useState<string>(activeBranchId || '');
-  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>(activeWarehouseId || '');
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(
+    activeBranchId || "",
+  );
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>(
+    activeWarehouseId || "",
+  );
   const [isFetching, setIsFetching] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
@@ -38,13 +60,17 @@ export const SelectBranchView: React.FC = () => {
       let loadedBranches: BranchOption[] = [];
 
       if (token) {
-        const response = await fetch('/api/auth/branches', {
+        const response = await fetch("/api/auth/branches", {
           headers: { Authorization: `Bearer ${token}` },
         });
 
         if (response.ok) {
           const json = await response.json();
-          if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          if (
+            json.success &&
+            Array.isArray(json.data) &&
+            json.data.length > 0
+          ) {
             const isSuper = isSuperAdminRole(user?.role);
             let userBranches: BranchOption[] = json.data.map((b: any) => ({
               ...b,
@@ -54,14 +80,21 @@ export const SelectBranchView: React.FC = () => {
             if (!isSuper) {
               const userBranchIds = user?.branches || [];
               if (userBranchIds.length > 0 && user?.allBranches === false) {
-                userBranches = userBranches.filter((b: BranchOption) => userBranchIds.includes(b.id));
+                userBranches = userBranches.filter((b: BranchOption) =>
+                  userBranchIds.includes(b.id),
+                );
               }
 
               const userWarehouseIds = user?.warehouses || [];
-              if (userWarehouseIds.length > 0 && user?.canSwitchWarehouses === false) {
+              if (
+                userWarehouseIds.length > 0 &&
+                user?.canSwitchWarehouses === false
+              ) {
                 userBranches = userBranches.map((b: BranchOption) => ({
                   ...b,
-                  warehouses: b.warehouses.filter((w: WarehouseOption) => userWarehouseIds.includes(w.id)),
+                  warehouses: b.warehouses.filter((w: WarehouseOption) =>
+                    userWarehouseIds.includes(w.id),
+                  ),
                 }));
               }
             }
@@ -75,9 +108,12 @@ export const SelectBranchView: React.FC = () => {
 
       if (loadedBranches.length > 0) {
         // Selección de sucursal desde base de datos
-        let currentBranch = loadedBranches.find((b) => b.id === (selectedBranchId || activeBranchId));
+        let currentBranch = loadedBranches.find(
+          (b) => b.id === (selectedBranchId || activeBranchId),
+        );
         if (!currentBranch) {
-          currentBranch = loadedBranches.find((b) => b.isMain) || loadedBranches[0];
+          currentBranch =
+            loadedBranches.find((b) => b.isMain) || loadedBranches[0];
         }
 
         if (currentBranch) {
@@ -85,76 +121,104 @@ export const SelectBranchView: React.FC = () => {
 
           const currentWhs = currentBranch.warehouses || [];
           if (currentWhs.length > 0) {
-            const currentWh = currentWhs.find((w) => w.id === (selectedWarehouseId || activeWarehouseId))
-              || currentWhs.find((w) => w.isDefault)
-              || currentWhs[0];
+            const currentWh =
+              currentWhs.find(
+                (w) => w.id === (selectedWarehouseId || activeWarehouseId),
+              ) ||
+              currentWhs.find((w) => w.isDefault) ||
+              currentWhs[0];
             if (currentWh) {
               setSelectedWarehouseId(currentWh.id);
             }
           } else {
-            setSelectedWarehouseId('');
+            setSelectedWarehouseId("");
           }
         }
       } else {
-        setSelectedBranchId('');
-        setSelectedWarehouseId('');
+        setSelectedBranchId("");
+        setSelectedWarehouseId("");
       }
     } catch {
       setBranches([]);
-      setSelectedBranchId('');
-      setSelectedWarehouseId('');
+      setSelectedBranchId("");
+      setSelectedWarehouseId("");
     } finally {
       setIsFetching(false);
     }
-  }, [token, user, activeBranchId, activeWarehouseId, selectedBranchId, selectedWarehouseId]);
+  }, [
+    token,
+    user,
+    activeBranchId,
+    activeWarehouseId,
+    selectedBranchId,
+    selectedWarehouseId,
+  ]);
 
   useEffect(() => {
     fetchBranches();
   }, [fetchBranches]);
 
   const isSuper = isSuperAdminRole(user?.role);
-  const activeBranch = branches.find((b) => b.id === selectedBranchId) || branches[0] || null;
+  const activeBranch =
+    branches.find((b) => b.id === selectedBranchId) || branches[0] || null;
   const activeWarehouses = activeBranch?.warehouses || [];
 
-  const canSwitchBranch = isSuper || (user?.allBranches !== false ? branches.length > 1 : branches.length > 1);
-  const canSwitchWarehouse = isSuper || (user?.canSwitchWarehouses !== false && activeWarehouses.length > 1);
+  const canSwitchBranch =
+    isSuper ||
+    (user?.allBranches !== false ? branches.length > 1 : branches.length > 1);
+  const canSwitchWarehouse =
+    isSuper ||
+    (user?.canSwitchWarehouses !== false && activeWarehouses.length > 1);
 
   const handleBranchChange = (branchId: string) => {
     if (!canSwitchBranch) return;
     setSelectedBranchId(branchId);
     const branch = branches.find((b) => b.id === branchId);
     if (branch && branch.warehouses && branch.warehouses.length > 0) {
-      const defaultWh = branch.warehouses.find((w) => w.isDefault) || branch.warehouses[0];
+      const defaultWh =
+        branch.warehouses.find((w) => w.isDefaultSales) ||
+        branch.warehouses.find((w) => w.isDefault) ||
+        branch.warehouses[0];
       setSelectedWarehouseId(defaultWh.id);
     } else {
-      setSelectedWarehouseId('');
+      setSelectedWarehouseId("");
     }
   };
 
   const handleConfirm = () => {
     if (!selectedBranchId) {
-      toast.error('Debe seleccionar una sucursal para continuar');
+      toast.error("Debe seleccionar una sucursal para continuar");
       return;
     }
 
     if (activeWarehouses.length > 0 && !selectedWarehouseId) {
-      toast.error('Debe seleccionar un depósito para continuar');
+      toast.error("Debe seleccionar un depósito para continuar");
       return;
     }
 
     setIsSubmitting(true);
     setActiveBranch(selectedBranchId, selectedWarehouseId || undefined);
-    toast.success('Sucursal y depósito activados correctamente');
+    toast.success("Sucursal y depósito activados correctamente");
     setTimeout(() => {
       setIsSubmitting(false);
-      const targetRoute = getDefaultAppRoute(useAuthStore.getState().hasPermission);
+      const targetRoute = getDefaultAppRoute(
+        useAuthStore.getState().hasPermission,
+      );
       navigate(targetRoute, { replace: true });
     }, 300);
   };
 
-  const handleLogout = () => {
-    logout('Cierre voluntario de sesión');
-    navigate('/login', { replace: true });
+  const handleLogout = async () => {
+    const confirmed = await showConfirmQuestion({
+      title: "¿Seguro que desea cerrar sesión?",
+      text: "¿Estás seguro de que deseas cerrar sesión?",
+      confirmButtonText: "Sí, cerrar sesión",
+      cancelButtonText: "Cancelar",
+      icon: "question",
+    });
+    if (!confirmed) return;
+    logout("Cierre voluntario de sesión");
+    navigate("/login", { replace: true });
   };
 
   return (
@@ -167,7 +231,11 @@ export const SelectBranchView: React.FC = () => {
                 Selección de Sucursal y Depósito
               </h1>
               <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-                Bienvenido, <span className="font-semibold text-neutral-800 dark:text-neutral-200">{user?.fullName || user?.username}</span>. Seleccione el entorno operativo de trabajo.
+                Bienvenido,{" "}
+                <span className="font-semibold text-neutral-800 dark:text-neutral-200">
+                  {user?.fullName || user?.username}
+                </span>
+                . Seleccione el entorno operativo de trabajo.
               </p>
             </div>
             <button
@@ -210,7 +278,8 @@ export const SelectBranchView: React.FC = () => {
                   No hay sucursales disponibles
                 </h3>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-sm mx-auto">
-                  Tu usuario no tiene sucursales asignadas en esta empresa o no hay registros activos. Contacte al administrador.
+                  Tu usuario no tiene sucursales asignadas en esta empresa o no
+                  hay registros activos. Contacte al administrador.
                 </p>
               </div>
               <div className="flex justify-center gap-3 pt-2">
@@ -246,17 +315,23 @@ export const SelectBranchView: React.FC = () => {
                     return (
                       <div
                         key={b.id}
-                        onClick={canSwitchBranch ? () => handleBranchChange(b.id) : undefined}
+                        onClick={
+                          canSwitchBranch
+                            ? () => handleBranchChange(b.id)
+                            : undefined
+                        }
                         className={`p-4 rounded-lg border text-left transition-colors ${
-                          canSwitchBranch ? 'cursor-pointer' : 'cursor-default'
+                          canSwitchBranch ? "cursor-pointer" : "cursor-default"
                         } ${
                           isSelected
-                            ? 'border-sky-600 bg-sky-50/50 dark:bg-sky-950/20 ring-2 ring-sky-500'
-                            : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700'
+                            ? "border-sky-600 bg-sky-50/50 dark:bg-sky-950/20 ring-2 ring-sky-500"
+                            : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700"
                         }`}
                       >
                         <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400">{b.code}</span>
+                          <span className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400">
+                            {b.code}
+                          </span>
                           {b.isMain && (
                             <span className="text-[10px] bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 px-1.5 py-0.5 rounded font-medium">
                               Principal
@@ -264,8 +339,12 @@ export const SelectBranchView: React.FC = () => {
                           )}
                         </div>
                         <div className="flex items-center gap-2">
-                          <Building2 className={`w-4 h-4 shrink-0 ${isSelected ? 'text-sky-700 dark:text-sky-400' : 'text-neutral-400 dark:text-neutral-500'}`} />
-                          <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100 line-clamp-1">{b.name}</span>
+                          <Building2
+                            className={`w-4 h-4 shrink-0 ${isSelected ? "text-sky-700 dark:text-sky-400" : "text-neutral-400 dark:text-neutral-500"}`}
+                          />
+                          <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100 line-clamp-1">
+                            {b.name}
+                          </span>
                         </div>
                       </div>
                     );
@@ -293,22 +372,36 @@ export const SelectBranchView: React.FC = () => {
                       return (
                         <div
                           key={w.id}
-                          onClick={canSwitchWarehouse ? () => setSelectedWarehouseId(w.id) : undefined}
+                          onClick={
+                            canSwitchWarehouse
+                              ? () => setSelectedWarehouseId(w.id)
+                              : undefined
+                          }
                           className={`p-3.5 rounded-lg border text-left transition-colors ${
-                            canSwitchWarehouse ? 'cursor-pointer' : 'cursor-default'
+                            canSwitchWarehouse
+                              ? "cursor-pointer"
+                              : "cursor-default"
                           } ${
                             isSelected
-                              ? 'border-sky-600 bg-sky-50/50 dark:bg-sky-950/20 ring-2 ring-sky-500'
-                              : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700'
+                              ? "border-sky-600 bg-sky-50/50 dark:bg-sky-950/20 ring-2 ring-sky-500"
+                              : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700"
                           }`}
                         >
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400">{w.code}</span>
-                            {isSelected && <Check className="w-4 h-4 text-sky-600 dark:text-sky-400" />}
+                            <span className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400">
+                              {w.code}
+                            </span>
+                            {isSelected && (
+                              <Check className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                            )}
                           </div>
                           <div className="flex items-center gap-2">
-                            <Warehouse className={`w-4 h-4 shrink-0 ${isSelected ? 'text-sky-700 dark:text-sky-400' : 'text-neutral-400 dark:text-neutral-500'}`} />
-                            <span className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">{w.name}</span>
+                            <Warehouse
+                              className={`w-4 h-4 shrink-0 ${isSelected ? "text-sky-700 dark:text-sky-400" : "text-neutral-400 dark:text-neutral-500"}`}
+                            />
+                            <span className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
+                              {w.name}
+                            </span>
                           </div>
                         </div>
                       );
@@ -323,14 +416,19 @@ export const SelectBranchView: React.FC = () => {
 
               {/* Resumen */}
               <div className="p-3 bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-800 rounded-lg text-xs flex items-center justify-between">
-                <span className="text-neutral-500 dark:text-neutral-400">Operaciones enlazadas a:</span>
+                <span className="text-neutral-500 dark:text-neutral-400">
+                  Operaciones enlazadas a:
+                </span>
                 <span className="font-semibold text-neutral-800 dark:text-neutral-200">
                   {activeBranch ? (
                     <>
-                      {activeBranch.name} • {activeWarehouses.find((w) => w.id === selectedWarehouseId)?.name || 'Depósito no asignado'}
+                      {activeBranch.name} •{" "}
+                      {activeWarehouses.find(
+                        (w) => w.id === selectedWarehouseId,
+                      )?.name || "Depósito no asignado"}
                     </>
                   ) : (
-                    'Sin selección'
+                    "Sin selección"
                   )}
                 </span>
               </div>
@@ -339,7 +437,10 @@ export const SelectBranchView: React.FC = () => {
                 onClick={handleConfirm}
                 className="w-full h-11 text-sm font-semibold rounded-lg"
                 isLoading={isSubmitting}
-                disabled={!selectedBranchId || (activeWarehouses.length > 0 && !selectedWarehouseId)}
+                disabled={
+                  !selectedBranchId ||
+                  (activeWarehouses.length > 0 && !selectedWarehouseId)
+                }
               >
                 <span>Confirmar y Entrar al Sistema</span>
                 <ArrowRight className="w-4 h-4 ml-1.5" />

@@ -85,6 +85,9 @@ describe('Módulo de Ventas & Despachos Administrativos (Paso 9)', () => {
         controlNumber: '00-00000101',
         invoiceMode: 'normal_printer',
         isCredit: false,
+        paymentMethod: 'TRANSFER',
+        bankAccountId: 'ba111111-1111-1111-1111-111111111111',
+        paymentReference: 'REF-BANCARIA-9912',
         notes: 'Pago de contado verificado',
       });
       expect(cashInvoice.success).toBe(true);

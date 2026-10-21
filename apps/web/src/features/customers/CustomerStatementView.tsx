@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   Building2,
   CheckCircle2,
+  ArrowRightLeft,
 } from 'lucide-react';
 import { formatMoneyUSD } from '../../utils/formatters';
 
@@ -84,7 +85,11 @@ export const CustomerStatementView: React.FC = () => {
     );
   }
 
-  const { customer, invoices } = statement;
+  const { customer, invoices, notes = [] } = statement;
+
+  const totalCreditAvailableUSD = notes
+    .filter((n: any) => n.type === 'CREDIT' && n.status === 'ACTIVE')
+    .reduce((acc: number, n: any) => acc + (Number(n.amountBalance) || 0), 0);
 
   return (
     <div className="flex flex-col gap-6">
@@ -109,17 +114,26 @@ export const CustomerStatementView: React.FC = () => {
           </div>
         </div>
 
-        <Button
-          onClick={() => navigate('/receivables/collections')}
-          disabled={customer.currentBalance <= 0}
-        >
-          <CreditCard className="w-4 h-4 mr-1.5" />
-          Registrar Cobranza
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => navigate('/sales/credit-debit-notes')}
+          >
+            <ArrowRightLeft className="w-4 h-4 mr-1.5" />
+            Notas de Crédito / Débito
+          </Button>
+          <Button
+            onClick={() => navigate('/receivables/collections')}
+            disabled={customer.currentBalance <= 0}
+          >
+            <CreditCard className="w-4 h-4 mr-1.5" />
+            Registrar Cobranza
+          </Button>
+        </div>
       </div>
 
       {/* KPI Cards Financieros */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card className="p-4">
           <div className="text-xs text-neutral-500 font-medium">Límite de Crédito</div>
           <div className="text-2xl font-bold text-neutral-900 mt-1">
@@ -136,17 +150,27 @@ export const CustomerStatementView: React.FC = () => {
             {formatMoneyUSD(customer.currentBalance)}
           </div>
           <div className="text-[11px] text-neutral-400 mt-1">
-            {customer.currentBalance > 0 ? 'Facturas pendientes por cobrar' : 'Al día'}
+            {customer.currentBalance > 0 ? 'Facturas y débitos por cobrar' : 'Al día'}
           </div>
         </Card>
 
         <Card className="p-4">
-          <div className="text-xs text-neutral-500 font-medium">Crédito Disponible</div>
+          <div className="text-xs text-neutral-500 font-medium">Saldo a Favor (NC)</div>
           <div className="text-2xl font-bold text-emerald-700 mt-1">
+            {formatMoneyUSD(totalCreditAvailableUSD)}
+          </div>
+          <div className="text-[11px] text-neutral-400 mt-1">
+            Disponible para compensar
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <div className="text-xs text-neutral-500 font-medium">Crédito Comercial Libre</div>
+          <div className="text-2xl font-bold text-sky-700 mt-1">
             {formatMoneyUSD(Math.max(0, customer.availableCredit))}
           </div>
           <div className="text-[11px] text-neutral-400 mt-1">
-            Margen para nuevas compras
+            Margen para compras a crédito
           </div>
         </Card>
 
@@ -240,6 +264,116 @@ export const CustomerStatementView: React.FC = () => {
                           }
                         >
                           {inv.status === 'PAID' ? 'Cobrada' : isOverdue ? 'Vencida' : 'Pendiente'}
+                        </Badge>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* Histórico de Notas de Crédito & Débito */}
+      <Card className="p-0 overflow-hidden">
+        <div className="p-4 border-b border-neutral-200 bg-neutral-50/70 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ArrowRightLeft className="w-4 h-4 text-neutral-500" />
+            <h2 className="text-xs font-semibold text-neutral-700 uppercase tracking-wider">
+              Notas de Crédito & Débito del Cliente
+            </h2>
+          </div>
+          <span className="text-xs text-neutral-500">{notes.length} documento(s)</span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-600 font-semibold uppercase">
+              <tr>
+                <th className="py-2.5 px-4">Tipo</th>
+                <th className="py-2.5 px-4">Nº Nota / Control</th>
+                <th className="py-2.5 px-4">Fecha</th>
+                <th className="py-2.5 px-4">Factura Afectada</th>
+                <th className="py-2.5 px-4">Motivo</th>
+                <th className="py-2.5 px-4 text-right">Monto Total</th>
+                <th className="py-2.5 px-4 text-right">Compensado</th>
+                <th className="py-2.5 px-4 text-right">Saldo Remanente</th>
+                <th className="py-2.5 px-4 text-center">Estado</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-100">
+              {notes.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="py-8 text-center text-neutral-400">
+                    No existen Notas de Crédito ni de Débito registradas para este cliente
+                  </td>
+                </tr>
+              ) : (
+                notes.map((note: any) => {
+                  const isCredit = note.type === 'CREDIT';
+                  return (
+                    <tr key={note.id} className="hover:bg-neutral-50/50">
+                      <td className="py-3 px-4">
+                        <Badge variant={isCredit ? 'success' : 'info'}>
+                          {isCredit ? 'Crédito' : 'Débito'}
+                        </Badge>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="font-mono font-semibold text-neutral-900">{note.noteNumber}</div>
+                        {note.controlNumber && (
+                          <div className="text-[10px] text-neutral-400 font-mono">Control: {note.controlNumber}</div>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-neutral-600">
+                        {new Date(note.issueDate).toLocaleDateString('es-VE')}
+                      </td>
+                      <td className="py-3 px-4">
+                        {note.affectedInvoiceNumber ? (
+                          <span className="font-mono text-neutral-700 bg-neutral-100 px-2 py-0.5 rounded-lg text-[11px]">
+                            {note.affectedInvoiceNumber}
+                          </span>
+                        ) : (
+                          <span className="text-neutral-400 italic text-[11px]">General</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 max-w-xs truncate text-neutral-700" title={note.reasonDescription}>
+                        {note.reasonDescription || note.reasonType}
+                      </td>
+                      <td className="py-3 px-4 text-right font-medium text-neutral-900">
+                        {formatMoneyUSD(note.totalAmount)}
+                      </td>
+                      <td className="py-3 px-4 text-right text-emerald-700 font-medium">
+                        {formatMoneyUSD(note.amountApplied)}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono font-bold">
+                        {isCredit ? (
+                          note.amountBalance > 0.005 ? (
+                            <span className="text-emerald-700">{formatMoneyUSD(note.amountBalance)}</span>
+                          ) : (
+                            <span className="text-neutral-400">$0.00</span>
+                          )
+                        ) : (
+                          <span className="text-neutral-800">
+                            {formatMoneyUSD(note.totalAmount - note.amountApplied)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <Badge
+                          variant={
+                            note.status === 'ANNULLED'
+                              ? 'danger'
+                              : note.status === 'APPLIED'
+                              ? 'neutral'
+                              : 'success'
+                          }
+                        >
+                          {note.status === 'ANNULLED'
+                            ? 'Anulada'
+                            : note.status === 'APPLIED'
+                            ? 'Saldada'
+                            : 'Activa'}
                         </Badge>
                       </td>
                     </tr>
