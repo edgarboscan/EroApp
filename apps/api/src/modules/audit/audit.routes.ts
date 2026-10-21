@@ -15,6 +15,7 @@ auditRouter.get(
   async (c) => {
     const user = c.get('user');
     const filters = c.req.valid('query');
+
     try {
       const result = await AuditService.getLogs(user.companyId, filters);
       return c.json({ success: true, data: result.data, meta: { total: result.total, page: result.page, limit: result.limit } });

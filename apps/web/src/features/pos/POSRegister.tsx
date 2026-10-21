@@ -29,6 +29,11 @@ import {
   Edit2,
   Warehouse,
   ShieldCheck,
+  LayoutGrid,
+  List,
+  Percent,
+  Eye,
+  Package,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { showLeaveCartAlert, showClearCartAlert } from '../../lib/sweetalert';
@@ -45,16 +50,33 @@ import {
   parseFormattedNumber,
   PaymentMethod,
   isSuperAdminRole,
+  isSupervisorOrAdminRole,
+  canAuthorizeOperations,
 } from '@ero/shared';
+
+export interface ProductPresentationPOS {
+  id: string;
+  name: string;
+  sku?: string | null;
+  barcode?: string | null;
+  multiplier: number;
+  basePrice?: number | null;
+  costPrice?: number | null;
+  requiresAuthorization?: boolean;
+  isDefault?: boolean;
+}
 
 interface ProductItem {
   id: string;
   sku: string;
   name: string;
+  description?: string | null;
   priceUSD: number;
   taxRatePercent: number;
   stock?: number;
   barcode?: string;
+  unitOfMeasure?: string;
+  presentations?: ProductPresentationPOS[];
 }
 
 interface CartItem {
@@ -64,11 +86,19 @@ interface CartItem {
   quantity: number;
   unitPrice: number;
   taxRatePercent: number;
+  grossAmount: number;
+  discountPercent: number;
+  discountAmount: number;
   subtotal: number;
   taxAmount: number;
   total: number;
   isNegativeStockAuthorized?: boolean;
+  isPresentationAuthorized?: boolean;
+  requiresAuthorization?: boolean;
   supervisorApprovedBy?: string;
+  presentationId?: string | null;
+  presentationName?: string | null;
+  multiplier?: number;
 }
 
 interface PaymentEntry {
@@ -103,6 +133,33 @@ export const POSRegister: React.FC = () => {
   const [activeShift, setActiveShift] = useState<any>(null);
   const [loadingShift, setLoadingShift] = useState(false);
 
+  // Opciones de visualización y densidad del catálogo de productos
+  const [catalogViewMode, setCatalogViewMode] = useState<'grid' | 'list'>('grid');
+  const [catalogOptions, setCatalogOptions] = useState({
+    showBarcode: true,
+    showSku: true,
+    showPrice: true,
+    showStock: true,
+    showDescription: true,
+  });
+  const [isOptionsDropdownOpen, setIsOptionsDropdownOpen] = useState(false);
+
+  // Modal de Selección de Presentaciones del Producto
+  const [isPresentationModalOpen, setIsPresentationModalOpen] = useState(false);
+  const [selectedProductForPresentation, setSelectedProductForPresentation] = useState<ProductItem | null>(null);
+  const [selectedPresentationId, setSelectedPresentationId] = useState<string | null>(null);
+  const [presentationQty, setPresentationQty] = useState<number>(1);
+  const [presentationModalError, setPresentationModalError] = useState<string | null>(null);
+
+  // Modal para aplicar descuento individual a renglón del carrito
+  const [editingDiscountItem, setEditingDiscountItem] = useState<{
+    productId: string;
+    presentationId: string | null;
+    productName: string;
+    currentDiscountPercent: number;
+  } | null>(null);
+  const [discountInputPercent, setDiscountInputPercent] = useState<string>('0');
+
   // Reglas de negocio (Stock negativo y autorizaciones)
   const [businessRules, setBusinessRules] = useState<{
     allowNegativeStock: boolean;
@@ -112,7 +169,7 @@ export const POSRegister: React.FC = () => {
     requireApprovalNegativeStock: true,
   });
 
-  // Modal de Autorización de Supervisor para Stock en Negativo
+  // Modal de Autorización de Supervisor para Stock en Negativo o Presentaciones Restringidas
   interface SupervisorApprovalRequest {
     productId: string;
     productName: string;
@@ -120,7 +177,11 @@ export const POSRegister: React.FC = () => {
     availableStock: number;
     targetQty: number;
     deficit: number;
-    action: 'ADD' | 'UPDATE';
+    action: 'ADD' | 'UPDATE' | 'PRESENTATION_AUTH';
+    presentationId?: string | null;
+    presentationName?: string | null;
+    multiplier?: number;
+    unitPrice?: number;
   }
   const [pendingStockApproval, setPendingStockApproval] = useState<SupervisorApprovalRequest | null>(null);
   const [isSupervisorModalOpen, setIsSupervisorModalOpen] = useState(false);
@@ -206,6 +267,14 @@ export const POSRegister: React.FC = () => {
             isVES: false,
             refValue: '',
           });
+        } else if (editingDiscountItem) {
+          setEditingDiscountItem(null);
+        } else if (isPresentationModalOpen) {
+          setIsPresentationModalOpen(false);
+          setSelectedProductForPresentation(null);
+          setPresentationModalError(null);
+        } else if (isOptionsDropdownOpen) {
+          setIsOptionsDropdownOpen(false);
         } else if (showPrintPromptModal) {
           setShowPrintPromptModal(false);
         } else if (isNewCustomerModalOpen) {
@@ -216,6 +285,9 @@ export const POSRegister: React.FC = () => {
           setIsInvoiceModalOpen(false);
         } else if (isPaymentModalOpen) {
           setIsPaymentModalOpen(false);
+        } else if (isSupervisorModalOpen) {
+          setIsSupervisorModalOpen(false);
+          setPendingStockApproval(null);
         }
       }
     };
@@ -223,11 +295,15 @@ export const POSRegister: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     quickRefPrompt.isOpen,
+    editingDiscountItem,
+    isPresentationModalOpen,
+    isOptionsDropdownOpen,
     showPrintPromptModal,
     isNewCustomerModalOpen,
     isCartReviewModalOpen,
     isInvoiceModalOpen,
     isPaymentModalOpen,
+    isSupervisorModalOpen,
   ]);
 
   // Guard de Navegación con SweetAlert: advertir al usuario si intenta cambiar de página con productos en el carrito
@@ -392,10 +468,31 @@ export const POSRegister: React.FC = () => {
               id: p.id,
               sku: p.sku,
               name: p.name,
+              description: p.description || null,
               priceUSD: isNaN(price) || price <= 0 ? 0 : price,
               taxRatePercent: isNaN(parsedTax) ? 16.0 : parsedTax,
               stock: isNaN(stock) ? 0 : stock,
               barcode: p.barcode,
+              unitOfMeasure: p.unitOfMeasure,
+              presentations: Array.isArray(p.presentations)
+                ? p.presentations.map((pr: any) => ({
+                    id: pr.id,
+                    name: pr.name,
+                    sku: pr.sku,
+                    barcode: pr.barcode,
+                    multiplier: Number(pr.multiplier) || 1,
+                    basePrice:
+                      pr.basePrice !== null && pr.basePrice !== undefined
+                        ? Number(pr.basePrice)
+                        : null,
+                    costPrice:
+                      pr.costPrice !== null && pr.costPrice !== undefined
+                        ? Number(pr.costPrice)
+                        : null,
+                    requiresAuthorization: Boolean(pr.requiresAuthorization),
+                    isDefault: Boolean(pr.isDefault),
+                  }))
+                : [],
             };
           });
           setProducts(mapped);
@@ -504,7 +601,7 @@ export const POSRegister: React.FC = () => {
     }
   };
 
-  // Filtrado de productos
+  // Filtrado de productos (búsqueda por nombre, SKU principal, código de barras o SKUs/códigos de presentaciones)
   const filteredProducts = useMemo(() => {
     if (!searchTerm.trim()) return products;
     const term = searchTerm.toLowerCase();
@@ -512,36 +609,128 @@ export const POSRegister: React.FC = () => {
       (p) =>
         p.name.toLowerCase().includes(term) ||
         p.sku.toLowerCase().includes(term) ||
-        (p.barcode && p.barcode.toLowerCase().includes(term))
+        (p.barcode && p.barcode.toLowerCase().includes(term)) ||
+        (p.presentations &&
+          p.presentations.some(
+            (pr) =>
+              (pr.sku && pr.sku.toLowerCase().includes(term)) ||
+              (pr.barcode && pr.barcode.toLowerCase().includes(term)) ||
+              (pr.name && pr.name.toLowerCase().includes(term))
+          ))
     );
   }, [products, searchTerm]);
+
+  // Escaneo o ingreso de SKU / Código de barras (Reconocimiento de presentaciones)
+  const handleBarcodeOrSkuScan = (query: string) => {
+    const term = query.trim();
+    if (!term) return;
+
+    // 1. Prioridad: Verificar si coincide exactamente con el SKU o Código de Barras de una Presentación
+    for (const p of products) {
+      if (p.presentations && p.presentations.length > 0) {
+        const matchedPres = p.presentations.find(
+          (pr) =>
+            (pr.barcode && pr.barcode.trim().toLowerCase() === term.toLowerCase()) ||
+            (pr.sku && pr.sku.trim().toLowerCase() === term.toLowerCase())
+        );
+        if (matchedPres) {
+          addPresentationToCart(p, matchedPres);
+          setSearchTerm('');
+          return;
+        }
+      }
+    }
+
+    // 2. Verificar si coincide exactamente con el SKU o Código de Barras de un Producto Base
+    const exactProduct = products.find(
+      (p) =>
+        (p.barcode && p.barcode.trim().toLowerCase() === term.toLowerCase()) ||
+        p.sku.trim().toLowerCase() === term.toLowerCase()
+    );
+    if (exactProduct) {
+      addPresentationToCart(exactProduct, null);
+      setSearchTerm('');
+      return;
+    }
+
+    // 3. Fallback: Si la búsqueda filtrada arrojó resultados, añadir el primero
+    if (filteredProducts.length > 0) {
+      const topProduct = filteredProducts[0];
+      const matchedPresInTop = topProduct.presentations?.find(
+        (pr) =>
+          (pr.barcode && pr.barcode.trim().toLowerCase() === term.toLowerCase()) ||
+          (pr.sku && pr.sku.trim().toLowerCase() === term.toLowerCase())
+      );
+      if (matchedPresInTop) {
+        addPresentationToCart(topProduct, matchedPresInTop);
+      } else {
+        addPresentationToCart(topProduct, null);
+      }
+      setSearchTerm('');
+      return;
+    }
+
+    toast.error(`No se encontró ningún producto o presentación con el código "${term}"`);
+  };
 
   // Aplica la modificación al carrito registrando el estado de autorización si aplica
   const applyCartItem = (
     product: ProductItem,
     newQuantity: number,
+    presentation?: ProductPresentationPOS | null,
     isAuthorized = false,
-    authorizedBy?: string
+    authorizedBy?: string,
+    isPresAuthorized = false,
+    discountPercentOverride?: number
   ) => {
+    const presId = presentation?.id || null;
+    const multiplier = presentation?.multiplier || 1;
+    const presName = presentation?.name || null;
+    const presSku = presentation?.sku || product.sku;
+    const presPrice =
+      presentation?.basePrice !== null && presentation?.basePrice !== undefined
+        ? presentation.basePrice
+        : Number((product.priceUSD * multiplier).toFixed(4));
+    const displayName = presName ? `${product.name} (${presName})` : product.name;
+    const requiresAuth = Boolean(presentation?.requiresAuthorization);
+
     setCart((prev) => {
-      const existing = prev.find((item) => item.productId === product.id);
+      const existing = prev.find(
+        (item) => item.productId === product.id && (item.presentationId || null) === presId
+      );
       if (newQuantity <= 0) {
-        return prev.filter((item) => item.productId !== product.id);
+        return prev.filter(
+          (item) => !(item.productId === product.id && (item.presentationId || null) === presId)
+        );
       }
-      const subtotal = Number((newQuantity * product.priceUSD).toFixed(2));
+
+      const discPercent =
+        discountPercentOverride !== undefined
+          ? discountPercentOverride
+          : (existing?.discountPercent || 0);
+
+      const grossAmount = Number((newQuantity * presPrice).toFixed(2));
+      const discountAmount = Number(((grossAmount * discPercent) / 100).toFixed(2));
+      const subtotal = Number((grossAmount - discountAmount).toFixed(2));
       const taxAmount = Number(((subtotal * product.taxRatePercent) / 100).toFixed(2));
       const total = Number((subtotal + taxAmount).toFixed(2));
 
       if (existing) {
         return prev.map((item) =>
-          item.productId === product.id
+          item.productId === product.id && (item.presentationId || null) === presId
             ? {
                 ...item,
                 quantity: newQuantity,
+                unitPrice: presPrice,
+                grossAmount,
+                discountPercent: discPercent,
+                discountAmount,
                 subtotal,
                 taxAmount,
                 total,
                 isNegativeStockAuthorized: isAuthorized || item.isNegativeStockAuthorized,
+                isPresentationAuthorized: isPresAuthorized || item.isPresentationAuthorized,
+                requiresAuthorization: requiresAuth || item.requiresAuthorization,
                 supervisorApprovedBy: authorizedBy || item.supervisorApprovedBy,
               }
             : item
@@ -552,46 +741,67 @@ export const POSRegister: React.FC = () => {
         ...prev,
         {
           productId: product.id,
-          sku: product.sku,
-          name: product.name,
+          sku: presSku,
+          name: displayName,
           quantity: newQuantity,
-          unitPrice: product.priceUSD,
+          unitPrice: presPrice,
           taxRatePercent: product.taxRatePercent,
+          grossAmount,
+          discountPercent: discPercent,
+          discountAmount,
           subtotal,
           taxAmount,
           total,
           isNegativeStockAuthorized: isAuthorized,
+          isPresentationAuthorized: isPresAuthorized,
+          requiresAuthorization: requiresAuth,
           supervisorApprovedBy: authorizedBy,
+          presentationId: presId,
+          presentationName: presName,
+          multiplier,
         },
       ];
     });
   };
 
-  // Manejo de Carrito con validación de stock y reglas de negocio
-  const addToCart = (product: ProductItem) => {
-    const existing = cart.find((item) => item.productId === product.id);
+  // Añadir presentación o producto base al carrito con validación rigurosa de stock disponible y autorizaciones
+  const addPresentationToCart = (
+    product: ProductItem,
+    presentation?: ProductPresentationPOS | null,
+    qtyToAdd = 1
+  ) => {
+    const validQtyToAdd = Math.max(1, qtyToAdd);
+    const presId = presentation?.id || null;
+    const multiplier = presentation?.multiplier || 1;
+    const presName = presentation?.name || null;
+    const displayName = presName ? `${product.name} (${presName})` : product.name;
+
+    const existing = cart.find(
+      (item) => item.productId === product.id && (item.presentationId || null) === presId
+    );
     const currentQty = existing ? existing.quantity : 0;
-    const targetQty = currentQty + 1;
-    const availableStock = product.stock ?? 0;
+    const targetQty = currentQty + validQtyToAdd;
 
-    // Validar si el producto no tiene existencia o la nueva cantidad excede el stock
-    if (targetQty > availableStock) {
-      if (!businessRules.allowNegativeStock) {
-        toast.error(
-          `El producto "${product.name}" no tiene existencia suficiente en almacén (Disponible: ${availableStock}, Solicitado: ${targetQty}). Las reglas de negocio no permiten ventas con existencia en negativo.`
-        );
-        return;
-      }
-
-      if (businessRules.requireApprovalNegativeStock) {
+    // Validar si la presentación requiere autorización de supervisor para ser vendida
+    const isAlreadyPresAuthorized = Boolean(existing?.isPresentationAuthorized);
+    if (presentation?.requiresAuthorization && !isAlreadyPresAuthorized) {
+      const isCurrentUserAdmin = canAuthorizeOperations(user?.role, user?.permissions);
+      if (!isCurrentUserAdmin) {
         setPendingStockApproval({
           productId: product.id,
-          productName: product.name,
-          sku: product.sku,
-          availableStock,
+          productName: displayName,
+          sku: presentation?.sku || product.sku,
+          availableStock: product.stock ?? 0,
           targetQty,
-          deficit: targetQty - availableStock,
-          action: existing ? 'UPDATE' : 'ADD',
+          deficit: 0,
+          action: 'PRESENTATION_AUTH',
+          presentationId: presId,
+          presentationName: presName,
+          multiplier,
+          unitPrice:
+            presentation?.basePrice !== null && presentation?.basePrice !== undefined
+              ? presentation.basePrice
+              : Number((product.priceUSD * multiplier).toFixed(4)),
         });
         setSupervisorAuthError(null);
         setSupervisorUsername('');
@@ -599,37 +809,238 @@ export const POSRegister: React.FC = () => {
         setSupervisorNotes('');
         setIsSupervisorModalOpen(true);
         toast.warning(
-          `El producto "${product.name}" no tiene existencia suficiente (Disponible: ${availableStock}). Se requiere autorización de supervisor para continuar.`
+          `La presentación "${presName}" requiere autorización de supervisor para ser vendida.`
+        );
+        return;
+      }
+    }
+
+    // Calcular cuántas unidades base del producto ya están en el carrito por otros renglones
+    const otherCommittedUnits = cart
+      .filter((i) => i.productId === product.id && (i.presentationId || null) !== presId)
+      .reduce((sum, i) => sum + i.quantity * (i.multiplier || 1), 0);
+
+    const totalBaseUnitsRequested = otherCommittedUnits + targetQty * multiplier;
+    const availableStock = product.stock ?? 0;
+
+    // Validar si el producto no tiene existencia suficiente en almacén
+    if (totalBaseUnitsRequested > availableStock) {
+      if (!businessRules.allowNegativeStock) {
+        toast.error(
+          `Existencia insuficiente para "${displayName}" en almacén (Disponible: ${availableStock} unidades base, Requerido total: ${totalBaseUnitsRequested}). Las reglas de negocio no permiten ventas con existencia en negativo.`
+        );
+        return;
+      }
+
+      if (businessRules.requireApprovalNegativeStock) {
+        setPendingStockApproval({
+          productId: product.id,
+          productName: displayName,
+          sku: presentation?.sku || product.sku,
+          availableStock,
+          targetQty,
+          deficit: totalBaseUnitsRequested - availableStock,
+          action: existing ? 'UPDATE' : 'ADD',
+          presentationId: presId,
+          presentationName: presName,
+          multiplier,
+          unitPrice:
+            presentation?.basePrice !== null && presentation?.basePrice !== undefined
+              ? presentation.basePrice
+              : Number((product.priceUSD * multiplier).toFixed(4)),
+        });
+        setSupervisorAuthError(null);
+        setSupervisorUsername('');
+        setSupervisorPassword('');
+        setSupervisorNotes('');
+        setIsSupervisorModalOpen(true);
+        toast.warning(
+          `"${displayName}" excede la existencia disponible en almacén (${availableStock} unidades base). Se requiere autorización de supervisor para continuar.`
         );
         return;
       }
 
       toast.warning(
-        `Atención: El producto "${product.name}" no tiene existencia suficiente (Disponible: ${availableStock}). Se registrará con existencia en negativo.`
+        `Atención: "${displayName}" excede la existencia disponible (${availableStock} unidades base). Se registrará con existencia en negativo.`
       );
     }
 
-    applyCartItem(product, targetQty);
+    const autoPresAuth = Boolean(
+      presentation?.requiresAuthorization && canAuthorizeOperations(user?.role, user?.permissions)
+    );
+    applyCartItem(
+      product,
+      targetQty,
+      presentation,
+      false,
+      autoPresAuth ? (user?.fullName || user?.role || 'Supervisor') : undefined,
+      autoPresAuth
+    );
   };
 
-  const updateCartQty = (productId: string, delta: number) => {
-    const existing = cart.find((item) => item.productId === productId);
+  // Wrapper para añadir producto base
+  const addToCart = (product: ProductItem) => {
+    addPresentationToCart(product, null, 1);
+  };
+
+  // Manejador centralizado para seleccionar un producto desde el catálogo
+  const handleSelectProduct = (product: ProductItem) => {
+    if (product.presentations && product.presentations.length > 0) {
+      // Tiene varias presentaciones registradas: desplegar modal para seleccionar
+      setSelectedProductForPresentation(product);
+      // Por defecto seleccionar la predeterminada (isDefault === true), o la primera si ninguna lo es
+      const defaultPres = product.presentations.find((pr) => pr.isDefault);
+      setSelectedPresentationId(defaultPres ? defaultPres.id : product.presentations[0].id);
+      setPresentationQty(1);
+      setPresentationModalError(null);
+      setIsPresentationModalOpen(true);
+    } else {
+      // Producto sin presentaciones adicionales registradas: agregar directamente
+      addToCart(product);
+    }
+  };
+
+  // Confirmar y agregar la presentación seleccionada desde la ventana modal
+  const handleConfirmAddPresentation = () => {
+    if (!selectedProductForPresentation) return;
+
+    if (!selectedPresentationId) {
+      setPresentationModalError('Debe seleccionar una presentación para agregar al carrito.');
+      return;
+    }
+
+    const qty = Number(presentationQty);
+    if (isNaN(qty) || qty <= 0) {
+      setPresentationModalError('La cantidad debe ser mayor a 0.');
+      return;
+    }
+
+    const pres = selectedProductForPresentation.presentations?.find(
+      (p) => p.id === selectedPresentationId
+    );
+    if (!pres) {
+      setPresentationModalError('La presentación seleccionada no es válida.');
+      return;
+    }
+
+    // Pedir autorización solo si la presentación requiere autorización
+    if (pres.requiresAuthorization) {
+      const isAuthorizedUser = canAuthorizeOperations(user?.role, user?.permissions);
+      if (!isAuthorizedUser) {
+        setPresentationModalError(
+          `La presentación "${pres.name}" requiere autorización de un usuario supervisor o administrador. Su usuario no posee permisos para autorizarla.`
+        );
+        return;
+      }
+    }
+
+    setPresentationModalError(null);
+    addPresentationToCart(selectedProductForPresentation, pres, qty);
+    setIsPresentationModalOpen(false);
+    setSelectedProductForPresentation(null);
+  };
+
+  // Abrir modal de supervisor directamente desde el error del modal de presentación
+  const handleRequestSupervisorForPresentation = () => {
+    if (!selectedProductForPresentation || !selectedPresentationId) return;
+    const pres = selectedProductForPresentation.presentations?.find(
+      (p) => p.id === selectedPresentationId
+    );
+    if (!pres) return;
+
+    const qty = Math.max(1, Number(presentationQty) || 1);
+    const presPrice =
+      pres.basePrice !== null && pres.basePrice !== undefined
+        ? pres.basePrice
+        : Number((selectedProductForPresentation.priceUSD * (pres.multiplier || 1)).toFixed(4));
+    const displayName = `${selectedProductForPresentation.name} (${pres.name})`;
+
+    setPendingStockApproval({
+      productId: selectedProductForPresentation.id,
+      productName: displayName,
+      sku: pres.sku || selectedProductForPresentation.sku,
+      availableStock: selectedProductForPresentation.stock ?? 0,
+      targetQty: qty,
+      deficit: 0,
+      action: 'PRESENTATION_AUTH',
+      presentationId: pres.id,
+      presentationName: pres.name,
+      multiplier: pres.multiplier,
+      unitPrice: presPrice,
+    });
+    setSupervisorAuthError(null);
+    setSupervisorUsername('');
+    setSupervisorPassword('');
+    setSupervisorNotes('');
+    setIsPresentationModalOpen(false);
+    setIsSupervisorModalOpen(true);
+  };
+
+  // Aplicar descuento por porcentaje a un ítem del carrito
+  const handleApplyItemDiscount = (
+    productId: string,
+    presentationId: string | null,
+    percent: number
+  ) => {
+    const validPercent = Math.max(0, Math.min(100, isNaN(percent) ? 0 : percent));
+    setCart((prev) =>
+      prev.map((item) => {
+        if (item.productId === productId && (item.presentationId || null) === (presentationId || null)) {
+          const grossAmount = Number((item.quantity * item.unitPrice).toFixed(2));
+          const discountAmount = Number(((grossAmount * validPercent) / 100).toFixed(2));
+          const subtotal = Number((grossAmount - discountAmount).toFixed(2));
+          const taxAmount = Number(((subtotal * item.taxRatePercent) / 100).toFixed(2));
+          const total = Number((subtotal + taxAmount).toFixed(2));
+          return {
+            ...item,
+            discountPercent: validPercent,
+            discountAmount,
+            grossAmount,
+            subtotal,
+            taxAmount,
+            total,
+          };
+        }
+        return item;
+      })
+    );
+    setEditingDiscountItem(null);
+    toast.success(`Descuento de ${validPercent}% aplicado al producto.`);
+  };
+
+  const updateCartQty = (
+    productId: string,
+    presentationId: string | null | undefined,
+    delta: number
+  ) => {
+    const targetPresId = presentationId || null;
+    const existing = cart.find(
+      (item) => item.productId === productId && (item.presentationId || null) === targetPresId
+    );
     if (!existing) return;
 
     const targetQty = existing.quantity + delta;
     if (targetQty <= 0) {
-      removeFromCart(productId);
+      removeFromCart(productId, targetPresId);
       return;
     }
 
     const product = products.find((p) => p.id === productId);
     const availableStock = product?.stock ?? 0;
+    const multiplier = existing.multiplier || 1;
+
+    // Unidades base comprometidas por otros renglones del mismo producto
+    const otherCommittedUnits = cart
+      .filter((i) => i.productId === productId && (i.presentationId || null) !== targetPresId)
+      .reduce((sum, i) => sum + i.quantity * (i.multiplier || 1), 0);
+
+    const totalBaseUnitsRequested = otherCommittedUnits + targetQty * multiplier;
 
     // Solo se valida stock si se está aumentando la cantidad
-    if (delta > 0 && targetQty > availableStock) {
+    if (delta > 0 && totalBaseUnitsRequested > availableStock) {
       if (!businessRules.allowNegativeStock) {
         toast.error(
-          `Existencia insuficiente para "${existing.name}" en almacén (Disponible: ${availableStock}, Solicitado: ${targetQty}). Las reglas de negocio no permiten ventas con existencia en negativo.`
+          `Existencia insuficiente para "${existing.name}" en almacén (Disponible: ${availableStock} unidades base, Solicitado total: ${totalBaseUnitsRequested}). Las reglas de negocio no permiten ventas con existencia en negativo.`
         );
         return;
       }
@@ -641,8 +1052,12 @@ export const POSRegister: React.FC = () => {
           sku: existing.sku,
           availableStock,
           targetQty,
-          deficit: targetQty - availableStock,
+          deficit: totalBaseUnitsRequested - availableStock,
           action: 'UPDATE',
+          presentationId: targetPresId,
+          presentationName: existing.presentationName,
+          multiplier,
+          unitPrice: existing.unitPrice,
         });
         setSupervisorAuthError(null);
         setSupervisorUsername('');
@@ -650,26 +1065,37 @@ export const POSRegister: React.FC = () => {
         setSupervisorNotes('');
         setIsSupervisorModalOpen(true);
         toast.warning(
-          `Modificación a cantidad ${targetQty} de "${existing.name}" dejará existencia en negativo (${availableStock - targetQty}). Se requiere autorización de supervisor.`
+          `Modificación a cantidad ${targetQty} de "${existing.name}" dejará existencia en negativo (${availableStock - totalBaseUnitsRequested} unidades). Se requiere autorización de supervisor.`
         );
         return;
       }
 
       toast.warning(
-        `Atención: Cantidad solicitada (${targetQty}) para "${existing.name}" excede la existencia disponible (${availableStock}).`
+        `Atención: Cantidad solicitada (${targetQty}) para "${existing.name}" excede la existencia disponible (${availableStock} unidades).`
       );
     }
 
     if (product) {
-      applyCartItem(product, targetQty);
+      const presObj = product.presentations?.find((pr) => pr.id === targetPresId) || null;
+      applyCartItem(product, targetQty, presObj);
     } else {
       setCart((prev) =>
         prev.map((item) => {
-          if (item.productId === productId) {
-            const subtotal = Number((targetQty * item.unitPrice).toFixed(2));
+          if (item.productId === productId && (item.presentationId || null) === targetPresId) {
+            const grossAmount = Number((targetQty * item.unitPrice).toFixed(2));
+            const discountAmount = Number(((grossAmount * (item.discountPercent || 0)) / 100).toFixed(2));
+            const subtotal = Number((grossAmount - discountAmount).toFixed(2));
             const taxAmount = Number(((subtotal * item.taxRatePercent) / 100).toFixed(2));
             const total = Number((subtotal + taxAmount).toFixed(2));
-            return { ...item, quantity: targetQty, subtotal, taxAmount, total };
+            return {
+              ...item,
+              quantity: targetQty,
+              grossAmount,
+              discountAmount,
+              subtotal,
+              taxAmount,
+              total,
+            };
           }
           return item;
         })
@@ -677,7 +1103,7 @@ export const POSRegister: React.FC = () => {
     }
   };
 
-  // Confirmar autorización de supervisor para stock negativo
+  // Confirmar autorización de supervisor para stock negativo o presentaciones restringidas
   const handleConfirmSupervisorApproval = async (selfAuth = false) => {
     if (!pendingStockApproval) return;
     if (!selfAuth && (!supervisorUsername.trim() || !supervisorPassword)) {
@@ -685,8 +1111,22 @@ export const POSRegister: React.FC = () => {
       return;
     }
 
+    if (!selfAuth && !canAuthorizeOperations(user?.role, user?.permissions)) {
+      const inputUser = supervisorUsername.trim().toLowerCase();
+      const currentEmail = (user?.email || '').toLowerCase();
+      const currentUsername = (user?.username || '').toLowerCase();
+      if ((currentEmail && inputUser === currentEmail) || (currentUsername && inputUser === currentUsername)) {
+        setSupervisorAuthError(
+          'Su usuario actual no posee nivel de administrador o supervisor. Las autorizaciones deben ser emitidas por un usuario administrador o con nivel para autorizar.'
+        );
+        return;
+      }
+    }
+
     setIsAuthorizingSupervisor(true);
     setSupervisorAuthError(null);
+
+    const isPresAuth = pendingStockApproval.action === 'PRESENTATION_AUTH';
 
     try {
       const res = await fetch('/api/pos/authorize-supervisor', {
@@ -699,7 +1139,11 @@ export const POSRegister: React.FC = () => {
           selfAuthorize: selfAuth,
           usernameOrEmail: selfAuth ? undefined : supervisorUsername.trim(),
           password: selfAuth ? undefined : supervisorPassword,
-          reason: supervisorNotes.trim() || `Autorización de stock negativo para ${pendingStockApproval.productName}`,
+          reason:
+            supervisorNotes.trim() ||
+            (isPresAuth
+              ? `Autorización de venta para presentación restringida: ${pendingStockApproval.productName}`
+              : `Autorización de stock negativo para ${pendingStockApproval.productName}`),
         }),
       });
 
@@ -718,10 +1162,29 @@ export const POSRegister: React.FC = () => {
         stock: pendingStockApproval.availableStock,
       };
 
-      applyCartItem(product, pendingStockApproval.targetQty, true, approverName);
+      const presObj = pendingStockApproval.presentationId
+        ? product.presentations?.find((pr) => pr.id === pendingStockApproval.presentationId) || {
+            id: pendingStockApproval.presentationId,
+            name: pendingStockApproval.presentationName || '',
+            multiplier: pendingStockApproval.multiplier || 1,
+            basePrice: pendingStockApproval.unitPrice || 0,
+            requiresAuthorization: isPresAuth,
+          }
+        : null;
+
+      applyCartItem(
+        product,
+        pendingStockApproval.targetQty,
+        presObj,
+        !isPresAuth, // isNegativeStockAuthorized
+        approverName,
+        isPresAuth // isPresentationAuthorized
+      );
 
       toast.success(
-        `Venta con existencia en negativo aprobada por ${approverName} para "${pendingStockApproval.productName}"`
+        isPresAuth
+          ? `Venta de presentación autorizada por ${approverName} para "${pendingStockApproval.productName}"`
+          : `Venta con existencia en negativo aprobada por ${approverName} para "${pendingStockApproval.productName}"`
       );
       setIsSupervisorModalOpen(false);
       setPendingStockApproval(null);
@@ -732,8 +1195,13 @@ export const POSRegister: React.FC = () => {
     }
   };
 
-  const removeFromCart = (productId: string) => {
-    setCart((prev) => prev.filter((item) => item.productId !== productId));
+  const removeFromCart = (productId: string, presentationId?: string | null) => {
+    const targetPresId = presentationId || null;
+    setCart((prev) =>
+      prev.filter(
+        (item) => !(item.productId === productId && (item.presentationId || null) === targetPresId)
+      )
+    );
   };
 
   // Cálculos de Totales
@@ -751,6 +1219,9 @@ export const POSRegister: React.FC = () => {
   );
   const taxAmount = Number(
     cart.reduce((sum, i) => sum + i.taxAmount, 0).toFixed(2)
+  );
+  const discountTotalAmount = Number(
+    cart.reduce((sum, i) => sum + (i.discountAmount || 0), 0).toFixed(2)
   );
   const subtotalBeforeIGTF = Number((baseExempt + baseTaxable + taxAmount).toFixed(2));
 
@@ -950,10 +1421,16 @@ export const POSRegister: React.FC = () => {
           name: item.name,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
+          discountPercent: item.discountPercent || 0,
           taxRatePercent: item.taxRatePercent,
           subtotal: item.subtotal,
           taxAmount: item.taxAmount,
           total: item.total,
+          presentationId: item.presentationId || null,
+          multiplier: item.multiplier || 1,
+          isNegativeStockAuthorized: Boolean(item.isNegativeStockAuthorized),
+          isPresentationAuthorized: Boolean(item.isPresentationAuthorized),
+          supervisorApprovedBy: item.supervisorApprovedBy || null,
         })),
         payments: payments.map((p) => ({
           method: p.method,
@@ -969,6 +1446,7 @@ export const POSRegister: React.FC = () => {
         baseTaxableAmount: baseTaxable,
         taxAmount,
         igtfTotalAmount: totalIGTFUSD,
+        discountTotalAmount,
         finalTotalAmount: finalTotalUSD,
       };
 
@@ -1118,77 +1596,354 @@ export const POSRegister: React.FC = () => {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && filteredProducts.length > 0) {
-                addToCart(filteredProducts[0]);
-                setSearchTerm('');
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleBarcodeOrSkuScan(searchTerm);
               }
             }}
-            placeholder="Escanear código de barras o buscar producto por nombre/SKU (Enter para añadir)..."
+            placeholder="Escanear código de barras o buscar producto/presentación (Enter para añadir)..."
             className="w-full h-11 pl-10 pr-10 text-xs bg-white border border-neutral-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium"
           />
           <Barcode className="w-5 h-5 absolute right-3 top-3 text-neutral-400" />
         </div>
 
-        {/* Grid de Productos Frecuentes */}
-        <div className="flex-1 bg-white border border-neutral-200 rounded-lg p-4 overflow-y-auto shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
-              Catálogo de Productos ({filteredProducts.length})
-            </h2>
-            <span className="text-[11px] text-neutral-400 font-mono">
-              Tasa BCV: Bs. {formatExchangeRate(exchangeRateBCV, 2)}
-            </span>
+        {/* Contenedor del Catálogo: Toolbar + Grid o Lista Densa */}
+        <div className="flex-1 bg-white border border-neutral-200 rounded-lg p-3 sm:p-4 overflow-hidden flex flex-col shadow-sm">
+          {/* Toolbar del Catálogo */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-neutral-200 shrink-0">
+            <div className="flex items-center gap-2">
+              <h2 className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">
+                Catálogo de Productos ({filteredProducts.length})
+              </h2>
+              <span className="text-[11px] text-neutral-400 font-mono hidden sm:inline">
+                • Tasa BCV: Bs. {formatExchangeRate(exchangeRateBCV, 2)}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              {/* Selector de Modo de Vista: Cuadrícula Compacta vs Lista Densa */}
+              <div className="flex items-center bg-neutral-100 p-0.5 rounded-lg border border-neutral-200">
+                <button
+                  type="button"
+                  onClick={() => setCatalogViewMode('grid')}
+                  className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                    catalogViewMode === 'grid'
+                      ? 'bg-white text-sky-700 shadow-xs'
+                      : 'text-neutral-500 hover:text-neutral-800'
+                  }`}
+                  title="Vista Cuadrícula Compacta"
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCatalogViewMode('list')}
+                  className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                    catalogViewMode === 'list'
+                      ? 'bg-white text-sky-700 shadow-xs'
+                      : 'text-neutral-500 hover:text-neutral-800'
+                  }`}
+                  title="Vista Lista / Tabla Densa"
+                >
+                  <List className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Botón y Dropdown de Opciones de Visualización de Información */}
+              <div className="relative">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsOptionsDropdownOpen((prev) => !prev)}
+                  className="h-8 px-2 text-xs text-neutral-700 border-neutral-300 hover:bg-neutral-50"
+                  title="Configurar información visible del producto"
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5 mr-1 text-neutral-500" />
+                  <span>Columnas e Info</span>
+                </Button>
+
+                {isOptionsDropdownOpen && (
+                  <div className="absolute right-0 top-9 z-30 w-56 bg-white border border-neutral-200 rounded-lg shadow-lg p-2.5 text-xs space-y-2">
+                    <div className="font-semibold text-neutral-800 pb-1 border-b border-neutral-100 flex items-center justify-between">
+                      <span>Mostrar en Producto:</span>
+                      <button
+                        type="button"
+                        onClick={() => setIsOptionsDropdownOpen(false)}
+                        className="text-neutral-400 hover:text-neutral-600 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer text-neutral-700 hover:text-neutral-900">
+                      <input
+                        type="checkbox"
+                        checked={catalogOptions.showSku}
+                        onChange={(e) =>
+                          setCatalogOptions((o) => ({ ...o, showSku: e.target.checked }))
+                        }
+                        className="rounded border-neutral-300 text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
+                      />
+                      <span>Código de Producto (SKU)</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer text-neutral-700 hover:text-neutral-900">
+                      <input
+                        type="checkbox"
+                        checked={catalogOptions.showBarcode}
+                        onChange={(e) =>
+                          setCatalogOptions((o) => ({ ...o, showBarcode: e.target.checked }))
+                        }
+                        className="rounded border-neutral-300 text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
+                      />
+                      <span>Código de Barras</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer text-neutral-700 hover:text-neutral-900">
+                      <input
+                        type="checkbox"
+                        checked={catalogOptions.showPrice}
+                        onChange={(e) =>
+                          setCatalogOptions((o) => ({ ...o, showPrice: e.target.checked }))
+                        }
+                        className="rounded border-neutral-300 text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
+                      />
+                      <span>Precio (USD / Bs.)</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer text-neutral-700 hover:text-neutral-900">
+                      <input
+                        type="checkbox"
+                        checked={catalogOptions.showStock}
+                        onChange={(e) =>
+                          setCatalogOptions((o) => ({ ...o, showStock: e.target.checked }))
+                        }
+                        className="rounded border-neutral-300 text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
+                      />
+                      <span>Stock Actual</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer text-neutral-700 hover:text-neutral-900">
+                      <input
+                        type="checkbox"
+                        checked={catalogOptions.showDescription}
+                        onChange={(e) =>
+                          setCatalogOptions((o) => ({ ...o, showDescription: e.target.checked }))
+                        }
+                        className="rounded border-neutral-300 text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
+                      />
+                      <span>Descripción del Producto</span>
+                    </label>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
-            {filteredProducts.map((p) => {
-              const priceVES = p.priceUSD * exchangeRateBCV;
-              const hasNoStock = (p.stock ?? 0) <= 0;
-              return (
-                <button
-                  key={p.id}
-                  onClick={() => addToCart(p)}
-                  className="flex flex-col text-left p-3 rounded-lg border border-neutral-200 hover:border-sky-500 hover:bg-sky-50/20 transition-colors cursor-pointer group bg-neutral-50/30"
-                >
-                  <div className="flex items-center justify-between w-full">
-                    <span className="text-[10px] font-mono text-neutral-400 group-hover:text-sky-600">
-                      {p.sku}
-                    </span>
-                    {hasNoStock ? (
-                      <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
-                        Sin stock ({p.stock ?? 0})
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-mono text-neutral-500">
-                        Stock: {p.stock}
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-xs font-semibold text-neutral-800 mt-1 line-clamp-2">
-                    {p.name}
-                  </span>
-                  <div className="mt-auto pt-2 flex items-baseline justify-between">
-                    <div>
-                      <div className="text-sm font-bold text-neutral-900">{formatMoneyUSD(p.priceUSD)}</div>
-                      <div className="text-[10px] font-mono text-neutral-500">
-                        {formatMoneyVES(priceVES)}
+          {/* Área de Visualización: Grid Compacto o Lista Densa */}
+          <div className="flex-1 overflow-y-auto pt-3">
+            {filteredProducts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-neutral-400 py-12">
+                <Search className="w-8 h-8 mb-2 stroke-1 text-neutral-300" />
+                <p className="text-xs">No se encontraron productos coincidentes</p>
+              </div>
+            ) : catalogViewMode === 'grid' ? (
+              /* Cuadrícula Compacta */
+              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
+                {filteredProducts.map((p) => {
+                  const priceVES = p.priceUSD * exchangeRateBCV;
+                  const hasNoStock = (p.stock ?? 0) <= 0;
+                  const hasPresentations = Boolean(p.presentations && p.presentations.length > 0);
+
+                  return (
+                    <div
+                      key={p.id}
+                      onClick={() => handleSelectProduct(p)}
+                      className="flex flex-col text-left p-2.5 rounded-lg border border-neutral-200 hover:border-sky-500 hover:bg-sky-50/20 transition-all cursor-pointer group bg-white shadow-xs"
+                    >
+                      {/* Cabecera de la tarjeta: SKU, Barra, Stock */}
+                      <div className="flex items-center justify-between w-full text-[10px] gap-1">
+                        <div className="flex items-center gap-1.5 truncate">
+                          {catalogOptions.showSku && (
+                            <span className="font-mono text-neutral-400 group-hover:text-sky-600 truncate">
+                              {p.sku}
+                            </span>
+                          )}
+                          {catalogOptions.showBarcode && p.barcode && (
+                            <span className="font-mono text-neutral-400 truncate flex items-center gap-0.5" title={`Código de barras: ${p.barcode}`}>
+                              <Barcode className="w-3 h-3 shrink-0" />
+                              <span className="truncate">{p.barcode}</span>
+                            </span>
+                          )}
+                        </div>
+
+                        {catalogOptions.showStock && (
+                          hasNoStock ? (
+                            <span className="shrink-0 text-[9px] font-semibold text-amber-700 bg-amber-50 px-1 py-0.2 rounded border border-amber-200">
+                              Sin stock ({p.stock ?? 0})
+                            </span>
+                          ) : (
+                            <span className="shrink-0 text-[9px] font-mono text-neutral-500 bg-neutral-100 px-1 py-0.2 rounded">
+                              Stock: {p.stock}
+                            </span>
+                          )
+                        )}
                       </div>
+
+                      {/* Nombre del producto */}
+                      <span className="text-xs font-semibold text-neutral-800 mt-1 line-clamp-2 leading-tight">
+                        {p.name}
+                      </span>
+
+                      {/* Descripción opcional */}
+                      {catalogOptions.showDescription && p.description && (
+                        <p className="text-[10px] text-neutral-500 line-clamp-1 mt-0.5 italic">
+                          {p.description}
+                        </p>
+                      )}
+
+                      {/* Precio y Presentaciones */}
+                      <div className="mt-auto pt-2 flex items-baseline justify-between gap-1 border-t border-neutral-100/70">
+                        {catalogOptions.showPrice ? (
+                          <div>
+                            <div className="text-xs font-bold text-neutral-900">
+                              {formatMoneyUSD(p.priceUSD)}
+                            </div>
+                            <div className="text-[9px] font-mono text-neutral-400">
+                              {formatMoneyVES(priceVES)}
+                            </div>
+                          </div>
+                        ) : (
+                          <div></div>
+                        )}
+
+                        <Badge variant={p.taxRatePercent === 0 ? 'neutral' : 'info'} className="text-[9px] py-0 px-1">
+                          {p.taxRatePercent === 0 ? 'Exento' : `IVA ${p.taxRatePercent}%`}
+                        </Badge>
+                      </div>
+
+                      {/* Indicador de Presentaciones */}
+                      {hasPresentations && (
+                        <div className="mt-1.5 pt-1 border-t border-neutral-100 flex items-center justify-between text-[10px] text-sky-700 bg-sky-50/60 px-1.5 py-0.5 rounded">
+                          <span className="flex items-center gap-1 font-medium">
+                            <Package className="w-3 h-3 text-sky-600" />
+                            {p.presentations!.length} {p.presentations!.length === 1 ? 'presentación' : 'presentaciones'}
+                          </span>
+                          <span className="text-[9px] font-bold text-sky-800">Elegir</span>
+                        </div>
+                      )}
                     </div>
-                    <Badge variant={p.taxRatePercent === 0 ? 'neutral' : 'info'}>
-                      {p.taxRatePercent === 0 ? 'Exento' : `IVA ${p.taxRatePercent}%`}
-                    </Badge>
-                  </div>
-                </button>
-              );
-            })}
+                  );
+                })}
+              </div>
+            ) : (
+              /* Lista / Tabla Densa de Alta Capacidad */
+              <div className="border border-neutral-200 rounded-lg overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-neutral-100 text-neutral-600 font-semibold uppercase text-[10px] tracking-wider sticky top-0 border-b border-neutral-200 z-10">
+                    <tr>
+                      {catalogOptions.showSku && <th className="py-2 px-2.5">Código (SKU)</th>}
+                      {catalogOptions.showBarcode && <th className="py-2 px-2.5">Código de Barras</th>}
+                      <th className="py-2 px-2.5">Producto</th>
+                      {catalogOptions.showStock && <th className="py-2 px-2 text-center">Stock</th>}
+                      {catalogOptions.showPrice && <th className="py-2 px-2.5 text-right">Precio ($)</th>}
+                      {catalogOptions.showPrice && <th className="py-2 px-2.5 text-right">Precio (Bs.)</th>}
+                      <th className="py-2 px-2 text-center">Presentaciones</th>
+                      <th className="py-2 px-2 text-center w-12">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100">
+                    {filteredProducts.map((p) => {
+                      const priceVES = p.priceUSD * exchangeRateBCV;
+                      const hasNoStock = (p.stock ?? 0) <= 0;
+                      const hasPresentations = Boolean(p.presentations && p.presentations.length > 0);
+
+                      return (
+                        <tr
+                          key={p.id}
+                          onClick={() => handleSelectProduct(p)}
+                          className="hover:bg-sky-50/40 transition-colors cursor-pointer group"
+                        >
+                          {catalogOptions.showSku && (
+                            <td className="py-1.5 px-2.5 font-mono text-[11px] text-neutral-600 group-hover:text-sky-700 whitespace-nowrap">
+                              {p.sku}
+                            </td>
+                          )}
+
+                          {catalogOptions.showBarcode && (
+                            <td className="py-1.5 px-2.5 font-mono text-[11px] text-neutral-500 whitespace-nowrap">
+                              {p.barcode || '—'}
+                            </td>
+                          )}
+
+                          <td className="py-1.5 px-2.5">
+                            <div className="font-semibold text-neutral-800 text-xs">
+                              {p.name}
+                            </div>
+                            {catalogOptions.showDescription && p.description && (
+                              <div className="text-[10px] text-neutral-400 line-clamp-1 italic">
+                                {p.description}
+                              </div>
+                            )}
+                          </td>
+
+                          {catalogOptions.showStock && (
+                            <td className="py-1.5 px-2 text-center font-mono text-xs whitespace-nowrap">
+                              {hasNoStock ? (
+                                <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-1 py-0.2 rounded border border-amber-200">
+                                  {p.stock ?? 0}
+                                </span>
+                              ) : (
+                                <span className="text-neutral-700">{p.stock}</span>
+                              )}
+                            </td>
+                          )}
+
+                          {catalogOptions.showPrice && (
+                            <td className="py-1.5 px-2.5 text-right font-mono font-bold text-neutral-900 text-xs whitespace-nowrap">
+                              {formatMoneyUSD(p.priceUSD)}
+                            </td>
+                          )}
+
+                          {catalogOptions.showPrice && (
+                            <td className="py-1.5 px-2.5 text-right font-mono text-neutral-500 text-[11px] whitespace-nowrap">
+                              {formatMoneyVES(priceVES)}
+                            </td>
+                          )}
+
+                          <td className="py-1.5 px-2 text-center whitespace-nowrap">
+                            {hasPresentations ? (
+                              <span className="text-[10px] font-medium bg-sky-50 text-sky-800 px-1.5 py-0.5 rounded border border-sky-200">
+                                {p.presentations!.length} pres.
+                              </span>
+                            ) : (
+                              <span className="text-neutral-400 text-[10px]">—</span>
+                            )}
+                          </td>
+
+                          <td className="py-1.5 px-2 text-center">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSelectProduct(p);
+                              }}
+                              className="px-2 py-0.5 text-[11px] font-medium bg-sky-600 hover:bg-sky-700 text-white rounded transition-colors cursor-pointer"
+                            >
+                              + Añadir
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Columna Derecha: Detalle de Venta / Carrito */}
-      <div className="w-full lg:w-96 flex flex-col bg-white border border-neutral-200 rounded-lg shadow-sm overflow-hidden">
+      {/* Columna Derecha: Detalle de Venta / Carrito de Alta Densidad */}
+      <div className="w-full lg:w-[460px] xl:w-[480px] flex flex-col bg-white border border-neutral-200 rounded-lg shadow-sm overflow-hidden shrink-0">
         {/* Encabezado */}
-        <div className="p-4 border-b border-neutral-200 flex items-center justify-between bg-neutral-50">
+        <div className="p-3.5 border-b border-neutral-200 flex items-center justify-between bg-neutral-50">
           <div className="flex items-center gap-2">
             <ShoppingCart className="w-4 h-4 text-neutral-700" />
             <h2 className="text-sm font-bold text-neutral-900">Detalle de la Venta</h2>
@@ -1216,7 +1971,7 @@ export const POSRegister: React.FC = () => {
         </div>
 
         {/* Sección de Cliente */}
-        <div className="p-3 border-b border-neutral-100 bg-neutral-50/50 space-y-2">
+        <div className="p-2.5 border-b border-neutral-100 bg-neutral-50/50 space-y-2">
           {/* Si hay un cliente específico asociado */}
           {selectedCustomerId ? (
             <div className="flex items-center justify-between p-2 bg-sky-50/60 border border-sky-200 rounded-lg text-xs">
@@ -1238,7 +1993,7 @@ export const POSRegister: React.FC = () => {
                 type="button"
                 onClick={handleResetToConsumerFinal}
                 title="Cambiar a Consumidor Final"
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded hover:bg-white transition-colors"
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded hover:bg-white transition-colors cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
               </button>
@@ -1295,7 +2050,7 @@ export const POSRegister: React.FC = () => {
                                 setShowCustomerDropdown(false);
                                 setIsNewCustomerModalOpen(true);
                               }}
-                              className="text-sky-600 font-semibold hover:underline mt-1 block w-full text-center"
+                              className="text-sky-600 font-semibold hover:underline mt-1 block w-full text-center cursor-pointer"
                             >
                               + Registrar nuevo cliente
                             </button>
@@ -1353,74 +2108,163 @@ export const POSRegister: React.FC = () => {
           )}
         </div>
 
-        {/* Lista de Items */}
-        <div className="flex-1 p-3 overflow-y-auto divide-y divide-neutral-100">
+        {/* Tabla de Items del Carrito de Alta Densidad */}
+        <div className="flex-1 overflow-y-auto">
           {cart.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-neutral-400 py-12">
-              <ShoppingCart className="w-8 h-8 mb-2 stroke-1" />
+              <ShoppingCart className="w-8 h-8 mb-2 stroke-1 text-neutral-300" />
               <p className="text-xs">El carrito está vacío</p>
+              <p className="text-[10px] text-neutral-400 mt-0.5">Seleccione productos del catálogo para agregarlos</p>
             </div>
           ) : (
-            cart.map((item) => {
-              const prod = products.find((p) => p.id === item.productId);
-              const availableStock = prod?.stock ?? 0;
-              const isNegative = item.quantity > availableStock;
-              return (
-                <div key={item.productId} className="py-2.5 flex items-center justify-between">
-                  <div className="flex-1 pr-2">
-                    <div className="text-xs font-semibold text-neutral-800">{item.name}</div>
-                    <div className="text-[11px] text-neutral-500 font-mono">
-                      {formatMoneyUSD(item.unitPrice)} c/u • {item.taxRatePercent === 0 ? 'Exento' : `IVA ${formatPercent(item.taxRatePercent, 0)}`}
-                    </div>
-                    {isNegative && (
-                      <div className="flex items-center gap-1 mt-0.5">
-                        <span className="text-[10px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
-                          Stock neg ({availableStock - item.quantity})
-                        </span>
-                        {item.isNegativeStockAuthorized && (
-                          <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200 flex items-center gap-0.5 font-medium">
-                            <ShieldCheck className="w-2.5 h-2.5 text-emerald-600" />
-                            {item.supervisorApprovedBy || 'Autorizado'}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-neutral-100 text-neutral-600 font-semibold uppercase text-[10px] tracking-wider sticky top-0 border-b border-neutral-200 z-10">
+                  <tr>
+                    <th className="py-2 px-2">Descripción</th>
+                    <th className="py-2 px-1 text-right">Precio</th>
+                    <th className="py-2 px-1 text-center">Cant.</th>
+                    <th className="py-2 px-1 text-right">Monto</th>
+                    <th className="py-2 px-1 text-center">Desc.</th>
+                    <th className="py-2 px-1 text-right">Total</th>
+                    <th className="py-2 px-1 text-center w-7"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100">
+                  {cart.map((item) => {
+                    const prod = products.find((p) => p.id === item.productId);
+                    const availableStock = prod?.stock ?? 0;
+                    const totalCommittedUnits = cart
+                      .filter((i) => i.productId === item.productId)
+                      .reduce((s, i) => s + i.quantity * (i.multiplier || 1), 0);
+                    const isNegative = totalCommittedUnits > availableStock;
+                    const itemKey = `${item.productId}-${item.presentationId || 'base'}`;
+                    const grossAmount = item.grossAmount || Number((item.quantity * item.unitPrice).toFixed(2));
+                    const hasDiscount = (item.discountPercent || 0) > 0;
 
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => updateCartQty(item.productId, -1)}
-                    className="w-6 h-6 rounded-lg bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-700"
-                  >
-                    <Minus className="w-3 h-3" />
-                  </button>
-                  <span className="text-xs font-bold w-5 text-center font-mono">{item.quantity}</span>
-                  <button
-                    onClick={() => updateCartQty(item.productId, 1)}
-                    className="w-6 h-6 rounded-lg bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-700"
-                  >
-                    <Plus className="w-3 h-3" />
-                  </button>
-                </div>
+                    return (
+                      <tr key={itemKey} className="hover:bg-neutral-50/80 transition-colors">
+                        {/* Descripción */}
+                        <td className="py-1.5 px-2 max-w-[125px]">
+                          <div className="font-semibold text-neutral-800 text-[11px] truncate" title={item.name}>
+                            {item.name}
+                          </div>
+                          <div className="flex items-center gap-1 flex-wrap mt-0.5">
+                            {item.presentationName && (
+                              <span className="text-[9px] font-medium bg-emerald-50 text-emerald-700 px-1 py-0.2 rounded border border-emerald-200">
+                                x{item.multiplier || 1} {item.presentationName}
+                              </span>
+                            )}
+                            {isNegative && (
+                              <span className="text-[9px] text-amber-700 bg-amber-50 px-1 py-0.2 rounded border border-amber-200">
+                                Neg ({availableStock - totalCommittedUnits})
+                              </span>
+                            )}
+                            {item.requiresAuthorization && (
+                              item.isPresentationAuthorized ? (
+                                <span className="text-[9px] text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200 flex items-center gap-0.5">
+                                  <ShieldCheck className="w-2.5 h-2.5 text-emerald-600" />
+                                  Aut.
+                                </span>
+                              ) : (
+                                <span className="text-[9px] text-amber-700 bg-amber-50 px-1 py-0.2 rounded border border-amber-200">
+                                  Req. Aut.
+                                </span>
+                              )
+                            )}
+                          </div>
+                        </td>
 
-                <div className="w-16 text-right font-mono font-bold text-xs text-neutral-900 pl-2">
-                  {formatMoneyUSD(item.total)}
-                </div>
+                        {/* Precio */}
+                        <td className="py-1.5 px-1 text-right font-mono text-[11px] text-neutral-600 whitespace-nowrap">
+                          {formatMoneyUSD(item.unitPrice)}
+                        </td>
 
-                <button
-                  onClick={() => removeFromCart(item.productId)}
-                  className="text-neutral-300 hover:text-red-500 p-1 ml-1"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            );
-          })
+                        {/* Cantidad (- / +) */}
+                        <td className="py-1.5 px-1 whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-0.5">
+                            <button
+                              type="button"
+                              onClick={() => updateCartQty(item.productId, item.presentationId, -1)}
+                              className="w-5 h-5 rounded bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-700 cursor-pointer"
+                              title="Disminuir cantidad"
+                            >
+                              <Minus className="w-2.5 h-2.5" />
+                            </button>
+                            <span className="text-[11px] font-bold w-5 text-center font-mono">{item.quantity}</span>
+                            <button
+                              type="button"
+                              onClick={() => updateCartQty(item.productId, item.presentationId, 1)}
+                              className="w-5 h-5 rounded bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-700 cursor-pointer"
+                              title="Aumentar cantidad"
+                            >
+                              <Plus className="w-2.5 h-2.5" />
+                            </button>
+                          </div>
+                        </td>
+
+                        {/* Monto Bruto */}
+                        <td className="py-1.5 px-1 text-right font-mono text-[11px] text-neutral-700 whitespace-nowrap">
+                          {formatMoneyUSD(grossAmount)}
+                        </td>
+
+                        {/* Descuento si existe */}
+                        <td className="py-1.5 px-1 text-center whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingDiscountItem({
+                                productId: item.productId,
+                                presentationId: item.presentationId || null,
+                                productName: item.name,
+                                currentDiscountPercent: item.discountPercent || 0,
+                              });
+                              setDiscountInputPercent(String(item.discountPercent || 0));
+                            }}
+                            className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-medium border cursor-pointer transition-colors ${
+                              hasDiscount
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                                : 'bg-neutral-50 text-neutral-400 border-neutral-200 hover:text-sky-600 hover:border-sky-300'
+                            }`}
+                            title="Modificar descuento para este producto"
+                          >
+                            {hasDiscount ? `-${item.discountPercent}%` : '0%'}
+                          </button>
+                        </td>
+
+                        {/* Total del producto */}
+                        <td className="py-1.5 px-1 text-right font-mono font-bold text-[11px] text-neutral-900 whitespace-nowrap">
+                          {formatMoneyUSD(item.total)}
+                        </td>
+
+                        {/* Eliminar */}
+                        <td className="py-1.5 px-1 text-center">
+                          <button
+                            type="button"
+                            onClick={() => removeFromCart(item.productId, item.presentationId)}
+                            className="text-neutral-300 hover:text-red-500 p-0.5 rounded cursor-pointer transition-colors"
+                            title="Eliminar producto"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
 
         {/* Resumen Fiscal */}
-        <div className="p-4 border-t border-neutral-200 bg-neutral-50 space-y-2 text-xs">
+        <div className="p-3 border-t border-neutral-200 bg-neutral-50 space-y-1.5 text-xs">
+          {discountTotalAmount > 0 && (
+            <div className="flex justify-between text-emerald-700 font-medium">
+              <span>Descuento Aplicado:</span>
+              <span className="font-mono">-{formatMoneyUSD(discountTotalAmount)}</span>
+            </div>
+          )}
           <div className="flex justify-between text-neutral-600">
             <span>Base Exenta:</span>
             <span className="font-mono">{formatMoneyUSD(baseExempt)}</span>
@@ -2280,37 +3124,61 @@ export const POSRegister: React.FC = () => {
                       {cart.map((item, idx) => {
                         const unitPriceVES = item.unitPrice * exchangeRateBCV;
                         const totalVES = item.total * exchangeRateBCV;
+                        const itemKey = `${item.productId}-${item.presentationId || 'base'}`;
+                        const prod = products.find((p) => p.id === item.productId);
+                        const availableStock = prod?.stock ?? 0;
+                        const totalCommittedUnits = cart
+                          .filter((i) => i.productId === item.productId)
+                          .reduce((s, i) => s + i.quantity * (i.multiplier || 1), 0);
+                        const isNegative = totalCommittedUnits > availableStock;
+
                         return (
-                          <tr key={item.productId} className="hover:bg-neutral-50/70 transition-colors">
+                          <tr key={itemKey} className="hover:bg-neutral-50/70 transition-colors">
                             <td className="py-2 px-3 font-mono text-neutral-400">{idx + 1}</td>
                             <td className="py-2 px-3 font-mono font-medium text-neutral-700">{item.sku}</td>
                             <td className="py-2 px-3">
-                              <div className="font-semibold text-neutral-900">{item.name}</div>
-                              {(() => {
-                                const prod = products.find((p) => p.id === item.productId);
-                                const availableStock = prod?.stock ?? 0;
-                                const isNegative = item.quantity > availableStock;
-                                if (!isNegative) return null;
-                                return (
-                                  <div className="flex items-center gap-1 mt-0.5">
-                                    <span className="text-[10px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
-                                      Stock neg ({availableStock - item.quantity})
+                              <div className="font-semibold text-neutral-900 flex items-center gap-1.5">
+                                <span>{item.name}</span>
+                                {item.presentationName && (
+                                  <span className="text-[10px] font-medium bg-emerald-50 text-emerald-700 px-1.5 py-0.2 rounded border border-emerald-200">
+                                    x{item.multiplier || 1}
+                                  </span>
+                                )}
+                              </div>
+                              {isNegative && (
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  <span className="text-[10px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                                    Stock neg ({availableStock - totalCommittedUnits})
+                                  </span>
+                                  {item.isNegativeStockAuthorized && (
+                                    <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200 flex items-center gap-0.5 font-medium">
+                                      <ShieldCheck className="w-2.5 h-2.5 text-emerald-600" />
+                                      {item.supervisorApprovedBy || 'Autorizado'}
                                     </span>
-                                    {item.isNegativeStockAuthorized && (
-                                      <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200 flex items-center gap-0.5 font-medium">
-                                        <ShieldCheck className="w-2.5 h-2.5 text-emerald-600" />
-                                        {item.supervisorApprovedBy || 'Autorizado'}
-                                      </span>
-                                    )}
-                                  </div>
-                                );
-                              })()}
+                                  )}
+                                </div>
+                              )}
+                              {item.requiresAuthorization && (
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  {item.isPresentationAuthorized ? (
+                                    <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 flex items-center gap-0.5 font-medium">
+                                      <ShieldCheck className="w-2.5 h-2.5 text-emerald-600" />
+                                      Pres. Autorizada ({item.supervisorApprovedBy || 'Supervisor'})
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200 flex items-center gap-0.5">
+                                      <ShieldCheck className="w-2.5 h-2.5 text-amber-600" />
+                                      Req. Autorización
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </td>
                             <td className="py-2 px-3">
                               <div className="flex items-center justify-center gap-1">
                                 <button
                                   type="button"
-                                  onClick={() => updateCartQty(item.productId, -1)}
+                                  onClick={() => updateCartQty(item.productId, item.presentationId, -1)}
                                   className="w-5 h-5 rounded bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-700 cursor-pointer"
                                 >
                                   <Minus className="w-3 h-3" />
@@ -2318,7 +3186,7 @@ export const POSRegister: React.FC = () => {
                                 <span className="w-7 text-center font-mono font-bold">{item.quantity}</span>
                                 <button
                                   type="button"
-                                  onClick={() => updateCartQty(item.productId, 1)}
+                                  onClick={() => updateCartQty(item.productId, item.presentationId, 1)}
                                   className="w-5 h-5 rounded bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-700 cursor-pointer"
                                 >
                                   <Plus className="w-3 h-3" />
@@ -2344,7 +3212,7 @@ export const POSRegister: React.FC = () => {
                             <td className="py-2 px-3 text-center">
                               <button
                                 type="button"
-                                onClick={() => removeFromCart(item.productId)}
+                                onClick={() => removeFromCart(item.productId, item.presentationId)}
                                 className="text-neutral-400 hover:text-red-600 p-1 rounded cursor-pointer"
                                 title="Eliminar del carrito"
                               >
@@ -2463,7 +3331,9 @@ export const POSRegister: React.FC = () => {
                     Autorización de Supervisor Requerida
                   </h3>
                   <p className="text-[11px] text-neutral-500">
-                    Venta con existencia de inventario en negativo
+                    {pendingStockApproval.action === 'PRESENTATION_AUTH'
+                      ? 'Presentación de producto restringida para la venta'
+                      : 'Venta con existencia de inventario en negativo'}
                   </p>
                 </div>
               </div>
@@ -2482,55 +3352,83 @@ export const POSRegister: React.FC = () => {
 
             {/* Body */}
             <div className="p-5 space-y-4 text-xs">
-              {/* Tarjeta de Resumen de Stock */}
-              <div className="p-3 bg-amber-50/60 rounded-lg border border-amber-200 space-y-2">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <span className="font-bold text-neutral-900 block text-xs">
-                      {pendingStockApproval.productName}
-                    </span>
-                    <span className="font-mono text-[11px] text-neutral-500">
-                      SKU: {pendingStockApproval.sku}
-                    </span>
+              {pendingStockApproval.action === 'PRESENTATION_AUTH' ? (
+                /* Tarjeta de Resumen para Presentación Restringida */
+                <div className="p-3 bg-amber-50/60 rounded-lg border border-amber-200 space-y-2">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <span className="font-bold text-neutral-900 block text-xs">
+                        {pendingStockApproval.productName}
+                      </span>
+                      <span className="font-mono text-[11px] text-neutral-500">
+                        SKU: {pendingStockApproval.sku}
+                      </span>
+                    </div>
+                    <Badge variant="warning" className="text-[10px]">
+                      Req. Autorización
+                    </Badge>
                   </div>
-                  <Badge variant="warning" className="text-[10px]">
-                    Déficit: -{pendingStockApproval.deficit}
-                  </Badge>
-                </div>
 
-                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-amber-200/60 text-[11px]">
-                  <div>
-                    <span className="text-neutral-500 block">Almacén de la Caja:</span>
-                    <span className="font-semibold text-neutral-800">
-                      {activeShift?.warehouseName || 'Almacén Principal'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-neutral-500 block">Existencia Actual:</span>
-                    <span className={`font-mono font-bold ${pendingStockApproval.availableStock <= 0 ? 'text-red-600' : 'text-neutral-800'}`}>
-                      {pendingStockApproval.availableStock} unidades
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-neutral-500 block">Cantidad a Vender:</span>
-                    <span className="font-mono font-bold text-neutral-900">
-                      {pendingStockApproval.targetQty} unidades
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-neutral-500 block">Saldo Resultante:</span>
-                    <span className="font-mono font-bold text-red-600">
-                      {pendingStockApproval.availableStock - pendingStockApproval.targetQty} unidades
-                    </span>
+                  <div className="pt-2 border-t border-amber-200/60 text-[11px] text-neutral-700 space-y-1">
+                    <p>
+                      La presentación o empaque <strong>{pendingStockApproval.presentationName || 'seleccionada'}</strong> (x{pendingStockApproval.multiplier || 1}) está configurada para requerir autorización expresa de supervisor antes de ser comercializada en caja.
+                    </p>
+                    <p className="text-neutral-500 text-[10px]">
+                      Por favor, solicite a un supervisor que ingrese sus credenciales para autorizar el despacho.
+                    </p>
                   </div>
                 </div>
-              </div>
+              ) : (
+                /* Tarjeta de Resumen de Stock */
+                <div className="p-3 bg-amber-50/60 rounded-lg border border-amber-200 space-y-2">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <span className="font-bold text-neutral-900 block text-xs">
+                        {pendingStockApproval.productName}
+                      </span>
+                      <span className="font-mono text-[11px] text-neutral-500">
+                        SKU: {pendingStockApproval.sku}
+                      </span>
+                    </div>
+                    <Badge variant="warning" className="text-[10px]">
+                      Déficit: -{pendingStockApproval.deficit}
+                    </Badge>
+                  </div>
 
-              {/* Opción rápida si el usuario actual es SuperAdmin o Supervisor */}
-              {isSuperAdminRole(user?.role) && (
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-amber-200/60 text-[11px]">
+                    <div>
+                      <span className="text-neutral-500 block">Almacén de la Caja:</span>
+                      <span className="font-semibold text-neutral-800">
+                        {activeShift?.warehouseName || 'Almacén Principal'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-neutral-500 block">Existencia Actual:</span>
+                      <span className={`font-mono font-bold ${pendingStockApproval.availableStock <= 0 ? 'text-red-600' : 'text-neutral-800'}`}>
+                        {pendingStockApproval.availableStock} unidades
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-neutral-500 block">Cantidad a Vender:</span>
+                      <span className="font-mono font-bold text-neutral-900">
+                        {pendingStockApproval.targetQty} unidades
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-neutral-500 block">Saldo Resultante:</span>
+                      <span className="font-mono font-bold text-red-600">
+                        {pendingStockApproval.availableStock - pendingStockApproval.targetQty} unidades
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Opción rápida si el usuario actual es Administrador o Supervisor con nivel para autorizar */}
+              {canAuthorizeOperations(user?.role, user?.permissions) ? (
                 <div className="p-3 bg-sky-50 rounded-lg border border-sky-200 space-y-2">
                   <p className="text-[11px] text-sky-800">
-                    Su sesión actual posee rango de <strong>{user?.role || 'Administrador'}</strong>. Puede autorizar esta venta inmediatamente:
+                    Su sesión actual posee rango de <strong>{user?.role || 'Administrador / Supervisor'}</strong> con nivel para autorizar operaciones. Puede autorizar esta venta inmediatamente:
                   </p>
                   <Button
                     type="button"
@@ -2540,7 +3438,7 @@ export const POSRegister: React.FC = () => {
                     className="w-full flex items-center justify-center gap-1.5 py-2"
                   >
                     <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                    <span>{isAuthorizingSupervisor ? 'Autorizando...' : 'Autorizar como Administrador'}</span>
+                    <span>{isAuthorizingSupervisor ? 'Autorizando...' : 'Autorizar como Administrador / Supervisor'}</span>
                   </Button>
                   <div className="relative my-2">
                     <div className="absolute inset-0 flex items-center">
@@ -2550,6 +3448,13 @@ export const POSRegister: React.FC = () => {
                       O ingresar credenciales de otro supervisor
                     </div>
                   </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 flex items-start gap-2.5">
+                  <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-neutral-600">
+                    Las autorizaciones deben ser aprobadas exclusivamente por un usuario que sea <strong>Administrador</strong> o cuente con nivel de <strong>Supervisor</strong> autorizado. Ingrese a continuación las credenciales del autorizador.
+                  </p>
                 </div>
               )}
 
@@ -2571,7 +3476,7 @@ export const POSRegister: React.FC = () => {
                     onChange={(e) => setSupervisorUsername(e.target.value)}
                     placeholder="ej: supervisor / admin@empresa.com"
                     className="w-full h-9 rounded-lg border border-neutral-300 bg-white px-3 text-xs text-neutral-900 focus-visible:ring-2 focus-visible:ring-sky-500"
-                    required={!isSuperAdminRole(user?.role)}
+                    required={!canAuthorizeOperations(user?.role, user?.permissions)}
                   />
                 </div>
 
@@ -2585,7 +3490,7 @@ export const POSRegister: React.FC = () => {
                     onChange={(e) => setSupervisorPassword(e.target.value)}
                     placeholder="••••••••"
                     className="w-full h-9 rounded-lg border border-neutral-300 bg-white px-3 text-xs text-neutral-900 focus-visible:ring-2 focus-visible:ring-sky-500"
-                    required={!isSuperAdminRole(user?.role)}
+                    required={!canAuthorizeOperations(user?.role, user?.permissions)}
                   />
                 </div>
 
@@ -2630,6 +3535,340 @@ export const POSRegister: React.FC = () => {
                   </Button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Selección de Presentaciones */}
+      {isPresentationModalOpen && selectedProductForPresentation && (
+        <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl border border-neutral-200 max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in duration-150">
+            {/* Cabecera del Modal */}
+            <div className="p-4 border-b border-neutral-200 flex items-center justify-between bg-neutral-50 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-sky-100 rounded-lg text-sky-700">
+                  <Package className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-900">
+                    Seleccionar Presentación
+                  </h3>
+                  <p className="text-xs text-neutral-500 font-mono">
+                    {selectedProductForPresentation.name} • SKU: {selectedProductForPresentation.sku}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPresentationModalOpen(false);
+                  setSelectedProductForPresentation(null);
+                  setPresentationModalError(null);
+                }}
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-200/60 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Contenido / Listado de Presentaciones */}
+            <div className="p-4 space-y-4 overflow-y-auto flex-1">
+              {/* Información base del producto */}
+              <div className="p-2.5 bg-neutral-50 rounded-lg border border-neutral-200 flex items-center justify-between text-xs">
+                <div>
+                  <span className="text-neutral-500 block text-[10px] uppercase font-semibold">Precio Base (Unidad)</span>
+                  <span className="font-bold text-neutral-900">{formatMoneyUSD(selectedProductForPresentation.priceUSD)}</span>
+                  <span className="text-[11px] font-mono text-neutral-500 ml-1.5">
+                    ({formatMoneyVES(selectedProductForPresentation.priceUSD * exchangeRateBCV)})
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-neutral-500 block text-[10px] uppercase font-semibold">Stock en Almacén</span>
+                  <span className={`font-mono font-bold ${(selectedProductForPresentation.stock ?? 0) <= 0 ? 'text-amber-600' : 'text-neutral-800'}`}>
+                    {selectedProductForPresentation.stock ?? 0} unidades base
+                  </span>
+                </div>
+              </div>
+
+              {/* Lista de presentaciones disponibles */}
+              <div>
+                <label className="block text-xs font-semibold text-neutral-700 mb-2">
+                  Presentaciones Disponibles ({selectedProductForPresentation.presentations?.length || 0}):
+                </label>
+                <div className="space-y-2">
+                  {selectedProductForPresentation.presentations?.map((pres) => {
+                    const isSelected = selectedPresentationId === pres.id;
+                    const presPrice =
+                      pres.basePrice !== null && pres.basePrice !== undefined
+                        ? pres.basePrice
+                        : Number((selectedProductForPresentation.priceUSD * (pres.multiplier || 1)).toFixed(4));
+                    const presPriceVES = presPrice * exchangeRateBCV;
+
+                    return (
+                      <div
+                        key={pres.id}
+                        onClick={() => {
+                          setSelectedPresentationId(pres.id);
+                          setPresentationModalError(null);
+                        }}
+                        className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                          isSelected
+                            ? 'border-sky-500 bg-sky-50/50 ring-1 ring-sky-500'
+                            : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50/50 bg-white'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3 min-w-0">
+                          <input
+                            type="radio"
+                            name="pos-product-presentation"
+                            checked={isSelected}
+                            onChange={() => {
+                              setSelectedPresentationId(pres.id);
+                              setPresentationModalError(null);
+                            }}
+                            className="mt-1 h-4 w-4 text-sky-600 border-neutral-300 focus:ring-sky-500 cursor-pointer"
+                          />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs font-bold text-neutral-900">
+                                {pres.name}
+                              </span>
+                              {pres.isDefault && (
+                                <span className="text-[10px] font-semibold bg-sky-100 text-sky-800 border border-sky-300 px-1.5 py-0.2 rounded">
+                                  Predeterminada
+                                </span>
+                              )}
+                              {pres.requiresAuthorization && (
+                                <span className="text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.2 rounded flex items-center gap-0.5">
+                                  <Lock className="w-2.5 h-2.5" />
+                                  Requiere Autorización
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-neutral-500 mt-0.5 flex items-center gap-2">
+                              <span>Contiene: <strong className="text-neutral-700">{pres.multiplier || 1} unidades base</strong></span>
+                              {pres.sku && <span>• SKU: <span className="font-mono">{pres.sku}</span></span>}
+                              {pres.barcode && <span>• Barras: <span className="font-mono">{pres.barcode}</span></span>}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <div className="text-xs font-bold text-neutral-900 font-mono">
+                            {formatMoneyUSD(presPrice)}
+                          </div>
+                          <div className="text-[10px] font-mono text-neutral-500">
+                            {formatMoneyVES(presPriceVES)}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Selector de Cantidad */}
+              <div className="pt-2 border-t border-neutral-200 flex items-center justify-between">
+                <div>
+                  <label className="block text-xs font-medium text-neutral-700 mb-1">
+                    Cantidad a agregar:
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setPresentationQty((q) => Math.max(1, q - 1))}
+                      className="w-8 h-8 rounded-lg bg-neutral-100 hover:bg-neutral-200 border border-neutral-300 flex items-center justify-center text-neutral-700 cursor-pointer"
+                    >
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                    <input
+                      type="number"
+                      min="1"
+                      value={presentationQty}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        setPresentationQty(isNaN(val) ? 1 : Math.max(1, val));
+                        setPresentationModalError(null);
+                      }}
+                      className="w-16 h-8 text-center text-xs font-bold font-mono border border-neutral-300 rounded-lg bg-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setPresentationQty((q) => q + 1)}
+                      className="w-8 h-8 rounded-lg bg-neutral-100 hover:bg-neutral-200 border border-neutral-300 flex items-center justify-center text-neutral-700 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Subtotal estimado */}
+                {selectedPresentationId && (
+                  <div className="text-right">
+                    <span className="text-[10px] text-neutral-500 block uppercase font-semibold">Subtotal Estimado</span>
+                    {(() => {
+                      const pres = selectedProductForPresentation.presentations?.find(
+                        (p) => p.id === selectedPresentationId
+                      );
+                      const presPrice = pres
+                        ? pres.basePrice !== null && pres.basePrice !== undefined
+                          ? pres.basePrice
+                          : Number((selectedProductForPresentation.priceUSD * (pres.multiplier || 1)).toFixed(4))
+                        : 0;
+                      const subTotal = presPrice * (presentationQty || 1);
+                      return (
+                        <div>
+                          <span className="text-sm font-bold text-neutral-900 font-mono">
+                            {formatMoneyUSD(subTotal)}
+                          </span>
+                          <span className="block text-[11px] font-mono text-neutral-500">
+                            {formatMoneyVES(subTotal * exchangeRateBCV)}
+                          </span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+
+              {/* Mensaje de error / advertencia de autorización */}
+              {presentationModalError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg space-y-2">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                    <p className="text-xs text-red-700 font-medium">
+                      {presentationModalError}
+                    </p>
+                  </div>
+                  {/* Botón de solicitar supervisor si la causa es falta de autorización */}
+                  {selectedProductForPresentation.presentations?.find((p) => p.id === selectedPresentationId)?.requiresAuthorization &&
+                    !canAuthorizeOperations(user?.role, user?.permissions) && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleRequestSupervisorForPresentation}
+                        className="w-full mt-1 border-red-300 text-red-800 hover:bg-red-100 flex items-center justify-center gap-1.5 text-xs"
+                      >
+                        <ShieldCheck className="w-4 h-4 text-red-600" />
+                        <span>Solicitar Autorización de Supervisor</span>
+                      </Button>
+                    )}
+                </div>
+              )}
+            </div>
+
+            {/* Pie del Modal */}
+            <div className="p-3.5 border-t border-neutral-200 flex items-center justify-end gap-2 bg-neutral-50 shrink-0">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setIsPresentationModalOpen(false);
+                  setSelectedProductForPresentation(null);
+                  setPresentationModalError(null);
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={handleConfirmAddPresentation}
+                className="flex items-center gap-1.5"
+              >
+                <ShoppingCart className="w-4 h-4" />
+                <span>Agregar al Carrito</span>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Edición de Descuento por Renglón */}
+      {editingDiscountItem && (
+        <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl border border-neutral-200 max-w-sm w-full p-4 space-y-4 animate-in fade-in duration-150">
+            <div className="flex items-center justify-between pb-2 border-b border-neutral-200">
+              <div className="flex items-center gap-2">
+                <Percent className="w-4 h-4 text-sky-600" />
+                <h3 className="text-sm font-bold text-neutral-900">Descuento de Producto</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingDiscountItem(null)}
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-neutral-600 font-medium">
+              Producto: <strong className="text-neutral-900">{editingDiscountItem.productName}</strong>
+            </p>
+
+            <div>
+              <label className="block text-xs font-medium text-neutral-700 mb-1">
+                Porcentaje de Descuento (0% - 100%):
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.5"
+                  value={discountInputPercent}
+                  onChange={(e) => setDiscountInputPercent(e.target.value)}
+                  placeholder="0"
+                  className="w-full h-9 pl-3 pr-8 text-xs font-mono font-bold border border-neutral-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                />
+                <span className="absolute right-3 top-2.5 text-xs text-neutral-400 font-bold">%</span>
+              </div>
+            </div>
+
+            {/* Atajos Rápidos */}
+            <div className="space-y-1">
+              <span className="text-[10px] text-neutral-500 font-semibold uppercase">Atajos rápidos:</span>
+              <div className="flex gap-1.5 flex-wrap">
+                {[0, 5, 10, 15, 20, 25, 50].map((pct) => (
+                  <button
+                    key={pct}
+                    type="button"
+                    onClick={() => setDiscountInputPercent(String(pct))}
+                    className="px-2 py-1 text-[11px] font-mono rounded bg-neutral-100 hover:bg-neutral-200 text-neutral-700 border border-neutral-200 transition-colors cursor-pointer"
+                  >
+                    {pct}%
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-neutral-200">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setEditingDiscountItem(null)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={() =>
+                  handleApplyItemDiscount(
+                    editingDiscountItem.productId,
+                    editingDiscountItem.presentationId,
+                    parseFloat(discountInputPercent) || 0
+                  )
+                }
+              >
+                Aplicar
+              </Button>
             </div>
           </div>
         </div>

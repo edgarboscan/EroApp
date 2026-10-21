@@ -13,6 +13,7 @@ export const APP_ROUTES_PRIORITY: AppNavRoute[] = [
   { path: '/dashboard', module: 'dashboards', action: 'read' },
   { path: '/pos/caja', module: 'pos', action: 'read' },
   { path: '/pos/cierre', module: 'pos', action: 'close_register' },
+  { path: '/pos/auditoria-arqueos', module: 'pos', action: 'audit_shifts' },
   { path: '/sales/quotations', module: 'sales', action: 'read' },
   { path: '/sales/deliveries', module: 'sales', action: 'read' },
   { path: '/customers', module: 'customers', action: 'read' },

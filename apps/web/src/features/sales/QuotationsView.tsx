@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
@@ -85,6 +85,41 @@ interface NewQuotationItem {
   notes?: string;
 }
 
+interface InvoiceVerificationItem {
+  id: string;
+  productId: string;
+  productSku: string;
+  productName: string;
+  unitOfMeasure?: string;
+  quantity: number;
+  availableStock: number;
+  hasSufficientStock: boolean;
+  stockShortage: number;
+  quotedUnitPrice: number;
+  currentBasePrice: number;
+  hasPriceVariation: boolean;
+  priceDifference: number;
+  priceVariationPercent: number;
+  quotedTotal: number;
+  currentTotal: number;
+}
+
+interface InvoiceVerificationResult {
+  quotationId: string;
+  quotationNumber: string;
+  warehouseId: string;
+  warehouseName: string;
+  canInvoice: boolean;
+  hasStockIssues: boolean;
+  hasPriceVariations: boolean;
+  insufficientCount: number;
+  priceVariationsCount: number;
+  totalQuotedAmount: number;
+  totalCurrentAmount: number;
+  totalDifference: number;
+  items: InvoiceVerificationItem[];
+}
+
 export const QuotationsView: React.FC = () => {
   const rate = useExchangeRateStore((s) => s.rate);
   const { activeBranchId, token, user } = useAuthStore();
@@ -92,6 +127,8 @@ export const QuotationsView: React.FC = () => {
   const [quotations, setQuotations] = useState<QuotationRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
 
   // Catálogos desde BD
   const [availableProducts, setAvailableProducts] = useState<
@@ -115,6 +152,15 @@ export const QuotationsView: React.FC = () => {
   const [warehouses, setWarehouses] = useState<{ id: string; name: string }[]>(
     [],
   );
+  const [bankAccounts, setBankAccounts] = useState<
+    {
+      id: string;
+      accountNumber: string;
+      description: string;
+      currency: string;
+      bankName?: string;
+    }[]
+  >([]);
 
   // Modales
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -176,7 +222,16 @@ export const QuotationsView: React.FC = () => {
   const [enforceCreditLimit, setEnforceCreditLimit] = useState(true);
   const [isCredit, setIsCredit] = useState(false);
   const [dueDate, setDueDate] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<string>("CASH_USD");
+  const [selectedBankAccountId, setSelectedBankAccountId] = useState<string>("");
+  const [paymentReference, setPaymentReference] = useState<string>("");
   const [loadingInvoiceConfig, setLoadingInvoiceConfig] = useState(false);
+
+  // Verificación de precios y existencias para facturación
+  const [verificationResult, setVerificationResult] =
+    useState<InvoiceVerificationResult | null>(null);
+  const [loadingVerification, setLoadingVerification] = useState(false);
+  const [updatePricesToCurrent, setUpdatePricesToCurrent] = useState(false);
 
   // Información de crédito del cliente
   const [customerCreditInfo, setCustomerCreditInfo] = useState<{
@@ -200,9 +255,11 @@ export const QuotationsView: React.FC = () => {
     setLoading(true);
     try {
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const url = activeBranchId
-        ? `/api/sales/quotations?branchId=${activeBranchId}`
-        : "/api/sales/quotations";
+      const params = new URLSearchParams();
+      if (activeBranchId) params.append("branchId", activeBranchId);
+      if (startDate) params.append("startDate", startDate);
+      if (endDate) params.append("endDate", endDate);
+      const url = `/api/sales/quotations?${params.toString()}`;
       const res = await fetch(url, { headers });
       if (res.ok) {
         const json = await res.json();
@@ -224,10 +281,11 @@ export const QuotationsView: React.FC = () => {
   const fetchCatalogs = async () => {
     try {
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const [custRes, prodRes, branchRes] = await Promise.all([
+      const [custRes, prodRes, branchRes, bankRes] = await Promise.all([
         fetch("/api/customers", { headers }),
         fetch("/api/inventory/products", { headers }),
         fetch("/api/auth/branches", { headers }),
+        fetch("/api/sales/payment-accounts", { headers }),
       ]);
 
       if (custRes.ok) {
@@ -265,17 +323,35 @@ export const QuotationsView: React.FC = () => {
         const bJson = await branchRes.json();
         if (bJson.success && Array.isArray(bJson.data)) {
           const allWh: { id: string; name: string }[] = [];
+          let defaultSalesWhId = "";
           bJson.data.forEach((b: any) => {
             if (Array.isArray(b.warehouses)) {
-              b.warehouses.forEach((w: any) =>
-                allWh.push({ id: w.id, name: `${b.name} - ${w.name}` }),
-              );
+              b.warehouses.forEach((w: any) => {
+                allWh.push({ id: w.id, name: `${b.name} - ${w.name}` });
+                if (w.isDefaultSales && !defaultSalesWhId) {
+                  defaultSalesWhId = w.id;
+                }
+              });
             }
           });
           setWarehouses(allWh);
           if (allWh.length > 0 && !selectedWarehouseId) {
-            setSelectedWarehouseId(allWh[0].id);
+            setSelectedWarehouseId(defaultSalesWhId || allWh[0].id);
           }
+        }
+      }
+
+      if (bankRes.ok) {
+        const bkJson = await bankRes.json();
+        if (bkJson.success && Array.isArray(bkJson.data)) {
+          const mappedBanks = bkJson.data.map((ba: any) => ({
+            id: ba.id,
+            accountNumber: ba.accountNumber || ba.account_number || "",
+            description: ba.description || "",
+            currency: ba.currency || "VES",
+            bankName: ba.bankName || ba.bank_name || "",
+          }));
+          setBankAccounts(mappedBanks);
         }
       }
     } catch {
@@ -285,6 +361,9 @@ export const QuotationsView: React.FC = () => {
 
   useEffect(() => {
     fetchQuotations();
+  }, [activeBranchId, token, startDate, endDate]);
+
+  useEffect(() => {
     fetchCatalogs();
   }, [activeBranchId, token]);
 
@@ -509,18 +588,74 @@ export const QuotationsView: React.FC = () => {
     }
   };
 
+  const fetchInvoiceVerification = async (quotationId: string, whId?: string) => {
+    if (!quotationId) {
+      setVerificationResult(null);
+      return;
+    }
+    setLoadingVerification(true);
+    try {
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const url = whId && whId.trim() !== ""
+        ? `/api/sales/quotations/${quotationId}/invoice-check?warehouseId=${encodeURIComponent(whId)}`
+        : `/api/sales/quotations/${quotationId}/invoice-check`;
+      const res = await fetch(url, { headers });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          setVerificationResult(json.data);
+          if (json.data.warehouseId && (!whId || !selectedWarehouseId)) {
+            setSelectedWarehouseId(json.data.warehouseId);
+          }
+        } else {
+          setVerificationResult(null);
+        }
+      } else {
+        const errJson = await res.json().catch(() => null);
+        console.error("Error al verificar cotización para facturación:", errJson);
+        setVerificationResult(null);
+      }
+    } catch (err) {
+      console.error("Error de conexión al verificar cotización:", err);
+      setVerificationResult(null);
+    } finally {
+      setLoadingVerification(false);
+    }
+  };
+
+  const handlePaymentMethodChange = (newMethod: string) => {
+    setPaymentMethod(newMethod);
+    const isMethodUSD = ["CASH_USD", "ZELLE"].includes(newMethod);
+    const targetCurrency = isMethodUSD ? "USD" : "VES";
+    const matchingAccount = bankAccounts.find((b) => b.currency === targetCurrency);
+    if (matchingAccount) {
+      setSelectedBankAccountId(matchingAccount.id);
+    }
+  };
+
   const handleOpenInvoiceModal = async (quotation: QuotationRecord) => {
     setInvoicingQuotation(quotation);
-    setSelectedWarehouseId(warehouses[0]?.id || "");
+    const defaultWh = warehouses[0]?.id || "";
+    setSelectedWarehouseId(defaultWh);
     setInvoiceNumber("");
     setControlNumber("");
     setIsCredit(false);
+    const initialMethod = quotation.currency === "VES" ? "TRANSFER" : "CASH_USD";
+    setPaymentMethod(initialMethod);
+    const targetCurrency = initialMethod === "TRANSFER" ? "VES" : "USD";
+    const matchingAccount = bankAccounts.find((b) => b.currency === targetCurrency) || bankAccounts[0];
+    setSelectedBankAccountId(matchingAccount?.id || "");
+    setPaymentReference("");
     setAdminAuthorized(false);
     setSupervisorUsername("");
     setSupervisorPassword("");
     setSupervisorNotes("");
     setCustomerCreditInfo(null);
+    setUpdatePricesToCurrent(false);
+    setVerificationResult(null);
     setLoadingInvoiceConfig(true);
+
+    fetchInvoiceVerification(quotation.id, defaultWh);
 
     try {
       const headers: Record<string, string> = {};
@@ -575,7 +710,9 @@ export const QuotationsView: React.FC = () => {
   const currentCustomerDebt = customerCreditInfo?.currentDebt || 0;
   const currentCreditLimit = customerCreditInfo?.creditLimit || (invoicingQuotation?.creditLimit ?? 0);
   const availableCredit = customerCreditInfo?.availableCredit ?? (currentCreditLimit - currentCustomerDebt);
-  const totalAmountToInvoice = invoicingQuotation?.totalAmount || 0;
+  const totalAmountToInvoice = updatePricesToCurrent && verificationResult
+    ? verificationResult.totalCurrentAmount
+    : (invoicingQuotation?.totalAmount || 0);
   const isCreditExceeded = isCredit && (currentCustomerDebt + totalAmountToInvoice > currentCreditLimit);
   const creditExceededAmount = isCreditExceeded ? (currentCustomerDebt + totalAmountToInvoice - currentCreditLimit) : 0;
 
@@ -586,8 +723,16 @@ export const QuotationsView: React.FC = () => {
       toast.error("El número de factura es obligatorio");
       return;
     }
-    if (!selectedWarehouseId) {
+    const targetWarehouseId = selectedWarehouseId || verificationResult?.warehouseId || warehouses[0]?.id || "";
+    if (!targetWarehouseId) {
       toast.error("Debe seleccionar el depósito para la rebaja de stock");
+      return;
+    }
+
+    if (verificationResult?.hasStockIssues) {
+      toast.error(
+        `No se puede emitir la factura: existen ${verificationResult.insufficientCount} productos con stock insuficiente en el depósito.`
+      );
       return;
     }
 
@@ -598,7 +743,7 @@ export const QuotationsView: React.FC = () => {
 
     if (isCredit) {
       if (customerCreditInfo && !customerCreditInfo.creditEnabled) {
-        toast.error(`El cliente ${invoicingQuotation.customerName} no tiene crédito comercial autorizado`);
+        toast.error(`El cliente ${invoicingQuotation.customerName} no tiene línea de crédito comercial autorizada`);
         return;
       }
       if (!dueDate) {
@@ -623,11 +768,34 @@ export const QuotationsView: React.FC = () => {
           return;
         }
       }
+    } else {
+      if (!paymentMethod) {
+        toast.error("Debe seleccionar un método de pago para ventas de contado");
+        return;
+      }
+      if (bankAccounts.length > 0 && !selectedBankAccountId) {
+        toast.error("Debe seleccionar la cuenta bancaria de destino para el ingreso y conciliación del dinero");
+        return;
+      }
+      const isElectronic = ["TRANSFER", "PAGO_MOVIL", "ZELLE", "DEBIT_CARD"].includes(paymentMethod);
+      if (isElectronic && !paymentReference.trim()) {
+        toast.error("El número de referencia es obligatorio para pagos por transferencia, pago móvil o punto de venta para permitir la conciliación bancaria");
+        return;
+      }
+    }
+
+    let priceVariationMsg = "";
+    if (verificationResult?.hasPriceVariations) {
+      priceVariationMsg = updatePricesToCurrent
+        ? ` Se actualizarán los precios a los vigentes del catálogo (${formatCurrency(verificationResult.totalCurrentAmount, invoicingQuotation.currency)}).`
+        : ` Se respetarán los precios pactados en la cotización (${formatCurrency(verificationResult.totalQuotedAmount, invoicingQuotation.currency)}).`;
     }
 
     const confirmed = await showConfirmQuestion({
       title: "¿Emitir factura de venta?",
-      text: `Se convertirá la cotización en la factura ${invoiceNumber} rebajando el inventario del depósito seleccionado.`,
+      text: (isCredit
+        ? `Se convertirá la cotización en la factura a crédito ${invoiceNumber} generando una cuenta por cobrar (CxC).`
+        : `Se convertirá la cotización en la factura ${invoiceNumber} registrando el cobro de contado.`) + priceVariationMsg,
       confirmButtonText: "Sí, facturar",
     });
     if (!confirmed) return;
@@ -643,37 +811,75 @@ export const QuotationsView: React.FC = () => {
         headers,
         body: JSON.stringify({
           quotationId: invoicingQuotation.id,
-          warehouseId: selectedWarehouseId,
+          warehouseId: targetWarehouseId,
           invoiceNumber: invoiceNumber.trim(),
           controlNumber: salesInvoiceMode === "no_fiscal" ? null : (controlNumber.trim() || null),
           invoiceMode: salesInvoiceMode,
           isCredit,
           dueDate: isCredit && dueDate ? dueDate : undefined,
+          updatePricesToCurrent,
           adminAuthorized: isCredit && isCreditExceeded && isUserAdmin ? adminAuthorized : undefined,
           supervisorApproval: isCredit && isCreditExceeded && !isUserAdmin && supervisorUsername ? {
             usernameOrEmail: supervisorUsername.trim(),
             password: supervisorPassword,
             notes: supervisorNotes.trim() || undefined,
           } : undefined,
+          paymentMethod: !isCredit ? paymentMethod : undefined,
+          bankAccountId: !isCredit && selectedBankAccountId ? selectedBankAccountId : undefined,
+          paymentReference: !isCredit && paymentReference.trim() ? paymentReference.trim() : undefined,
         }),
       });
 
       const json = await res.json();
       if (res.ok && json.success) {
         toast.success(
-          `Factura ${invoiceNumber} emitida con éxito. Stock rebajado.`,
+          `Factura ${invoiceNumber} emitida con éxito. Stock reservado en depósito para despacho.`,
         );
         setInvoicingQuotation(null);
         setInvoiceNumber("");
         setControlNumber("");
         fetchQuotations();
       } else {
-        toast.error(json.error?.message || "Error al emitir la factura");
+        const errMsg =
+          json.error?.message ||
+          (Array.isArray(json.error?.issues)
+            ? json.error.issues.map((i: any) => i.message).join(", ")
+            : null) ||
+          "Error al emitir la factura";
+        toast.error(errMsg);
       }
     } catch {
       toast.error("Error de comunicación con el servidor");
     }
   };
+
+  const invoicedQuotations = useMemo(
+    () => quotations.filter((q) => q.status === "CONVERTED"),
+    [quotations],
+  );
+
+  const totalInvoicedAmount = useMemo(
+    () => invoicedQuotations.reduce((acc, q) => acc + q.totalAmount, 0),
+    [invoicedQuotations],
+  );
+
+  const totalQuotedAmount = useMemo(
+    () => quotations.reduce((acc, q) => acc + q.totalAmount, 0),
+    [quotations],
+  );
+
+  const activeQuotationsCount = useMemo(
+    () =>
+      quotations.filter(
+        (q) => q.status !== "EXPIRED" && q.status !== "REJECTED",
+      ).length,
+    [quotations],
+  );
+
+  const acceptedQuotationsCount = useMemo(
+    () => quotations.filter((q) => q.status === "ACCEPTED").length,
+    [quotations],
+  );
 
   const filteredQuotations = quotations.filter((q) => {
     if (statusFilter !== "ALL" && q.status !== statusFilter) return false;
@@ -861,7 +1067,7 @@ export const QuotationsView: React.FC = () => {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         <Card className="p-4 rounded-lg border border-neutral-200 bg-white">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-neutral-500">
@@ -872,14 +1078,10 @@ export const QuotationsView: React.FC = () => {
             </div>
           </div>
           <p className="text-2xl font-bold text-neutral-900 mt-2">
-            {
-              quotations.filter(
-                (q) => q.status !== "EXPIRED" && q.status !== "REJECTED",
-              ).length
-            }
+            {activeQuotationsCount}
           </p>
           <p className="text-[10px] text-neutral-400 mt-0.5">
-            En proceso comercial
+            De {quotations.length} registradas
           </p>
         </Card>
 
@@ -888,17 +1090,15 @@ export const QuotationsView: React.FC = () => {
             <span className="text-xs font-medium text-neutral-500">
               Monto Total Cotizado
             </span>
-            <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-neutral-100 text-neutral-700 flex items-center justify-center">
               <DollarSign className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-emerald-700 mt-2 font-mono">
-            {formatMoneyUSD(
-              quotations.reduce((acc, q) => acc + q.totalAmount, 0),
-            )}
+          <p className="text-2xl font-bold text-neutral-900 mt-2 font-mono">
+            {formatMoneyUSD(totalQuotedAmount)}
           </p>
           <p className="text-[10px] text-neutral-400 mt-0.5">
-            Volumen de ventas presupuestado
+            Volumen presupuestado
           </p>
         </Card>
 
@@ -912,33 +1112,110 @@ export const QuotationsView: React.FC = () => {
             </div>
           </div>
           <p className="text-2xl font-bold text-amber-600 mt-2">
-            {quotations.filter((q) => q.status === "ACCEPTED").length}
+            {acceptedQuotationsCount}
           </p>
           <p className="text-[10px] text-neutral-400 mt-0.5">
             Aceptadas listas para emisión
           </p>
         </Card>
+
+        <Card className="p-4 rounded-lg border border-neutral-200 bg-white">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-neutral-500">
+              Cotizaciones Facturadas
+            </span>
+            <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
+              <Receipt className="w-4 h-4" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-purple-700 mt-2">
+            {invoicedQuotations.length}
+          </p>
+          <p className="text-[10px] text-neutral-400 mt-0.5">
+            {quotations.length > 0
+              ? `${Math.round((invoicedQuotations.length / quotations.length) * 100)}% tasa de conversión`
+              : "Sin cotizaciones en el ciclo"}
+          </p>
+        </Card>
+
+        <Card className="p-4 rounded-lg border border-neutral-200 bg-white">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-neutral-500">
+              Monto Total Facturado
+            </span>
+            <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <DollarSign className="w-4 h-4" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-emerald-700 mt-2 font-mono">
+            {formatMoneyUSD(totalInvoicedAmount)}
+          </p>
+          <p className="text-[10px] text-neutral-400 mt-0.5">
+            Ventas cerradas y cobradas
+          </p>
+        </Card>
       </div>
 
       {/* Filtros */}
-      <div className="flex items-center gap-2 border-b border-neutral-200 pb-2 overflow-x-auto">
-        {["ALL", "EMITTED", "ACCEPTED", "CONVERTED", "EXPIRED"].map((st) => (
-          <button
-            key={st}
-            onClick={() => setStatusFilter(st)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-              statusFilter === st
-                ? "bg-neutral-900 text-white"
-                : "text-neutral-600 hover:bg-neutral-100"
-            }`}
-          >
-            {st === "ALL" && "Todas"}
-            {st === "EMITTED" && "Emitidas"}
-            {st === "ACCEPTED" && "Aceptadas"}
-            {st === "CONVERTED" && "Facturadas"}
-            {st === "EXPIRED" && "Vencidas"}
-          </button>
-        ))}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-neutral-200 pb-3">
+        <div className="flex items-center gap-1.5 overflow-x-auto">
+          {["ALL", "EMITTED", "ACCEPTED", "CONVERTED", "EXPIRED"].map((st) => (
+            <button
+              key={st}
+              onClick={() => setStatusFilter(st)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                statusFilter === st
+                  ? "bg-neutral-900 text-white"
+                  : "text-neutral-600 hover:bg-neutral-100"
+              }`}
+            >
+              {st === "ALL" && "Todas"}
+              {st === "EMITTED" && "Emitidas"}
+              {st === "ACCEPTED" && "Aceptadas"}
+              {st === "CONVERTED" && "Facturadas"}
+              {st === "EXPIRED" && "Vencidas"}
+            </button>
+          ))}
+        </div>
+
+        {/* Filtros de Fecha */}
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <div className="flex items-center gap-1.5 bg-neutral-50 px-2.5 py-1.5 rounded-lg border border-neutral-300">
+            <Calendar className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+            <span className="text-[11px] text-neutral-500 font-medium">Desde:</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="bg-transparent border-0 text-xs text-neutral-800 p-0 focus:ring-0 focus:outline-none"
+            />
+          </div>
+          <div className="flex items-center gap-1.5 bg-neutral-50 px-2.5 py-1.5 rounded-lg border border-neutral-300">
+            <span className="text-[11px] text-neutral-500 font-medium">Hasta:</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="bg-transparent border-0 text-xs text-neutral-800 p-0 focus:ring-0 focus:outline-none"
+            />
+          </div>
+          {(startDate || endDate) && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setStartDate("");
+                setEndDate("");
+              }}
+              className="text-xs py-1 px-2.5 rounded-lg text-neutral-600 hover:text-neutral-900 flex items-center gap-1"
+              title="Limpiar filtros de fecha"
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>Limpiar</span>
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Tabla de Cotizaciones */}
@@ -1283,7 +1560,7 @@ export const QuotationsView: React.FC = () => {
       {/* Modal Facturar Cotización */}
       {invoicingQuotation && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/60 backdrop-blur-xs p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg border border-neutral-200 w-full max-w-lg max-h-[92vh] shadow-2xl flex flex-col overflow-hidden my-auto">
+          <div className="bg-white rounded-lg border border-neutral-200 w-full max-w-3xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden my-auto">
             {/* Header (Pinned) */}
             <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
               <div className="flex items-center gap-2">
@@ -1354,15 +1631,21 @@ export const QuotationsView: React.FC = () => {
                   </div>
                 ) : (
                   <>
-                    {/* Depósito de Despacho */}
+                    {/* Depósito de Despacho (Reserva de Stock) */}
                     <div>
                       <label className="block text-xs font-medium text-neutral-700 mb-1">
-                        Depósito de Despacho (Rebaja de Stock) <span className="text-red-500">*</span>
+                        Depósito de Despacho (Reserva de Stock) <span className="text-red-500">*</span>
                       </label>
                       <select
                         required
-                        value={selectedWarehouseId}
-                        onChange={(e) => setSelectedWarehouseId(e.target.value)}
+                        value={selectedWarehouseId || verificationResult?.warehouseId || (warehouses[0]?.id ?? "")}
+                        onChange={(e) => {
+                          const wh = e.target.value;
+                          setSelectedWarehouseId(wh);
+                          if (invoicingQuotation && wh) {
+                            fetchInvoiceVerification(invoicingQuotation.id, wh);
+                          }
+                        }}
                         className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-3 py-2 text-neutral-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
                       >
                         <option value="">Seleccione un depósito...</option>
@@ -1372,6 +1655,203 @@ export const QuotationsView: React.FC = () => {
                           </option>
                         ))}
                       </select>
+                    </div>
+
+                    {/* Verificación de Precios & Existencias en Depósito */}
+                    <div className="bg-neutral-50 rounded-lg p-3.5 border border-neutral-200 space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-neutral-200/80 pb-2">
+                        <div>
+                          <h4 className="text-xs font-bold text-neutral-900 flex items-center gap-1.5">
+                            <FileCheck className="w-4 h-4 text-sky-600" />
+                            <span>Verificación de Precios & Existencias</span>
+                          </h4>
+                          <p className="text-[11px] text-neutral-500">
+                            Disponibilidad en almacén y comparación con precios de catálogo vigentes
+                          </p>
+                        </div>
+
+                        {/* Badges de estado */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {loadingVerification ? (
+                            <span className="text-[11px] text-neutral-400">Verificando...</span>
+                          ) : verificationResult ? (
+                            <>
+                              {verificationResult.hasStockIssues ? (
+                                <Badge variant="danger" className="text-[10px]">
+                                  Stock Insuficiente ({verificationResult.insufficientCount})
+                                </Badge>
+                              ) : (
+                                <Badge variant="success" className="text-[10px]">
+                                  Stock Disponible
+                                </Badge>
+                              )}
+
+                              {verificationResult.hasPriceVariations ? (
+                                <Badge variant="warning" className="text-[10px]">
+                                  Variación de Precios ({verificationResult.priceVariationsCount})
+                                </Badge>
+                              ) : (
+                                <Badge variant="neutral" className="text-[10px]">
+                                  Precios Sin Cambio
+                                </Badge>
+                              )}
+                            </>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {loadingVerification ? (
+                        <div className="py-4 text-center text-xs text-neutral-400">
+                          Consultando existencias y precios en depósito...
+                        </div>
+                      ) : verificationResult ? (
+                        <div className="space-y-3">
+                          {/* Alerta de Stock Insuficiente */}
+                          {verificationResult.hasStockIssues && (
+                            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-xs flex items-start gap-2">
+                              <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                              <div>
+                                <p className="font-semibold text-red-900">
+                                  Inventario Insuficiente para Facturar
+                                </p>
+                                <p className="text-[11px] text-red-700 mt-0.5">
+                                  Se detectaron {verificationResult.insufficientCount} productos sin existencias suficientes en el depósito seleccionado. No se podrá emitir la factura hasta que haya stock o se seleccione otro depósito.
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Alerta de Variación de Precios & Selección de Política */}
+                          {verificationResult.hasPriceVariations && (
+                            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs space-y-2">
+                              <div className="flex items-start gap-2 text-amber-900">
+                                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                <div>
+                                  <p className="font-semibold">
+                                    Variación de Precios con el Catálogo Actual
+                                  </p>
+                                  <p className="text-[11px] text-amber-800 mt-0.5">
+                                    Existen {verificationResult.priceVariationsCount} productos cuyos precios vigentes difieren de lo cotizado originalmente.
+                                    Diferencia total neta:{" "}
+                                    <strong className="font-mono">
+                                      {verificationResult.totalDifference > 0 ? "+" : ""}
+                                      {formatCurrency(verificationResult.totalDifference, invoicingQuotation.currency)}
+                                    </strong>
+                                    .
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="pt-2 border-t border-amber-200/80 flex flex-col sm:flex-row sm:items-center gap-3">
+                                <label className="flex items-center gap-2 cursor-pointer text-xs text-neutral-800">
+                                  <input
+                                    type="radio"
+                                    name="pricePolicy"
+                                    checked={!updatePricesToCurrent}
+                                    onChange={() => setUpdatePricesToCurrent(false)}
+                                    className="text-sky-600 focus:ring-sky-500"
+                                  />
+                                  <span className="font-medium">
+                                    Mantener Precios Cotizados ({formatCurrency(verificationResult.totalQuotedAmount, invoicingQuotation.currency)})
+                                  </span>
+                                </label>
+
+                                <label className="flex items-center gap-2 cursor-pointer text-xs text-neutral-800">
+                                  <input
+                                    type="radio"
+                                    name="pricePolicy"
+                                    checked={updatePricesToCurrent}
+                                    onChange={() => setUpdatePricesToCurrent(true)}
+                                    className="text-sky-600 focus:ring-sky-500"
+                                  />
+                                  <span className="font-medium">
+                                    Actualizar a Precios Vigentes ({formatCurrency(verificationResult.totalCurrentAmount, invoicingQuotation.currency)})
+                                  </span>
+                                </label>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Tabla Resumen de Ítems */}
+                          <div className="overflow-x-auto border border-neutral-200 rounded-lg bg-white">
+                            <table className="w-full text-left text-xs">
+                              <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-600 font-medium">
+                                <tr>
+                                  <th className="py-2 px-2.5">Producto</th>
+                                  <th className="py-2 px-2 text-right">Cant.</th>
+                                  <th className="py-2 px-2 text-center">Stock Depósito</th>
+                                  <th className="py-2 px-2 text-right">P. Cotizado</th>
+                                  <th className="py-2 px-2 text-right">P. Actual</th>
+                                  <th className="py-2 px-2 text-right">Variación</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-neutral-100">
+                                {verificationResult.items.map((item) => (
+                                  <tr
+                                    key={item.id}
+                                    className={`hover:bg-neutral-50/50 ${
+                                      !item.hasSufficientStock ? "bg-red-50/30" : ""
+                                    }`}
+                                  >
+                                    <td className="py-2 px-2.5">
+                                      <p className="font-medium text-neutral-900 leading-tight">
+                                        {item.productName}
+                                      </p>
+                                      <span className="font-mono text-[10px] text-neutral-400">
+                                        {item.productSku}
+                                      </span>
+                                    </td>
+                                    <td className="py-2 px-2 text-right font-mono font-medium text-neutral-800">
+                                      {item.quantity}
+                                    </td>
+                                    <td className="py-2 px-2 text-center">
+                                      {item.hasSufficientStock ? (
+                                        <span className="inline-flex items-center gap-1 font-mono text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
+                                          <Check className="w-3 h-3 text-emerald-600" />
+                                          {item.availableStock} disp.
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 font-mono text-[11px] font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-lg border border-red-200">
+                                          <AlertCircle className="w-3 h-3 text-red-600" />
+                                          {item.availableStock} / {item.quantity} (Faltan {item.stockShortage})
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="py-2 px-2 text-right font-mono text-neutral-700">
+                                      {formatCurrency(item.quotedUnitPrice, invoicingQuotation.currency)}
+                                    </td>
+                                    <td className="py-2 px-2 text-right font-mono text-neutral-700">
+                                      {formatCurrency(item.currentBasePrice, invoicingQuotation.currency)}
+                                    </td>
+                                    <td className="py-2 px-2 text-right font-mono">
+                                      {item.hasPriceVariation ? (
+                                        <span
+                                          className={`text-[11px] font-semibold ${
+                                            item.priceDifference > 0
+                                              ? "text-amber-700"
+                                              : "text-sky-700"
+                                          }`}
+                                        >
+                                          {item.priceDifference > 0 ? "+" : ""}
+                                          {formatCurrency(item.priceDifference, invoicingQuotation.currency)} ({item.priceVariationPercent > 0 ? "+" : ""}{item.priceVariationPercent}%)
+                                        </span>
+                                      ) : (
+                                        <span className="text-[11px] text-neutral-400">
+                                          Sin cambio
+                                        </span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-neutral-400 italic">
+                          Seleccione un depósito para verificar existencias y precios.
+                        </p>
+                      )}
                     </div>
 
                     {/* Modo de Facturación Administrativa */}
@@ -1469,8 +1949,114 @@ export const QuotationsView: React.FC = () => {
                         </label>
                       </div>
 
+                      {/* Cobro de Contado (cuando isCredit es false) */}
+                      {!isCredit && (
+                        <div className="mt-3 p-3 bg-neutral-50 rounded-lg border border-neutral-200 space-y-3">
+                          <div className="flex items-center justify-between border-b border-neutral-200/80 pb-2">
+                            <span className="text-xs font-semibold text-neutral-900 flex items-center gap-1.5">
+                              <DollarSign className="w-4 h-4 text-emerald-600" />
+                              Registro de Cobro de Contado
+                            </span>
+                            <div className="text-right">
+                              <span className="text-[11px] font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
+                                {formatMoneyUSD(totalAmountToInvoice)}
+                              </span>
+                              <span className="text-[10px] text-neutral-500 block">
+                                ≈ {formatMoneyVES(totalAmountToInvoice * (invoicingQuotation.exchangeRate || rate))}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {/* Método de Pago */}
+                            <div>
+                              <label className="block text-xs font-medium text-neutral-700 mb-1">
+                                Método de Pago <span className="text-red-500">*</span>
+                              </label>
+                              <select
+                                value={paymentMethod}
+                                onChange={(e) => handlePaymentMethodChange(e.target.value)}
+                                className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-2.5 py-2 text-neutral-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                              >
+                                <option value="CASH_USD">Efectivo Dólares (USD)</option>
+                                <option value="CASH_VES">Efectivo Bolívares (VES)</option>
+                                <option value="TRANSFER">Transferencia Bancaria</option>
+                                <option value="PAGO_MOVIL">Pago Móvil</option>
+                                <option value="DEBIT_CARD">Tarjeta de Débito (Punto de Venta)</option>
+                                <option value="CREDIT_CARD">Tarjeta de Crédito</option>
+                                <option value="ZELLE">Zelle (USD)</option>
+                                <option value="OTHER">Otro Medio</option>
+                              </select>
+                            </div>
+
+                            {/* Cuenta Bancaria de Destino */}
+                            <div>
+                              <label className="block text-xs font-medium text-neutral-700 mb-1">
+                                Cuenta Bancaria Receptora <span className="text-red-500">*</span>
+                              </label>
+                              <select
+                                required
+                                value={selectedBankAccountId}
+                                onChange={(e) => setSelectedBankAccountId(e.target.value)}
+                                className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-2.5 py-2 text-neutral-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                              >
+                                {bankAccounts.length === 0 ? (
+                                  <option value="">No hay cuentas bancarias configuradas</option>
+                                ) : (
+                                  <>
+                                    <option value="">Seleccione cuenta bancaria...</option>
+                                    {bankAccounts.map((b) => (
+                                      <option key={b.id} value={b.id}>
+                                        {b.bankName ? `${b.bankName} - ` : ""}{b.description} ({b.currency}) ...{b.accountNumber.slice(-4)}
+                                      </option>
+                                    ))}
+                                  </>
+                                )}
+                              </select>
+                              <p className="text-[10px] text-neutral-500 mt-0.5">
+                                Acredita el saldo en Tesorería y genera el movimiento bancario para conciliar.
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Referencia o Comprobante */}
+                          <div>
+                            <label className="block text-xs font-medium text-neutral-700 mb-1">
+                              Nº de Referencia / Comprobante{" "}
+                              {["TRANSFER", "PAGO_MOVIL", "ZELLE", "DEBIT_CARD"].includes(paymentMethod) && (
+                                <span className="text-red-500">* (Requerido para conciliación)</span>
+                              )}
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="Ej. Ref. 192842 / Lote POS / Depósito"
+                              value={paymentReference}
+                              onChange={(e) => setPaymentReference(e.target.value)}
+                              className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-3 py-1.5 text-neutral-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                            />
+                            <p className="text-[10px] text-neutral-500 mt-0.5">
+                              Este número se utiliza en el módulo de Tesorería para el cotejo con el extracto bancario.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Venta a Crédito (cuando isCredit es true) */}
                       {isCredit && (
                         <div className="mt-3 space-y-3 pl-6 border-l-2 border-sky-200">
+                          {/* Alerta si el cliente no tiene crédito autorizado */}
+                          {customerCreditInfo && !customerCreditInfo.creditEnabled && (
+                            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs flex items-start gap-2">
+                              <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                              <div>
+                                <p className="font-semibold">Línea de Crédito No Autorizada</p>
+                                <p className="text-[11px] text-red-600 mt-0.5">
+                                  El cliente {invoicingQuotation.customerName} no tiene crédito comercial habilitado. Debe registrarse como venta de contado o habilitar el crédito comercial en la ficha del cliente.
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
                           {/* Información de Crédito del Cliente */}
                           <div className="bg-neutral-50 p-2.5 rounded-lg border border-neutral-200 space-y-1.5 text-[11px]">
                             <div className="flex justify-between">
@@ -1650,10 +2236,22 @@ export const QuotationsView: React.FC = () => {
                 <Button
                   type="submit"
                   size="sm"
-                  disabled={loadingInvoiceConfig || (isCredit && isCreditExceeded && enforceCreditLimit && !requireApprovalCreditExceeded)}
-                  className="bg-sky-600 hover:bg-sky-700 text-white font-medium text-xs rounded-lg py-2 px-4 shadow-sm"
+                  disabled={
+                    loadingInvoiceConfig ||
+                    loadingVerification ||
+                    Boolean(verificationResult?.hasStockIssues) ||
+                    (isCredit && customerCreditInfo !== null && !customerCreditInfo.creditEnabled) ||
+                    (isCredit && isCreditExceeded && enforceCreditLimit && !requireApprovalCreditExceeded)
+                  }
+                  className={`text-white font-medium text-xs rounded-lg py-2 px-4 shadow-sm ${
+                    verificationResult?.hasStockIssues
+                      ? "bg-neutral-400 cursor-not-allowed hover:bg-neutral-400"
+                      : "bg-sky-600 hover:bg-sky-700"
+                  }`}
                 >
-                  Emitir Factura y Rebajar Stock
+                  {verificationResult?.hasStockIssues
+                    ? "Bloqueado (Stock Insuficiente)"
+                    : "Emitir Factura y Rebajar Stock"}
                 </Button>
               </div>
             </form>

@@ -9,6 +9,12 @@ import {
   updateSubgroupSchema,
   productSchema,
   updateProductSchema,
+  brandSchema,
+  updateBrandSchema,
+  unitOfMeasureSchema,
+  updateUnitOfMeasureSchema,
+  presentationSchema,
+  updatePresentationSchema,
   productLocationSchema,
   warehouseLocationSchema,
   updateWarehouseLocationSchema,
@@ -17,6 +23,7 @@ import {
   createInventoryTransferSchema,
   receiveInventoryTransferSchema,
   kardexFilterSchema,
+  productLotSchema,
 } from '@ero/shared';
 import { InventoryService } from './inventory.service';
 import { authenticate, AppEnv } from '../../middleware/auth';
@@ -264,13 +271,77 @@ inventoryRouter.get('/products/:id', authenticate, authorize(['inventory.read', 
   return c.json({ success: true, data: result });
 });
 
-inventoryRouter.post('/products', authenticate, authorize('inventory', 'create'), zValidator('json', productSchema), async (c) => {
-  const body = c.req.valid('json');
-  const result = await InventoryService.createProduct(body);
-  return c.json({ success: true, data: result }, 201);
+// GET /api/inventory/products/:id/stock-by-warehouse - Existencias desglosadas por depósito
+inventoryRouter.get('/products/:id/stock-by-warehouse', authenticate, authorize(['inventory.read', 'pos.read', 'sales.read']), async (c) => {
+  const user = c.get('user');
+  const productId = c.req.param('id')!;
+  try {
+    const data = await InventoryService.getProductStockByWarehouse(user.companyId, productId);
+    return c.json({ success: true, data });
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'PRODUCT_STOCK_FETCH_ERROR', message: error.message } }, 400);
+  }
 });
 
-inventoryRouter.put('/products/:id', authenticate, authorize('inventory', 'update'), zValidator('json', updateProductSchema), async (c) => {
+// GET /api/inventory/products/:id/lots - Lotes y vencimientos de un producto
+inventoryRouter.get('/products/:id/lots', authenticate, authorize(['inventory.read', 'pos.read', 'sales.read']), async (c) => {
+  const user = c.get('user');
+  const productId = c.req.param('id')!;
+  const warehouseId = c.req.query('warehouseId') || undefined;
+  try {
+    const data = await InventoryService.getProductLots(user.companyId, productId, warehouseId);
+    return c.json({ success: true, data });
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'PRODUCT_LOTS_FETCH_ERROR', message: error.message } }, 400);
+  }
+});
+
+// POST /api/inventory/products/:id/lots - Registrar o ajustar lote de producto
+inventoryRouter.post('/products/:id/lots', authenticate, authorize('inventory', 'update'), zValidator('json', productLotSchema, (result, c) => {
+  if (!result.success) {
+    const errorMsg = result.error.errors.map(e => `${e.path.join('.') || 'campo'}: ${e.message}`).join(' | ');
+    return c.json({ success: false, error: { code: 'VALIDATION_ERROR', message: errorMsg, details: result.error.errors } }, 400);
+  }
+}), async (c) => {
+  const user = c.get('user');
+  const productId = c.req.param('id')!;
+  const body = c.req.valid('json');
+  try {
+    const data = await InventoryService.createOrAdjustProductLot(user.companyId, user.sub, {
+      ...body,
+      productId,
+    });
+    return c.json({ success: true, data }, 201);
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'PRODUCT_LOT_CREATE_ERROR', message: error.message } }, 400);
+  }
+});
+
+inventoryRouter.post('/products', authenticate, authorize('inventory', 'create'), zValidator('json', productSchema, (result, c) => {
+  if (!result.success) {
+    const errorMsg = result.error.errors.map(e => `${e.path.join('.') || 'campo'}: ${e.message}`).join(' | ');
+    return c.json({ success: false, error: { code: 'VALIDATION_ERROR', message: errorMsg, details: result.error.errors } }, 400);
+  }
+}), async (c) => {
+  const user = c.get('user');
+  const body = c.req.valid('json');
+  try {
+    const result = await InventoryService.createProduct({
+      ...body,
+      companyId: user.companyId,
+    });
+    return c.json({ success: true, data: result }, 201);
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'PRODUCT_CREATE_ERROR', message: error.message } }, 400);
+  }
+});
+
+inventoryRouter.put('/products/:id', authenticate, authorize('inventory', 'update'), zValidator('json', updateProductSchema, (result, c) => {
+  if (!result.success) {
+    const errorMsg = result.error.errors.map(e => `${e.path.join('.') || 'campo'}: ${e.message}`).join(' | ');
+    return c.json({ success: false, error: { code: 'VALIDATION_ERROR', message: errorMsg, details: result.error.errors } }, 400);
+  }
+}), async (c) => {
   const user = c.get('user');
   const id = c.req.param('id')!;
   const body = c.req.valid('json');
@@ -290,6 +361,123 @@ inventoryRouter.delete('/products/:id', authenticate, authorize('inventory', 'de
     return c.json(result);
   } catch (error: any) {
     return c.json({ success: false, error: { code: 'PRODUCT_DELETE_ERROR', message: error.message } }, 400);
+  }
+});
+
+// ==========================================
+// Rutas de Marcas de Productos
+// ==========================================
+inventoryRouter.get('/brands', authenticate, authorize(['inventory.read', 'pos.read', 'sales.read']), async (c) => {
+  const user = c.get('user');
+  const result = await InventoryService.getBrands(user.companyId);
+  return c.json({ success: true, data: result });
+});
+
+inventoryRouter.post('/brands', authenticate, authorize('inventory', 'create'), zValidator('json', brandSchema), async (c) => {
+  const user = c.get('user');
+  const body = c.req.valid('json');
+  const result = await InventoryService.createBrand({ ...body, companyId: user.companyId });
+  return c.json({ success: true, data: result }, 201);
+});
+
+inventoryRouter.put('/brands/:id', authenticate, authorize('inventory', 'update'), zValidator('json', updateBrandSchema), async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id')!;
+  const body = c.req.valid('json');
+  try {
+    const result = await InventoryService.updateBrand(user.companyId, id, body);
+    return c.json({ success: true, data: result });
+  } catch (err: any) {
+    return c.json({ success: false, error: { code: 'BRAND_UPDATE_ERROR', message: err.message } }, 400);
+  }
+});
+
+inventoryRouter.delete('/brands/:id', authenticate, authorize('inventory', 'delete'), async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id')!;
+  try {
+    const result = await InventoryService.deleteBrand(user.companyId, id);
+    return c.json(result);
+  } catch (err: any) {
+    return c.json({ success: false, error: { code: 'BRAND_DELETE_ERROR', message: err.message } }, 400);
+  }
+});
+
+// ==========================================
+// Rutas de Unidades de Medida
+// ==========================================
+inventoryRouter.get('/units', authenticate, authorize(['inventory.read', 'pos.read', 'sales.read']), async (c) => {
+  const user = c.get('user');
+  const result = await InventoryService.getUnitsOfMeasure(user.companyId);
+  return c.json({ success: true, data: result });
+});
+
+inventoryRouter.post('/units', authenticate, authorize('inventory', 'create'), zValidator('json', unitOfMeasureSchema), async (c) => {
+  const user = c.get('user');
+  const body = c.req.valid('json');
+  const result = await InventoryService.createUnitOfMeasure({ ...body, companyId: user.companyId });
+  return c.json({ success: true, data: result }, 201);
+});
+
+inventoryRouter.put('/units/:id', authenticate, authorize('inventory', 'update'), zValidator('json', updateUnitOfMeasureSchema), async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id')!;
+  const body = c.req.valid('json');
+  try {
+    const result = await InventoryService.updateUnitOfMeasure(user.companyId, id, body);
+    return c.json({ success: true, data: result });
+  } catch (err: any) {
+    return c.json({ success: false, error: { code: 'UNIT_UPDATE_ERROR', message: err.message } }, 400);
+  }
+});
+
+inventoryRouter.delete('/units/:id', authenticate, authorize('inventory', 'delete'), async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id')!;
+  try {
+    const result = await InventoryService.deleteUnitOfMeasure(user.companyId, id);
+    return c.json(result);
+  } catch (err: any) {
+    return c.json({ success: false, error: { code: 'UNIT_DELETE_ERROR', message: err.message } }, 400);
+  }
+});
+
+// ==========================================
+// Rutas de Catálogo de Presentaciones
+// ==========================================
+inventoryRouter.get('/presentations', authenticate, authorize(['inventory.read', 'pos.read', 'sales.read']), async (c) => {
+  const user = c.get('user');
+  const result = await InventoryService.getPresentations(user.companyId);
+  return c.json({ success: true, data: result });
+});
+
+inventoryRouter.post('/presentations', authenticate, authorize('inventory', 'create'), zValidator('json', presentationSchema), async (c) => {
+  const user = c.get('user');
+  const body = c.req.valid('json');
+  const result = await InventoryService.createPresentation({ ...body, companyId: user.companyId });
+  return c.json({ success: true, data: result }, 201);
+});
+
+inventoryRouter.put('/presentations/:id', authenticate, authorize('inventory', 'update'), zValidator('json', updatePresentationSchema), async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id')!;
+  const body = c.req.valid('json');
+  try {
+    const result = await InventoryService.updatePresentation(user.companyId, id, body);
+    return c.json({ success: true, data: result });
+  } catch (err: any) {
+    return c.json({ success: false, error: { code: 'PRESENTATION_UPDATE_ERROR', message: err.message } }, 400);
+  }
+});
+
+inventoryRouter.delete('/presentations/:id', authenticate, authorize('inventory', 'delete'), async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id')!;
+  try {
+    const result = await InventoryService.deletePresentation(user.companyId, id);
+    return c.json(result);
+  } catch (err: any) {
+    return c.json({ success: false, error: { code: 'PRESENTATION_DELETE_ERROR', message: err.message } }, 400);
   }
 });
 

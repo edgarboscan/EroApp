@@ -39,6 +39,7 @@ export const ACTIONS = {
   TRANSFER: 'transfer',
   BULK_UPDATE: 'bulk_update',
   APPROVE: 'approve',
+  AUTHORIZE: 'authorize',
   CLOSE_REGISTER: 'close_register',
   RECONCILE: 'reconcile',
   APPLY_TAX: 'apply_tax',
@@ -72,8 +73,62 @@ export function isSuperAdminRole(role?: string | null): boolean {
     r === 'admin' ||
     r === 'administrador' ||
     r === 'superuser' ||
-    r === 'superusuario'
+    r === 'superusuario' ||
+    r === 'directorgeneral' ||
+    r === 'gerentegeneral' ||
+    r === 'generalmanager'
   );
+}
+
+/**
+ * Determina si una cadena de rol corresponde a un cargo de Administración o Supervisión
+ * con jerarquía para autorizar operaciones restringidas (descuentos, stock negativo, presentaciones).
+ */
+export function isSupervisorOrAdminRole(role?: string | null): boolean {
+  if (!role) return false;
+  if (isSuperAdminRole(role)) return true;
+  const r = role.toLowerCase().trim().replace(/[\s_-]+/g, '');
+  return (
+    r.includes('supervisor') ||
+    r.includes('gerente') ||
+    r.includes('director') ||
+    r.includes('coordinador') ||
+    r.includes('jefe') ||
+    r.includes('encargado') ||
+    r.includes('manager')
+  );
+}
+
+/**
+ * Determina si un usuario posee rango de administrador o permisos explícitos de autorización
+ * (ej. pos.authorize, sales.approve, inventory.approve, sales.approve_discount).
+ */
+export function canAuthorizeOperations(
+  role?: string | null,
+  permissions?: Array<string | { module: string; action: string }> | null
+): boolean {
+  if (isSupervisorOrAdminRole(role)) return true;
+  if (!permissions || !Array.isArray(permissions)) return false;
+
+  const authActions = ['authorize', 'approve', 'approve_discount'];
+  const authModules = ['pos', 'sales', 'inventory'];
+
+  return permissions.some((p) => {
+    if (typeof p === 'string') {
+      const parts = p.toLowerCase().split(/[:.]/).map((s) => s.trim());
+      if (parts.length === 2) {
+        const [mod, act] = parts;
+        return authModules.includes(mod) && authActions.includes(act);
+      }
+      return authActions.includes(p.toLowerCase());
+    }
+    if (p && typeof p === 'object' && p.module && p.action) {
+      const mod = p.module.toLowerCase();
+      const act = p.action.toLowerCase();
+      return authModules.includes(mod) && authActions.includes(act);
+    }
+    return false;
+  });
 }
 
 // Impuestos Venezolanos

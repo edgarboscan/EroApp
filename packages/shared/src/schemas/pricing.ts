@@ -4,15 +4,15 @@ import { BULK_PRICE_UPDATE_MODES, PRICE_MODES } from '../constants';
 // Criterios de Selección para Actualización Masiva
 export const bulkPriceUpdateCriteriaSchema = z.object({
   productType: z.enum(['all', 'physical', 'service', 'kit', 'raw_material']).optional().default('all'),
-  supplierIds: z.array(z.string().uuid()).optional(),
-  departmentIds: z.array(z.string().uuid()).optional(),
-  groupIds: z.array(z.string().uuid()).optional(),
-  subgroupIds: z.array(z.string().uuid()).optional(),
+  supplierIds: z.array(z.string().max(36)).optional(),
+  departmentIds: z.array(z.string().max(36)).optional(),
+  groupIds: z.array(z.string().max(36)).optional(),
+  subgroupIds: z.array(z.string().max(36)).optional(),
   brands: z.array(z.string()).optional(),
   minCurrentPrice: z.number().min(0).optional(),
   maxCurrentPrice: z.number().min(0).optional(),
-  branchIds: z.array(z.string().uuid()).optional(),
-  priceListId: z.string().uuid().optional(),
+  branchIds: z.array(z.string().max(36)).optional(),
+  priceListId: z.string().max(36).optional(),
   searchQuery: z.string().optional(),
 });
 
@@ -50,8 +50,8 @@ export type BulkPriceUpdateRequest = z.infer<typeof bulkPriceUpdateRequestSchema
 
 // Tasas de Impuestos y Cambio de Tasa con Impacto
 export const taxRateSchema = z.object({
-  id: z.string().uuid().optional(),
-  companyId: z.string().uuid(),
+  id: z.string().max(36).optional(),
+  companyId: z.string().max(36),
   code: z.string().min(1).max(20),
   name: z.string().min(2).max(100),
   rate: z.number().min(0).max(100), // Ej: 16.00, 8.00, 3.00
@@ -64,12 +64,12 @@ export const taxRateSchema = z.object({
 export type TaxRateInput = z.infer<typeof taxRateSchema>;
 
 export const applyTaxRateChangeSchema = z.object({
-  taxRateId: z.string().uuid(),
+  taxRateId: z.string().max(36),
   newRate: z.number().min(0).max(100),
   taxAffectsFinalPrice: z.boolean(),
   priceMode: z.nativeEnum(PRICE_MODES),
   applyScope: z.enum(['product', 'department', 'group', 'subgroup', 'supplier', 'branch', 'global']),
-  scopeRefId: z.string().uuid().optional().nullable(),
+  scopeRefId: z.string().max(36).optional().nullable(),
   effectiveDate: z.string().datetime().optional().nullable(),
   reason: z.string().min(3).max(255),
 });

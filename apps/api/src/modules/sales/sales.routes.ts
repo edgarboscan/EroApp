@@ -22,9 +22,13 @@ salesRouter.get('/quotations', authenticate, authorize('sales', 'read'), async (
   const user = c.get('user');
   const branchId = c.req.query('branchId') || user.branchId;
   const status = c.req.query('status');
+  const startDate = c.req.query('startDate');
+  const endDate = c.req.query('endDate');
+  const customerId = c.req.query('customerId');
+  const forDelivery = c.req.query('forDelivery');
 
   try {
-    const list = await SalesService.getQuotations(user.companyId, branchId, status);
+    const list = await SalesService.getQuotations(user.companyId, branchId, status, startDate, endDate, customerId, forDelivery);
     return c.json({ success: true, data: list });
   } catch (error: any) {
     return c.json({ success: false, error: { code: 'QUOTATIONS_FETCH_FAILED', message: error.message } }, 500);
@@ -115,9 +119,22 @@ salesRouter.get('/deliveries', authenticate, authorize('sales', 'read'), async (
   const branchId = c.req.query('branchId') || user.branchId;
   const warehouseId = c.req.query('warehouseId');
   const status = c.req.query('status');
+  const customerId = c.req.query('customerId');
+  const hasQuotation = c.req.query('hasQuotation');
+  const startDate = c.req.query('startDate');
+  const endDate = c.req.query('endDate');
 
   try {
-    const list = await SalesService.getDeliveryNotes(user.companyId, branchId, warehouseId, status);
+    const list = await SalesService.getDeliveryNotes(
+      user.companyId,
+      branchId,
+      warehouseId,
+      status,
+      customerId,
+      hasQuotation,
+      startDate,
+      endDate
+    );
     return c.json({ success: true, data: list });
   } catch (error: any) {
     return c.json({ success: false, error: { code: 'DELIVERY_NOTES_FETCH_FAILED', message: error.message } }, 500);
@@ -222,16 +239,79 @@ salesRouter.get(
   }
 );
 
+salesRouter.get(
+  '/customers-summary',
+  authenticate,
+  authorize('sales', 'read'),
+  async (c) => {
+    const user = c.get('user');
+    try {
+      const data = await SalesService.getSalesCustomersSummary(user.companyId);
+      return c.json({ success: true, data });
+    } catch (error: any) {
+      return c.json({ success: false, error: { code: 'CUSTOMERS_SUMMARY_FAILED', message: error.message } }, 500);
+    }
+  }
+);
+
 // ==========================================
 // Conversión a Facturación de Ventas (CxC)
 // ==========================================
 
 
+salesRouter.get(
+  '/quotations/:id/invoice-check',
+  authenticate,
+  authorize('sales', 'read'),
+  async (c) => {
+    const user = c.get('user');
+    const quotationId = c.req.param('id')!;
+    const warehouseId = c.req.query('warehouseId');
+
+    try {
+      const verification = await SalesService.verifyQuotationForInvoicing(
+        user.companyId,
+        quotationId,
+        warehouseId?.trim() || undefined
+      );
+      return c.json({ success: true, data: verification });
+    } catch (error: any) {
+      return c.json(
+        { success: false, error: { code: 'VERIFICATION_FAILED', message: error.message } },
+        500
+      );
+    }
+  }
+);
+
+salesRouter.get(
+  '/payment-accounts',
+  authenticate,
+  authorize('sales', 'read'),
+  async (c) => {
+    const user = c.get('user');
+    try {
+      const accounts = await SalesService.getPaymentBankAccounts(user.companyId);
+      return c.json({ success: true, data: accounts });
+    } catch (error: any) {
+      return c.json(
+        { success: false, error: { code: 'PAYMENT_ACCOUNTS_FETCH_FAILED', message: error.message } },
+        500
+      );
+    }
+  }
+);
+
 salesRouter.post(
   '/quotations/to-invoice',
   authenticate,
   authorize('sales', 'create'),
-  zValidator('json', convertQuotationToInvoiceSchema),
+  zValidator('json', convertQuotationToInvoiceSchema, (result, c) => {
+    if (!result.success) {
+      const msg = result.error.issues?.[0]?.message || 'Datos de facturación inválidos';
+      return c.json({ success: false, error: { code: 'VALIDATION_FAILED', message: msg, issues: result.error.issues } }, 400);
+    }
+  }),
   async (c) => {
     const user = c.get('user');
     const body = c.req.valid('json');
@@ -249,7 +329,12 @@ salesRouter.post(
   '/deliveries/to-invoice',
   authenticate,
   authorize('sales', 'create'),
-  zValidator('json', convertDeliveryToInvoiceSchema),
+  zValidator('json', convertDeliveryToInvoiceSchema, (result, c) => {
+    if (!result.success) {
+      const msg = result.error.issues?.[0]?.message || 'Datos de facturación inválidos';
+      return c.json({ success: false, error: { code: 'VALIDATION_FAILED', message: msg, issues: result.error.issues } }, 400);
+    }
+  }),
   async (c) => {
     const user = c.get('user');
     const body = c.req.valid('json');
@@ -262,3 +347,5 @@ salesRouter.post(
     }
   }
 );
+
+// End of salesRouter

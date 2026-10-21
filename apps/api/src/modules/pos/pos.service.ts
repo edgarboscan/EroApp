@@ -7,7 +7,11 @@ import {
   GenerateFiscalReportInput,
   CashRegisterInput,
   PaymentMethodInput,
+  VerifyCashShiftInput,
+  DepositCashShiftInput,
   isSuperAdminRole,
+  isSupervisorOrAdminRole,
+  canAuthorizeOperations,
 } from '@ero/shared';
 import crypto from 'crypto';
 import argon2 from 'argon2';
@@ -469,6 +473,7 @@ export class POSService {
               cr.fiscal_printer_serial, cr.invoice_mode,
               b.name as branch_name,
               u.full_name as cashier_name,
+              u_ver.full_name as verified_by_name,
               b_ves.name as deposit_bank_ves_name,
               ba_ves.account_number as deposit_account_ves_number,
               b_usd.name as deposit_bank_usd_name,
@@ -477,6 +482,7 @@ export class POSService {
        INNER JOIN cash_registers cr ON cs.cash_register_id = cr.id
        INNER JOIN branches b ON cs.branch_id = b.id
        INNER JOIN users u ON cs.user_id = u.id
+       LEFT JOIN users u_ver ON cs.verified_by_user_id = u_ver.id
        LEFT JOIN bank_accounts ba_ves ON cs.deposit_bank_account_ves_id = ba_ves.id
        LEFT JOIN banks b_ves ON ba_ves.bank_id = b_ves.id
        LEFT JOIN bank_accounts ba_usd ON cs.deposit_bank_account_usd_id = ba_usd.id
@@ -545,6 +551,13 @@ export class POSService {
       finalCashVESCounted: Number(shift.final_cash_ves_counted || 0),
       differenceUSD: Number(shift.difference_usd || 0),
       differenceVES: Number(shift.difference_ves || 0),
+      hasDiscrepancy: Boolean(shift.has_discrepancy),
+      auditReportText: shift.audit_report_text || null,
+      verificationStatus: shift.verification_status || 'PENDING',
+      verifiedByUserId: shift.verified_by_user_id || null,
+      verifiedByName: shift.verified_by_name || null,
+      verifiedAt: shift.verified_at ? new Date(shift.verified_at).toISOString() : null,
+      verificationNotes: shift.verification_notes || null,
       notes: shift.notes || undefined,
       depositBankVESName: shift.deposit_bank_ves_name || undefined,
       depositAmountVES: Number(shift.deposit_amount_ves || 0),
@@ -708,8 +721,75 @@ export class POSService {
 
       const diffUSD = Number((data.finalCashUSDCounted - expectedUSD).toFixed(2));
       const diffVES = Number((data.finalCashVESCounted - expectedVES).toFixed(2));
+      const hasDiscrepancy = Math.abs(diffUSD) > 0.001 || Math.abs(diffVES) > 0.001;
 
-      // 1. Si se especificó depósito de efectivo VES en cuenta bancaria de tesorería
+      // Generar reporte de auditoría y notificación si existe diferencia
+      let auditReportText: string | null = null;
+      let notificationId: string | null = null;
+
+      if (hasDiscrepancy) {
+        const details: string[] = [];
+        if (Math.abs(diffUSD) > 0.001) {
+          details.push(`USD: Esperado $${expectedUSD.toFixed(2)} | Contado $${data.finalCashUSDCounted.toFixed(2)} | Diferencia: ${diffUSD > 0 ? '+' : ''}$${diffUSD.toFixed(2)} (${diffUSD < 0 ? 'FALTANTE' : 'SOBRANTE'})`);
+        }
+        if (Math.abs(diffVES) > 0.001) {
+          details.push(`VES: Esperado Bs. ${expectedVES.toFixed(2)} | Contado Bs. ${data.finalCashVESCounted.toFixed(2)} | Diferencia: ${diffVES > 0 ? '+' : ''}Bs. ${diffVES.toFixed(2)} (${diffVES < 0 ? 'FALTANTE' : 'SOBRANTE'})`);
+        }
+
+        auditReportText = `[REPORTE DE AUDITORÍA - DISCREPANCIA EN CIERRE DE CAJA]\n` +
+          `Turno #${shift.id.slice(0, 8)} | Caja: ${shift.cash_register_name || shift.cash_register_code} (${shift.cash_register_code})\n` +
+          `Fecha/Hora de Cierre: ${new Date().toLocaleString('es-VE')}\n` +
+          `Desglose de Diferencias:\n- ${details.join('\n- ')}\n` +
+          `Observaciones registradas por cajero: ${data.notes?.trim() || 'Sin observaciones'}\n` +
+          `Estado de Auditoría: PENDIENTE DE REVISIÓN Y JUSTIFICACIÓN POR SUPERVISIÓN.`;
+
+        notificationId = crypto.randomUUID();
+        await conn.query(
+          `INSERT INTO cash_audit_notifications (
+            id, company_id, branch_id, shift_id, cash_register_id,
+            cashier_user_id, discrepancy_usd, discrepancy_ves,
+            title, message, is_resolved
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+          [
+            notificationId,
+            companyId,
+            shift.branch_id,
+            shift.id,
+            shift.cash_register_id,
+            userId,
+            diffUSD,
+            diffVES,
+            `Alerta de Auditoría: Discrepancia en Caja ${shift.cash_register_code}`,
+            `El turno #${shift.id.slice(0, 8)} cerró con diferencia (USD: ${diffUSD > 0 ? '+' : ''}${diffUSD.toFixed(2)}, VES: ${diffVES > 0 ? '+' : ''}${diffVES.toFixed(2)}). Se requiere verificación.`,
+          ]
+        );
+
+        try {
+          await conn.query(
+            `INSERT INTO audit_logs (id, company_id, user_id, action, entity, entity_id, new_values, created_at)
+             VALUES (?, ?, ?, 'POS_SHIFT_DISCREPANCY_ALERT', 'cash_shifts', ?, ?, NOW())`,
+            [
+              crypto.randomUUID(),
+              companyId,
+              userId,
+              shift.id,
+              JSON.stringify({
+                diffUSD,
+                diffVES,
+                expectedUSD,
+                expectedVES,
+                countedUSD: data.finalCashUSDCounted,
+                countedVES: data.finalCashVESCounted,
+                notificationId,
+              }),
+            ]
+          );
+        } catch {
+          // Ignorar si audit_logs no está disponible
+        }
+      }
+
+      // 1. Si se especificó depósito de efectivo VES en cuenta bancaria de tesorería (retrocompatibilidad)
       let depositMovementVESId: string | null = null;
       if (data.depositBankAccountIdVES && data.depositAmountVES && data.depositAmountVES > 0) {
         const [accRows]: any = await conn.query(
@@ -739,10 +819,29 @@ export class POSService {
               `Depósito Cierre Caja VES (${shift.cash_register_code}) - Turno #${shift.id.slice(0, 8)}`,
             ]
           );
+
+          await conn.query(
+            `INSERT INTO cash_shift_deposits (
+              id, shift_id, company_id, bank_account_id, user_id,
+              deposit_type, amount, currency, deposit_date,
+              reference_number, notes, bank_movement_id
+            ) VALUES (?, ?, ?, ?, ?, 'CASH_VES', ?, 'VES', NOW(), ?, ?, ?)`,
+            [
+              crypto.randomUUID(),
+              shift.id,
+              companyId,
+              acc.id,
+              userId,
+              data.depositAmountVES,
+              data.depositReferenceVES || null,
+              'Depósito de efectivo VES registrado al cierre',
+              depositMovementVESId,
+            ]
+          );
         }
       }
 
-      // 2. Si se especificó depósito de divisas USD en cuenta bancaria de tesorería
+      // 2. Si se especificó depósito de divisas USD en cuenta bancaria de tesorería (retrocompatibilidad)
       let depositMovementUSDId: string | null = null;
       if (data.depositBankAccountIdUSD && data.depositAmountUSD && data.depositAmountUSD > 0) {
         const [accRows]: any = await conn.query(
@@ -772,10 +871,31 @@ export class POSService {
               `Depósito Custodia USD Cierre Caja (${shift.cash_register_code}) - Turno #${shift.id.slice(0, 8)}`,
             ]
           );
+
+          await conn.query(
+            `INSERT INTO cash_shift_deposits (
+              id, shift_id, company_id, bank_account_id, user_id,
+              deposit_type, amount, currency, deposit_date,
+              reference_number, notes, bank_movement_id
+            ) VALUES (?, ?, ?, ?, ?, 'CASH_USD', ?, 'USD', NOW(), ?, ?, ?)`,
+            [
+              crypto.randomUUID(),
+              shift.id,
+              companyId,
+              acc.id,
+              userId,
+              data.depositAmountUSD,
+              data.depositReferenceUSD || null,
+              'Depósito de divisas USD registrado al cierre',
+              depositMovementUSDId,
+            ]
+          );
         }
       }
 
-      // 3. Actualizar el turno de caja con arqueo y datos de depósitos
+      const initialVerificationStatus = (data.depositAmountVES || data.depositAmountUSD) ? 'DEPOSITED' : 'PENDING';
+
+      // 3. Actualizar el turno de caja con arqueo, reporte de auditoría y estado de verificación
       await conn.query(
         `UPDATE cash_shifts SET
           closed_at = CURRENT_TIMESTAMP(),
@@ -792,6 +912,9 @@ export class POSService {
           deposit_amount_usd = ?,
           deposit_reference_usd = ?,
           status = 'CLOSED',
+          verification_status = ?,
+          has_discrepancy = ?,
+          audit_report_text = ?,
           notes = ?
          WHERE id = ?`,
         [
@@ -807,6 +930,9 @@ export class POSService {
           data.depositBankAccountIdUSD || null,
           data.depositAmountUSD || 0,
           data.depositReferenceUSD || null,
+          initialVerificationStatus,
+          hasDiscrepancy ? 1 : 0,
+          auditReportText,
           data.notes || null,
           shift.id,
         ]
@@ -822,6 +948,10 @@ export class POSService {
         finalCashVESExpected: expectedVES,
         differenceUSD: diffUSD,
         differenceVES: diffVES,
+        hasDiscrepancy,
+        auditReportText,
+        verificationStatus: initialVerificationStatus,
+        notificationId,
         depositMovementVESId,
         depositMovementUSDId,
         depositAmountVES: data.depositAmountVES || 0,
@@ -898,7 +1028,7 @@ export class POSService {
         throw new Error('Usuario actual no encontrado o inactivo');
       }
       const currentUser = currentUserRows[0];
-      if (isSuperAdminRole(currentUser.role_name)) {
+      if (isSupervisorOrAdminRole(currentUser.role_name)) {
         return {
           authorized: true,
           approvedByUserId: currentUser.id,
@@ -907,10 +1037,14 @@ export class POSService {
         };
       }
       const permRows = await query<any>(
-        `SELECT p.action FROM role_permissions rp
+        `SELECT p.module, p.action FROM role_permissions rp
          INNER JOIN permissions p ON rp.permission_id = p.id
          WHERE rp.role_id = (SELECT role_id FROM users WHERE id = ?)
-           AND ((p.module = 'sales' AND p.action IN ('approve', 'create')) OR (p.module = 'inventory' AND p.action IN ('approve', 'update')) OR (p.module = 'pos' AND p.action IN ('approve', 'close_register')))`,
+           AND (
+             (p.module = 'pos' AND p.action = 'authorize') OR
+             (p.module = 'sales' AND p.action IN ('approve', 'approve_discount')) OR
+             (p.module = 'inventory' AND p.action = 'approve')
+           )`,
         [currentUserId]
       );
       if (permRows.length > 0) {
@@ -921,7 +1055,7 @@ export class POSService {
           roleName: currentUser.role_name,
         };
       }
-      throw new Error('El usuario actual no posee permisos suficientes de supervisor');
+      throw new Error('El usuario actual no posee rango de administrador ni permisos de supervisor para autorizar operaciones');
     }
 
     if (!input.usernameOrEmail?.trim() || !input.password) {
@@ -957,16 +1091,20 @@ export class POSService {
       throw new Error('Contraseña del supervisor incorrecta');
     }
 
-    if (!isSuperAdminRole(supervisor.role_name)) {
+    if (!isSupervisorOrAdminRole(supervisor.role_name)) {
       const permRows = await query<any>(
-        `SELECT p.action FROM role_permissions rp
+        `SELECT p.module, p.action FROM role_permissions rp
          INNER JOIN permissions p ON rp.permission_id = p.id
          WHERE rp.role_id = (SELECT role_id FROM users WHERE id = ?)
-           AND ((p.module = 'sales' AND p.action IN ('approve', 'create')) OR (p.module = 'inventory' AND p.action IN ('approve', 'update')) OR (p.module = 'pos' AND p.action IN ('approve', 'close_register')))`,
+           AND (
+             (p.module = 'pos' AND p.action = 'authorize') OR
+             (p.module = 'sales' AND p.action IN ('approve', 'approve_discount')) OR
+             (p.module = 'inventory' AND p.action = 'approve')
+           )`,
         [supervisor.id]
       );
       if (permRows.length === 0) {
-        throw new Error('El usuario supervisor indicado no cuenta con rango suficiente para autorizar operaciones');
+        throw new Error('El usuario indicado no cuenta con rango de administrador o supervisor con nivel suficiente para autorizar operaciones');
       }
     }
 
@@ -1005,18 +1143,107 @@ export class POSService {
       // Fallback a almacén predeterminado si aún no está asignado
       if (!effectiveWarehouseId) {
         const [defaultWh]: any = await conn.query(
-          `SELECT id FROM warehouses WHERE branch_id = ? AND is_active = 1 ORDER BY is_default DESC LIMIT 1`,
+          `SELECT id FROM warehouses WHERE branch_id = ? AND is_active = 1 ORDER BY is_default_sales DESC, is_default DESC LIMIT 1`,
           [payload.branchId]
         );
         if (defaultWh && defaultWh.length > 0) {
           effectiveWarehouseId = defaultWh[0].id;
         } else {
           const [anyWh]: any = await conn.query(
-            `SELECT id FROM warehouses WHERE company_id = ? AND is_active = 1 ORDER BY is_default DESC LIMIT 1`,
+            `SELECT id FROM warehouses WHERE branch_id IN (SELECT id FROM branches WHERE company_id = ?) AND is_active = 1 ORDER BY is_default_sales DESC, is_default DESC LIMIT 1`,
             [companyId]
           );
           if (anyWh && anyWh.length > 0) {
             effectiveWarehouseId = anyWh[0].id;
+          }
+        }
+      }
+
+      // Validar si algún renglón utiliza una presentación que requiere autorización de venta
+      for (const item of payload.items) {
+        if (item.presentationId) {
+          const [presRows]: any = await conn.query(
+            `SELECT pp.requires_authorization, pp.name as pres_custom_name, p.name as pres_template_name
+             FROM product_presentations pp
+             LEFT JOIN presentations p ON pp.presentation_id = p.id
+             WHERE pp.id = ? OR pp.presentation_id = ? LIMIT 1`,
+            [item.presentationId, item.presentationId]
+          );
+          if (presRows && presRows.length > 0 && Boolean(presRows[0].requires_authorization)) {
+            const presName = presRows[0].pres_custom_name || presRows[0].pres_template_name || item.name;
+            let isAuthorized = false;
+
+            if (item.supervisorApprovedBy) {
+              const [approverRows]: any = await conn.query(
+                `SELECT u.id, u.full_name, r.name as role_name
+                 FROM users u
+                 INNER JOIN roles r ON u.role_id = r.id
+                 WHERE (u.full_name = ? OR u.username = ? OR u.id = ?) AND u.company_id = ? AND u.is_active = 1`,
+                [item.supervisorApprovedBy, item.supervisorApprovedBy, item.supervisorApprovedBy, companyId]
+              );
+              if (approverRows && approverRows.length > 0) {
+                const approver = approverRows[0];
+                if (isSupervisorOrAdminRole(approver.role_name)) {
+                  isAuthorized = true;
+                } else {
+                  const [authPerms]: any = await conn.query(
+                    `SELECT p.id FROM role_permissions rp
+                     INNER JOIN permissions p ON rp.permission_id = p.id
+                     WHERE rp.role_id = (SELECT role_id FROM users WHERE id = ?)
+                       AND ((p.module = 'pos' AND p.action = 'authorize') OR (p.module = 'sales' AND p.action = 'approve'))`,
+                    [approver.id]
+                  );
+                  if (authPerms && authPerms.length > 0) {
+                    isAuthorized = true;
+                  }
+                }
+              }
+              if (!isAuthorized) {
+                throw new Error(
+                  `La autorización de venta de la presentación "${presName}" debe ser otorgada por un administrador o supervisor con nivel autorizado.`
+                );
+              }
+            } else if (item.isPresentationAuthorized) {
+              const [userRoleRows]: any = await conn.query(
+                `SELECT r.name as role_name FROM users u 
+                 INNER JOIN roles r ON u.role_id = r.id 
+                 WHERE u.id = ?`,
+                [userId]
+              );
+              const userRole = userRoleRows?.[0]?.role_name || '';
+              if (isSupervisorOrAdminRole(userRole)) {
+                isAuthorized = true;
+              } else {
+                const [cashierAuthPerms]: any = await conn.query(
+                  `SELECT p.id FROM role_permissions rp
+                   INNER JOIN permissions p ON rp.permission_id = p.id
+                   WHERE rp.role_id = (SELECT role_id FROM users WHERE id = ?)
+                     AND ((p.module = 'pos' AND p.action = 'authorize') OR (p.module = 'sales' AND p.action = 'approve'))`,
+                  [userId]
+                );
+                if (cashierAuthPerms && cashierAuthPerms.length > 0) {
+                  isAuthorized = true;
+                }
+              }
+              if (!isAuthorized) {
+                throw new Error(
+                  `La presentación "${presName}" requiere autorización de un usuario administrador o supervisor con nivel suficiente.`
+                );
+              }
+            } else {
+              const [userRoleRows]: any = await conn.query(
+                `SELECT r.name as role_name FROM users u 
+                 INNER JOIN roles r ON u.role_id = r.id 
+                 WHERE u.id = ?`,
+                [userId]
+              );
+              const userRole = userRoleRows?.[0]?.role_name || '';
+              if (!isSupervisorOrAdminRole(userRole)) {
+                throw new Error(
+                  `La presentación "${presName}" requiere autorización de un usuario administrador o supervisor para ser vendida.`
+                );
+              }
+            }
           }
         }
       }
@@ -1027,16 +1254,55 @@ export class POSService {
         [companyId]
       );
       const allowNegativeStock = rulesRows && rulesRows.length > 0 ? Boolean(rulesRows[0].allow_negative_stock) : true;
+      const requireApprovalNegative = rulesRows && rulesRows.length > 0 ? Boolean(rulesRows[0].require_approval_negative_stock) : false;
 
-      if (!allowNegativeStock && effectiveWarehouseId) {
+      if ((!allowNegativeStock || requireApprovalNegative) && effectiveWarehouseId) {
         for (const item of payload.items) {
+          const unitsRequested = Number(item.quantity) * Number(item.multiplier || 1);
           const [stockRow]: any = await conn.query(
             `SELECT current_stock FROM product_stocks WHERE product_id = ? AND warehouse_id = ?`,
             [item.productId, effectiveWarehouseId]
           );
           const available = Number(stockRow?.[0]?.current_stock || 0);
-          if (available < item.quantity) {
-            throw new Error(`Stock insuficiente en el almacén para el producto. Disponible: ${available}, Solicitado: ${item.quantity}. Las reglas de negocio no permiten existencias en negativo.`);
+          if (available < unitsRequested) {
+            let isStockAuthorized = false;
+            if (item.supervisorApprovedBy) {
+              const [approverRows]: any = await conn.query(
+                `SELECT u.id, u.full_name, r.name as role_name
+                 FROM users u
+                 INNER JOIN roles r ON u.role_id = r.id
+                 WHERE (u.full_name = ? OR u.username = ? OR u.id = ?) AND u.company_id = ? AND u.is_active = 1`,
+                [item.supervisorApprovedBy, item.supervisorApprovedBy, item.supervisorApprovedBy, companyId]
+              );
+              if (approverRows && approverRows.length > 0) {
+                const approver = approverRows[0];
+                if (isSupervisorOrAdminRole(approver.role_name)) {
+                  isStockAuthorized = true;
+                } else {
+                  const [authPerms]: any = await conn.query(
+                    `SELECT p.id FROM role_permissions rp
+                     INNER JOIN permissions p ON rp.permission_id = p.id
+                     WHERE rp.role_id = (SELECT role_id FROM users WHERE id = ?)
+                       AND ((p.module = 'pos' AND p.action = 'authorize') OR (p.module = 'sales' AND p.action = 'approve'))`,
+                    [approver.id]
+                  );
+                  if (authPerms && authPerms.length > 0) isStockAuthorized = true;
+                }
+              }
+            } else if (item.isNegativeStockAuthorized) {
+              const [userRoleRows]: any = await conn.query(
+                `SELECT r.name as role_name FROM users u 
+                 INNER JOIN roles r ON u.role_id = r.id 
+                 WHERE u.id = ?`,
+                [userId]
+              );
+              const userRole = userRoleRows?.[0]?.role_name || '';
+              if (isSupervisorOrAdminRole(userRole)) isStockAuthorized = true;
+            }
+
+            if (!isStockAuthorized) {
+              throw new Error(`Stock insuficiente en el almacén para "${item.name}". Disponible: ${available}, Solicitado: ${unitsRequested} unidades base. La venta con existencia en negativo requiere autorización de un usuario administrador o supervisor.`);
+            }
           }
         }
       }
@@ -1125,6 +1391,7 @@ export class POSService {
         );
 
         if (effectiveWarehouseId) {
+          const unitsToDeduct = Number(item.quantity) * Number(item.multiplier || 1);
           // Descontar inventario en el depósito correspondiente (permitiendo valores negativos según reglas)
           await conn.query(
             `INSERT INTO product_stocks (product_id, warehouse_id, current_stock, last_movement_at)
@@ -1132,7 +1399,7 @@ export class POSService {
              ON DUPLICATE KEY UPDATE 
                current_stock = current_stock - ?,
                last_movement_at = CURRENT_TIMESTAMP()`,
-            [item.productId, effectiveWarehouseId, item.quantity, item.quantity]
+            [item.productId, effectiveWarehouseId, unitsToDeduct, unitsToDeduct]
           );
 
           // Registrar en Kardex de inventario
@@ -1147,9 +1414,11 @@ export class POSService {
               effectiveWarehouseId,
               item.productId,
               userId,
-              item.quantity,
+              unitsToDeduct,
               invoiceNumber,
-              `Venta POS Factura: ${invoiceNumber}`,
+              item.multiplier && item.multiplier > 1
+                ? `Venta POS Factura: ${invoiceNumber} (${item.quantity} pres. x ${item.multiplier} un)`
+                : `Venta POS Factura: ${invoiceNumber}`,
             ]
           );
         }
@@ -1387,4 +1656,460 @@ export class POSService {
       rawContent: r.raw_content,
     }));
   }
+
+  /**
+   * Obtiene la lista de turnos cerrados para auditoría y verificación por supervisores / tesorería
+   */
+  static async getShiftsForAudit(companyId: string, filters: {
+    branchId?: string;
+    verificationStatus?: string;
+    hasDiscrepancy?: boolean | string;
+    startDate?: string;
+    endDate?: string;
+  }) {
+    let sql = `
+      SELECT cs.*,
+             cr.code as cash_register_code, cr.name as cash_register_name,
+             b.name as branch_name,
+             u.full_name as cashier_name,
+             u_ver.full_name as verified_by_name,
+             (SELECT COUNT(*) FROM cash_shift_deposits csd WHERE csd.shift_id = cs.id) as deposits_count,
+             (SELECT COALESCE(SUM(csd.amount), 0) FROM cash_shift_deposits csd WHERE csd.shift_id = cs.id AND csd.currency = 'USD') as total_deposited_usd,
+             (SELECT COALESCE(SUM(csd.amount), 0) FROM cash_shift_deposits csd WHERE csd.shift_id = cs.id AND csd.currency = 'VES') as total_deposited_ves
+      FROM cash_shifts cs
+      INNER JOIN cash_registers cr ON cs.cash_register_id = cr.id
+      INNER JOIN branches b ON cs.branch_id = b.id
+      INNER JOIN users u ON cs.user_id = u.id
+      LEFT JOIN users u_ver ON cs.verified_by_user_id = u_ver.id
+      WHERE b.company_id = ? AND cs.status = 'CLOSED'
+    `;
+    const params: any[] = [companyId];
+
+    if (filters.branchId) {
+      sql += ` AND cs.branch_id = ?`;
+      params.push(filters.branchId);
+    }
+    if (filters.verificationStatus && filters.verificationStatus !== 'ALL') {
+      sql += ` AND cs.verification_status = ?`;
+      params.push(filters.verificationStatus);
+    }
+    if (filters.hasDiscrepancy !== undefined && filters.hasDiscrepancy !== '') {
+      const hasD = String(filters.hasDiscrepancy) === 'true' || filters.hasDiscrepancy === true;
+      sql += ` AND cs.has_discrepancy = ?`;
+      params.push(hasD ? 1 : 0);
+    }
+    if (filters.startDate) {
+      sql += ` AND cs.closed_at >= ?`;
+      params.push(`${filters.startDate} 00:00:00`);
+    }
+    if (filters.endDate) {
+      sql += ` AND cs.closed_at <= ?`;
+      params.push(`${filters.endDate} 23:59:59`);
+    }
+
+    sql += ` ORDER BY cs.closed_at DESC LIMIT 100`;
+    const rows = await query<any>(sql, params);
+
+    return rows.map((r) => ({
+      id: r.id,
+      cashRegisterId: r.cash_register_id,
+      cashRegisterCode: r.cash_register_code,
+      cashRegisterName: r.cash_register_name,
+      branchId: r.branch_id,
+      branchName: r.branch_name,
+      cashierId: r.user_id,
+      cashierName: r.cashier_name,
+      openedAt: r.opened_at,
+      closedAt: r.closed_at,
+      initialCashUSD: Number(r.initial_cash_usd || 0),
+      initialCashVES: Number(r.initial_cash_ves || 0),
+      finalCashUSDExpected: Number(r.final_cash_usd_expected || 0),
+      finalCashVESExpected: Number(r.final_cash_ves_expected || 0),
+      finalCashUSDCounted: Number(r.final_cash_usd_counted || 0),
+      finalCashVESCounted: Number(r.final_cash_ves_counted || 0),
+      differenceUSD: Number(r.difference_usd || 0),
+      differenceVES: Number(r.difference_ves || 0),
+      hasDiscrepancy: Boolean(r.has_discrepancy),
+      auditReportText: r.audit_report_text || null,
+      verificationStatus: r.verification_status || 'PENDING',
+      verifiedByUserId: r.verified_by_user_id || null,
+      verifiedByName: r.verified_by_name || null,
+      verifiedAt: r.verified_at || null,
+      verificationNotes: r.verification_notes || null,
+      notes: r.notes || null,
+      depositsCount: Number(r.deposits_count || 0),
+      totalDepositedUSD: Number(r.total_deposited_usd || 0),
+      totalDepositedVES: Number(r.total_deposited_ves || 0),
+    }));
+  }
+
+  /**
+   * Obtiene la auditoría completa de un turno de caja: arqueo, ventas por método, movimientos, facturas y depósitos
+   */
+  static async getShiftAuditDetails(shiftId: string, companyId: string) {
+    const shift = await this.getShiftById(companyId, shiftId);
+    if (!shift) {
+      throw new Error('Turno de caja no encontrado');
+    }
+
+    // Métodos de pago agrupados
+    const paymentRows = await query<any>(
+      `SELECT sp.method, COUNT(sp.id) as tx_count,
+              SUM(sp.amount_usd) as total_usd,
+              SUM(sp.amount_ves) as total_ves
+       FROM sales_invoices si
+       INNER JOIN sales_payments sp ON si.id = sp.invoice_id
+       WHERE si.shift_id = ? AND si.status <> 'ANNULLED'
+       GROUP BY sp.method
+       ORDER BY sp.method ASC`,
+      [shiftId]
+    );
+
+    // Movimientos de caja manuales
+    const movements = await query<any>(
+      `SELECT cm.*, u.full_name as user_name
+       FROM cash_movements cm
+       INNER JOIN users u ON cm.user_id = u.id
+       WHERE cm.shift_id = ?
+       ORDER BY cm.created_at ASC`,
+      [shiftId]
+    );
+
+    // Depósitos bancarios vinculados
+    const deposits = await query<any>(
+      `SELECT csd.*, ba.account_number, ba.currency as account_currency,
+              b.name as bank_name, u.full_name as user_name
+       FROM cash_shift_deposits csd
+       INNER JOIN bank_accounts ba ON csd.bank_account_id = ba.id
+       INNER JOIN banks b ON ba.bank_id = b.id
+       INNER JOIN users u ON csd.user_id = u.id
+       WHERE csd.shift_id = ?
+       ORDER BY csd.created_at ASC`,
+      [shiftId]
+    );
+
+    // Notificaciones de discrepancia
+    const notifications = await query<any>(
+      `SELECT can.*, u_cashier.full_name as cashier_name, u_res.full_name as resolved_by_name
+       FROM cash_audit_notifications can
+       INNER JOIN users u_cashier ON can.cashier_user_id = u_cashier.id
+       LEFT JOIN users u_res ON can.resolved_by_user_id = u_res.id
+       WHERE can.shift_id = ?
+       ORDER BY can.created_at DESC`,
+      [shiftId]
+    );
+
+    // Facturas del turno
+    const invoices = await query<any>(
+      `SELECT si.id, si.invoice_number,
+              CASE WHEN si.currency = 'VES' THEN ROUND(si.total_amount / NULLIF(si.exchange_rate, 0), 2) ELSE si.total_amount END as total_usd,
+              CASE WHEN si.currency = 'VES' THEN si.total_amount ELSE ROUND(si.total_amount * si.exchange_rate, 2) END as total_ves,
+              si.status,
+              si.created_at, c.name as client_name, CONCAT(c.doc_type, '-', c.doc_number) as client_tax_id
+       FROM sales_invoices si
+       LEFT JOIN customers c ON si.customer_id = c.id
+       WHERE si.shift_id = ?
+       ORDER BY si.created_at ASC`,
+      [shiftId]
+    );
+
+    return {
+      shift,
+      paymentsBreakdown: paymentRows.map((p) => ({
+        method: p.method,
+        txCount: Number(p.tx_count || 0),
+        totalUSD: Number(p.total_usd || 0),
+        totalVES: Number(p.total_ves || 0),
+      })),
+      movements: movements.map((m) => ({
+        id: m.id,
+        type: m.type,
+        currency: m.currency,
+        amount: Number(m.amount),
+        reason: m.reason,
+        userName: m.user_name,
+        createdAt: m.created_at,
+      })),
+      deposits: deposits.map((d) => ({
+        id: d.id,
+        bankAccountId: d.bank_account_id,
+        bankName: d.bank_name,
+        accountNumber: d.account_number,
+        accountCurrency: d.account_currency,
+        depositType: d.deposit_type,
+        amount: Number(d.amount),
+        currency: d.currency,
+        depositDate: d.deposit_date,
+        referenceNumber: d.reference_number,
+        notes: d.notes,
+        userName: d.user_name,
+        createdAt: d.created_at,
+      })),
+      notifications: notifications.map((n) => ({
+        id: n.id,
+        title: n.title,
+        message: n.message,
+        discrepancyUSD: Number(n.discrepancy_usd || 0),
+        discrepancyVES: Number(n.discrepancy_ves || 0),
+        isResolved: Boolean(n.is_resolved),
+        cashierName: n.cashier_name,
+        resolvedByName: n.resolved_by_name || null,
+        resolvedAt: n.resolved_at || null,
+        createdAt: n.created_at,
+      })),
+      invoices: invoices.map((inv) => ({
+        id: inv.id,
+        invoiceNumber: inv.invoice_number,
+        totalUSD: Number(inv.total_usd),
+        totalVES: Number(inv.total_ves),
+        status: inv.status,
+        createdAt: inv.created_at,
+        clientName: inv.client_name || 'Cliente Ocasional',
+        clientTaxId: inv.client_tax_id || '',
+      })),
+    };
+  }
+
+  /**
+   * Dictamina y verifica el arqueo de un turno de caja
+   */
+  static async verifyShift(shiftId: string, companyId: string, userId: string, data: VerifyCashShiftInput) {
+    const shift = await this.getShiftById(companyId, shiftId);
+    if (!shift) {
+      throw new Error('Turno de caja no encontrado');
+    }
+
+    if (shift.verificationStatus === 'DEPOSITED') {
+      throw new Error('El turno ya fue depositado en cuentas bancarias y su estado es definitivo.');
+    }
+
+    await query(
+      `UPDATE cash_shifts SET
+        verification_status = ?,
+        verified_by_user_id = ?,
+        verified_at = CURRENT_TIMESTAMP(),
+        verification_notes = ?
+       WHERE id = ?`,
+      [data.status, userId, data.notes || null, shiftId]
+    );
+
+    if (data.resolveNotification) {
+      await query(
+        `UPDATE cash_audit_notifications SET
+          is_resolved = 1,
+          resolved_by_user_id = ?,
+          resolved_at = CURRENT_TIMESTAMP()
+         WHERE shift_id = ?`,
+        [userId, shiftId]
+      );
+    }
+
+    return {
+      shiftId,
+      verificationStatus: data.status,
+      verifiedByUserId: userId,
+      verifiedAt: new Date().toISOString(),
+      notes: data.notes || null,
+    };
+  }
+
+  /**
+   * Registra los depósitos bancarios de un turno (efectivo y transacciones electrónicas)
+   * Creando movimientos bancarios conciliables y actualizando el saldo de las cuentas
+   */
+  static async registerShiftDeposits(shiftId: string, companyId: string, userId: string, data: DepositCashShiftInput) {
+    return await withTransaction(async (conn) => {
+      const [shiftRows]: any = await conn.query(
+        `SELECT cs.*, cr.code as cash_register_code FROM cash_shifts cs
+         INNER JOIN cash_registers cr ON cs.cash_register_id = cr.id
+         INNER JOIN branches b ON cs.branch_id = b.id
+         WHERE cs.id = ? AND b.company_id = ?`,
+        [shiftId, companyId]
+      );
+
+      if (!shiftRows || shiftRows.length === 0) {
+        throw new Error('Turno de caja no encontrado');
+      }
+
+      const shift = shiftRows[0];
+
+      if (shift.verification_status === 'DEPOSITED') {
+        throw new Error('Este turno de caja ya tiene sus depósitos bancarios registrados en su totalidad y no permite nuevos depósitos.');
+      }
+
+      const createdDeposits: any[] = [];
+
+      for (const item of data.deposits) {
+        if (!item.amount || item.amount <= 0) continue;
+
+        // 1. Obtener y bloquear cuenta bancaria
+        const [accRows]: any = await conn.query(
+          `SELECT id, current_balance, currency FROM bank_accounts WHERE id = ? AND company_id = ? FOR UPDATE`,
+          [item.bankAccountId, companyId]
+        );
+
+        if (!accRows || accRows.length === 0) {
+          throw new Error(`Cuenta bancaria no encontrada o no pertenece a la empresa`);
+        }
+
+        const acc = accRows[0];
+        const newBalance = Number((Number(acc.current_balance) + item.amount).toFixed(2));
+
+        // 2. Actualizar saldo en cuenta bancaria
+        await conn.query(
+          `UPDATE bank_accounts SET current_balance = ? WHERE id = ?`,
+          [newBalance, acc.id]
+        );
+
+        // 3. Crear movimiento bancario para conciliación
+        const movementId = crypto.randomUUID();
+        const concept = `Depósito Turno POS #${shift.id.slice(0, 8)} (${item.depositType}): ${item.notes || 'Arqueo de caja'}`;
+        await conn.query(
+          `INSERT INTO bank_movements (
+            id, account_id, user_id, movement_type, amount, balance_after,
+            movement_date, reference_number, concept, is_reconciled
+          ) VALUES (?, ?, ?, 'DEPOSIT', ?, ?, ?, ?, ?, 0)`,
+          [
+            movementId,
+            acc.id,
+            userId,
+            item.amount,
+            newBalance,
+            item.depositDate || new Date().toISOString().slice(0, 10),
+            item.referenceNumber || null,
+            concept,
+          ]
+        );
+
+        // 4. Registrar en cash_shift_deposits
+        const depositId = crypto.randomUUID();
+        await conn.query(
+          `INSERT INTO cash_shift_deposits (
+            id, shift_id, company_id, bank_account_id, user_id,
+            deposit_type, amount, currency, deposit_date,
+            reference_number, notes, bank_movement_id
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            depositId,
+            shift.id,
+            companyId,
+            acc.id,
+            userId,
+            item.depositType,
+            item.amount,
+            item.currency,
+            item.depositDate || new Date().toISOString().slice(0, 10),
+            item.referenceNumber || null,
+            item.notes || null,
+            movementId,
+          ]
+        );
+
+        createdDeposits.push({
+          id: depositId,
+          bankMovementId: movementId,
+          bankAccountId: acc.id,
+          amount: item.amount,
+          currency: item.currency,
+          newBalance,
+        });
+      }
+
+      // Actualizar status del turno a 'DEPOSITED' permanentemente
+      await conn.query(
+        `UPDATE cash_shifts 
+         SET verification_status = 'DEPOSITED',
+             verified_by_user_id = COALESCE(verified_by_user_id, ?),
+             verified_at = COALESCE(verified_at, CURRENT_TIMESTAMP())
+         WHERE id = ?`,
+        [userId, shift.id]
+      );
+
+      return {
+        shiftId: shift.id,
+        deposits: createdDeposits,
+      };
+    });
+  }
+
+  /**
+   * Obtiene alertas / notificaciones de auditoría de arqueos para personal autorizado
+   */
+  static async getCashAuditNotifications(companyId: string, onlyUnresolved = true) {
+    let sql = `
+      SELECT can.*,
+             cr.code as cash_register_code, cr.name as cash_register_name,
+             b.name as branch_name,
+             u_cashier.full_name as cashier_name,
+             u_res.full_name as resolved_by_name
+      FROM cash_audit_notifications can
+      INNER JOIN branches b ON can.branch_id = b.id
+      INNER JOIN cash_registers cr ON can.cash_register_id = cr.id
+      INNER JOIN users u_cashier ON can.cashier_user_id = u_cashier.id
+      LEFT JOIN users u_res ON can.resolved_by_user_id = u_res.id
+      WHERE can.company_id = ?
+    `;
+    const params: any[] = [companyId];
+    if (onlyUnresolved) {
+      sql += ` AND can.is_resolved = 0`;
+    }
+    sql += ` ORDER BY can.created_at DESC LIMIT 50`;
+    const rows = await query<any>(sql, params);
+
+    return rows.map((r) => ({
+      id: r.id,
+      shiftId: r.shift_id,
+      cashRegisterId: r.cash_register_id,
+      cashRegisterCode: r.cash_register_code,
+      cashRegisterName: r.cash_register_name,
+      branchId: r.branch_id,
+      branchName: r.branch_name,
+      cashierId: r.cashier_user_id,
+      cashierName: r.cashier_name,
+      discrepancyUSD: Number(r.discrepancy_usd || 0),
+      discrepancyVES: Number(r.discrepancy_ves || 0),
+      title: r.title,
+      message: r.message,
+      isResolved: Boolean(r.is_resolved),
+      resolvedByUserId: r.resolved_by_user_id || null,
+      resolvedByName: r.resolved_by_name || null,
+      resolvedAt: r.resolved_at || null,
+      createdAt: r.created_at,
+    }));
+  }
+
+  /**
+   * Resuelve una notificación de discrepancia de auditoría
+   */
+  static async resolveDiscrepancyNotification(notificationId: string, companyId: string, userId: string, resolutionNotes?: string) {
+    const [notifRows]: any = await query(
+      `SELECT * FROM cash_audit_notifications WHERE id = ? AND company_id = ?`,
+      [notificationId, companyId]
+    );
+    if (!notifRows || notifRows.length === 0) {
+      throw new Error('Notificación de discrepancia no encontrada');
+    }
+
+    await query(
+      `UPDATE cash_audit_notifications SET
+        is_resolved = 1,
+        resolved_by_user_id = ?,
+        resolved_at = CURRENT_TIMESTAMP()
+       WHERE id = ?`,
+      [userId, notificationId]
+    );
+
+    const notif = notifRows[0];
+    if (notif.shift_id && resolutionNotes) {
+      await query(
+        `UPDATE cash_shifts SET
+          verification_notes = CONCAT(COALESCE(verification_notes, ''), '\n[Resolución Notificación]: ', ?)
+         WHERE id = ?`,
+        [resolutionNotes, notif.shift_id]
+      );
+    }
+
+    return { id: notificationId, isResolved: true, resolvedAt: new Date().toISOString() };
+  }
 }
+

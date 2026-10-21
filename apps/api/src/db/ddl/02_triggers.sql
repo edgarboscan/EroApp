@@ -6,30 +6,9 @@ USE `ero_erp_db`;
 
 DELIMITER $$
 
--- 1. Actualización Automática de Stock por Movimientos de Inventario
+-- 1. Actualización de Stock por Movimientos de Inventario (Deshabilitado: el control transaccional de stock, lotes y reservas se gestiona directamente en la capa de servicios)
 DROP TRIGGER IF EXISTS `trg_inventory_movements_after_insert`$$
-CREATE TRIGGER `trg_inventory_movements_after_insert`
-AFTER INSERT ON `inventory_movements`
-FOR EACH ROW
-BEGIN
-  -- Insertar o actualizar stock del depósito
-  INSERT INTO `product_stocks` (`product_id`, `warehouse_id`, `current_stock`, `last_movement_at`)
-  VALUES (
-    NEW.product_id, 
-    NEW.warehouse_id, 
-    CASE 
-      WHEN NEW.movement_type IN ('IN', 'ADJUST_IN', 'TRANSFER_IN', 'PURCHASE') THEN NEW.quantity
-      ELSE -NEW.quantity
-    END,
-    NOW()
-  )
-  ON DUPLICATE KEY UPDATE
-    `current_stock` = CASE 
-      WHEN NEW.movement_type IN ('IN', 'ADJUST_IN', 'TRANSFER_IN', 'PURCHASE') THEN `current_stock` + NEW.quantity
-      ELSE `current_stock` - NEW.quantity
-    END,
-    `last_movement_at` = NOW();
-END$$
+
 
 -- 2. Registro Histórico Automático al Modificar Precios de Productos
 DROP TRIGGER IF EXISTS `trg_products_after_update_price`$$
@@ -95,49 +74,7 @@ BEGIN
   END IF;
 END$$
 
--- 4. Descuento Automático de Stock al Insertar Renglones de Factura POS
+-- 4. Descuento Automático de Stock al Insertar Renglones de Factura (Deshabilitado: el control de stock, reserva y despacho se realiza a nivel transaccional en la capa de servicios)
 DROP TRIGGER IF EXISTS `trg_sales_invoice_items_after_insert`$$
-CREATE TRIGGER `trg_sales_invoice_items_after_insert`
-AFTER INSERT ON `sales_invoice_items`
-FOR EACH ROW
-BEGIN
-  DECLARE v_branch_id CHAR(36);
-  DECLARE v_warehouse_id CHAR(36);
-  DECLARE v_user_id CHAR(36);
-  
-  SELECT `branch_id`, `warehouse_id`, `user_id`
-  INTO v_branch_id, v_warehouse_id, v_user_id
-  FROM `sales_invoices`
-  WHERE `id` = NEW.invoice_id;
-
-  -- Registrar movimiento de salida por venta
-  INSERT INTO `inventory_movements` (
-    `id`,
-    `branch_id`,
-    `warehouse_id`,
-    `product_id`,
-    `user_id`,
-    `movement_type`,
-    `quantity`,
-    `unit_cost`,
-    `total_cost`,
-    `reference_document`,
-    `reason`,
-    `created_at`
-  ) VALUES (
-    UUID(),
-    v_branch_id,
-    v_warehouse_id,
-    NEW.product_id,
-    v_user_id,
-    'SALE',
-    NEW.quantity,
-    NEW.unit_cost,
-    (NEW.quantity * NEW.unit_cost),
-    NEW.invoice_id,
-    'Venta en Punto de Venta / Factura Comercial',
-    NOW()
-  );
-END$$
 
 DELIMITER ;

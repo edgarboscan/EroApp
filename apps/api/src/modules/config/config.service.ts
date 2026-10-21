@@ -303,12 +303,12 @@ export class ConfigService {
    */
   static async getWarehouses(companyId: string, branchId?: string) {
     try {
-      const sql = `SELECT w.id, w.branch_id, w.code, w.name, w.is_default, w.is_active,
+      const sql = `SELECT w.id, w.branch_id, w.code, w.name, w.is_default, w.is_default_sales, w.is_default_purchases, w.is_active,
                           b.name as branch_name, b.code as branch_code
                    FROM warehouses w
                    INNER JOIN branches b ON w.branch_id = b.id
                    WHERE b.company_id = ? ${branchId ? 'AND w.branch_id = ?' : ''}
-                   ORDER BY b.code ASC, w.is_default DESC, w.code ASC`;
+                   ORDER BY b.code ASC, w.is_default_sales DESC, w.is_default DESC, w.code ASC`;
       const params = branchId ? [companyId, branchId] : [companyId];
       const rows = await query<any>(sql, params);
 
@@ -320,7 +320,9 @@ export class ConfigService {
           branchCode: r.branch_code,
           code: r.code,
           name: r.name,
-          isDefault: Boolean(r.is_default),
+          isDefault: Boolean(r.is_default || r.is_default_sales || r.is_default_purchases),
+          isDefaultSales: Boolean(r.is_default_sales),
+          isDefaultPurchases: Boolean(r.is_default_purchases),
           isActive: Boolean(r.is_active),
         }));
       }
@@ -337,6 +339,8 @@ export class ConfigService {
         code: 'ALM-01',
         name: 'Almacén Central Mayorista',
         isDefault: true,
+        isDefaultSales: true,
+        isDefaultPurchases: true,
         isActive: true,
       },
       {
@@ -347,6 +351,8 @@ export class ConfigService {
         code: 'TIENDA-01',
         name: 'Piso de Venta Caracas',
         isDefault: false,
+        isDefaultSales: false,
+        isDefaultPurchases: false,
         isActive: true,
       },
       {
@@ -357,6 +363,8 @@ export class ConfigService {
         code: 'ALM-LM01',
         name: 'Depósito Las Mercedes',
         isDefault: true,
+        isDefaultSales: true,
+        isDefaultPurchases: true,
         isActive: true,
       },
     ];
@@ -367,19 +375,32 @@ export class ConfigService {
    */
   static async createWarehouse(companyId: string, input: WarehouseInput) {
     const warehouseId = crypto.randomUUID();
+    const isDefaultSales = Boolean(input.isDefaultSales);
+    const isDefaultPurchases = Boolean(input.isDefaultPurchases);
+    const isDefault = Boolean(input.isDefault || isDefaultSales || isDefaultPurchases);
+
     try {
+      if (isDefaultSales) {
+        await query(`UPDATE warehouses SET is_default_sales = 0 WHERE branch_id = ?`, [input.branchId]);
+      }
+      if (isDefaultPurchases) {
+        await query(`UPDATE warehouses SET is_default_purchases = 0 WHERE branch_id = ?`, [input.branchId]);
+      }
       if (input.isDefault) {
         await query(`UPDATE warehouses SET is_default = 0 WHERE branch_id = ?`, [input.branchId]);
       }
+
       await query(
-        `INSERT INTO warehouses (id, branch_id, code, name, is_default, is_active)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO warehouses (id, branch_id, code, name, is_default, is_default_sales, is_default_purchases, is_active)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           warehouseId,
           input.branchId,
           input.code.toUpperCase(),
           input.name,
-          input.isDefault ? 1 : 0,
+          isDefault ? 1 : 0,
+          isDefaultSales ? 1 : 0,
+          isDefaultPurchases ? 1 : 0,
           input.isActive ? 1 : 0,
         ]
       );
@@ -392,7 +413,9 @@ export class ConfigService {
       branchId: input.branchId,
       code: input.code.toUpperCase(),
       name: input.name,
-      isDefault: input.isDefault,
+      isDefault,
+      isDefaultSales,
+      isDefaultPurchases,
       isActive: input.isActive,
     };
   }
@@ -414,17 +437,25 @@ export class ConfigService {
     const branchId = input.branchId !== undefined ? input.branchId : current.branch_id;
     const code = input.code !== undefined ? input.code.trim().toUpperCase() : current.code;
     const name = input.name !== undefined ? input.name.trim() : current.name;
-    const isDefault = input.isDefault !== undefined ? input.isDefault : Boolean(current.is_default);
+    const isDefaultSales = input.isDefaultSales !== undefined ? input.isDefaultSales : Boolean(current.is_default_sales);
+    const isDefaultPurchases = input.isDefaultPurchases !== undefined ? input.isDefaultPurchases : Boolean(current.is_default_purchases);
+    const isDefault = input.isDefault !== undefined ? input.isDefault : Boolean(current.is_default || isDefaultSales || isDefaultPurchases);
     const isActive = input.isActive !== undefined ? input.isActive : Boolean(current.is_active);
 
+    if (isDefaultSales && !current.is_default_sales) {
+      await query(`UPDATE warehouses SET is_default_sales = 0 WHERE branch_id = ?`, [branchId]);
+    }
+    if (isDefaultPurchases && !current.is_default_purchases) {
+      await query(`UPDATE warehouses SET is_default_purchases = 0 WHERE branch_id = ?`, [branchId]);
+    }
     if (isDefault && !current.is_default) {
       await query(`UPDATE warehouses SET is_default = 0 WHERE branch_id = ?`, [branchId]);
     }
 
     await query(
-      `UPDATE warehouses SET branch_id = ?, code = ?, name = ?, is_default = ?, is_active = ?
+      `UPDATE warehouses SET branch_id = ?, code = ?, name = ?, is_default = ?, is_default_sales = ?, is_default_purchases = ?, is_active = ?
        WHERE id = ?`,
-      [branchId, code, name, isDefault ? 1 : 0, isActive ? 1 : 0, id]
+      [branchId, code, name, isDefault ? 1 : 0, isDefaultSales ? 1 : 0, isDefaultPurchases ? 1 : 0, isActive ? 1 : 0, id]
     );
 
     return {
@@ -433,6 +464,8 @@ export class ConfigService {
       code,
       name,
       isDefault,
+      isDefaultSales,
+      isDefaultPurchases,
       isActive,
     };
   }

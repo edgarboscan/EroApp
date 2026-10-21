@@ -18,6 +18,7 @@ const DefaultLandingRedirect: React.FC = () => {
 import { DynamicDashboard } from '../features/dashboards/DynamicDashboard';
 import { POSRegister } from '../features/pos/POSRegister';
 import { CashRegisterView } from '../features/pos/CashRegisterView';
+import { CashAuditVerificationView } from '../features/pos/CashAuditVerificationView';
 import { ProductCatalog } from '../features/inventory/ProductCatalog';
 import { HierarchyManager } from '../features/inventory/HierarchyManager';
 import { PhysicalLocationsView } from '../features/inventory/PhysicalLocationsView';
@@ -117,6 +118,20 @@ export const AppRouter: React.FC = () => {
               <CashRegisterView />
             </RequirePermission>
           }
+        />
+
+        <Route
+          path="/pos/auditoria-arqueos"
+          element={
+            <RequirePermission module="pos" action="audit_shifts">
+              <CashAuditVerificationView />
+            </RequirePermission>
+          }
+        />
+
+        <Route
+          path="/pos/verificacion"
+          element={<Navigate to="/pos/auditoria-arqueos" replace />}
         />
 
         <Route

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { toast } from 'sonner';
+import React, { useState, useEffect, useMemo } from "react";
+import { toast } from "sonner";
 import {
   Users,
   Shield,
@@ -19,12 +19,12 @@ import {
   Check,
   Building2,
   Warehouse,
-} from 'lucide-react';
-import { Badge } from '../../components/ui/Badge';
-import { Button } from '../../components/ui/Button';
-import { useAuthStore, isSuperAdminRole } from '../../stores/authStore';
-import { showDestructiveConfirm } from '../../lib/sweetalert';
-import { useEscapeKey } from '../../components/ui/Modal';
+} from "lucide-react";
+import { Badge } from "../../components/ui/Badge";
+import { Button } from "../../components/ui/Button";
+import { useAuthStore, isSuperAdminRole } from "../../stores/authStore";
+import { showDestructiveConfirm } from "../../lib/sweetalert";
+import { useEscapeKey } from "../../components/ui/Modal";
 
 export interface BranchWithWarehouses {
   id: string;
@@ -68,100 +68,431 @@ export interface PermissionItem {
   description: string;
 }
 
-export const MODULE_METADATA: Record<string, { label: string; badgeColor: string }> = {
-  sales: { label: 'Ventas y Facturación', badgeColor: 'bg-blue-50 text-blue-700 border-blue-200' },
-  pos: { label: 'Punto de Venta (POS)', badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  customers: { label: 'Clientes y Directorio', badgeColor: 'bg-sky-50 text-sky-700 border-sky-200' },
-  receivables: { label: 'Cuentas por Cobrar (CxC)', badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-  purchases: { label: 'Compras y Abastecimiento', badgeColor: 'bg-purple-50 text-purple-700 border-purple-200' },
-  suppliers: { label: 'Proveedores y Contactos', badgeColor: 'bg-violet-50 text-violet-700 border-violet-200' },
-  payables: { label: 'Cuentas por Pagar (CxP)', badgeColor: 'bg-rose-50 text-rose-700 border-rose-200' },
-  inventory: { label: 'Inventario y Almacenes', badgeColor: 'bg-amber-50 text-amber-700 border-amber-200' },
-  pricing: { label: 'Precios y Tasa Oficial', badgeColor: 'bg-amber-100 text-amber-800 border-amber-300' },
-  treasury: { label: 'Tesorería y Cuentas', badgeColor: 'bg-teal-50 text-teal-700 border-teal-200' },
-  taxes: { label: 'Impuestos y SENIAT', badgeColor: 'bg-red-50 text-red-700 border-red-200' },
-  reports: { label: 'Reportes Gerenciales', badgeColor: 'bg-cyan-50 text-cyan-700 border-cyan-200' },
-  config: { label: 'Configuración y Accesos', badgeColor: 'bg-neutral-100 text-neutral-800 border-neutral-200' },
-  dashboards: { label: 'Dashboards e Indicadores', badgeColor: 'bg-orange-50 text-orange-700 border-orange-200' },
-  audit: { label: 'Auditoría y Bitácora', badgeColor: 'bg-stone-50 text-stone-700 border-stone-200' },
+export const MODULE_METADATA: Record<
+  string,
+  { label: string; badgeColor: string }
+> = {
+  sales: {
+    label: "Ventas y Facturación",
+    badgeColor: "bg-blue-50 text-blue-700 border-blue-200",
+  },
+  pos: {
+    label: "Punto de Venta (POS)",
+    badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  },
+  customers: {
+    label: "Clientes y Directorio",
+    badgeColor: "bg-sky-50 text-sky-700 border-sky-200",
+  },
+  receivables: {
+    label: "Cuentas por Cobrar (CxC)",
+    badgeColor: "bg-indigo-50 text-indigo-700 border-indigo-200",
+  },
+  purchases: {
+    label: "Compras y Abastecimiento",
+    badgeColor: "bg-purple-50 text-purple-700 border-purple-200",
+  },
+  suppliers: {
+    label: "Proveedores y Contactos",
+    badgeColor: "bg-violet-50 text-violet-700 border-violet-200",
+  },
+  payables: {
+    label: "Cuentas por Pagar (CxP)",
+    badgeColor: "bg-rose-50 text-rose-700 border-rose-200",
+  },
+  inventory: {
+    label: "Inventario y Almacenes",
+    badgeColor: "bg-amber-50 text-amber-700 border-amber-200",
+  },
+  pricing: {
+    label: "Precios y Tasa Oficial",
+    badgeColor: "bg-amber-100 text-amber-800 border-amber-300",
+  },
+  treasury: {
+    label: "Tesorería y Cuentas",
+    badgeColor: "bg-teal-50 text-teal-700 border-teal-200",
+  },
+  taxes: {
+    label: "Impuestos y SENIAT",
+    badgeColor: "bg-red-50 text-red-700 border-red-200",
+  },
+  reports: {
+    label: "Reportes Gerenciales",
+    badgeColor: "bg-cyan-50 text-cyan-700 border-cyan-200",
+  },
+  config: {
+    label: "Configuración y Accesos",
+    badgeColor: "bg-neutral-100 text-neutral-800 border-neutral-200",
+  },
+  dashboards: {
+    label: "Dashboards e Indicadores",
+    badgeColor: "bg-orange-50 text-orange-700 border-orange-200",
+  },
+  audit: {
+    label: "Auditoría y Bitácora",
+    badgeColor: "bg-stone-50 text-stone-700 border-stone-200",
+  },
 };
 
 export const DEFAULT_PERMISSIONS: PermissionItem[] = [
   // POS
-  { id: 'p_pos_read', module: 'pos', action: 'read', key: 'pos.read', description: 'Acceso a pantalla de caja' },
-  { id: 'p_pos_create', module: 'pos', action: 'create', key: 'pos.create', description: 'Apertura y operaciones de caja' },
-  { id: 'p_pos_close_register', module: 'pos', action: 'close_register', key: 'pos.close_register', description: 'Realizar cierre de caja y arqueo' },
+  {
+    id: "p_pos_read",
+    module: "pos",
+    action: "read",
+    key: "pos.read",
+    description: "Acceso a pantalla de caja",
+  },
+  {
+    id: "p_pos_create",
+    module: "pos",
+    action: "create",
+    key: "pos.create",
+    description: "Apertura y operaciones de caja",
+  },
+  {
+    id: "p_pos_close_register",
+    module: "pos",
+    action: "close_register",
+    key: "pos.close_register",
+    description: "Realizar cierre de caja y arqueo",
+  },
+  {
+    id: "p_pos_audit_shifts",
+    module: "pos",
+    action: "audit_shifts",
+    key: "pos.audit_shifts",
+    description: "Auditar y verificar arqueos de caja, dictaminar discrepancias y registrar depósitos bancarios",
+  },
 
   // Ventas
-  { id: 'p_sales_read', module: 'sales', action: 'read', key: 'sales.read', description: 'Ver ventas y facturas' },
-  { id: 'p_sales_create', module: 'sales', action: 'create', key: 'sales.create', description: 'Facturar y procesar ventas' },
-  { id: 'p_sales_update', module: 'sales', action: 'update', key: 'sales.update', description: 'Modificar cotizaciones y documentos de venta' },
-  { id: 'p_sales_delete', module: 'sales', action: 'delete', key: 'sales.delete', description: 'Anular documentos de venta' },
-  { id: 'p_sales_discount', module: 'sales', action: 'approve_discount', key: 'sales.approve_discount', description: 'Aprobar descuentos comerciales' },
+  {
+    id: "p_sales_read",
+    module: "sales",
+    action: "read",
+    key: "sales.read",
+    description: "Ver ventas y facturas",
+  },
+  {
+    id: "p_sales_create",
+    module: "sales",
+    action: "create",
+    key: "sales.create",
+    description: "Facturar y procesar ventas",
+  },
+  {
+    id: "p_sales_update",
+    module: "sales",
+    action: "update",
+    key: "sales.update",
+    description: "Modificar cotizaciones y documentos de venta",
+  },
+  {
+    id: "p_sales_delete",
+    module: "sales",
+    action: "delete",
+    key: "sales.delete",
+    description: "Anular documentos de venta",
+  },
+  {
+    id: "p_sales_discount",
+    module: "sales",
+    action: "approve_discount",
+    key: "sales.approve_discount",
+    description: "Aprobar descuentos comerciales",
+  },
 
   // Clientes
-  { id: 'p_customers_read', module: 'customers', action: 'read', key: 'customers.read', description: 'Consultar directorio de clientes' },
-  { id: 'p_customers_create', module: 'customers', action: 'create', key: 'customers.create', description: 'Registrar nuevos clientes' },
-  { id: 'p_customers_update', module: 'customers', action: 'update', key: 'customers.update', description: 'Modificar datos de clientes' },
-  { id: 'p_customers_delete', module: 'customers', action: 'delete', key: 'customers.delete', description: 'Anular o desactivar clientes' },
+  {
+    id: "p_customers_read",
+    module: "customers",
+    action: "read",
+    key: "customers.read",
+    description: "Consultar directorio de clientes",
+  },
+  {
+    id: "p_customers_create",
+    module: "customers",
+    action: "create",
+    key: "customers.create",
+    description: "Registrar nuevos clientes",
+  },
+  {
+    id: "p_customers_update",
+    module: "customers",
+    action: "update",
+    key: "customers.update",
+    description: "Modificar datos de clientes",
+  },
+  {
+    id: "p_customers_delete",
+    module: "customers",
+    action: "delete",
+    key: "customers.delete",
+    description: "Anular o desactivar clientes",
+  },
 
   // Cuentas por Cobrar
-  { id: 'p_receivables_read', module: 'receivables', action: 'read', key: 'receivables.read', description: 'Consultar cuentas por cobrar' },
-  { id: 'p_receivables_create', module: 'receivables', action: 'create', key: 'receivables.create', description: 'Registrar cobros y abonos CxC' },
+  {
+    id: "p_receivables_read",
+    module: "receivables",
+    action: "read",
+    key: "receivables.read",
+    description: "Consultar cuentas por cobrar",
+  },
+  {
+    id: "p_receivables_create",
+    module: "receivables",
+    action: "create",
+    key: "receivables.create",
+    description: "Registrar cobros y abonos CxC",
+  },
 
   // Compras
-  { id: 'p_purchases_read', module: 'purchases', action: 'read', key: 'purchases.read', description: 'Consultar compras y recepciones' },
-  { id: 'p_purchases_create', module: 'purchases', action: 'create', key: 'purchases.create', description: 'Registrar compras y facturas de proveedor' },
-  { id: 'p_purchases_update', module: 'purchases', action: 'update', key: 'purchases.update', description: 'Modificar órdenes de compra' },
-  { id: 'p_purchases_delete', module: 'purchases', action: 'delete', key: 'purchases.delete', description: 'Anular órdenes de compra' },
+  {
+    id: "p_purchases_read",
+    module: "purchases",
+    action: "read",
+    key: "purchases.read",
+    description: "Consultar compras y recepciones",
+  },
+  {
+    id: "p_purchases_create",
+    module: "purchases",
+    action: "create",
+    key: "purchases.create",
+    description: "Registrar compras y facturas de proveedor",
+  },
+  {
+    id: "p_purchases_update",
+    module: "purchases",
+    action: "update",
+    key: "purchases.update",
+    description: "Modificar órdenes de compra",
+  },
+  {
+    id: "p_purchases_delete",
+    module: "purchases",
+    action: "delete",
+    key: "purchases.delete",
+    description: "Anular órdenes de compra",
+  },
 
   // Proveedores
-  { id: 'p_suppliers_read', module: 'suppliers', action: 'read', key: 'suppliers.read', description: 'Consultar catálogo de proveedores' },
-  { id: 'p_suppliers_create', module: 'suppliers', action: 'create', key: 'suppliers.create', description: 'Registrar nuevos proveedores' },
-  { id: 'p_suppliers_update', module: 'suppliers', action: 'update', key: 'suppliers.update', description: 'Modificar datos de proveedores' },
+  {
+    id: "p_suppliers_read",
+    module: "suppliers",
+    action: "read",
+    key: "suppliers.read",
+    description: "Consultar catálogo de proveedores",
+  },
+  {
+    id: "p_suppliers_create",
+    module: "suppliers",
+    action: "create",
+    key: "suppliers.create",
+    description: "Registrar nuevos proveedores",
+  },
+  {
+    id: "p_suppliers_update",
+    module: "suppliers",
+    action: "update",
+    key: "suppliers.update",
+    description: "Modificar datos de proveedores",
+  },
 
   // Cuentas por Pagar
-  { id: 'p_payables_read', module: 'payables', action: 'read', key: 'payables.read', description: 'Consultar cuentas por pagar' },
-  { id: 'p_payables_create', module: 'payables', action: 'create', key: 'payables.create', description: 'Registrar pagos y amortizaciones a proveedores' },
-  { id: 'p_payables_update', module: 'payables', action: 'update', key: 'payables.update', description: 'Modificar pagos a proveedores' },
+  {
+    id: "p_payables_read",
+    module: "payables",
+    action: "read",
+    key: "payables.read",
+    description: "Consultar cuentas por pagar",
+  },
+  {
+    id: "p_payables_create",
+    module: "payables",
+    action: "create",
+    key: "payables.create",
+    description: "Registrar pagos y amortizaciones a proveedores",
+  },
+  {
+    id: "p_payables_update",
+    module: "payables",
+    action: "update",
+    key: "payables.update",
+    description: "Modificar pagos a proveedores",
+  },
 
   // Inventario
-  { id: 'p_inventory_read', module: 'inventory', action: 'read', key: 'inventory.read', description: 'Ver catálogo y stock' },
-  { id: 'p_inventory_create', module: 'inventory', action: 'create', key: 'inventory.create', description: 'Crear productos y jerarquías' },
-  { id: 'p_inventory_update', module: 'inventory', action: 'update', key: 'inventory.update', description: 'Modificar productos y ubicaciones' },
-  { id: 'p_inventory_adjust', module: 'inventory', action: 'adjust', key: 'inventory.adjust', description: 'Realizar ajustes de inventario' },
-  { id: 'p_inventory_transfer', module: 'inventory', action: 'transfer', key: 'inventory.transfer', description: 'Realizar traslados entre depósitos' },
+  {
+    id: "p_inventory_read",
+    module: "inventory",
+    action: "read",
+    key: "inventory.read",
+    description: "Ver catálogo y stock",
+  },
+  {
+    id: "p_inventory_create",
+    module: "inventory",
+    action: "create",
+    key: "inventory.create",
+    description: "Crear productos y jerarquías",
+  },
+  {
+    id: "p_inventory_update",
+    module: "inventory",
+    action: "update",
+    key: "inventory.update",
+    description: "Modificar productos y ubicaciones",
+  },
+  {
+    id: "p_inventory_adjust",
+    module: "inventory",
+    action: "adjust",
+    key: "inventory.adjust",
+    description: "Realizar ajustes de inventario",
+  },
+  {
+    id: "p_inventory_transfer",
+    module: "inventory",
+    action: "transfer",
+    key: "inventory.transfer",
+    description: "Realizar traslados entre depósitos",
+  },
 
   // Precios
-  { id: 'p_pricing_read', module: 'pricing', action: 'read', key: 'pricing.read', description: 'Ver listas y reglas de precios' },
-  { id: 'p_pricing_bulk', module: 'pricing', action: 'bulk_update', key: 'pricing.bulk_update', description: 'Ejecutar actualización masiva de precios' },
-  { id: 'p_pricing_rate', module: 'pricing', action: 'exchange_rate', key: 'pricing.exchange_rate', description: 'Modificar tasa de cambio oficial BCV' },
-  { id: 'p_pricing_tax', module: 'pricing', action: 'apply_tax', key: 'pricing.apply_tax', description: 'Modificar tasas de impuesto con afectación' },
+  {
+    id: "p_pricing_read",
+    module: "pricing",
+    action: "read",
+    key: "pricing.read",
+    description: "Ver listas y reglas de precios",
+  },
+  {
+    id: "p_pricing_bulk",
+    module: "pricing",
+    action: "bulk_update",
+    key: "pricing.bulk_update",
+    description: "Ejecutar actualización masiva de precios",
+  },
+  {
+    id: "p_pricing_rate",
+    module: "pricing",
+    action: "exchange_rate",
+    key: "pricing.exchange_rate",
+    description: "Modificar tasa de cambio oficial BCV",
+  },
+  {
+    id: "p_pricing_tax",
+    module: "pricing",
+    action: "apply_tax",
+    key: "pricing.apply_tax",
+    description: "Modificar tasas de impuesto con afectación",
+  },
 
   // Tesorería
-  { id: 'p_treasury_read', module: 'treasury', action: 'read', key: 'treasury.read', description: 'Consultar saldos bancarios y movimientos' },
-  { id: 'p_treasury_create', module: 'treasury', action: 'create', key: 'treasury.create', description: 'Registrar movimientos y transferencias bancarias' },
-  { id: 'p_treasury_reconcile', module: 'treasury', action: 'reconcile', key: 'treasury.reconcile', description: 'Ejecutar conciliación bancaria por extracto' },
+  {
+    id: "p_treasury_read",
+    module: "treasury",
+    action: "read",
+    key: "treasury.read",
+    description: "Consultar saldos bancarios y movimientos",
+  },
+  {
+    id: "p_treasury_create",
+    module: "treasury",
+    action: "create",
+    key: "treasury.create",
+    description: "Registrar movimientos y transferencias bancarias",
+  },
+  {
+    id: "p_treasury_reconcile",
+    module: "treasury",
+    action: "reconcile",
+    key: "treasury.reconcile",
+    description: "Ejecutar conciliación bancaria por extracto",
+  },
 
   // Impuestos
-  { id: 'p_taxes_read', module: 'taxes', action: 'read', key: 'taxes.read', description: 'Consultar retenciones y libros SENIAT' },
-  { id: 'p_taxes_create', module: 'taxes', action: 'create', key: 'taxes.create', description: 'Emitir y anular retenciones SENIAT' },
+  {
+    id: "p_taxes_read",
+    module: "taxes",
+    action: "read",
+    key: "taxes.read",
+    description: "Consultar retenciones y libros SENIAT",
+  },
+  {
+    id: "p_taxes_create",
+    module: "taxes",
+    action: "create",
+    key: "taxes.create",
+    description: "Emitir y anular retenciones SENIAT",
+  },
 
   // Reportes
-  { id: 'p_reports_read', module: 'reports', action: 'read', key: 'reports.read', description: 'Consultar catálogo de reportes' },
-  { id: 'p_reports_pdf', module: 'reports', action: 'export_pdf', key: 'reports.export_pdf', description: 'Exportar reportes en PDF' },
-  { id: 'p_reports_excel', module: 'reports', action: 'export_excel', key: 'reports.export_excel', description: 'Exportar reportes en Excel/CSV' },
+  {
+    id: "p_reports_read",
+    module: "reports",
+    action: "read",
+    key: "reports.read",
+    description: "Consultar catálogo de reportes",
+  },
+  {
+    id: "p_reports_pdf",
+    module: "reports",
+    action: "export_pdf",
+    key: "reports.export_pdf",
+    description: "Exportar reportes en PDF",
+  },
+  {
+    id: "p_reports_excel",
+    module: "reports",
+    action: "export_excel",
+    key: "reports.export_excel",
+    description: "Exportar reportes en Excel/CSV",
+  },
 
   // Configuración
-  { id: 'p_config_read', module: 'config', action: 'read', key: 'config.read', description: 'Consultar configuración del sistema, empresa y sucursales' },
-  { id: 'p_config_write', module: 'config', action: 'write', key: 'config.write', description: 'Modificar configuración del sistema, usuarios y roles' },
+  {
+    id: "p_config_read",
+    module: "config",
+    action: "read",
+    key: "config.read",
+    description: "Consultar configuración del sistema, empresa y sucursales",
+  },
+  {
+    id: "p_config_write",
+    module: "config",
+    action: "write",
+    key: "config.write",
+    description: "Modificar configuración del sistema, usuarios y roles",
+  },
 
   // Dashboards
-  { id: 'p_dashboards_read', module: 'dashboards', action: 'read', key: 'dashboards.read', description: 'Ver dashboards' },
-  { id: 'p_dashboards_update', module: 'dashboards', action: 'update', key: 'dashboards.update', description: 'Personalizar layout de widgets' },
+  {
+    id: "p_dashboards_read",
+    module: "dashboards",
+    action: "read",
+    key: "dashboards.read",
+    description: "Ver dashboards",
+  },
+  {
+    id: "p_dashboards_update",
+    module: "dashboards",
+    action: "update",
+    key: "dashboards.update",
+    description: "Personalizar layout de widgets",
+  },
 
   // Auditoría
-  { id: 'p_audit_read', module: 'audit', action: 'read', key: 'audit.read', description: 'Consultar bitácora y registros de auditoría' },
+  {
+    id: "p_audit_read",
+    module: "audit",
+    action: "read",
+    key: "audit.read",
+    description: "Consultar bitácora y registros de auditoría",
+  },
 ];
 
 export const UsersAndRolesView: React.FC = () => {
@@ -169,70 +500,77 @@ export const UsersAndRolesView: React.FC = () => {
   const user = useAuthStore((s) => s.user);
   const hasPermission = useAuthStore((s) => s.hasPermission);
 
-  const [activeTab, setActiveTab] = useState<'users' | 'roles'>('users');
+  const [activeTab, setActiveTab] = useState<"users" | "roles">("users");
   const [loading, setLoading] = useState(false);
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [roles, setRoles] = useState<RoleRecord[]>([]);
-  const [permissions, setPermissions] = useState<PermissionItem[]>(DEFAULT_PERMISSIONS);
+  const [permissions, setPermissions] =
+    useState<PermissionItem[]>(DEFAULT_PERMISSIONS);
 
   // Filtros de usuarios
-  const [searchTerm, setSearchTerm] = useState('');
-  const [roleFilter, setRoleFilter] = useState('ALL');
-  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [roleFilter, setRoleFilter] = useState("ALL");
+  const [statusFilter, setStatusFilter] = useState("ALL");
 
   // Filtro de roles
-  const [roleSearchTerm, setRoleSearchTerm] = useState('');
+  const [roleSearchTerm, setRoleSearchTerm] = useState("");
 
   // Estado del modal de crear / editar usuario
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [availableBranches, setAvailableBranches] = useState<BranchWithWarehouses[]>([]);
+  const [availableBranches, setAvailableBranches] = useState<
+    BranchWithWarehouses[]
+  >([]);
 
   // Formulario Usuario
-  const [formUsername, setFormUsername] = useState('');
-  const [formFullName, setFormFullName] = useState('');
-  const [formEmail, setFormEmail] = useState('');
-  const [formPassword, setFormPassword] = useState('');
-  const [formRoleId, setFormRoleId] = useState('');
+  const [formUsername, setFormUsername] = useState("");
+  const [formFullName, setFormFullName] = useState("");
+  const [formEmail, setFormEmail] = useState("");
+  const [formPassword, setFormPassword] = useState("");
+  const [formRoleId, setFormRoleId] = useState("");
   const [formIs2fa, setFormIs2fa] = useState(false);
   const [formIsActive, setFormIsActive] = useState(true);
   const [formAllBranches, setFormAllBranches] = useState(true);
   const [formBranchIds, setFormBranchIds] = useState<string[]>([]);
   const [formCanSwitchWarehouses, setFormCanSwitchWarehouses] = useState(true);
-  const [formWarehouseByBranch, setFormWarehouseByBranch] = useState<Record<string, string>>({});
+  const [formWarehouseByBranch, setFormWarehouseByBranch] = useState<
+    Record<string, string>
+  >({});
 
   // Estado del modal de crear / editar rol
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<RoleRecord | null>(null);
-  const [roleFormName, setRoleFormName] = useState('');
-  const [roleFormDesc, setRoleFormDesc] = useState('');
+  const [roleFormName, setRoleFormName] = useState("");
+  const [roleFormDesc, setRoleFormDesc] = useState("");
   const [roleSelectedPerms, setRoleSelectedPerms] = useState<string[]>([]);
   const [submittingRole, setSubmittingRole] = useState(false);
-  const [permSearchQuery, setPermSearchQuery] = useState('');
+  const [permSearchQuery, setPermSearchQuery] = useState("");
 
-  useEscapeKey(() => {
-    if (isRoleModalOpen) setIsRoleModalOpen(false);
-    else if (isModalOpen) setIsModalOpen(false);
-  }, Boolean(isRoleModalOpen || isModalOpen));
+  useEscapeKey(
+    () => {
+      if (isRoleModalOpen) setIsRoleModalOpen(false);
+      else if (isModalOpen) setIsModalOpen(false);
+    },
+    Boolean(isRoleModalOpen || isModalOpen),
+  );
 
   const canManageRoles =
-    isSuperAdminRole(user?.role) ||
-    hasPermission('config', 'write');
+    isSuperAdminRole(user?.role) || hasPermission("config", "write");
 
   const fetchUsersAndRoles = async () => {
     setLoading(true);
     const headers: Record<string, string> = {};
     if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+      headers["Authorization"] = `Bearer ${token}`;
     }
 
     try {
       const [uRes, rRes, pRes, bRes] = await Promise.all([
-        fetch('/api/config/users', { headers }),
-        fetch('/api/config/roles', { headers }),
-        fetch('/api/config/permissions', { headers }),
-        fetch('/api/auth/branches?all=true', { headers }),
+        fetch("/api/config/users", { headers }),
+        fetch("/api/config/roles", { headers }),
+        fetch("/api/config/permissions", { headers }),
+        fetch("/api/auth/branches?all=true", { headers }),
       ]);
 
       if (uRes.ok) {
@@ -276,11 +614,11 @@ export const UsersAndRolesView: React.FC = () => {
   // ==========================================
   const handleOpenCreateUser = () => {
     setEditingUser(null);
-    setFormUsername('');
-    setFormFullName('');
-    setFormEmail('');
-    setFormPassword('');
-    setFormRoleId(roles[0]?.id || '');
+    setFormUsername("");
+    setFormFullName("");
+    setFormEmail("");
+    setFormPassword("");
+    setFormRoleId(roles[0]?.id || "");
     setFormIs2fa(false);
     setFormIsActive(true);
     setFormAllBranches(true);
@@ -295,8 +633,8 @@ export const UsersAndRolesView: React.FC = () => {
     setFormUsername(userToEdit.username);
     setFormFullName(userToEdit.fullName);
     setFormEmail(userToEdit.email);
-    setFormPassword('');
-    setFormRoleId(userToEdit.roleId || roles[0]?.id || '');
+    setFormPassword("");
+    setFormRoleId(userToEdit.roleId || roles[0]?.id || "");
     setFormIs2fa(userToEdit.is2faEnabled);
     setFormIsActive(userToEdit.isActive);
     setFormAllBranches(userToEdit.allBranches ?? true);
@@ -309,24 +647,28 @@ export const UsersAndRolesView: React.FC = () => {
   const handleSubmitUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formFullName.trim() || !formEmail.trim()) {
-      toast.error('Nombre completo y correo electrónico son requeridos');
+      toast.error("Nombre completo y correo electrónico son requeridos");
       return;
     }
 
     if (!editingUser && !formUsername.trim()) {
-      toast.error('El nombre de usuario es requerido');
+      toast.error("El nombre de usuario es requerido");
       return;
     }
 
     if (!formAllBranches && formBranchIds.length === 0) {
-      toast.error('Debe seleccionar al menos una sucursal para el usuario');
+      toast.error("Debe seleccionar al menos una sucursal para el usuario");
       return;
     }
 
     setSubmitting(true);
-    const selectedRole = roles.find((r) => r.id === formRoleId) || { name: 'Sin rol' };
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const selectedRole = roles.find((r) => r.id === formRoleId) || {
+      name: "Sin rol",
+    };
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
 
     try {
       if (editingUser) {
@@ -339,7 +681,9 @@ export const UsersAndRolesView: React.FC = () => {
           allBranches: formAllBranches,
           branchIds: formAllBranches ? [] : formBranchIds,
           canSwitchWarehouses: formCanSwitchWarehouses,
-          warehouseByBranch: formCanSwitchWarehouses ? {} : formWarehouseByBranch,
+          warehouseByBranch: formCanSwitchWarehouses
+            ? {}
+            : formWarehouseByBranch,
         };
         if (formPassword.trim()) {
           body.password = formPassword.trim();
@@ -347,13 +691,15 @@ export const UsersAndRolesView: React.FC = () => {
 
         try {
           const res = await fetch(`/api/config/users/${editingUser.id}`, {
-            method: 'PUT',
+            method: "PUT",
             headers,
             body: JSON.stringify(body),
           });
           const json = await res.json();
           if (!res.ok || !json.success) {
-            throw new Error(json.error?.message || 'Error al actualizar usuario');
+            throw new Error(
+              json.error?.message || "Error al actualizar usuario",
+            );
           }
         } catch {
           // Actualizar en memoria local
@@ -373,31 +719,37 @@ export const UsersAndRolesView: React.FC = () => {
                   allBranches: formAllBranches,
                   branchIds: formAllBranches ? [] : formBranchIds,
                   canSwitchWarehouses: formCanSwitchWarehouses,
-                  warehouseByBranch: formCanSwitchWarehouses ? {} : formWarehouseByBranch,
+                  warehouseByBranch: formCanSwitchWarehouses
+                    ? {}
+                    : formWarehouseByBranch,
                 }
-              : u
-          )
+              : u,
+          ),
         );
-        toast.success(`Usuario "${editingUser.username}" actualizado correctamente`);
+        toast.success(
+          `Usuario "${editingUser.username}" actualizado correctamente`,
+        );
       } else {
         const body = {
           username: formUsername.trim().toLowerCase(),
           fullName: formFullName.trim(),
           email: formEmail.trim(),
-          password: formPassword.trim() || 'Admin123!',
+          password: formPassword.trim() || "Admin123!",
           roleId: formRoleId,
           is2faEnabled: formIs2fa,
           isActive: formIsActive,
           allBranches: formAllBranches,
           branchIds: formAllBranches ? [] : formBranchIds,
           canSwitchWarehouses: formCanSwitchWarehouses,
-          warehouseByBranch: formCanSwitchWarehouses ? {} : formWarehouseByBranch,
+          warehouseByBranch: formCanSwitchWarehouses
+            ? {}
+            : formWarehouseByBranch,
         };
 
         let newId = `u_${Date.now()}`;
         try {
-          const res = await fetch('/api/config/users', {
-            method: 'POST',
+          const res = await fetch("/api/config/users", {
+            method: "POST",
             headers,
             body: JSON.stringify(body),
           });
@@ -421,7 +773,9 @@ export const UsersAndRolesView: React.FC = () => {
           allBranches: formAllBranches,
           branchIds: formAllBranches ? [] : formBranchIds,
           canSwitchWarehouses: formCanSwitchWarehouses,
-          warehouseByBranch: formCanSwitchWarehouses ? {} : formWarehouseByBranch,
+          warehouseByBranch: formCanSwitchWarehouses
+            ? {}
+            : formWarehouseByBranch,
           lastLoginAt: null,
         };
 
@@ -431,7 +785,8 @@ export const UsersAndRolesView: React.FC = () => {
 
       setIsModalOpen(false);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Error al procesar usuario';
+      const msg =
+        err instanceof Error ? err.message : "Error al procesar usuario";
       toast.error(msg);
     } finally {
       setSubmitting(false);
@@ -443,19 +798,21 @@ export const UsersAndRolesView: React.FC = () => {
 
     if (userRecord.isActive) {
       const confirmed = await showDestructiveConfirm(
-        '¿Suspender usuario?',
+        "¿Suspender usuario?",
         `¿Está seguro de que desea suspender la cuenta del usuario "${userRecord.username}"? No podrá iniciar sesión en el sistema mientras permanezca inactivo.`,
-        'Sí, suspender'
+        "Sí, suspender",
       );
       if (!confirmed) return;
     }
 
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
 
     try {
       await fetch(`/api/config/users/${userRecord.id}/status`, {
-        method: 'PATCH',
+        method: "PATCH",
         headers,
         body: JSON.stringify({ isActive: nextStatus }),
       });
@@ -464,7 +821,9 @@ export const UsersAndRolesView: React.FC = () => {
     }
 
     setUsers((prev) =>
-      prev.map((u) => (u.id === userRecord.id ? { ...u, isActive: nextStatus } : u))
+      prev.map((u) =>
+        u.id === userRecord.id ? { ...u, isActive: nextStatus } : u,
+      ),
     );
 
     if (nextStatus) {
@@ -479,10 +838,10 @@ export const UsersAndRolesView: React.FC = () => {
   // ==========================================
   const handleOpenCreateRole = () => {
     setEditingRole(null);
-    setRoleFormName('');
-    setRoleFormDesc('');
+    setRoleFormName("");
+    setRoleFormDesc("");
     setRoleSelectedPerms([]);
-    setPermSearchQuery('');
+    setPermSearchQuery("");
     setIsRoleModalOpen(true);
   };
 
@@ -490,28 +849,35 @@ export const UsersAndRolesView: React.FC = () => {
     setEditingRole(roleToEdit);
     setRoleFormName(roleToEdit.name);
     setRoleFormDesc(roleToEdit.description);
-    const existing = Array.isArray(roleToEdit.permissions) && roleToEdit.permissions.length > 0
-      ? roleToEdit.permissions
-      : roleToEdit.name.toLowerCase().includes('super')
-      ? permissions.map((p) => p.key)
-      : [];
+    const existing =
+      Array.isArray(roleToEdit.permissions) && roleToEdit.permissions.length > 0
+        ? roleToEdit.permissions
+        : roleToEdit.name.toLowerCase().includes("super")
+          ? permissions.map((p) => p.key)
+          : [];
     setRoleSelectedPerms(existing);
-    setPermSearchQuery('');
+    setPermSearchQuery("");
     setIsRoleModalOpen(true);
   };
 
   const handleTogglePerm = (key: string) => {
     setRoleSelectedPerms((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
     );
   };
 
   const handleToggleModule = (modulePermKeys: string[]) => {
-    const allSelected = modulePermKeys.every((k) => roleSelectedPerms.includes(k));
+    const allSelected = modulePermKeys.every((k) =>
+      roleSelectedPerms.includes(k),
+    );
     if (allSelected) {
-      setRoleSelectedPerms((prev) => prev.filter((k) => !modulePermKeys.includes(k)));
+      setRoleSelectedPerms((prev) =>
+        prev.filter((k) => !modulePermKeys.includes(k)),
+      );
     } else {
-      setRoleSelectedPerms((prev) => Array.from(new Set([...prev, ...modulePermKeys])));
+      setRoleSelectedPerms((prev) =>
+        Array.from(new Set([...prev, ...modulePermKeys])),
+      );
     }
   };
 
@@ -526,13 +892,15 @@ export const UsersAndRolesView: React.FC = () => {
   const handleSubmitRole = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!roleFormName.trim()) {
-      toast.error('El nombre del rol es requerido');
+      toast.error("El nombre del rol es requerido");
       return;
     }
 
     setSubmittingRole(true);
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
 
     const payload = {
       name: roleFormName.trim(),
@@ -553,28 +921,32 @@ export const UsersAndRolesView: React.FC = () => {
 
         try {
           const res = await fetch(`/api/config/roles/${editingRole.id}`, {
-            method: 'PUT',
+            method: "PUT",
             headers,
             body: JSON.stringify(payload),
           });
           const json = await res.json();
           if (!res.ok || !json.success) {
-            throw new Error(json.error?.message || 'Error al actualizar el rol');
+            throw new Error(
+              json.error?.message || "Error al actualizar el rol",
+            );
           }
         } catch (apiErr: unknown) {
-          const msg = apiErr instanceof Error ? apiErr.message : '';
-          if (msg.includes('403')) throw apiErr;
+          const msg = apiErr instanceof Error ? apiErr.message : "";
+          if (msg.includes("403")) throw apiErr;
         }
 
         setRoles((prev) =>
-          prev.map((r) => (r.id === editingRole.id ? updatedRoleData : r))
+          prev.map((r) => (r.id === editingRole.id ? updatedRoleData : r)),
         );
-        toast.success(`Rol "${updatedRoleData.name}" actualizado con ${roleSelectedPerms.length} permisos.`);
+        toast.success(
+          `Rol "${updatedRoleData.name}" actualizado con ${roleSelectedPerms.length} permisos.`,
+        );
       } else {
         let newId = `r_${Date.now()}`;
         try {
-          const res = await fetch('/api/config/roles', {
-            method: 'POST',
+          const res = await fetch("/api/config/roles", {
+            method: "POST",
             headers,
             body: JSON.stringify(payload),
           });
@@ -582,11 +954,11 @@ export const UsersAndRolesView: React.FC = () => {
           if (res.ok && json.success && json.data) {
             newId = json.data.id;
           } else if (!res.ok) {
-            throw new Error(json.error?.message || 'Error al crear el rol');
+            throw new Error(json.error?.message || "Error al crear el rol");
           }
         } catch (apiErr: unknown) {
-          const msg = apiErr instanceof Error ? apiErr.message : '';
-          if (msg.includes('Ya existe')) throw apiErr;
+          const msg = apiErr instanceof Error ? apiErr.message : "";
+          if (msg.includes("Ya existe")) throw apiErr;
         }
 
         const newRoleRecord: RoleRecord = {
@@ -604,7 +976,8 @@ export const UsersAndRolesView: React.FC = () => {
 
       setIsRoleModalOpen(false);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Error al procesar el rol';
+      const msg =
+        err instanceof Error ? err.message : "Error al procesar el rol";
       toast.error(msg);
     } finally {
       setSubmittingRole(false);
@@ -619,7 +992,7 @@ export const UsersAndRolesView: React.FC = () => {
           (p) =>
             p.description.toLowerCase().includes(query) ||
             p.key.toLowerCase().includes(query) ||
-            p.module.toLowerCase().includes(query)
+            p.module.toLowerCase().includes(query),
         )
       : permissions;
 
@@ -640,12 +1013,12 @@ export const UsersAndRolesView: React.FC = () => {
         u.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         u.email.toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchesRole = roleFilter === 'ALL' || u.roleId === roleFilter;
+      const matchesRole = roleFilter === "ALL" || u.roleId === roleFilter;
 
       const matchesStatus =
-        statusFilter === 'ALL' ||
-        (statusFilter === 'ACTIVE' && u.isActive) ||
-        (statusFilter === 'SUSPENDED' && !u.isActive);
+        statusFilter === "ALL" ||
+        (statusFilter === "ACTIVE" && u.isActive) ||
+        (statusFilter === "SUSPENDED" && !u.isActive);
 
       return matchesSearch && matchesRole && matchesStatus;
     });
@@ -658,7 +1031,7 @@ export const UsersAndRolesView: React.FC = () => {
     return roles.filter(
       (r) =>
         r.name.toLowerCase().includes(q) ||
-        r.description.toLowerCase().includes(q)
+        r.description.toLowerCase().includes(q),
     );
   }, [roles, roleSearchTerm]);
 
@@ -671,12 +1044,13 @@ export const UsersAndRolesView: React.FC = () => {
             Usuarios, Roles y Control de Acceso (RBAC)
           </h1>
           <p className="text-xs text-neutral-500 mt-1">
-            Gestión centralizada de credenciales, autenticación en dos pasos (2FA), roles y matriz de permisos por módulo
+            Gestión centralizada de credenciales, autenticación en dos pasos
+            (2FA), roles y matriz de permisos por módulo
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          {activeTab === 'users' ? (
+          {activeTab === "users" ? (
             <Button size="sm" onClick={handleOpenCreateUser}>
               <Plus className="w-4 h-4 mr-1.5" />
               Nuevo Usuario
@@ -691,11 +1065,11 @@ export const UsersAndRolesView: React.FC = () => {
           {/* Selector de Pestañas */}
           <div className="flex bg-neutral-100 p-1 rounded-lg border border-neutral-200">
             <button
-              onClick={() => setActiveTab('users')}
+              onClick={() => setActiveTab("users")}
               className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
-                activeTab === 'users'
-                  ? 'bg-white text-neutral-900 shadow-sm'
-                  : 'text-neutral-600 hover:text-neutral-900'
+                activeTab === "users"
+                  ? "bg-white text-neutral-900 shadow-sm"
+                  : "text-neutral-600 hover:text-neutral-900"
               }`}
             >
               <Users className="w-4 h-4" />
@@ -703,11 +1077,11 @@ export const UsersAndRolesView: React.FC = () => {
             </button>
 
             <button
-              onClick={() => setActiveTab('roles')}
+              onClick={() => setActiveTab("roles")}
               className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
-                activeTab === 'roles'
-                  ? 'bg-white text-neutral-900 shadow-sm'
-                  : 'text-neutral-600 hover:text-neutral-900'
+                activeTab === "roles"
+                  ? "bg-white text-neutral-900 shadow-sm"
+                  : "text-neutral-600 hover:text-neutral-900"
               }`}
             >
               <Shield className="w-4 h-4" />
@@ -722,7 +1096,7 @@ export const UsersAndRolesView: React.FC = () => {
           <div className="h-10 bg-neutral-100 animate-pulse rounded-lg" />
           <div className="h-48 bg-neutral-100 animate-pulse rounded-lg" />
         </div>
-      ) : activeTab === 'users' ? (
+      ) : activeTab === "users" ? (
         /* VISTA DE USUARIOS */
         <div className="space-y-4">
           {/* Barra de Búsqueda y Filtros */}
@@ -772,7 +1146,8 @@ export const UsersAndRolesView: React.FC = () => {
                 Cuentas de Acceso Registradas ({filteredUsers.length})
               </h2>
               <span className="text-xs text-neutral-500">
-                {users.filter((u) => u.isActive).length} activos de {users.length} totales
+                {users.filter((u) => u.isActive).length} activos de{" "}
+                {users.length} totales
               </span>
             </div>
 
@@ -780,13 +1155,13 @@ export const UsersAndRolesView: React.FC = () => {
               <table className="w-full text-left text-xs">
                 <thead className="bg-neutral-50/50 border-b border-neutral-200 text-neutral-600">
                   <tr>
-                    <th className="py-2.5 px-4">Usuario</th>
+                    <th className="py-2.5 px-4 hidden">Usuario</th>
                     <th className="py-2.5 px-4">Nombre Completo</th>
                     <th className="py-2.5 px-4">Correo Electrónico</th>
                     <th className="py-2.5 px-4">Rol Asignado</th>
                     <th className="py-2.5 px-4">Sucursales</th>
                     <th className="py-2.5 px-4">Almacenes</th>
-                    <th className="py-2.5 px-4 text-center">2FA</th>
+                    <th className="py-2.5 px-4 text-center hidden">2FA</th>
                     <th className="py-2.5 px-4">Último Ingreso</th>
                     <th className="py-2.5 px-4 text-center">Estado</th>
                     <th className="py-2.5 px-4 text-right">Acciones</th>
@@ -795,18 +1170,29 @@ export const UsersAndRolesView: React.FC = () => {
                 <tbody className="divide-y divide-neutral-200">
                   {filteredUsers.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="py-8 text-center text-neutral-500">
-                        No se encontraron usuarios que coincidan con los criterios de búsqueda.
+                      <td
+                        colSpan={10}
+                        className="py-8 text-center text-neutral-500"
+                      >
+                        No se encontraron usuarios que coincidan con los
+                        criterios de búsqueda.
                       </td>
                     </tr>
                   ) : (
                     filteredUsers.map((u) => (
-                      <tr key={u.id} className="hover:bg-neutral-50/70 transition-colors">
-                        <td className="py-3 px-4 font-mono font-bold text-neutral-900">
+                      <tr
+                        key={u.id}
+                        className="hover:bg-neutral-50/70 transition-colors"
+                      >
+                        <td className="py-3 px-4 font-mono font-bold text-neutral-900 hidden">
                           {u.username}
                         </td>
-                        <td className="py-3 px-4 font-medium text-neutral-900">{u.fullName}</td>
-                        <td className="py-3 px-4 text-neutral-600">{u.email}</td>
+                        <td className="py-3 px-4 font-medium text-neutral-900 ">
+                          {u.fullName}
+                        </td>
+                        <td className="py-3 px-4 text-neutral-600">
+                          {u.email}
+                        </td>
                         <td className="py-3 px-4">
                           <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-medium bg-neutral-100 text-neutral-800 border border-neutral-200">
                             {u.roleName}
@@ -821,7 +1207,10 @@ export const UsersAndRolesView: React.FC = () => {
                           ) : (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium bg-neutral-100 text-neutral-700 border border-neutral-200">
                               <Building2 className="w-3 h-3" />
-                              {(u.branchIds || []).length} {(u.branchIds || []).length === 1 ? 'sucursal' : 'sucursales'}
+                              {(u.branchIds || []).length}{" "}
+                              {(u.branchIds || []).length === 1
+                                ? "sucursal"
+                                : "sucursales"}
                             </span>
                           )}
                         </td>
@@ -838,7 +1227,7 @@ export const UsersAndRolesView: React.FC = () => {
                             </span>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-center">
+                        <td className="py-3 px-4 text-center hidden">
                           {u.is2faEnabled ? (
                             <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
                               <CheckCircle2 className="w-3 h-3" />
@@ -851,11 +1240,11 @@ export const UsersAndRolesView: React.FC = () => {
                           )}
                         </td>
                         <td className="py-3 px-4 text-neutral-500 font-mono text-[11px]">
-                          {u.lastLoginAt ? u.lastLoginAt : 'Nunca'}
+                          {u.lastLoginAt ? u.lastLoginAt : "Nunca"}
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <Badge variant={u.isActive ? 'success' : 'danger'}>
-                            {u.isActive ? 'Activo' : 'Suspendido'}
+                          <Badge variant={u.isActive ? "success" : "danger"}>
+                            {u.isActive ? "Activo" : "Suspendido"}
                           </Badge>
                         </td>
                         <td className="py-3 px-4 text-right">
@@ -863,6 +1252,8 @@ export const UsersAndRolesView: React.FC = () => {
                             <Button
                               variant="outline"
                               size="sm"
+                              className="p-0 rounded-lg text-neutral-700 hover:text-sky-700
+                              hover:bg-sky-100/80 "
                               onClick={() => handleOpenEditUser(u)}
                               title="Editar Usuario"
                             >
@@ -873,8 +1264,16 @@ export const UsersAndRolesView: React.FC = () => {
                               variant="outline"
                               size="sm"
                               onClick={() => handleToggleStatus(u)}
-                              className={u.isActive ? 'text-red-600 hover:bg-red-50' : 'text-emerald-600 hover:bg-emerald-50'}
-                              title={u.isActive ? 'Suspender Acceso' : 'Reactivar Acceso'}
+                              className={
+                                u.isActive
+                                  ? "text-red-600 hover:bg-red-50"
+                                  : "text-emerald-600 hover:bg-emerald-50 bg-red-100/80"
+                              }
+                              title={
+                                u.isActive
+                                  ? "Suspender Acceso"
+                                  : "Reactivar Acceso"
+                              }
                             >
                               {u.isActive ? (
                                 <>
@@ -915,7 +1314,8 @@ export const UsersAndRolesView: React.FC = () => {
             </div>
 
             <div className="text-xs text-neutral-500">
-              Mostrando {filteredRoles.length} de {roles.length} roles configurados
+              Mostrando {filteredRoles.length} de {roles.length} roles
+              configurados
             </div>
           </div>
 
@@ -930,7 +1330,9 @@ export const UsersAndRolesView: React.FC = () => {
                 // Módulos asociados al rol
                 const activePerms = r.permissions || [];
                 const distinctModules = Array.from(
-                  new Set(activePerms.map((k) => k.split('.')[0]).filter(Boolean))
+                  new Set(
+                    activePerms.map((k) => k.split(".")[0]).filter(Boolean),
+                  ),
                 );
 
                 return (
@@ -941,8 +1343,12 @@ export const UsersAndRolesView: React.FC = () => {
                     <div className="space-y-3">
                       <div className="flex justify-between items-start gap-2">
                         <div>
-                          <h3 className="text-sm font-bold text-neutral-900">{r.name}</h3>
-                          <p className="text-xs text-neutral-500 mt-1 line-clamp-2">{r.description}</p>
+                          <h3 className="text-sm font-bold text-neutral-900">
+                            {r.name}
+                          </h3>
+                          <p className="text-xs text-neutral-500 mt-1 line-clamp-2">
+                            {r.description}
+                          </p>
                         </div>
                         {r.isSystem ? (
                           <Badge variant="info">Sistema</Badge>
@@ -953,7 +1359,9 @@ export const UsersAndRolesView: React.FC = () => {
 
                       {/* Recuento de permisos */}
                       <div className="pt-2 flex items-center justify-between text-xs">
-                        <span className="text-neutral-500">Permisos asignados:</span>
+                        <span className="text-neutral-500">
+                          Permisos asignados:
+                        </span>
                         <span className="font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-lg border border-sky-200">
                           {r.permissionsCount || activePerms.length} acciones
                         </span>
@@ -972,10 +1380,12 @@ export const UsersAndRolesView: React.FC = () => {
                                 <span
                                   key={mod}
                                   className={`inline-flex items-center px-1.5 py-0.5 rounded-lg text-[10px] font-medium border ${
-                                    meta ? meta.badgeColor : 'bg-neutral-100 text-neutral-700 border-neutral-200'
+                                    meta
+                                      ? meta.badgeColor
+                                      : "bg-neutral-100 text-neutral-700 border-neutral-200"
                                   }`}
                                 >
-                                  {meta ? meta.label.split(' ')[0] : mod}
+                                  {meta ? meta.label.split(" ")[0] : mod}
                                 </span>
                               );
                             })}
@@ -993,7 +1403,9 @@ export const UsersAndRolesView: React.FC = () => {
                         className="w-full justify-center"
                       >
                         <Edit2 className="w-3.5 h-3.5 mr-1.5" />
-                        {r.isSystem ? 'Ver Permisos del Rol' : 'Editar Rol y Permisos'}
+                        {r.isSystem
+                          ? "Ver Permisos del Rol"
+                          : "Editar Rol y Permisos"}
                       </Button>
                     </div>
                   </div>
@@ -1014,9 +1426,13 @@ export const UsersAndRolesView: React.FC = () => {
                 <Users className="w-5 h-5 text-sky-600" />
                 <div>
                   <h3 className="text-sm font-bold text-neutral-900">
-                    {editingUser ? `Editar Usuario: ${editingUser.username}` : 'Registrar Nuevo Usuario'}
+                    {editingUser
+                      ? `Editar Usuario: ${editingUser.username}`
+                      : "Registrar Nuevo Usuario"}
                   </h3>
-                  <p className="text-[11px] text-neutral-500">Gestión de credenciales, roles y accesos</p>
+                  <p className="text-[11px] text-neutral-500">
+                    Gestión de credenciales, roles y accesos
+                  </p>
                 </div>
               </div>
               <button
@@ -1029,7 +1445,11 @@ export const UsersAndRolesView: React.FC = () => {
               </button>
             </div>
 
-            <form id="userForm" onSubmit={handleSubmitUser} className="flex-1 flex flex-col overflow-hidden">
+            <form
+              id="userForm"
+              onSubmit={handleSubmitUser}
+              className="flex-1 flex flex-col overflow-hidden"
+            >
               {/* Body (Scrollable) */}
               <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1042,12 +1462,16 @@ export const UsersAndRolesView: React.FC = () => {
                       required
                       disabled={Boolean(editingUser)}
                       value={formUsername}
-                      onChange={(e) => setFormUsername(e.target.value.toLowerCase())}
+                      onChange={(e) =>
+                        setFormUsername(e.target.value.toLowerCase())
+                      }
                       placeholder="ej: jgonzalez"
                       className="w-full px-3 py-2 text-xs border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:bg-neutral-100 disabled:text-neutral-500 font-mono"
                     />
                     {editingUser && (
-                      <p className="text-[10px] text-neutral-400 mt-1">El username no puede modificarse</p>
+                      <p className="text-[10px] text-neutral-400 mt-1">
+                        El username no puede modificarse
+                      </p>
                     )}
                   </div>
 
@@ -1099,7 +1523,9 @@ export const UsersAndRolesView: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                    {editingUser ? 'Nueva Contraseña (dejar en blanco para conservar actual)' : 'Contraseña de Acceso *'}
+                    {editingUser
+                      ? "Nueva Contraseña (dejar en blanco para conservar actual)"
+                      : "Contraseña de Acceso *"}
                   </label>
                   <div className="relative">
                     <Lock className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -1108,236 +1534,291 @@ export const UsersAndRolesView: React.FC = () => {
                       required={!editingUser}
                       value={formPassword}
                       onChange={(e) => setFormPassword(e.target.value)}
-                      placeholder={editingUser ? '••••••••' : 'Mínimo 8 caracteres'}
+                      placeholder={
+                        editingUser ? "••••••••" : "Mínimo 8 caracteres"
+                      }
                       className="w-full pl-9 pr-3 py-2 text-xs border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
                     />
                   </div>
-                {/* 1. Alcance de Sucursales */}
-                <div className="pt-3 border-t border-neutral-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-neutral-800 flex items-center gap-1.5">
-                      <Building2 className="w-3.5 h-3.5 text-sky-600" />
-                      Acceso a Sucursales
-                    </label>
-                    <span className="text-[10px] text-neutral-500">
-                      {formAllBranches ? 'Todas las sucursales' : `${formBranchIds.length} seleccionada(s)`}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <label
-                      className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
-                        formAllBranches
-                          ? 'border-sky-500 bg-sky-50/40 text-neutral-900 ring-1 ring-sky-500'
-                          : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="branchScope"
-                        checked={formAllBranches}
-                        onChange={() => setFormAllBranches(true)}
-                        className="mt-0.5 w-3.5 h-3.5 text-sky-600 focus:ring-sky-500"
-                      />
-                      <div className="text-[11px] leading-snug">
-                        <span className="font-semibold block text-neutral-900">Todas las sucursales</span>
-                        <span className="text-[10px] text-neutral-500">Permite ver y alternar entre todas las sedes de la empresa</span>
-                      </div>
-                    </label>
-
-                    <label
-                      className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
-                        !formAllBranches
-                          ? 'border-sky-500 bg-sky-50/40 text-neutral-900 ring-1 ring-sky-500'
-                          : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="branchScope"
-                        checked={!formAllBranches}
-                        onChange={() => {
-                          setFormAllBranches(false);
-                          if (formBranchIds.length === 0 && availableBranches.length > 0) {
-                            setFormBranchIds([availableBranches[0].id]);
-                          }
-                        }}
-                        className="mt-0.5 w-3.5 h-3.5 text-sky-600 focus:ring-sky-500"
-                      />
-                      <div className="text-[11px] leading-snug">
-                        <span className="font-semibold block text-neutral-900">Sucursales específicas</span>
-                        <span className="text-[10px] text-neutral-500">Restringir acceso únicamente a sedes autorizadas</span>
-                      </div>
-                    </label>
-                  </div>
-
-                  {!formAllBranches && (
-                    <div className="p-2.5 bg-neutral-50 rounded-lg border border-neutral-200 space-y-2 mt-2">
-                      <span className="text-[11px] font-semibold text-neutral-700 block">
-                        Seleccione las sucursales permitidas:
+                  {/* 1. Alcance de Sucursales */}
+                  <div className="pt-3 border-t border-neutral-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-neutral-800 flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5 text-sky-600" />
+                        Acceso a Sucursales
+                      </label>
+                      <span className="text-[10px] text-neutral-500">
+                        {formAllBranches
+                          ? "Todas las sucursales"
+                          : `${formBranchIds.length} seleccionada(s)`}
                       </span>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                        {availableBranches.map((b) => {
-                          const isChecked = formBranchIds.includes(b.id);
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <label
+                        className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                          formAllBranches
+                            ? "border-sky-500 bg-sky-50/40 text-neutral-900 ring-1 ring-sky-500"
+                            : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="branchScope"
+                          checked={formAllBranches}
+                          onChange={() => setFormAllBranches(true)}
+                          className="mt-0.5 w-3.5 h-3.5 text-sky-600 focus:ring-sky-500"
+                        />
+                        <div className="text-[11px] leading-snug">
+                          <span className="font-semibold block text-neutral-900">
+                            Todas las sucursales
+                          </span>
+                          <span className="text-[10px] text-neutral-500">
+                            Permite ver y alternar entre todas las sedes de la
+                            empresa
+                          </span>
+                        </div>
+                      </label>
+
+                      <label
+                        className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                          !formAllBranches
+                            ? "border-sky-500 bg-sky-50/40 text-neutral-900 ring-1 ring-sky-500"
+                            : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="branchScope"
+                          checked={!formAllBranches}
+                          onChange={() => {
+                            setFormAllBranches(false);
+                            if (
+                              formBranchIds.length === 0 &&
+                              availableBranches.length > 0
+                            ) {
+                              setFormBranchIds([availableBranches[0].id]);
+                            }
+                          }}
+                          className="mt-0.5 w-3.5 h-3.5 text-sky-600 focus:ring-sky-500"
+                        />
+                        <div className="text-[11px] leading-snug">
+                          <span className="font-semibold block text-neutral-900">
+                            Sucursales específicas
+                          </span>
+                          <span className="text-[10px] text-neutral-500">
+                            Restringir acceso únicamente a sedes autorizadas
+                          </span>
+                        </div>
+                      </label>
+                    </div>
+
+                    {!formAllBranches && (
+                      <div className="p-2.5 bg-neutral-50 rounded-lg border border-neutral-200 space-y-2 mt-2">
+                        <span className="text-[11px] font-semibold text-neutral-700 block">
+                          Seleccione las sucursales permitidas:
+                        </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                          {availableBranches.map((b) => {
+                            const isChecked = formBranchIds.includes(b.id);
+                            return (
+                              <label
+                                key={b.id}
+                                className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer transition-colors ${
+                                  isChecked
+                                    ? "border-sky-300 bg-white shadow-xs text-neutral-900"
+                                    : "border-neutral-200 bg-neutral-100/60 text-neutral-600 hover:bg-white"
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setFormBranchIds([
+                                        ...formBranchIds,
+                                        b.id,
+                                      ]);
+                                    } else {
+                                      setFormBranchIds(
+                                        formBranchIds.filter(
+                                          (id) => id !== b.id,
+                                        ),
+                                      );
+                                    }
+                                  }}
+                                  className="w-3.5 h-3.5 text-sky-600 rounded border-neutral-300 focus:ring-sky-500"
+                                />
+                                <div className="truncate">
+                                  <span className="font-medium text-[11px]">
+                                    {b.name}
+                                  </span>
+                                  <span className="text-[10px] text-neutral-400 font-mono ml-1">
+                                    ({b.code})
+                                  </span>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                        <p className="text-[10px] text-neutral-500 pt-0.5">
+                          {formBranchIds.length === 1
+                            ? "Al asignar exactamente 1 sucursal, el usuario quedará fijado a ella sin opción de cambio."
+                            : formBranchIds.length > 1
+                              ? "Al tener varias sucursales asignadas, el usuario podrá alternar entre ellas en el sistema."
+                              : "Debe marcar al menos 1 sucursal autorizada."}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 2. Control de Almacenes */}
+                  <div className="pt-3 border-t border-neutral-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-neutral-800 flex items-center gap-1.5">
+                        <Warehouse className="w-3.5 h-3.5 text-emerald-600" />
+                        Operación de Depósitos / Almacenes
+                      </label>
+                      <span className="text-[10px] text-neutral-500">
+                        {formCanSwitchWarehouses
+                          ? "Libre alternancia"
+                          : "Almacén único fijado"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <label
+                        className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                          formCanSwitchWarehouses
+                            ? "border-emerald-500 bg-emerald-50/40 text-neutral-900 ring-1 ring-emerald-500"
+                            : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="warehouseScope"
+                          checked={formCanSwitchWarehouses}
+                          onChange={() => setFormCanSwitchWarehouses(true)}
+                          className="mt-0.5 w-3.5 h-3.5 text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <div className="text-[11px] leading-snug">
+                          <span className="font-semibold block text-neutral-900">
+                            Permitir cambiar de almacén
+                          </span>
+                          <span className="text-[10px] text-neutral-500">
+                            El usuario puede alternar entre los depósitos
+                            activos de su sucursal
+                          </span>
+                        </div>
+                      </label>
+
+                      <label
+                        className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                          !formCanSwitchWarehouses
+                            ? "border-emerald-500 bg-emerald-50/40 text-neutral-900 ring-1 ring-emerald-500"
+                            : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="warehouseScope"
+                          checked={!formCanSwitchWarehouses}
+                          onChange={() => setFormCanSwitchWarehouses(false)}
+                          className="mt-0.5 w-3.5 h-3.5 text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <div className="text-[11px] leading-snug">
+                          <span className="font-semibold block text-neutral-900">
+                            Establecer almacén fijo por sucursal
+                          </span>
+                          <span className="text-[10px] text-neutral-500">
+                            Bloquea al usuario a un depósito específico e impide
+                            su cambio
+                          </span>
+                        </div>
+                      </label>
+                    </div>
+
+                    {!formCanSwitchWarehouses && (
+                      <div className="p-2.5 bg-neutral-50 rounded-lg border border-neutral-200 space-y-2 mt-2">
+                        <span className="text-[11px] font-semibold text-neutral-700 block">
+                          Seleccione el almacén fijo para cada sede autorizada:
+                        </span>
+                        {(formAllBranches
+                          ? availableBranches
+                          : availableBranches.filter((b) =>
+                              formBranchIds.includes(b.id),
+                            )
+                        ).map((b) => {
+                          const currentWhVal =
+                            formWarehouseByBranch[b.id] ||
+                            b.warehouses.find((w) => w.isDefault)?.id ||
+                            b.warehouses[0]?.id ||
+                            "";
                           return (
-                            <label
+                            <div
                               key={b.id}
-                              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer transition-colors ${
-                                isChecked
-                                  ? 'border-sky-300 bg-white shadow-xs text-neutral-900'
-                                  : 'border-neutral-200 bg-neutral-100/60 text-neutral-600 hover:bg-white'
-                              }`}
+                              className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 bg-white border border-neutral-200 rounded-lg text-xs"
                             >
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setFormBranchIds([...formBranchIds, b.id]);
-                                  } else {
-                                    setFormBranchIds(formBranchIds.filter((id) => id !== b.id));
-                                  }
-                                }}
-                                className="w-3.5 h-3.5 text-sky-600 rounded border-neutral-300 focus:ring-sky-500"
-                              />
-                              <div className="truncate">
-                                <span className="font-medium text-[11px]">{b.name}</span>
-                                <span className="text-[10px] text-neutral-400 font-mono ml-1">({b.code})</span>
+                              <div className="min-w-0">
+                                <span className="font-semibold text-neutral-800 text-[11px] block truncate">
+                                  {b.name}
+                                </span>
+                                <span className="text-[10px] text-neutral-400 font-mono">
+                                  ({b.code})
+                                </span>
                               </div>
-                            </label>
+                              {b.warehouses.length > 0 ? (
+                                <select
+                                  value={currentWhVal}
+                                  onChange={(e) => {
+                                    setFormWarehouseByBranch((prev) => ({
+                                      ...prev,
+                                      [b.id]: e.target.value,
+                                    }));
+                                  }}
+                                  className="px-2.5 py-1 text-xs border border-neutral-200 rounded-lg bg-white text-neutral-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                >
+                                  {b.warehouses.map((w) => (
+                                    <option key={w.id} value={w.id}>
+                                      {w.name} ({w.code}){" "}
+                                      {w.isDefault ? "• Principal" : ""}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span className="text-[10px] text-neutral-400 italic">
+                                  Sin depósitos activos
+                                </span>
+                              )}
+                            </div>
                           );
                         })}
                       </div>
-                      <p className="text-[10px] text-neutral-500 pt-0.5">
-                        {formBranchIds.length === 1
-                          ? 'Al asignar exactamente 1 sucursal, el usuario quedará fijado a ella sin opción de cambio.'
-                          : formBranchIds.length > 1
-                          ? 'Al tener varias sucursales asignadas, el usuario podrá alternar entre ellas en el sistema.'
-                          : 'Debe marcar al menos 1 sucursal autorizada.'}
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* 2. Control de Almacenes */}
-                <div className="pt-3 border-t border-neutral-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-neutral-800 flex items-center gap-1.5">
-                      <Warehouse className="w-3.5 h-3.5 text-emerald-600" />
-                      Operación de Depósitos / Almacenes
-                    </label>
-                    <span className="text-[10px] text-neutral-500">
-                      {formCanSwitchWarehouses ? 'Libre alternancia' : 'Almacén único fijado'}
-                    </span>
+                    )}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <label
-                      className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
-                        formCanSwitchWarehouses
-                          ? 'border-emerald-500 bg-emerald-50/40 text-neutral-900 ring-1 ring-emerald-500'
-                          : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
-                      }`}
-                    >
+                  <div className="pt-2 border-t border-neutral-200 flex flex-col sm:flex-row gap-4 justify-between">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs text-neutral-700">
                       <input
-                        type="radio"
-                        name="warehouseScope"
-                        checked={formCanSwitchWarehouses}
-                        onChange={() => setFormCanSwitchWarehouses(true)}
-                        className="mt-0.5 w-3.5 h-3.5 text-emerald-600 focus:ring-emerald-500"
+                        type="checkbox"
+                        checked={formIs2fa}
+                        onChange={(e) => setFormIs2fa(e.target.checked)}
+                        className="w-4 h-4 text-sky-600 rounded border-neutral-300 focus:ring-sky-500"
                       />
-                      <div className="text-[11px] leading-snug">
-                        <span className="font-semibold block text-neutral-900">Permitir cambiar de almacén</span>
-                        <span className="text-[10px] text-neutral-500">El usuario puede alternar entre los depósitos activos de su sucursal</span>
-                      </div>
+                      <span>Requerir Autenticación 2FA (TOTP)</span>
                     </label>
 
-                    <label
-                      className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
-                        !formCanSwitchWarehouses
-                          ? 'border-emerald-500 bg-emerald-50/40 text-neutral-900 ring-1 ring-emerald-500'
-                          : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
-                      }`}
-                    >
+                    <label className="flex items-center gap-2 cursor-pointer text-xs text-neutral-700">
                       <input
-                        type="radio"
-                        name="warehouseScope"
-                        checked={!formCanSwitchWarehouses}
-                        onChange={() => setFormCanSwitchWarehouses(false)}
-                        className="mt-0.5 w-3.5 h-3.5 text-emerald-600 focus:ring-emerald-500"
+                        type="checkbox"
+                        checked={formIsActive}
+                        onChange={(e) => setFormIsActive(e.target.checked)}
+                        className="w-4 h-4 text-sky-600 rounded border-neutral-300 focus:ring-sky-500"
                       />
-                      <div className="text-[11px] leading-snug">
-                        <span className="font-semibold block text-neutral-900">Establecer almacén fijo por sucursal</span>
-                        <span className="text-[10px] text-neutral-500">Bloquea al usuario a un depósito específico e impide su cambio</span>
-                      </div>
+                      <span>Usuario Activo en el Sistema</span>
                     </label>
                   </div>
-
-                  {!formCanSwitchWarehouses && (
-                    <div className="p-2.5 bg-neutral-50 rounded-lg border border-neutral-200 space-y-2 mt-2">
-                      <span className="text-[11px] font-semibold text-neutral-700 block">
-                        Seleccione el almacén fijo para cada sede autorizada:
-                      </span>
-                      {(formAllBranches ? availableBranches : availableBranches.filter((b) => formBranchIds.includes(b.id))).map((b) => {
-                        const currentWhVal = formWarehouseByBranch[b.id] || b.warehouses.find((w) => w.isDefault)?.id || b.warehouses[0]?.id || '';
-                        return (
-                          <div
-                            key={b.id}
-                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 bg-white border border-neutral-200 rounded-lg text-xs"
-                          >
-                            <div className="min-w-0">
-                              <span className="font-semibold text-neutral-800 text-[11px] block truncate">{b.name}</span>
-                              <span className="text-[10px] text-neutral-400 font-mono">({b.code})</span>
-                            </div>
-                            {b.warehouses.length > 0 ? (
-                              <select
-                                value={currentWhVal}
-                                onChange={(e) => {
-                                  setFormWarehouseByBranch((prev) => ({
-                                    ...prev,
-                                    [b.id]: e.target.value,
-                                  }));
-                                }}
-                                className="px-2.5 py-1 text-xs border border-neutral-200 rounded-lg bg-white text-neutral-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                              >
-                                {b.warehouses.map((w) => (
-                                  <option key={w.id} value={w.id}>
-                                    {w.name} ({w.code}) {w.isDefault ? '• Principal' : ''}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <span className="text-[10px] text-neutral-400 italic">Sin depósitos activos</span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
                 </div>
-
-                <div className="pt-2 border-t border-neutral-200 flex flex-col sm:flex-row gap-4 justify-between">
-                  <label className="flex items-center gap-2 cursor-pointer text-xs text-neutral-700">
-                    <input
-                      type="checkbox"
-                      checked={formIs2fa}
-                      onChange={(e) => setFormIs2fa(e.target.checked)}
-                      className="w-4 h-4 text-sky-600 rounded border-neutral-300 focus:ring-sky-500"
-                    />
-                    <span>Requerir Autenticación 2FA (TOTP)</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 cursor-pointer text-xs text-neutral-700">
-                    <input
-                      type="checkbox"
-                      checked={formIsActive}
-                      onChange={(e) => setFormIsActive(e.target.checked)}
-                      className="w-4 h-4 text-sky-600 rounded border-neutral-300 focus:ring-sky-500"
-                    />
-                    <span>Usuario Activo en el Sistema</span>
-                  </label>
-                </div>
-              </div>
               </div>
 
               {/* Footer (Pinned) */}
@@ -1352,7 +1833,11 @@ export const UsersAndRolesView: React.FC = () => {
                   Cancelar
                 </Button>
                 <Button type="submit" size="sm" disabled={submitting}>
-                  {submitting ? 'Guardando...' : editingUser ? 'Guardar Cambios' : 'Crear Usuario'}
+                  {submitting
+                    ? "Guardando..."
+                    : editingUser
+                      ? "Guardar Cambios"
+                      : "Crear Usuario"}
                 </Button>
               </div>
             </form>
@@ -1374,10 +1859,11 @@ export const UsersAndRolesView: React.FC = () => {
                       ? editingRole.isSystem
                         ? `Consultar / Configurar Rol: ${editingRole.name}`
                         : `Editar Rol: ${editingRole.name}`
-                      : 'Crear Nuevo Rol del Sistema'}
+                      : "Crear Nuevo Rol del Sistema"}
                   </h3>
                   <p className="text-[11px] text-neutral-500">
-                    Defina los privilegios de acceso y acciones autorizadas por módulo
+                    Defina los privilegios de acceso y acciones autorizadas por
+                    módulo
                   </p>
                 </div>
               </div>
@@ -1392,7 +1878,10 @@ export const UsersAndRolesView: React.FC = () => {
             </div>
 
             {/* Formulario */}
-            <form onSubmit={handleSubmitRole} className="flex-1 flex flex-col overflow-hidden">
+            <form
+              onSubmit={handleSubmitRole}
+              className="flex-1 flex flex-col overflow-hidden"
+            >
               <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
                 {/* Datos básicos del Rol */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1411,7 +1900,8 @@ export const UsersAndRolesView: React.FC = () => {
                     />
                     {editingRole?.isSystem && (
                       <p className="text-[10px] text-neutral-400 mt-1">
-                        El identificador de los roles del sistema está protegido contra cambios de nombre.
+                        El identificador de los roles del sistema está protegido
+                        contra cambios de nombre.
                       </p>
                     )}
                   </div>
@@ -1437,7 +1927,8 @@ export const UsersAndRolesView: React.FC = () => {
                       Matriz de Permisos:
                     </span>
                     <span className="text-xs font-mono font-bold text-sky-700 bg-sky-100 px-2 py-0.5 rounded-lg border border-sky-300">
-                      {roleSelectedPerms.length} de {permissions.length} seleccionados
+                      {roleSelectedPerms.length} de {permissions.length}{" "}
+                      seleccionados
                     </span>
                   </div>
 
@@ -1473,101 +1964,109 @@ export const UsersAndRolesView: React.FC = () => {
 
                 {/* Lista agrupada por módulo */}
                 <div className="space-y-3">
-                  {Array.from(permissionsByModule.entries()).map(([moduleName, modulePerms]) => {
-                    const meta = MODULE_METADATA[moduleName] || {
-                      label: moduleName.toUpperCase(),
-                      badgeColor: 'bg-neutral-100 text-neutral-800 border-neutral-200',
-                    };
-                    const modulePermKeys = modulePerms.map((p) => p.key);
-                    const selectedInModule = modulePermKeys.filter((k) =>
-                      roleSelectedPerms.includes(k)
-                    ).length;
-                    const isAllModuleSelected =
-                      modulePermKeys.length > 0 && selectedInModule === modulePermKeys.length;
+                  {Array.from(permissionsByModule.entries()).map(
+                    ([moduleName, modulePerms]) => {
+                      const meta = MODULE_METADATA[moduleName] || {
+                        label: moduleName.toUpperCase(),
+                        badgeColor:
+                          "bg-neutral-100 text-neutral-800 border-neutral-200",
+                      };
+                      const modulePermKeys = modulePerms.map((p) => p.key);
+                      const selectedInModule = modulePermKeys.filter((k) =>
+                        roleSelectedPerms.includes(k),
+                      ).length;
+                      const isAllModuleSelected =
+                        modulePermKeys.length > 0 &&
+                        selectedInModule === modulePermKeys.length;
 
-                    return (
-                      <div
-                        key={moduleName}
-                        className="border border-neutral-200 rounded-lg overflow-hidden bg-white shadow-xs"
-                      >
-                        {/* Cabecera del Módulo */}
-                        <div className="p-2.5 bg-neutral-50/70 border-b border-neutral-200 flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`text-[11px] font-bold px-2 py-0.5 rounded-lg border ${meta.badgeColor}`}
+                      return (
+                        <div
+                          key={moduleName}
+                          className="border border-neutral-200 rounded-lg overflow-hidden bg-white shadow-xs"
+                        >
+                          {/* Cabecera del Módulo */}
+                          <div className="p-2.5 bg-neutral-50/70 border-b border-neutral-200 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`text-[11px] font-bold px-2 py-0.5 rounded-lg border ${meta.badgeColor}`}
+                              >
+                                {meta.label}
+                              </span>
+                              <span className="text-[11px] text-neutral-500">
+                                ({selectedInModule} de {modulePermKeys.length}{" "}
+                                activos)
+                              </span>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleToggleModule(modulePermKeys)}
+                              className="flex items-center gap-1 text-[11px] font-semibold text-neutral-600 hover:text-neutral-900 cursor-pointer"
                             >
-                              {meta.label}
-                            </span>
-                            <span className="text-[11px] text-neutral-500">
-                              ({selectedInModule} de {modulePermKeys.length} activos)
-                            </span>
+                              {isAllModuleSelected ? (
+                                <>
+                                  <CheckSquare className="w-3.5 h-3.5 text-sky-600" />
+                                  <span>Desmarcar módulo</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Square className="w-3.5 h-3.5 text-neutral-400" />
+                                  <span>Marcar módulo completo</span>
+                                </>
+                              )}
+                            </button>
                           </div>
 
-                          <button
-                            type="button"
-                            onClick={() => handleToggleModule(modulePermKeys)}
-                            className="flex items-center gap-1 text-[11px] font-semibold text-neutral-600 hover:text-neutral-900 cursor-pointer"
-                          >
-                            {isAllModuleSelected ? (
-                              <>
-                                <CheckSquare className="w-3.5 h-3.5 text-sky-600" />
-                                <span>Desmarcar módulo</span>
-                              </>
-                            ) : (
-                              <>
-                                <Square className="w-3.5 h-3.5 text-neutral-400" />
-                                <span>Marcar módulo completo</span>
-                              </>
-                            )}
-                          </button>
-                        </div>
+                          {/* Lista de Permisos del Módulo */}
+                          <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {modulePerms.map((perm) => {
+                              const isChecked = roleSelectedPerms.includes(
+                                perm.key,
+                              );
+                              const isExchangeRatePerm =
+                                perm.key === "pricing.exchange_rate";
 
-                        {/* Lista de Permisos del Módulo */}
-                        <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-2">
-                          {modulePerms.map((perm) => {
-                            const isChecked = roleSelectedPerms.includes(perm.key);
-                            const isExchangeRatePerm = perm.key === 'pricing.exchange_rate';
-
-                            return (
-                              <label
-                                key={perm.key}
-                                className={`flex items-start gap-2.5 p-2 rounded-lg border transition-colors cursor-pointer ${
-                                  isChecked
-                                    ? isExchangeRatePerm
-                                      ? 'bg-amber-50/60 border-amber-300'
-                                      : 'bg-sky-50/50 border-sky-200'
-                                    : 'border-neutral-100 hover:bg-neutral-50'
-                                }`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => handleTogglePerm(perm.key)}
-                                  className="mt-0.5 w-4 h-4 text-sky-600 rounded border-neutral-300 focus:ring-sky-500"
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    <span className="font-mono text-[10px] font-bold text-neutral-700 bg-white px-1.5 py-0.5 rounded border border-neutral-200">
-                                      {perm.key}
-                                    </span>
-                                    {isExchangeRatePerm && (
-                                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-300">
-                                        <Coins className="w-2.5 h-2.5" />
-                                        Tasa Oficial BCV
+                              return (
+                                <label
+                                  key={perm.key}
+                                  className={`flex items-start gap-2.5 p-2 rounded-lg border transition-colors cursor-pointer ${
+                                    isChecked
+                                      ? isExchangeRatePerm
+                                        ? "bg-amber-50/60 border-amber-300"
+                                        : "bg-sky-50/50 border-sky-200"
+                                      : "border-neutral-100 hover:bg-neutral-50"
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => handleTogglePerm(perm.key)}
+                                    className="mt-0.5 w-4 h-4 text-sky-600 rounded border-neutral-300 focus:ring-sky-500"
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="font-mono text-[10px] font-bold text-neutral-700 bg-white px-1.5 py-0.5 rounded border border-neutral-200">
+                                        {perm.key}
                                       </span>
-                                    )}
+                                      {isExchangeRatePerm && (
+                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-300">
+                                          <Coins className="w-2.5 h-2.5" />
+                                          Tasa Oficial BCV
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-neutral-600 mt-1 leading-tight">
+                                      {perm.description}
+                                    </p>
                                   </div>
-                                  <p className="text-xs text-neutral-600 mt-1 leading-tight">
-                                    {perm.description}
-                                  </p>
-                                </div>
-                              </label>
-                            );
-                          })}
+                                </label>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    },
+                  )}
                 </div>
               </div>
 
@@ -1588,7 +2087,11 @@ export const UsersAndRolesView: React.FC = () => {
                     Cancelar
                   </Button>
                   <Button type="submit" size="sm" disabled={submittingRole}>
-                    {submittingRole ? 'Guardando...' : editingRole ? 'Guardar Cambios' : 'Crear Rol'}
+                    {submittingRole
+                      ? "Guardando..."
+                      : editingRole
+                        ? "Guardar Cambios"
+                        : "Crear Rol"}
                   </Button>
                 </div>
               </div>

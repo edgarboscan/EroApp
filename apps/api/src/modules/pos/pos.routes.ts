@@ -8,7 +8,11 @@ import {
   generateFiscalReportSchema,
   cashRegisterSchema,
   paymentMethodSchema,
+  verifyCashShiftSchema,
+  depositCashShiftSchema,
+  resolveDiscrepancySchema,
   isSuperAdminRole,
+  isSupervisorOrAdminRole,
 } from '@ero/shared';
 import { POSService } from './pos.service';
 import { authenticate, AppEnv } from '../../middleware/auth';
@@ -222,6 +226,142 @@ posRouter.post(
       return c.json({ success: true, data: result });
     } catch (error: any) {
       return c.json({ success: false, error: { code: 'CLOSE_SHIFT_FAILED', message: error.message } }, 400);
+    }
+  }
+);
+
+// GET /api/pos/shifts/audit - Lista de turnos cerrados para auditoría y verificación
+posRouter.get('/shifts/audit', authenticate, async (c) => {
+  const user = c.get('user');
+  const canAudit = user.permissions.includes('pos.audit_shifts') || isSupervisorOrAdminRole(user.role) || isSuperAdminRole(user.role);
+  if (!canAudit) {
+    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'No cuenta con permisos para auditar turnos de caja' } }, 403);
+  }
+
+  const branchId = c.req.query('branchId') || undefined;
+  const verificationStatus = c.req.query('verificationStatus') || undefined;
+  const hasDiscrepancy = c.req.query('hasDiscrepancy');
+  const startDate = c.req.query('startDate') || undefined;
+  const endDate = c.req.query('endDate') || undefined;
+
+  try {
+    const shifts = await POSService.getShiftsForAudit(user.companyId, {
+      branchId,
+      verificationStatus,
+      hasDiscrepancy: hasDiscrepancy !== undefined ? hasDiscrepancy === 'true' : undefined,
+      startDate,
+      endDate,
+    });
+    return c.json({ success: true, data: shifts });
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'AUDIT_SHIFTS_FETCH_FAILED', message: error.message } }, 500);
+  }
+});
+
+// GET /api/pos/audit-notifications - Alertas y notificaciones de discrepancias en cierres
+posRouter.get('/audit-notifications', authenticate, async (c) => {
+  const user = c.get('user');
+  const canAudit = user.permissions.includes('pos.audit_shifts') || isSupervisorOrAdminRole(user.role) || isSuperAdminRole(user.role);
+  if (!canAudit) {
+    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'No cuenta con permisos para consultar alertas de auditoría' } }, 403);
+  }
+
+  const onlyUnresolved = c.req.query('all') !== 'true';
+
+  try {
+    const notifications = await POSService.getCashAuditNotifications(user.companyId, onlyUnresolved);
+    return c.json({ success: true, data: notifications });
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'AUDIT_NOTIFICATIONS_FETCH_FAILED', message: error.message } }, 500);
+  }
+});
+
+// POST /api/pos/audit-notifications/:id/resolve - Resolver alerta de discrepancia
+posRouter.post(
+  '/audit-notifications/:id/resolve',
+  authenticate,
+  zValidator('json', resolveDiscrepancySchema, validationHook),
+  async (c) => {
+    const user = c.get('user');
+    const canAudit = user.permissions.includes('pos.audit_shifts') || isSupervisorOrAdminRole(user.role) || isSuperAdminRole(user.role);
+    if (!canAudit) {
+      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'No cuenta con permisos para resolver alertas de auditoría' } }, 403);
+    }
+
+    const id = c.req.param('id')!;
+    const body = c.req.valid('json');
+
+    try {
+      const result = await POSService.resolveDiscrepancyNotification(id, user.companyId, user.sub, body.resolutionNotes);
+      return c.json({ success: true, data: result });
+    } catch (error: any) {
+      return c.json({ success: false, error: { code: 'RESOLVE_NOTIFICATION_FAILED', message: error.message } }, 400);
+    }
+  }
+);
+
+// GET /api/pos/shifts/:id/audit-details - Detalle completo de auditoría para un turno
+posRouter.get('/shifts/:id/audit-details', authenticate, async (c) => {
+  const user = c.get('user');
+  const canAudit = user.permissions.includes('pos.audit_shifts') || isSupervisorOrAdminRole(user.role) || isSuperAdminRole(user.role);
+  if (!canAudit) {
+    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'No cuenta con permisos para auditar turnos de caja' } }, 403);
+  }
+
+  const shiftId = c.req.param('id')!;
+
+  try {
+    const details = await POSService.getShiftAuditDetails(shiftId, user.companyId);
+    return c.json({ success: true, data: details });
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'SHIFT_AUDIT_DETAILS_FAILED', message: error.message } }, 400);
+  }
+});
+
+// POST /api/pos/shifts/:id/verify - Dictamen y verificación del arqueo por supervisor
+posRouter.post(
+  '/shifts/:id/verify',
+  authenticate,
+  zValidator('json', verifyCashShiftSchema, validationHook),
+  async (c) => {
+    const user = c.get('user');
+    const canAudit = user.permissions.includes('pos.audit_shifts') || isSupervisorOrAdminRole(user.role) || isSuperAdminRole(user.role);
+    if (!canAudit) {
+      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'No cuenta con permisos para verificar turnos de caja' } }, 403);
+    }
+
+    const shiftId = c.req.param('id')!;
+    const body = c.req.valid('json');
+
+    try {
+      const result = await POSService.verifyShift(shiftId, user.companyId, user.sub, body);
+      return c.json({ success: true, data: result });
+    } catch (error: any) {
+      return c.json({ success: false, error: { code: 'VERIFY_SHIFT_FAILED', message: error.message } }, 400);
+    }
+  }
+);
+
+// POST /api/pos/shifts/:id/deposits - Registrar depósitos bancarios del turno (efectivo y transacciones electrónicas)
+posRouter.post(
+  '/shifts/:id/deposits',
+  authenticate,
+  zValidator('json', depositCashShiftSchema, validationHook),
+  async (c) => {
+    const user = c.get('user');
+    const canAudit = user.permissions.includes('pos.audit_shifts') || isSupervisorOrAdminRole(user.role) || isSuperAdminRole(user.role);
+    if (!canAudit) {
+      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'No cuenta con permisos para registrar depósitos bancarios de turnos' } }, 403);
+    }
+
+    const shiftId = c.req.param('id')!;
+    const body = c.req.valid('json');
+
+    try {
+      const result = await POSService.registerShiftDeposits(shiftId, user.companyId, user.sub, body);
+      return c.json({ success: true, data: result }, 201);
+    } catch (error: any) {
+      return c.json({ success: false, error: { code: 'REGISTER_DEPOSITS_FAILED', message: error.message } }, 400);
     }
   }
 );

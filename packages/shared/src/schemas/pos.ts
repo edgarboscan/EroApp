@@ -5,6 +5,8 @@ export const posCartItemSchema = z.object({
   productId: z.string().min(1),
   sku: z.string(),
   name: z.string(),
+  presentationId: z.string().optional().nullable(),
+  multiplier: z.number().positive().default(1),
   quantity: z.number().positive(),
   unitPrice: z.number().min(0),
   discountPercent: z.number().min(0).max(100).default(0),
@@ -14,6 +16,9 @@ export const posCartItemSchema = z.object({
   subtotal: z.number().min(0),
   taxAmount: z.number().min(0),
   total: z.number().min(0),
+  isNegativeStockAuthorized: z.boolean().optional().default(false),
+  isPresentationAuthorized: z.boolean().optional().default(false),
+  supervisorApprovedBy: z.string().optional().nullable(),
 });
 
 export type POSCartItem = z.infer<typeof posCartItemSchema>;
@@ -126,6 +131,42 @@ export const closeCashShiftSchema = z.object({
 });
 
 export type CloseCashShiftInput = z.infer<typeof closeCashShiftSchema>;
+
+export const verifyCashShiftSchema = z.object({
+  shiftId: z.string().min(1),
+  status: z.enum(['VERIFIED', 'DISCREPANCY_REVIEW', 'PENDING']).default('VERIFIED'),
+  notes: z.string().max(255).optional().nullable(),
+  resolveNotification: z.boolean().optional().default(false),
+});
+
+export type VerifyCashShiftInput = z.infer<typeof verifyCashShiftSchema>;
+
+export const cashShiftDepositItemSchema = z.object({
+  bankAccountId: z.string().min(1, 'Debe seleccionar una cuenta bancaria'),
+  depositType: z.enum(['CASH_VES', 'CASH_USD', 'POS_BATCH', 'PAGO_MOVIL', 'TRANSFER', 'ZELLE', 'OTHER']),
+  amount: z.number().positive('El monto a depositar debe ser mayor a 0'),
+  currency: z.enum(['USD', 'VES']),
+  depositDate: z.string().optional().nullable(),
+  referenceNumber: z.string().min(1, 'Debe indicar el número de referencia o planilla de depósito').max(60),
+  notes: z.string().max(255).optional().nullable(),
+});
+
+export type CashShiftDepositItem = z.infer<typeof cashShiftDepositItemSchema>;
+
+export const depositCashShiftSchema = z.object({
+  shiftId: z.string().min(1),
+  deposits: z.array(cashShiftDepositItemSchema).min(1, 'Debe registrar al menos un depósito bancario'),
+  markAsDeposited: z.boolean().optional().default(true),
+});
+
+export type DepositCashShiftInput = z.infer<typeof depositCashShiftSchema>;
+
+export const resolveDiscrepancySchema = z.object({
+  notificationId: z.string().min(1),
+  resolutionNotes: z.string().min(2, 'Debe registrar la justificación de la resolución de auditoría').max(255),
+});
+
+export type ResolveDiscrepancyInput = z.infer<typeof resolveDiscrepancySchema>;
 
 export const cashMovementSchema = z.object({
   shiftId: z.string().min(1),
