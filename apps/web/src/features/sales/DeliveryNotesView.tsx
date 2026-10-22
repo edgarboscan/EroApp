@@ -178,6 +178,7 @@ export const DeliveryNotesView: React.FC = () => {
     "ALL" | "FROM_QUOTATION" | "DIRECT"
   >("ALL");
   const [startDate, setStartDate] = useState<string>("");
+
   const [endDate, setEndDate] = useState<string>("");
 
   // Modales
@@ -214,6 +215,8 @@ export const DeliveryNotesView: React.FC = () => {
       if (showCustomerSearch) setShowCustomerSearch(false);
       else if (productSearchRowIdx !== null) setProductSearchRowIdx(null);
       else if (isAddingFromSearch) setIsAddingFromSearch(false);
+      else if (isImportQuotationOpen) setIsImportQuotationOpen(false);
+      else if (viewingDelivery) setViewingDelivery(null);
       else if (isImportQuotationOpen) setIsImportQuotationOpen(false);
       else if (viewingDelivery) setViewingDelivery(null);
       else if (invoicingDelivery) setInvoicingDelivery(null);
@@ -320,6 +323,13 @@ export const DeliveryNotesView: React.FC = () => {
         }
       }
 
+      if (summaryRes.ok) {
+        const sJson = await summaryRes.json();
+        if (sJson.success && Array.isArray(sJson.data)) {
+          setCustomersSummary(sJson.data);
+        }
+      }
+
       if (prodRes.ok) {
         const pJson = await prodRes.json();
         if (pJson.success && Array.isArray(pJson.data)) {
@@ -416,157 +426,6 @@ export const DeliveryNotesView: React.FC = () => {
       ]);
     }
     setIsCreateOpen(true);
-  };
-
-  const handleOpenImportModal = async () => {
-    setIsImportQuotationOpen(true);
-    setLoadingQuotations(true);
-    try {
-      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const params = new URLSearchParams();
-      if (activeBranchId) params.append("branchId", activeBranchId);
-      params.append("forDelivery", "true");
-      const res = await fetch(`/api/sales/quotations?${params.toString()}`, {
-        headers,
-      });
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && Array.isArray(json.data)) {
-          setQuotationsList(json.data);
-        } else {
-          setQuotationsList([]);
-        }
-      } else {
-        setQuotationsList([]);
-      }
-    } catch {
-      setQuotationsList([]);
-    } finally {
-      setLoadingQuotations(false);
-    }
-  };
-
-  const handleSelectQuotationToImport = async (quot: QuotationOption) => {
-    // Validar que esté previamente facturada
-    if (quot.status !== "CONVERTED") {
-      toast.error(
-        `Solo se pueden despachar cotizaciones previamente facturadas. La cotización ${quot.quotationNumber} no ha sido facturada aún.`,
-      );
-      return;
-    }
-
-    try {
-      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const res = await fetch(`/api/sales/quotations/${quot.id}`, { headers });
-      if (!res.ok) {
-        toast.error("No se pudo obtener el detalle de la cotización");
-        return;
-      }
-      const json = await res.json();
-      if (!json.success || !json.data) {
-        toast.error("Error al procesar la cotización");
-        return;
-      }
-
-      const fullQuot = json.data;
-      if (!Array.isArray(fullQuot.items) || fullQuot.items.length === 0) {
-        toast.error("La cotización no contiene productos para despachar");
-        return;
-      }
-
-      // Filtrar únicamente los ítems que aún tengan cantidades pendientes por entregar
-      const itemsWithPending = fullQuot.items.filter((i: any) => {
-        const pending =
-          i.quantityPending !== undefined
-            ? Number(i.quantityPending)
-            : Number(i.quantity);
-        return pending > 0;
-      });
-
-      if (itemsWithPending.length === 0) {
-        toast.error(
-          `La cotización ${fullQuot.quotationNumber} ya fue entregada al 100%. No posee productos pendientes por despachar.`,
-        );
-        return;
-      }
-
-      const targetCustomerId = fullQuot.customerId || quot.customerId;
-      const targetCust = availableCustomers.find((c) => c.id === targetCustomerId);
-      if (targetCust?.isBlocked) {
-        toast.error(
-          `La cotización ${fullQuot.quotationNumber} pertenece al cliente "${targetCust.name}" que se encuentra BLOQUEADO. Motivo: ${targetCust.blockReason || 'Consulte con administración'}. No se permite emitir notas de entrega.`
-        );
-        return;
-      }
-
-      setCustomerId(targetCustomerId);
-      setSelectedQuotation({
-        id: fullQuot.id,
-        number: fullQuot.quotationNumber,
-        total: Number(fullQuot.totalAmount || 0),
-        status: fullQuot.status,
-      });
-      setQuotationRef(fullQuot.quotationNumber);
-
-      const mapped: NewDeliveryItem[] = itemsWithPending.map((i: any) => {
-        const qtyToDeliver =
-          i.quantityPending !== undefined && Number(i.quantityPending) > 0
-            ? Number(i.quantityPending)
-            : Number(i.quantity || 1);
-
-        return {
-          productId: i.productId,
-          productName: i.productName || "",
-          sku: i.productSku || "",
-          quantityDelivered: qtyToDeliver,
-          unitPrice: Number(i.unitPrice || 0),
-          total: Number((qtyToDeliver * (i.unitPrice || 0)).toFixed(2)),
-          notes:
-            i.notes ||
-            (Number(i.quantityDelivered || 0) > 0
-              ? `Entrega restante (${qtyToDeliver} de ${i.quantity} cotizados)`
-              : undefined),
-          quotationItemId: i.id || null,
-        };
-      });
-
-      setDeliveryItems(mapped);
-      setIsImportQuotationOpen(false);
-      setIsCreateOpen(true);
-      toast.success(
-        `Cotización facturada ${fullQuot.quotationNumber} importada con ${mapped.length} producto(s) pendiente(s) por despachar.`,
-      );
-    } catch {
-      toast.error("Error de comunicación con el servidor al importar");
-    }
-  };
-
-  const handleClearQuotationBinding = () => {
-    setSelectedQuotation(null);
-    setQuotationRef("");
-    toast.info("Vinculación con cotización eliminada. Despacho directo.");
-  };
-
-  const handleViewDetail = async (id: string) => {
-    setLoadingDetail(true);
-    try {
-      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const res = await fetch(`/api/sales/deliveries/${id}`, { headers });
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && json.data) {
-          setViewingDelivery(json.data);
-        } else {
-          toast.error("No se pudo obtener el detalle de la nota de entrega");
-        }
-      } else {
-        toast.error("Error al consultar el despacho");
-      }
-    } catch {
-      toast.error("Error de comunicación con el servidor");
-    } finally {
-      setLoadingDetail(false);
-    }
   };
 
   const handleAddItem = () => {
@@ -954,68 +813,23 @@ export const DeliveryNotesView: React.FC = () => {
       ),
     },
     {
-      header: "% Entregado",
-      accessorKey: "totalAmount",
-      cell: (item) => {
-        if (
-          item.quotationId ||
-          (item.quotationTotalAmount && item.quotationTotalAmount > 0)
-        ) {
-          const totalQty = Number(item.quotationTotalQuantity || 0);
-          const deliveredQty = Number(item.quotationDeliveredQuantity || 0);
-          const subtotalQuot = Number(
-            item.quotationSubtotalAmount ?? item.quotationTotalAmount ?? 0,
-          );
-          const totalDelivered = Number(
-            item.quotationDeliveredTotal || item.totalAmount,
-          );
-
-          // Logistics delivery percentage is based on physical quantities dispatched vs quoted.
-          // If quantities are unavailable, fallback to net subtotal amount (excluding taxes).
-          const pct =
-            totalQty > 0
-              ? Math.min(100, Math.round((deliveredQty / totalQty) * 100))
-              : subtotalQuot > 0
-                ? Math.min(
-                    100,
-                    Math.round((totalDelivered / subtotalQuot) * 100),
-                  )
-                : 100;
-          const isComplete = pct >= 100;
-
-          return (
-            <div className="min-w-[120px]">
-              <div className="flex items-center justify-between text-[11px] mb-1">
-                <span
-                  className={`font-semibold ${
-                    isComplete ? "text-emerald-700" : "text-sky-700"
-                  }`}
-                >
-                  {pct}% entregado
-                </span>
-                <span className="text-[10px] text-neutral-500 font-mono">
-                  {totalQty > 0
-                    ? `${deliveredQty} / ${totalQty} un.`
-                    : formatMoneyUSD(totalDelivered)}
-                </span>
-              </div>
-              <div className="w-full bg-neutral-100 rounded-lg h-1.5 overflow-hidden border border-neutral-200">
-                <div
-                  className={`h-full rounded-lg transition-all duration-300 ${
-                    isComplete ? "bg-emerald-600" : "bg-sky-600"
-                  }`}
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-            </div>
-          );
-        }
-        return (
-          <span className="text-[11px] text-neutral-400 italic">
-            100% (Directo)
+      header: "Transporte / Conductor",
+      accessorKey: "driverName",
+      cell: (item) =>
+        item.driverName ? (
+          <div className="text-xs text-neutral-700">
+            <p className="font-medium">{item.driverName}</p>
+            {item.vehiclePlate && (
+              <span className="font-mono text-[10px] text-neutral-500">
+                Placa: {item.vehiclePlate}
+              </span>
+            )}
+          </div>
+        ) : (
+          <span className="text-[10px] text-neutral-400 italic">
+            Entrega en Mostrador
           </span>
-        );
-      },
+        ),
     },
     {
       header: "Monto Total",
@@ -1356,377 +1170,6 @@ export const DeliveryNotesView: React.FC = () => {
           searchPlaceholder="Buscar por número de despacho, cliente o cotización..."
         />
       </Card>
-
-      {/* Modal Detalle de Nota de Entrega */}
-      {viewingDelivery && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/60 backdrop-blur-xs p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg border border-neutral-200 w-full max-w-3xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden my-auto">
-            {/* Header */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
-              <div className="flex items-center gap-2">
-                <Truck className="w-5 h-5 text-emerald-600" />
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-900">
-                    Detalle de Nota de Entrega: {viewingDelivery.deliveryNumber}
-                  </h3>
-                  <p className="text-[11px] text-neutral-500">
-                    Emitida el{" "}
-                    {new Date(viewingDelivery.deliveryDate).toLocaleDateString(
-                      "es-VE",
-                    )}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setViewingDelivery(null)}
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
-                title="Cerrar (Esc)"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Body */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
-              {/* Sección de Vinculación con Cotización & Porcentaje Entregado */}
-              {viewingDelivery.quotationNumber ? (
-                <div className="bg-sky-50/70 border border-sky-200 rounded-lg p-4 space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-sky-700" />
-                      <span className="font-semibold text-neutral-900 text-xs">
-                        Cotización Vinculada:
-                      </span>
-                      <span className="font-mono text-xs font-bold text-sky-800">
-                        {viewingDelivery.quotationNumber}
-                      </span>
-                      {renderQuotationStatusBadge(
-                        viewingDelivery.quotationStatus,
-                      )}
-                    </div>
-                    <div className="text-xs text-neutral-600 flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <span>
-                        Subtotal Cotizado:{" "}
-                        <strong className="font-mono text-neutral-900">
-                          {formatMoneyUSD(
-                            Number(
-                              viewingDelivery.quotationSubtotalAmount ??
-                                viewingDelivery.quotationTotalAmount ??
-                                0,
-                            ),
-                          )}
-                        </strong>
-                      </span>
-                      {Number(viewingDelivery.quotationTaxAmount || 0) > 0 && (
-                        <span className="text-neutral-500 font-mono">
-                          (IVA:{" "}
-                          {formatMoneyUSD(
-                            Number(viewingDelivery.quotationTaxAmount),
-                          )}
-                          )
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {(() => {
-                    const totalQty = Number(
-                      viewingDelivery.quotationTotalQuantity || 0,
-                    );
-                    const deliveredQty = Number(
-                      viewingDelivery.quotationDeliveredQuantity || 0,
-                    );
-                    const subtotalQuot = Number(
-                      viewingDelivery.quotationSubtotalAmount ??
-                        viewingDelivery.quotationTotalAmount ??
-                        0,
-                    );
-                    const deliveredTotal = Number(
-                      viewingDelivery.quotationDeliveredTotal ||
-                        viewingDelivery.totalAmount ||
-                        0,
-                    );
-
-                    const pct =
-                      totalQty > 0
-                        ? Math.min(
-                            100,
-                            Number(((deliveredQty / totalQty) * 100).toFixed(1)),
-                          )
-                        : subtotalQuot > 0
-                          ? Math.min(
-                              100,
-                              Number(
-                                ((deliveredTotal / subtotalQuot) * 100).toFixed(
-                                  1,
-                                ),
-                              ),
-                            )
-                          : 100;
-                    const isComplete = pct >= 100;
-
-                    return (
-                      <div className="space-y-1.5 pt-1">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="font-medium text-neutral-700">
-                            Progreso de Entrega Física:
-                          </span>
-                          <div className="flex items-center gap-2">
-                            {totalQty > 0 && (
-                              <span className="text-[11px] font-mono text-neutral-500">
-                                ({deliveredQty} de {totalQty} un.)
-                              </span>
-                            )}
-                            <span
-                              className={`font-bold font-mono text-sm ${
-                                isComplete ? "text-emerald-700" : "text-sky-700"
-                              }`}
-                            >
-                              {pct}%
-                            </span>
-                          </div>
-                        </div>
-                        <div className="w-full bg-neutral-200 rounded-lg h-2.5 overflow-hidden">
-                          <div
-                            className={`h-full rounded-lg transition-all duration-500 ${
-                              isComplete ? "bg-emerald-600" : "bg-sky-600"
-                            }`}
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                        <div className="flex items-center justify-between text-[11px] text-neutral-500">
-                          <span>
-                            Acumulado despachado (Neto):{" "}
-                            <strong className="font-mono text-neutral-700">
-                              {formatMoneyUSD(deliveredTotal)}
-                            </strong>
-                          </span>
-                          {isComplete ? (
-                            <span className="text-emerald-700 font-medium flex items-center gap-1">
-                              <CheckCircle2 className="w-3.5 h-3.5" /> Entrega
-                              completa de los productos cotizados
-                            </span>
-                          ) : (
-                            <span>
-                              Restante por despachar:{" "}
-                              <strong className="font-mono text-neutral-700">
-                                {totalQty > 0
-                                  ? `${Math.max(0, totalQty - deliveredQty)} un.`
-                                  : formatMoneyUSD(
-                                      Math.max(0, subtotalQuot - deliveredTotal),
-                                    )}
-                              </strong>
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              ) : (
-                <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-3 text-xs text-neutral-600 flex items-center gap-2">
-                  <Truck className="w-4 h-4 text-neutral-500 shrink-0" />
-                  <span>
-                    <strong>Despacho Directo:</strong> Esta nota de entrega fue
-                    emitida directamente sin vincularse a una cotización previa
-                    (100% despachado en este documento).
-                  </span>
-                </div>
-              )}
-
-              {/* Datos de Entrega y Logística */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 bg-neutral-50 p-3.5 rounded-lg border border-neutral-200">
-                <div>
-                  <span className="text-[10px] text-neutral-400 block uppercase font-medium">
-                    Cliente Destinatario
-                  </span>
-                  <p className="font-semibold text-neutral-900 mt-0.5">
-                    {viewingDelivery.customerName}
-                  </p>
-                  <p className="text-[11px] font-mono text-neutral-500">
-                    {viewingDelivery.customerDoc}
-                  </p>
-                  {viewingDelivery.customerPhone && (
-                    <p className="text-[11px] text-neutral-500">
-                      Tlf: {viewingDelivery.customerPhone}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <span className="text-[10px] text-neutral-400 block uppercase font-medium">
-                    Depósito y Sucursal
-                  </span>
-                  <p className="font-medium text-neutral-800 mt-0.5">
-                    {viewingDelivery.warehouseName}
-                  </p>
-                  <p className="text-[11px] text-neutral-500">
-                    {viewingDelivery.branchName}
-                  </p>
-                  <p className="text-[11px] text-neutral-400">
-                    Despachó: {viewingDelivery.dispatchedByUserName}
-                  </p>
-                </div>
-
-                <div>
-                  <span className="text-[10px] text-neutral-400 block uppercase font-medium">
-                    Transporte y Conductor
-                  </span>
-                  <p className="font-medium text-neutral-800 mt-0.5">
-                    {viewingDelivery.driverName || "Entrega en Mostrador"}
-                  </p>
-                  {viewingDelivery.vehiclePlate && (
-                    <p className="text-[11px] font-mono text-neutral-500">
-                      Placa: {viewingDelivery.vehiclePlate}
-                    </p>
-                  )}
-                  <div className="mt-1">
-                    {viewingDelivery.status === "DELIVERED" ? (
-                      <Badge variant="info" className="text-[10px]">
-                        Despachada / Pendiente Factura
-                      </Badge>
-                    ) : (
-                      <Badge variant="success" className="text-[10px]">
-                        Facturada en CxC
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Tabla de Productos Despachados */}
-              <div className="space-y-2">
-                <h4 className="text-xs font-semibold text-neutral-900 uppercase tracking-wider">
-                  Productos Despachados ({viewingDelivery.items?.length || 0})
-                </h4>
-                <div className="overflow-x-auto border border-neutral-200 rounded-lg">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-600 font-medium">
-                      <tr>
-                        <th className="py-2 px-3">Código</th>
-                        <th className="py-2 px-3">Descripción</th>
-                        <th className="py-2 px-3 text-right">Cant. Despachada</th>
-                        <th className="py-2 px-3 text-right">Precio Unit. ($)</th>
-                        <th className="py-2 px-3 text-right">Subtotal ($)</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-neutral-100">
-                      {viewingDelivery.items && viewingDelivery.items.length > 0 ? (
-                        viewingDelivery.items.map((i, idx) => (
-                          <tr key={idx} className="hover:bg-neutral-50/50">
-                            <td className="py-2 px-3 font-mono text-neutral-500">
-                              {i.productSku}
-                            </td>
-                            <td className="py-2 px-3 font-medium text-neutral-900">
-                              {i.productName}
-                              {i.notes && (
-                                <span className="block text-[10px] text-neutral-400 font-normal">
-                                  {i.notes}
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-2 px-3 text-right font-mono font-semibold text-neutral-800">
-                              {i.quantityDelivered}{" "}
-                              <span className="text-[10px] text-neutral-400 font-normal">
-                                {i.unitOfMeasure || "UND"}
-                              </span>
-                            </td>
-                            <td className="py-2 px-3 text-right font-mono text-neutral-700">
-                              {formatMoneyUSD(i.unitPrice)}
-                            </td>
-                            <td className="py-2 px-3 text-right font-mono font-bold text-neutral-900">
-                              {formatMoneyUSD(i.total)}
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td
-                            colSpan={5}
-                            className="py-4 text-center text-neutral-400"
-                          >
-                            Sin ítems registrados
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Totales */}
-              <div className="flex justify-end pt-1">
-                <div className="bg-neutral-50 p-3 rounded-lg border border-neutral-200 text-right min-w-[220px] space-y-1">
-                  <div className="flex items-center justify-between text-xs text-neutral-600">
-                    <span>Total Despacho ($):</span>
-                    <strong className="text-neutral-900 font-mono text-sm">
-                      {formatMoneyUSD(viewingDelivery.totalAmount)}
-                    </strong>
-                  </div>
-                  <div className="flex items-center justify-between text-[11px] text-neutral-500">
-                    <span>Equivalente en Bs:</span>
-                    <span className="font-mono">
-                      {formatMoneyVES(
-                        viewingDelivery.totalAmount *
-                          viewingDelivery.exchangeRate,
-                      )}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-between shrink-0">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  setPdfModal({
-                    isOpen: true,
-                    endpoint: `/api/sales/deliveries/${viewingDelivery.id}/pdf`,
-                    title: `Nota de Entrega ${viewingDelivery.deliveryNumber}`,
-                    filename: `nota_entrega_${viewingDelivery.deliveryNumber}.pdf`,
-                  })
-                }
-                className="flex items-center gap-1.5 text-xs text-sky-700 border-sky-300 hover:bg-sky-50"
-              >
-                <FileText className="w-3.5 h-3.5 text-sky-600" />
-                <span>Imprimir / Ver PDF</span>
-              </Button>
-
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setViewingDelivery(null)}
-                >
-                  Cerrar
-                </Button>
-                {viewingDelivery.status === "DELIVERED" && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => {
-                      const d = viewingDelivery;
-                      setViewingDelivery(null);
-                      setInvoicingDelivery(d);
-                    }}
-                    className="bg-sky-600 hover:bg-sky-700 text-white font-medium text-xs rounded-lg py-1.5 px-3 flex items-center gap-1.5"
-                  >
-                    <Receipt className="w-3.5 h-3.5" />
-                    <span>Facturar a CxC</span>
-                  </Button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
 
       {/* Modal Nueva Nota de Entrega */}
       {isCreateOpen && (

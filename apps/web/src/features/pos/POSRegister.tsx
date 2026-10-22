@@ -170,6 +170,33 @@ export const POSRegister: React.FC = () => {
   } | null>(null);
   const [discountInputPercent, setDiscountInputPercent] = useState<string>('0');
 
+  // Opciones de visualización y densidad del catálogo de productos
+  const [catalogViewMode, setCatalogViewMode] = useState<'grid' | 'list'>('grid');
+  const [catalogOptions, setCatalogOptions] = useState({
+    showBarcode: true,
+    showSku: true,
+    showPrice: true,
+    showStock: true,
+    showDescription: true,
+  });
+  const [isOptionsDropdownOpen, setIsOptionsDropdownOpen] = useState(false);
+
+  // Modal de Selección de Presentaciones del Producto
+  const [isPresentationModalOpen, setIsPresentationModalOpen] = useState(false);
+  const [selectedProductForPresentation, setSelectedProductForPresentation] = useState<ProductItem | null>(null);
+  const [selectedPresentationId, setSelectedPresentationId] = useState<string | null>(null);
+  const [presentationQty, setPresentationQty] = useState<number>(1);
+  const [presentationModalError, setPresentationModalError] = useState<string | null>(null);
+
+  // Modal para aplicar descuento individual a renglón del carrito
+  const [editingDiscountItem, setEditingDiscountItem] = useState<{
+    productId: string;
+    presentationId: string | null;
+    productName: string;
+    currentDiscountPercent: number;
+  } | null>(null);
+  const [discountInputPercent, setDiscountInputPercent] = useState<string>('0');
+
   // Reglas de negocio (Stock negativo y autorizaciones)
   const [businessRules, setBusinessRules] = useState<{
     allowNegativeStock: boolean;
