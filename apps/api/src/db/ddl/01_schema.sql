@@ -311,6 +311,7 @@ CREATE TABLE `products` (
   `name` VARCHAR(150) NOT NULL,
   `description` TEXT DEFAULT NULL,
   `product_type` ENUM('physical', 'service', 'kit', 'raw_material') NOT NULL DEFAULT 'physical',
+  `tracks_inventory` TINYINT(1) NOT NULL DEFAULT 1,
   
   -- Relaciones de Jerarquía
   `department_id` CHAR(36) DEFAULT NULL,
@@ -1025,6 +1026,16 @@ CREATE TABLE `cash_registers` (
   UNIQUE KEY `uk_cr_branch_code` (`branch_id`, `code`),
   CONSTRAINT `fk_cr_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE RESTRICT,
   CONSTRAINT `fk_cr_warehouse` FOREIGN KEY (`warehouse_id`) REFERENCES `warehouses` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+DROP TABLE IF EXISTS `cash_register_departments`;
+CREATE TABLE `cash_register_departments` (
+  `cash_register_id` CHAR(36) NOT NULL,
+  `department_id` CHAR(36) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`cash_register_id`, `department_id`),
+  CONSTRAINT `fk_crd_cash_register` FOREIGN KEY (`cash_register_id`) REFERENCES `cash_registers` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_crd_department` FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 DROP TABLE IF EXISTS `cash_shifts`;

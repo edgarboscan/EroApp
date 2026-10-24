@@ -318,14 +318,14 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-neutral-900 tracking-tight">
+              <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100 tracking-tight">
                 Configuración de Medios de Pago
               </h1>
-              <span className="px-2 py-0.5 text-[11px] font-bold bg-sky-100 text-sky-800 rounded-lg border border-sky-200">
+              <span className="px-2 py-0.5 text-[11px] font-bold bg-sky-100 dark:bg-sky-950/60 text-sky-800 dark:text-sky-300 rounded-lg border border-sky-200 dark:border-sky-800">
                 Módulo Configuración
               </span>
             </div>
-            <p className="text-xs text-neutral-500 mt-1">
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
               Catálogo oficial de medios de cobro autorizados para Puntos de Venta (POS), Arqueos y Facturación Comercial
             </p>
           </div>
@@ -353,13 +353,13 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
 
       {/* Botón de acción si está embebido */}
       {embedded && (
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-2 border-b border-neutral-200">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-2 border-b border-neutral-200 dark:border-neutral-800">
           <div>
-            <h2 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
-              <CreditCard className="w-4 h-4 text-sky-600" />
+            <h2 className="text-sm font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
+              <CreditCard className="w-4 h-4 text-sky-600 dark:text-sky-400" />
               Catálogo de Medios de Cobro & Pagos
             </h2>
-            <p className="text-xs text-neutral-500 mt-0.5">
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
               Administración centralizada de tarjetas, pago móvil, transferencias, divisas y recargo IGTF
             </p>
           </div>
@@ -386,85 +386,85 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
 
       {/* Tarjetas de Métricas Resumen */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white border border-neutral-200 rounded-lg p-3.5 shadow-xs">
+        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-3.5 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+            <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
               Total Medios
             </span>
-            <div className="w-7 h-7 rounded-lg bg-neutral-100 text-neutral-600 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 flex items-center justify-center">
               <CreditCard className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="mt-2 text-xl font-bold font-mono text-neutral-900">
+          <div className="mt-2 text-xl font-bold font-mono text-neutral-900 dark:text-neutral-100">
             {totalCount}
           </div>
-          <span className="text-[10px] text-neutral-400">Registrados en el sistema</span>
+          <span className="text-[10px] text-neutral-400 dark:text-neutral-500">Registrados en el sistema</span>
         </div>
 
-        <div className="bg-white border border-neutral-200 rounded-lg p-3.5 shadow-xs">
+        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-3.5 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+            <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
               Habilitados
             </span>
-            <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 flex items-center justify-center">
               <CheckCircle2 className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="mt-2 text-xl font-bold font-mono text-emerald-700">
+          <div className="mt-2 text-xl font-bold font-mono text-emerald-700 dark:text-emerald-400">
             {activeCount}
           </div>
-          <span className="text-[10px] text-neutral-400">Disponibles en el POS</span>
+          <span className="text-[10px] text-neutral-400 dark:text-neutral-500">Disponibles en el POS</span>
         </div>
 
-        <div className="bg-white border border-neutral-200 rounded-lg p-3.5 shadow-xs">
+        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-3.5 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+            <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
               Bolívares (VES)
             </span>
-            <div className="w-7 h-7 rounded-lg bg-sky-50 text-sky-700 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 flex items-center justify-center">
               <Coins className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="mt-2 text-xl font-bold font-mono text-sky-700">
+          <div className="mt-2 text-xl font-bold font-mono text-sky-700 dark:text-sky-400">
             {vesCount}
           </div>
-          <span className="text-[10px] text-neutral-400">Moneda nacional</span>
+          <span className="text-[10px] text-neutral-400 dark:text-neutral-500">Moneda nacional</span>
         </div>
 
-        <div className="bg-white border border-neutral-200 rounded-lg p-3.5 shadow-xs">
+        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-3.5 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+            <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
               Con IGTF (3%)
             </span>
-            <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 flex items-center justify-center">
               <Percent className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="mt-2 text-xl font-bold font-mono text-indigo-700">
+          <div className="mt-2 text-xl font-bold font-mono text-indigo-700 dark:text-indigo-400">
             {igtfCount}
           </div>
-          <span className="text-[10px] text-neutral-400">Aplica recargo fiscal</span>
+          <span className="text-[10px] text-neutral-400 dark:text-neutral-500">Aplica recargo fiscal</span>
         </div>
       </div>
 
       {/* Barra de Filtros y Búsqueda */}
-      <div className="bg-white border border-neutral-200 rounded-lg p-3.5 shadow-xs space-y-3">
+      <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-3.5 shadow-xs space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
           {/* Búsqueda */}
           <div className="sm:col-span-2 relative">
-            <Search className="w-4 h-4 text-neutral-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-neutral-400 dark:text-neutral-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Buscar por código o nombre (ej. PAGO_MOVIL, CASHEA)..."
-              className="w-full h-8 pl-8 pr-3 text-xs border border-neutral-300 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500 bg-white"
+              className="w-full h-8 pl-8 pr-3 text-xs border border-neutral-300 dark:border-neutral-700 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500"
             />
             {searchTerm && (
               <button
                 type="button"
                 onClick={() => setSearchTerm('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -476,7 +476,7 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
             <select
               value={currencyFilter}
               onChange={(e) => setCurrencyFilter(e.target.value as any)}
-              className="w-full h-8 px-2 text-xs border border-neutral-300 rounded-lg bg-white focus-visible:ring-2 focus-visible:ring-sky-500"
+              className="w-full h-8 px-2 text-xs border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
             >
               <option value="ALL">Todas las Monedas</option>
               <option value="VES">Bolívares (VES)</option>
@@ -489,7 +489,7 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as any)}
-              className="w-full h-8 px-2 text-xs border border-neutral-300 rounded-lg bg-white focus-visible:ring-2 focus-visible:ring-sky-500"
+              className="w-full h-8 px-2 text-xs border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
             >
               <option value="ALL">Todos los Estados</option>
               <option value="ACTIVE">Solo Activos</option>
@@ -499,8 +499,8 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
         </div>
 
         {/* Filtros Rápidos por Categoría Operativa */}
-        <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-neutral-100 text-[11px]">
-          <span className="text-neutral-400 font-medium mr-1">Categoría:</span>
+        <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-neutral-100 dark:border-neutral-800 text-[11px]">
+          <span className="text-neutral-400 dark:text-neutral-500 font-medium mr-1">Categoría:</span>
           {[
             { id: 'ALL', label: 'Todos' },
             { id: 'CARD', label: 'Tarjetas / POS' },
@@ -516,7 +516,7 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
               className={`px-2 py-0.5 rounded-lg border transition-colors cursor-pointer ${
                 typeFilter === cat.id
                   ? 'bg-sky-600 text-white border-sky-600 font-bold'
-                  : 'bg-neutral-50 text-neutral-600 border-neutral-200 hover:bg-neutral-100'
+                  : 'bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-700'
               }`}
             >
               {cat.label}
@@ -531,7 +531,7 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
                 setTypeFilter('ALL');
                 setStatusFilter('ALL');
               }}
-              className="ml-auto text-sky-600 hover:text-sky-800 text-[11px] font-medium underline cursor-pointer"
+              className="ml-auto text-sky-600 dark:text-sky-400 hover:text-sky-800 dark:hover:text-sky-300 text-[11px] font-medium underline cursor-pointer"
             >
               Restablecer filtros
             </button>
@@ -540,25 +540,25 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
       </div>
 
       {/* Tabla de Medios de Pago */}
-      <div className="bg-white border border-neutral-200 rounded-lg shadow-xs overflow-hidden">
+      <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-xs overflow-hidden">
         {loading ? (
           /* Skeletons para carga sin Layout Shift */
           <div className="p-4 space-y-3">
             {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="h-10 bg-neutral-100 rounded-lg animate-pulse" />
+              <div key={i} className="h-10 bg-neutral-100 dark:bg-neutral-800 rounded-lg animate-pulse" />
             ))}
           </div>
         ) : filteredMethods.length === 0 ? (
           /* Estado Vacío */
           <div className="text-center py-12 px-4 space-y-3">
-            <div className="w-12 h-12 rounded-lg bg-neutral-100 text-neutral-400 flex items-center justify-center mx-auto">
+            <div className="w-12 h-12 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500 flex items-center justify-center mx-auto">
               <CreditCard className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-neutral-900">
+              <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
                 No se encontraron medios de pago
               </h3>
-              <p className="text-xs text-neutral-500 mt-1 max-w-sm mx-auto">
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-sm mx-auto">
                 {searchTerm || currencyFilter !== 'ALL' || typeFilter !== 'ALL' || statusFilter !== 'ALL'
                   ? 'No hay registros que coincidan con los criterios de búsqueda o filtros seleccionados.'
                   : 'Aún no se han configurado medios de pago en la empresa.'}
@@ -574,7 +574,7 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left">
-              <thead className="bg-neutral-50 text-neutral-600 uppercase text-[10px] tracking-wider border-b border-neutral-200 sticky top-0 z-10">
+              <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase text-[10px] tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
                 <tr>
                   <th className="py-2.5 px-3 w-12 text-center">Ord.</th>
                   <th className="py-2.5 px-3">Código</th>
@@ -587,35 +587,35 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
                   <th className="py-2.5 px-3 text-right">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-100">
+              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
                 {filteredMethods.map((m) => (
-                  <tr key={m.id || m.code} className="hover:bg-neutral-50/70 transition-colors">
-                    <td className="py-2.5 px-3 text-center font-mono text-neutral-500">
+                  <tr key={m.id || m.code} className="hover:bg-neutral-50/70 dark:hover:bg-neutral-800/50 transition-colors">
+                    <td className="py-2.5 px-3 text-center font-mono text-neutral-500 dark:text-neutral-400">
                       {m.displayOrder ?? 0}
                     </td>
-                    <td className="py-2.5 px-3 font-mono font-bold text-neutral-900">
+                    <td className="py-2.5 px-3 font-mono font-bold text-neutral-900 dark:text-neutral-100">
                       {m.code}
                     </td>
-                    <td className="py-2.5 px-3 font-medium text-neutral-900">
+                    <td className="py-2.5 px-3 font-medium text-neutral-900 dark:text-neutral-100">
                       {m.name}
                     </td>
                     <td className="py-2.5 px-3">
                       <span
                         className={`inline-flex items-center px-1.5 py-0.5 rounded-lg text-[10px] font-bold border ${
                           m.currency === 'USD'
-                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                            : 'bg-sky-50 text-sky-800 border-sky-200'
+                            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                            : 'bg-sky-50 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300 border-sky-200 dark:border-sky-800'
                         }`}
                       >
                         {m.currency}
                       </span>
                     </td>
-                    <td className="py-2.5 px-3 text-neutral-600">
+                    <td className="py-2.5 px-3 text-neutral-600 dark:text-neutral-400">
                       {getTypeLabel(m.type)}
                     </td>
                     <td className="py-2.5 px-3">
                       {m.appliesIGTF ? (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-lg text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-lg text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
                           +3% IGTF
                         </span>
                       ) : (
@@ -624,7 +624,7 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
                     </td>
                     <td className="py-2.5 px-3">
                       {m.requiresReference ? (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-lg text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-200">
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-lg text-[10px] font-medium bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
                           Obligatoria
                         </span>
                       ) : (
@@ -658,7 +658,7 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
                           onClick={() => handleOpenEdit(m)}
                           className="h-7 px-2 text-xs"
                         >
-                          <Edit2 className="w-3 h-3 mr-1 text-neutral-600" />
+                          <Edit2 className="w-3 h-3 mr-1 text-neutral-600 dark:text-neutral-300" />
                           Editar
                         </Button>
                       ) : (
@@ -673,16 +673,16 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
         )}
       </div>
 
-      {/* Modal Crear / Editar Medio de Pago */}
+      {/* Modal de Crear / Editar Medio de Pago */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingId ? 'Editar Medio de Pago' : 'Nuevo Medio de Pago'}
         subtitle="Configure los parámetros fiscales, tipo de divisa y reglas operativas para cobros"
-        icon={<CreditCard className="w-5 h-5 text-sky-600" />}
+        icon={<CreditCard className="w-5 h-5 text-sky-600 dark:text-sky-400" />}
         maxWidth="max-w-xl"
         footer={
-          <div className="flex items-center justify-end gap-2 w-full">
+          <div className="flex items-center justify-end gap-2 w-full shrink-0 bg-white dark:bg-neutral-900">
             <Button
               type="button"
               variant="outline"
@@ -711,7 +711,7 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
           {/* Identificación */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block font-semibold text-neutral-700 mb-1">
+              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                 Código Interno <span className="text-red-500">*</span>
               </label>
               <input
@@ -722,22 +722,22 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
                   if (errors.code) setErrors((prev) => ({ ...prev, code: undefined }));
                 }}
                 placeholder="Ej: CASHEA, PAGO_MOVIL, BIOPAGO"
-                className={`w-full h-8 px-2.5 border rounded-lg font-mono font-bold text-xs focus-visible:ring-2 focus-visible:ring-sky-500 bg-white ${
-                  errors.code ? 'border-red-500 ring-1 ring-red-500' : 'border-neutral-300'
+                className={`w-full h-8 px-2.5 border rounded-lg font-mono font-bold text-xs focus-visible:ring-2 focus-visible:ring-sky-500 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 ${
+                  errors.code ? 'border-red-500 ring-1 ring-red-500' : 'border-neutral-300 dark:border-neutral-700'
                 }`}
                 disabled={Boolean(editingId && ['CASH_USD', 'CASH_VES'].includes(formCode))}
               />
               {errors.code ? (
                 <span className="text-[10px] text-red-600 mt-0.5 block">{errors.code}</span>
               ) : (
-                <span className="text-[10px] text-neutral-400 mt-0.5 block">
+                <span className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5 block">
                   Identificador único en mayúsculas sin espacios
                 </span>
               )}
             </div>
 
             <div>
-              <label className="block font-semibold text-neutral-700 mb-1">
+              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                 Nombre Descriptivo <span className="text-red-500">*</span>
               </label>
               <input
@@ -748,14 +748,14 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
                   if (errors.name) setErrors((prev) => ({ ...prev, name: undefined }));
                 }}
                 placeholder="Ej: Tarjeta de Débito / POS"
-                className={`w-full h-8 px-2.5 border rounded-lg text-xs focus-visible:ring-2 focus-visible:ring-sky-500 bg-white ${
-                  errors.name ? 'border-red-500 ring-1 ring-red-500' : 'border-neutral-300'
+                className={`w-full h-8 px-2.5 border rounded-lg text-xs focus-visible:ring-2 focus-visible:ring-sky-500 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 ${
+                  errors.name ? 'border-red-500 ring-1 ring-red-500' : 'border-neutral-300 dark:border-neutral-700'
                 }`}
               />
               {errors.name ? (
                 <span className="text-[10px] text-red-600 mt-0.5 block">{errors.name}</span>
               ) : (
-                <span className="text-[10px] text-neutral-400 mt-0.5 block">
+                <span className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5 block">
                   Etiqueta visual mostrada al cajero y en reportes
                 </span>
               )}
@@ -765,7 +765,7 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
           {/* Moneda y Categoría */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block font-semibold text-neutral-700 mb-1">Moneda Base</label>
+              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Moneda Base</label>
               <select
                 value={formCurrency}
                 onChange={(e) => {
@@ -774,7 +774,7 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
                   if (curr === 'USD') setFormAppliesIGTF(true);
                   else setFormAppliesIGTF(false);
                 }}
-                className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs bg-white focus-visible:ring-2 focus-visible:ring-sky-500"
+                className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
               >
                 <option value="VES">Bolívares (VES)</option>
                 <option value="USD">Dólares / Divisas (USD)</option>
@@ -782,13 +782,13 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
             </div>
 
             <div>
-              <label className="block font-semibold text-neutral-700 mb-1">
+              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                 Categoría Operativa
               </label>
               <select
                 value={formType}
                 onChange={(e) => setFormType(e.target.value as any)}
-                className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs bg-white focus-visible:ring-2 focus-visible:ring-sky-500"
+                className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
               >
                 <option value="CARD">Tarjeta (Punto de Venta Débito/Crédito)</option>
                 <option value="ELECTRONIC">Electrónico (Pago Móvil / Transferencia)</option>
@@ -801,7 +801,7 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
 
           {/* Orden de visualización */}
           <div>
-            <label className="block font-semibold text-neutral-700 mb-1">
+            <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
               Orden de Visualización
             </label>
             <input
@@ -809,83 +809,83 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
               min="0"
               value={formDisplayOrder}
               onChange={(e) => setFormDisplayOrder(parseInt(e.target.value) || 0)}
-              className="w-full sm:w-32 h-8 px-2.5 border border-neutral-300 rounded-lg text-xs font-mono focus-visible:ring-2 focus-visible:ring-sky-500 bg-white"
+              className="w-full sm:w-32 h-8 px-2.5 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs font-mono focus-visible:ring-2 focus-visible:ring-sky-500 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
             />
-            <span className="text-[10px] text-neutral-400 mt-0.5 block">
+            <span className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5 block">
               Prioridad en la botonera de cobro del POS (menor número = primero)
             </span>
           </div>
 
           {/* Reglas Operativas y Fiscales */}
-          <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 space-y-2.5">
-            <span className="font-semibold text-neutral-800 block text-[11px] uppercase tracking-wider">
+          <div className="p-3 bg-neutral-50 dark:bg-neutral-800/40 rounded-lg border border-neutral-200 dark:border-neutral-800 space-y-2.5">
+            <span className="font-semibold text-neutral-800 dark:text-neutral-200 block text-[11px] uppercase tracking-wider">
               Políticas Operativas & SENIAT:
             </span>
 
             <div className="space-y-2">
-              <label className="flex items-start gap-2.5 cursor-pointer text-neutral-700">
+              <label className="flex items-start gap-2.5 cursor-pointer text-neutral-700 dark:text-neutral-300">
                 <input
                   type="checkbox"
                   checked={formAppliesIGTF}
                   onChange={(e) => setFormAppliesIGTF(e.target.checked)}
-                  className="mt-0.5 rounded border-neutral-300 text-sky-600 focus:ring-sky-500"
+                  className="mt-0.5 rounded border-neutral-300 dark:border-neutral-700 text-sky-600 focus:ring-sky-500"
                 />
                 <div>
-                  <span className="font-medium block text-neutral-900">
+                  <span className="font-medium block text-neutral-900 dark:text-neutral-100">
                     Aplica Alícuota IGTF (3%)
                   </span>
-                  <span className="text-[10px] text-neutral-500 block">
+                  <span className="text-[10px] text-neutral-500 dark:text-neutral-400 block">
                     Grava con el 3% de IGTF cuando se efectúe el pago en divisas según la Ley del Impuesto a las Grandes Transacciones Financieras.
                   </span>
                 </div>
               </label>
 
-              <label className="flex items-start gap-2.5 cursor-pointer text-neutral-700">
+              <label className="flex items-start gap-2.5 cursor-pointer text-neutral-700 dark:text-neutral-300">
                 <input
                   type="checkbox"
                   checked={formRequiresReference}
                   onChange={(e) => setFormRequiresReference(e.target.checked)}
-                  className="mt-0.5 rounded border-neutral-300 text-sky-600 focus:ring-sky-500"
+                  className="mt-0.5 rounded border-neutral-300 dark:border-neutral-700 text-sky-600 focus:ring-sky-500"
                 />
                 <div>
-                  <span className="font-medium block text-neutral-900">
+                  <span className="font-medium block text-neutral-900 dark:text-neutral-100">
                     Exigir Referencia Bancaria / Lote Obligatorio
                   </span>
-                  <span className="text-[10px] text-neutral-500 block">
+                  <span className="text-[10px] text-neutral-500 dark:text-neutral-400 block">
                     Obliga al cajero a capturar el número de comprobante o aprobación antes de asentar el cobro.
                   </span>
                 </div>
               </label>
 
-              <label className="flex items-start gap-2.5 cursor-pointer text-neutral-700">
+              <label className="flex items-start gap-2.5 cursor-pointer text-neutral-700 dark:text-neutral-300">
                 <input
                   type="checkbox"
                   checked={formRequiresBankAccount}
                   onChange={(e) => setFormRequiresBankAccount(e.target.checked)}
-                  className="mt-0.5 rounded border-neutral-300 text-sky-600 focus:ring-sky-500"
+                  className="mt-0.5 rounded border-neutral-300 dark:border-neutral-700 text-sky-600 focus:ring-sky-500"
                 />
                 <div>
-                  <span className="font-medium block text-neutral-900">
+                  <span className="font-medium block text-neutral-900 dark:text-neutral-100">
                     Vincular a Cuenta Bancaria de Tesorería
                   </span>
-                  <span className="text-[10px] text-neutral-500 block">
+                  <span className="text-[10px] text-neutral-500 dark:text-neutral-400 block">
                     Asocia los ingresos de este medio de cobro al módulo de Tesorería y Conciliación Bancaria.
                   </span>
                 </div>
               </label>
 
-              <label className="flex items-start gap-2.5 cursor-pointer text-neutral-700">
+              <label className="flex items-start gap-2.5 cursor-pointer text-neutral-700 dark:text-neutral-300">
                 <input
                   type="checkbox"
                   checked={formIsActive}
                   onChange={(e) => setFormIsActive(e.target.checked)}
-                  className="mt-0.5 rounded border-neutral-300 text-sky-600 focus:ring-sky-500"
+                  className="mt-0.5 rounded border-neutral-300 dark:border-neutral-700 text-sky-600 focus:ring-sky-500"
                 />
                 <div>
-                  <span className="font-medium block text-neutral-900">
+                  <span className="font-medium block text-neutral-900 dark:text-neutral-100">
                     Método Activo y Disponible
                   </span>
-                  <span className="text-[10px] text-neutral-500 block">
+                  <span className="text-[10px] text-neutral-500 dark:text-neutral-400 block">
                     Si se desactiva, no se mostrará como opción de cobro en terminales de caja.
                   </span>
                 </div>

@@ -604,7 +604,7 @@ export const CashRegisterView: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-neutral-900 tracking-tight">
+            <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100 tracking-tight">
               {isFiscal ? 'Cierre de Caja & Arqueo Fiscal (SENIAT)' : 'Cierre de Caja & Arqueo'}
             </h1>
             {currentShift ? (
@@ -616,7 +616,7 @@ export const CashRegisterView: React.FC = () => {
               <Badge variant="neutral" className="text-xs">NO FISCAL</Badge>
             )}
           </div>
-          <p className="text-xs text-neutral-500 mt-1">
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
             {isFiscal
               ? 'Arqueo de efectivo en divisas y bolívares, control de turnos y emisión de Reportes X / Z homologados.'
               : 'Arqueo de efectivo en divisas y bolívares y control de turnos de caja.'}
@@ -766,7 +766,7 @@ export const CashRegisterView: React.FC = () => {
         currentShift ? (
           <div className="space-y-6">
             {/* Banner Informativo del Turno */}
-            <div className="bg-sky-50 border border-sky-200 rounded-lg p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+            <div className="bg-sky-50/60 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-lg p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-lg bg-sky-600 text-white flex items-center justify-center font-bold">
                   {currentShift.cashRegisterCode}
@@ -795,18 +795,18 @@ export const CashRegisterView: React.FC = () => {
               <div className="flex items-center gap-4 text-neutral-700">
                 <div>
                   <span className="text-neutral-500">Saldo Inicial USD:</span>{' '}
-                  <span className="font-mono font-bold text-neutral-900">{formatMoneyUSD(currentShift.initialCashUSD)}</span>
+                  <span className="font-mono font-bold text-neutral-700">{formatMoneyUSD(currentShift.initialCashUSD)}</span>
                 </div>
                 <div>
                   <span className="text-neutral-500">Saldo Inicial Bs:</span>{' '}
-                  <span className="font-mono font-bold text-neutral-900">{formatMoneyVES(currentShift.initialCashVES)}</span>
+                  <span className="font-mono font-bold text-neutral-700">{formatMoneyVES(currentShift.initialCashVES)}</span>
                 </div>
               </div>
             </div>
 
             {/* Tarjetas de Métricas de Recaudación */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Card className="p-4 space-y-1">
+              <Card className="p-4 space-y-1 p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
                 <span className="text-xs text-neutral-500">Efectivo en Divisas (Esperado)</span>
                 <div className="text-xl font-bold font-mono text-emerald-600">
                   {formatMoneyUSD(currentShift.expectedCashUSD)}
@@ -816,7 +816,7 @@ export const CashRegisterView: React.FC = () => {
                 </div>
               </Card>
 
-              <Card className="p-4 space-y-1">
+              <Card className="p-4 space-y-1 p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
                 <span className="text-xs text-neutral-500">Efectivo en Bolívares (Esperado)</span>
                 <div className="text-xl font-bold font-mono text-emerald-600">
                   {formatMoneyVES(currentShift.expectedCashVES)}
@@ -826,7 +826,7 @@ export const CashRegisterView: React.FC = () => {
                 </div>
               </Card>
 
-              <Card className="p-4 space-y-1">
+              <Card className="p-4 space-y-1 p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
                 <span className="text-xs text-neutral-500">Pagos Digitales en Bs</span>
                 <div className="text-xl font-bold font-mono text-sky-700">
                   {formatMoneyVES(currentShift.summary.pagomovilVES + currentShift.summary.debitVES)}
@@ -836,7 +836,7 @@ export const CashRegisterView: React.FC = () => {
                 </div>
               </Card>
 
-              <Card className="p-4 space-y-1">
+              <Card className="p-4 space-y-1 p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
                 <span className="text-xs text-neutral-500">Zelle / IGTF Divisas</span>
                 <div className="text-xl font-bold font-mono text-indigo-700">
                   {formatMoneyUSD(currentShift.summary.zelleUSD)}
@@ -850,8 +850,8 @@ export const CashRegisterView: React.FC = () => {
             {/* Detalle de Métodos de Pago y Desglose */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Desglose por Método de Pago */}
-              <Card className="p-5 space-y-4">
-                <h3 className="text-sm font-bold text-neutral-900 border-b border-neutral-100 pb-2">
+              <Card className="p-5 space-y-4 p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
+                <h3 className="text-sm font-bold font-bold text-neutral-900 dark:text-neutral-100 tracking-tightpb-2">
                   Desglose por Método de Cobro en el Turno
                 </h3>
                 <div className="space-y-2.5 text-xs">
@@ -859,7 +859,7 @@ export const CashRegisterView: React.FC = () => {
                     <span className="text-neutral-600">Efectivo Divisas ($)</span>
                     <span className="font-mono font-semibold">{formatMoneyUSD(currentShift.summary.cashSalesUSD)}</span>
                   </div>
-                  <div className="flex items-center justify-between py-1.5 border-b border-neutral-50">
+                  <div className="flex items-center justify-between py-1.5 border-b border-neutral-50 ">
                     <span className="text-neutral-600">Efectivo Bolívares (Bs en Gaveta)</span>
                     <span className="font-mono font-semibold text-emerald-700">{formatMoneyVES(currentShift.summary.cashSalesVES)}</span>
                   </div>
@@ -908,9 +908,9 @@ export const CashRegisterView: React.FC = () => {
               </Card>
 
               {/* Movimientos de Caja Registrados */}
-              <Card className="p-5 space-y-4">
+              <Card className="p-5 space-y-4 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
                 <div className="flex items-center justify-between border-b border-neutral-100 pb-2">
-                  <h3 className="text-sm font-bold text-neutral-900">
+                  <h3 className="text-sm font-bold font-bold text-neutral-900 dark:text-neutral-100 tracking-tightpb-2">
                     Movimientos Manuales (Entradas y Salidas)
                   </h3>
                   <Button
@@ -998,10 +998,10 @@ export const CashRegisterView: React.FC = () => {
 
       {/* Modal: Apertura de Turno */}
       {showOpenShiftModal && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg max-w-md w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
+        <div className="fixed inset-0  z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="shrink-0 shrink-0 bg-white dark:bg-neutral-900 rounded-lg max-w-md w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
             {/* Header (Pinned) */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
+            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 shrink-0 bg-white dark:bg-neutral-900">
               <div className="flex items-center gap-2">
                 <Unlock className="w-5 h-5 text-sky-600" />
                 <h3 className="text-sm font-bold text-neutral-900">Apertura de Turno de Caja</h3>

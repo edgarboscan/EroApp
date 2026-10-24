@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
@@ -245,8 +245,6 @@ export const QuotationsView: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
 
   // Catálogos desde BD
   const [availableProducts, setAvailableProducts] = useState<
@@ -272,15 +270,6 @@ export const QuotationsView: React.FC = () => {
   const [warehouses, setWarehouses] = useState<{ id: string; name: string }[]>(
     [],
   );
-  const [bankAccounts, setBankAccounts] = useState<
-    {
-      id: string;
-      accountNumber: string;
-      description: string;
-      currency: string;
-      bankName?: string;
-    }[]
-  >([]);
   const [bankAccounts, setBankAccounts] = useState<
     {
       id: string;
@@ -363,12 +352,6 @@ export const QuotationsView: React.FC = () => {
   const [loadingVerification, setLoadingVerification] = useState(false);
   const [updatePricesToCurrent, setUpdatePricesToCurrent] = useState(false);
 
-  // Verificación de precios y existencias para facturación
-  const [verificationResult, setVerificationResult] =
-    useState<InvoiceVerificationResult | null>(null);
-  const [loadingVerification, setLoadingVerification] = useState(false);
-  const [updatePricesToCurrent, setUpdatePricesToCurrent] = useState(false);
-
   // Información de crédito del cliente
   const [customerCreditInfo, setCustomerCreditInfo] = useState<{
     customerId: string;
@@ -396,11 +379,6 @@ export const QuotationsView: React.FC = () => {
       if (startDate) params.append("startDate", startDate);
       if (endDate) params.append("endDate", endDate);
       const url = `/api/sales/quotations?${params.toString()}`;
-      const params = new URLSearchParams();
-      if (activeBranchId) params.append("branchId", activeBranchId);
-      if (startDate) params.append("startDate", startDate);
-      if (endDate) params.append("endDate", endDate);
-      const url = `/api/sales/quotations?${params.toString()}`;
       const res = await fetch(url, { headers });
       if (res.ok) {
         const json = await res.json();
@@ -423,11 +401,9 @@ export const QuotationsView: React.FC = () => {
     try {
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
       const [custRes, prodRes, branchRes, bankRes] = await Promise.all([
-      const [custRes, prodRes, branchRes, bankRes] = await Promise.all([
         fetch("/api/customers", { headers }),
         fetch("/api/inventory/products", { headers }),
         fetch("/api/auth/branches", { headers }),
-        fetch("/api/sales/payment-accounts", { headers }),
         fetch("/api/sales/payment-accounts", { headers }),
       ]);
 
@@ -470,15 +446,8 @@ export const QuotationsView: React.FC = () => {
         if (bJson.success && Array.isArray(bJson.data)) {
           const allWh: { id: string; name: string }[] = [];
           let defaultSalesWhId = "";
-          let defaultSalesWhId = "";
           bJson.data.forEach((b: any) => {
             if (Array.isArray(b.warehouses)) {
-              b.warehouses.forEach((w: any) => {
-                allWh.push({ id: w.id, name: `${b.name} - ${w.name}` });
-                if (w.isDefaultSales && !defaultSalesWhId) {
-                  defaultSalesWhId = w.id;
-                }
-              });
               b.warehouses.forEach((w: any) => {
                 allWh.push({ id: w.id, name: `${b.name} - ${w.name}` });
                 if (w.isDefaultSales && !defaultSalesWhId) {
@@ -490,22 +459,7 @@ export const QuotationsView: React.FC = () => {
           setWarehouses(allWh);
           if (allWh.length > 0 && !selectedWarehouseId) {
             setSelectedWarehouseId(defaultSalesWhId || allWh[0].id);
-            setSelectedWarehouseId(defaultSalesWhId || allWh[0].id);
           }
-        }
-      }
-
-      if (bankRes.ok) {
-        const bkJson = await bankRes.json();
-        if (bkJson.success && Array.isArray(bkJson.data)) {
-          const mappedBanks = bkJson.data.map((ba: any) => ({
-            id: ba.id,
-            accountNumber: ba.accountNumber || ba.account_number || "",
-            description: ba.description || "",
-            currency: ba.currency || "VES",
-            bankName: ba.bankName || ba.bank_name || "",
-          }));
-          setBankAccounts(mappedBanks);
         }
       }
 
@@ -529,9 +483,6 @@ export const QuotationsView: React.FC = () => {
 
   useEffect(() => {
     fetchQuotations();
-  }, [activeBranchId, token, startDate, endDate]);
-
-  useEffect(() => {
   }, [activeBranchId, token, startDate, endDate]);
 
   useEffect(() => {
@@ -894,8 +845,6 @@ export const QuotationsView: React.FC = () => {
     setInvoicingQuotation(quotation);
     const defaultWh = warehouses[0]?.id || "";
     setSelectedWarehouseId(defaultWh);
-    const defaultWh = warehouses[0]?.id || "";
-    setSelectedWarehouseId(defaultWh);
     setInvoiceNumber("");
     setControlNumber("");
     setIsCredit(false);
@@ -992,9 +941,6 @@ export const QuotationsView: React.FC = () => {
   const totalAmountToInvoice = updatePricesToCurrent && verificationResult
     ? verificationResult.totalCurrentAmount
     : (invoicingQuotation?.totalAmount || 0);
-  const totalAmountToInvoice = updatePricesToCurrent && verificationResult
-    ? verificationResult.totalCurrentAmount
-    : (invoicingQuotation?.totalAmount || 0);
   const isCreditExceeded = isCredit && (currentCustomerDebt + totalAmountToInvoice > currentCreditLimit);
   const creditExceededAmount = isCreditExceeded ? (currentCustomerDebt + totalAmountToInvoice - currentCreditLimit) : 0;
 
@@ -1052,16 +998,7 @@ export const QuotationsView: React.FC = () => {
     }
     const targetWarehouseId = selectedWarehouseId || verificationResult?.warehouseId || warehouses[0]?.id || "";
     if (!targetWarehouseId) {
-    const targetWarehouseId = selectedWarehouseId || verificationResult?.warehouseId || warehouses[0]?.id || "";
-    if (!targetWarehouseId) {
       toast.error("Debe seleccionar el depósito para la rebaja de stock");
-      return;
-    }
-
-    if (verificationResult?.hasStockIssues) {
-      toast.error(
-        `No se puede emitir la factura: existen ${verificationResult.insufficientCount} productos con stock insuficiente en el depósito.`
-      );
       return;
     }
 
@@ -1079,7 +1016,6 @@ export const QuotationsView: React.FC = () => {
 
     if (isCredit) {
       if (customerCreditInfo && !customerCreditInfo.creditEnabled) {
-        toast.error(`El cliente ${invoicingQuotation.customerName} no tiene línea de crédito comercial autorizada`);
         toast.error(`El cliente ${invoicingQuotation.customerName} no tiene línea de crédito comercial autorizada`);
         return;
       }
@@ -1166,13 +1102,11 @@ export const QuotationsView: React.FC = () => {
         body: JSON.stringify({
           quotationId: invoicingQuotation.id,
           warehouseId: targetWarehouseId,
-          warehouseId: targetWarehouseId,
           invoiceNumber: invoiceNumber.trim(),
           controlNumber: salesInvoiceMode === "no_fiscal" ? null : (controlNumber.trim() || null),
           invoiceMode: salesInvoiceMode,
           isCredit,
           dueDate: isCredit && dueDate ? dueDate : undefined,
-          updatePricesToCurrent,
           updatePricesToCurrent,
           adminAuthorized: isCredit && isCreditExceeded && isUserAdmin ? adminAuthorized : undefined,
           supervisorApproval: isCredit && isCreditExceeded && !isUserAdmin && supervisorUsername ? {
@@ -1197,8 +1131,7 @@ export const QuotationsView: React.FC = () => {
       const json = await res.json();
       if (res.ok && json.success) {
         toast.success(
-          `Factura ${invoiceNumber} emitida con éxito. Stock reservado en depósito para despacho.`,
-          `Factura ${invoiceNumber} emitida con éxito. Stock reservado en depósito para despacho.`,
+          `Factura ${invoiceNumber} emitida con éxito. Stock reservado en depósito para despacho.`
         );
         setInvoicingQuotation(null);
         setInvoiceNumber("");
@@ -1212,46 +1145,11 @@ export const QuotationsView: React.FC = () => {
             : null) ||
           "Error al emitir la factura";
         toast.error(errMsg);
-        const errMsg =
-          json.error?.message ||
-          (Array.isArray(json.error?.issues)
-            ? json.error.issues.map((i: any) => i.message).join(", ")
-            : null) ||
-          "Error al emitir la factura";
-        toast.error(errMsg);
       }
     } catch {
       toast.error("Error de comunicación con el servidor");
     }
   };
-
-  const invoicedQuotations = useMemo(
-    () => quotations.filter((q) => q.status === "CONVERTED"),
-    [quotations],
-  );
-
-  const totalInvoicedAmount = useMemo(
-    () => invoicedQuotations.reduce((acc, q) => acc + q.totalAmount, 0),
-    [invoicedQuotations],
-  );
-
-  const totalQuotedAmount = useMemo(
-    () => quotations.reduce((acc, q) => acc + q.totalAmount, 0),
-    [quotations],
-  );
-
-  const activeQuotationsCount = useMemo(
-    () =>
-      quotations.filter(
-        (q) => q.status !== "EXPIRED" && q.status !== "REJECTED",
-      ).length,
-    [quotations],
-  );
-
-  const acceptedQuotationsCount = useMemo(
-    () => quotations.filter((q) => q.status === "ACCEPTED").length,
-    [quotations],
-  );
 
   const invoicedQuotations = useMemo(
     () => quotations.filter((q) => q.status === "CONVERTED"),
@@ -1468,7 +1366,6 @@ export const QuotationsView: React.FC = () => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         <Card className="p-4 rounded-lg border border-neutral-200 bg-white">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-neutral-500">
@@ -1480,10 +1377,8 @@ export const QuotationsView: React.FC = () => {
           </div>
           <p className="text-2xl font-bold text-neutral-900 mt-2">
             {activeQuotationsCount}
-            {activeQuotationsCount}
           </p>
           <p className="text-[10px] text-neutral-400 mt-0.5">
-            De {quotations.length} registradas
             De {quotations.length} registradas
           </p>
         </Card>
@@ -1494,17 +1389,13 @@ export const QuotationsView: React.FC = () => {
               Monto Total Cotizado
             </span>
             <div className="w-7 h-7 rounded-lg bg-neutral-100 text-neutral-700 flex items-center justify-center">
-            <div className="w-7 h-7 rounded-lg bg-neutral-100 text-neutral-700 flex items-center justify-center">
               <DollarSign className="w-4 h-4" />
             </div>
           </div>
           <p className="text-2xl font-bold text-neutral-900 mt-2 font-mono">
             {formatMoneyUSD(totalQuotedAmount)}
-          <p className="text-2xl font-bold text-neutral-900 mt-2 font-mono">
-            {formatMoneyUSD(totalQuotedAmount)}
           </p>
           <p className="text-[10px] text-neutral-400 mt-0.5">
-            Volumen presupuestado
             Volumen presupuestado
           </p>
         </Card>
@@ -1519,7 +1410,6 @@ export const QuotationsView: React.FC = () => {
             </div>
           </div>
           <p className="text-2xl font-bold text-amber-600 mt-2">
-            {acceptedQuotationsCount}
             {acceptedQuotationsCount}
           </p>
           <p className="text-[10px] text-neutral-400 mt-0.5">
@@ -1562,104 +1452,9 @@ export const QuotationsView: React.FC = () => {
             Ventas cerradas y cobradas
           </p>
         </Card>
-
-        <Card className="p-4 rounded-lg border border-neutral-200 bg-white">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-neutral-500">
-              Cotizaciones Facturadas
-            </span>
-            <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
-              <Receipt className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-purple-700 mt-2">
-            {invoicedQuotations.length}
-          </p>
-          <p className="text-[10px] text-neutral-400 mt-0.5">
-            {quotations.length > 0
-              ? `${Math.round((invoicedQuotations.length / quotations.length) * 100)}% tasa de conversión`
-              : "Sin cotizaciones en el ciclo"}
-          </p>
-        </Card>
-
-        <Card className="p-4 rounded-lg border border-neutral-200 bg-white">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-neutral-500">
-              Monto Total Facturado
-            </span>
-            <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <DollarSign className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-emerald-700 mt-2 font-mono">
-            {formatMoneyUSD(totalInvoicedAmount)}
-          </p>
-          <p className="text-[10px] text-neutral-400 mt-0.5">
-            Ventas cerradas y cobradas
-          </p>
-        </Card>
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-neutral-200 pb-3">
-        <div className="flex items-center gap-1.5 overflow-x-auto">
-          {["ALL", "EMITTED", "ACCEPTED", "CONVERTED", "EXPIRED"].map((st) => (
-            <button
-              key={st}
-              onClick={() => setStatusFilter(st)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-                statusFilter === st
-                  ? "bg-neutral-900 text-white"
-                  : "text-neutral-600 hover:bg-neutral-100"
-              }`}
-            >
-              {st === "ALL" && "Todas"}
-              {st === "EMITTED" && "Emitidas"}
-              {st === "ACCEPTED" && "Aceptadas"}
-              {st === "CONVERTED" && "Facturadas"}
-              {st === "EXPIRED" && "Vencidas"}
-            </button>
-          ))}
-        </div>
-
-        {/* Filtros de Fecha */}
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <div className="flex items-center gap-1.5 bg-neutral-50 px-2.5 py-1.5 rounded-lg border border-neutral-300">
-            <Calendar className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
-            <span className="text-[11px] text-neutral-500 font-medium">Desde:</span>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="bg-transparent border-0 text-xs text-neutral-800 p-0 focus:ring-0 focus:outline-none"
-            />
-          </div>
-          <div className="flex items-center gap-1.5 bg-neutral-50 px-2.5 py-1.5 rounded-lg border border-neutral-300">
-            <span className="text-[11px] text-neutral-500 font-medium">Hasta:</span>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="bg-transparent border-0 text-xs text-neutral-800 p-0 focus:ring-0 focus:outline-none"
-            />
-          </div>
-          {(startDate || endDate) && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setStartDate("");
-                setEndDate("");
-              }}
-              className="text-xs py-1 px-2.5 rounded-lg text-neutral-600 hover:text-neutral-900 flex items-center gap-1"
-              title="Limpiar filtros de fecha"
-            >
-              <X className="w-3.5 h-3.5" />
-              <span>Limpiar</span>
-            </Button>
-          )}
-        </div>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-neutral-200 pb-3">
         <div className="flex items-center gap-1.5 overflow-x-auto">
           {["ALL", "EMITTED", "ACCEPTED", "CONVERTED", "EXPIRED"].map((st) => (
@@ -2073,7 +1868,6 @@ export const QuotationsView: React.FC = () => {
       {invoicingQuotation && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/60 backdrop-blur-xs p-2 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-lg border border-neutral-200 w-full max-w-3xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden my-auto">
-          <div className="bg-white rounded-lg border border-neutral-200 w-full max-w-3xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden my-auto">
             {/* Header (Pinned) */}
             <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
               <div className="flex items-center gap-2">
@@ -2145,22 +1939,12 @@ export const QuotationsView: React.FC = () => {
                 ) : (
                   <>
                     {/* Depósito de Despacho (Reserva de Stock) */}
-                    {/* Depósito de Despacho (Reserva de Stock) */}
                     <div>
                       <label className="block text-xs font-medium text-neutral-700 mb-1">
-                        Depósito de Despacho (Reserva de Stock) <span className="text-red-500">*</span>
                         Depósito de Despacho (Reserva de Stock) <span className="text-red-500">*</span>
                       </label>
                       <select
                         required
-                        value={selectedWarehouseId || verificationResult?.warehouseId || (warehouses[0]?.id ?? "")}
-                        onChange={(e) => {
-                          const wh = e.target.value;
-                          setSelectedWarehouseId(wh);
-                          if (invoicingQuotation && wh) {
-                            fetchInvoiceVerification(invoicingQuotation.id, wh);
-                          }
-                        }}
                         value={selectedWarehouseId || verificationResult?.warehouseId || (warehouses[0]?.id ?? "")}
                         onChange={(e) => {
                           const wh = e.target.value;
@@ -2377,202 +2161,6 @@ export const QuotationsView: React.FC = () => {
                       )}
                     </div>
 
-                    {/* Verificación de Precios & Existencias en Depósito */}
-                    <div className="bg-neutral-50 rounded-lg p-3.5 border border-neutral-200 space-y-3">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-neutral-200/80 pb-2">
-                        <div>
-                          <h4 className="text-xs font-bold text-neutral-900 flex items-center gap-1.5">
-                            <FileCheck className="w-4 h-4 text-sky-600" />
-                            <span>Verificación de Precios & Existencias</span>
-                          </h4>
-                          <p className="text-[11px] text-neutral-500">
-                            Disponibilidad en almacén y comparación con precios de catálogo vigentes
-                          </p>
-                        </div>
-
-                        {/* Badges de estado */}
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {loadingVerification ? (
-                            <span className="text-[11px] text-neutral-400">Verificando...</span>
-                          ) : verificationResult ? (
-                            <>
-                              {verificationResult.hasStockIssues ? (
-                                <Badge variant="danger" className="text-[10px]">
-                                  Stock Insuficiente ({verificationResult.insufficientCount})
-                                </Badge>
-                              ) : (
-                                <Badge variant="success" className="text-[10px]">
-                                  Stock Disponible
-                                </Badge>
-                              )}
-
-                              {verificationResult.hasPriceVariations ? (
-                                <Badge variant="warning" className="text-[10px]">
-                                  Variación de Precios ({verificationResult.priceVariationsCount})
-                                </Badge>
-                              ) : (
-                                <Badge variant="neutral" className="text-[10px]">
-                                  Precios Sin Cambio
-                                </Badge>
-                              )}
-                            </>
-                          ) : null}
-                        </div>
-                      </div>
-
-                      {loadingVerification ? (
-                        <div className="py-4 text-center text-xs text-neutral-400">
-                          Consultando existencias y precios en depósito...
-                        </div>
-                      ) : verificationResult ? (
-                        <div className="space-y-3">
-                          {/* Alerta de Stock Insuficiente */}
-                          {verificationResult.hasStockIssues && (
-                            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-xs flex items-start gap-2">
-                              <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                              <div>
-                                <p className="font-semibold text-red-900">
-                                  Inventario Insuficiente para Facturar
-                                </p>
-                                <p className="text-[11px] text-red-700 mt-0.5">
-                                  Se detectaron {verificationResult.insufficientCount} productos sin existencias suficientes en el depósito seleccionado. No se podrá emitir la factura hasta que haya stock o se seleccione otro depósito.
-                                </p>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Alerta de Variación de Precios & Selección de Política */}
-                          {verificationResult.hasPriceVariations && (
-                            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs space-y-2">
-                              <div className="flex items-start gap-2 text-amber-900">
-                                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                                <div>
-                                  <p className="font-semibold">
-                                    Variación de Precios con el Catálogo Actual
-                                  </p>
-                                  <p className="text-[11px] text-amber-800 mt-0.5">
-                                    Existen {verificationResult.priceVariationsCount} productos cuyos precios vigentes difieren de lo cotizado originalmente.
-                                    Diferencia total neta:{" "}
-                                    <strong className="font-mono">
-                                      {verificationResult.totalDifference > 0 ? "+" : ""}
-                                      {formatCurrency(verificationResult.totalDifference, invoicingQuotation.currency)}
-                                    </strong>
-                                    .
-                                  </p>
-                                </div>
-                              </div>
-
-                              <div className="pt-2 border-t border-amber-200/80 flex flex-col sm:flex-row sm:items-center gap-3">
-                                <label className="flex items-center gap-2 cursor-pointer text-xs text-neutral-800">
-                                  <input
-                                    type="radio"
-                                    name="pricePolicy"
-                                    checked={!updatePricesToCurrent}
-                                    onChange={() => setUpdatePricesToCurrent(false)}
-                                    className="text-sky-600 focus:ring-sky-500"
-                                  />
-                                  <span className="font-medium">
-                                    Mantener Precios Cotizados ({formatCurrency(verificationResult.totalQuotedAmount, invoicingQuotation.currency)})
-                                  </span>
-                                </label>
-
-                                <label className="flex items-center gap-2 cursor-pointer text-xs text-neutral-800">
-                                  <input
-                                    type="radio"
-                                    name="pricePolicy"
-                                    checked={updatePricesToCurrent}
-                                    onChange={() => setUpdatePricesToCurrent(true)}
-                                    className="text-sky-600 focus:ring-sky-500"
-                                  />
-                                  <span className="font-medium">
-                                    Actualizar a Precios Vigentes ({formatCurrency(verificationResult.totalCurrentAmount, invoicingQuotation.currency)})
-                                  </span>
-                                </label>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Tabla Resumen de Ítems */}
-                          <div className="overflow-x-auto border border-neutral-200 rounded-lg bg-white">
-                            <table className="w-full text-left text-xs">
-                              <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-600 font-medium">
-                                <tr>
-                                  <th className="py-2 px-2.5">Producto</th>
-                                  <th className="py-2 px-2 text-right">Cant.</th>
-                                  <th className="py-2 px-2 text-center">Stock Depósito</th>
-                                  <th className="py-2 px-2 text-right">P. Cotizado</th>
-                                  <th className="py-2 px-2 text-right">P. Actual</th>
-                                  <th className="py-2 px-2 text-right">Variación</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-neutral-100">
-                                {verificationResult.items.map((item) => (
-                                  <tr
-                                    key={item.id}
-                                    className={`hover:bg-neutral-50/50 ${
-                                      !item.hasSufficientStock ? "bg-red-50/30" : ""
-                                    }`}
-                                  >
-                                    <td className="py-2 px-2.5">
-                                      <p className="font-medium text-neutral-900 leading-tight">
-                                        {item.productName}
-                                      </p>
-                                      <span className="font-mono text-[10px] text-neutral-400">
-                                        {item.productSku}
-                                      </span>
-                                    </td>
-                                    <td className="py-2 px-2 text-right font-mono font-medium text-neutral-800">
-                                      {item.quantity}
-                                    </td>
-                                    <td className="py-2 px-2 text-center">
-                                      {item.hasSufficientStock ? (
-                                        <span className="inline-flex items-center gap-1 font-mono text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
-                                          <Check className="w-3 h-3 text-emerald-600" />
-                                          {item.availableStock} disp.
-                                        </span>
-                                      ) : (
-                                        <span className="inline-flex items-center gap-1 font-mono text-[11px] font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-lg border border-red-200">
-                                          <AlertCircle className="w-3 h-3 text-red-600" />
-                                          {item.availableStock} / {item.quantity} (Faltan {item.stockShortage})
-                                        </span>
-                                      )}
-                                    </td>
-                                    <td className="py-2 px-2 text-right font-mono text-neutral-700">
-                                      {formatCurrency(item.quotedUnitPrice, invoicingQuotation.currency)}
-                                    </td>
-                                    <td className="py-2 px-2 text-right font-mono text-neutral-700">
-                                      {formatCurrency(item.currentBasePrice, invoicingQuotation.currency)}
-                                    </td>
-                                    <td className="py-2 px-2 text-right font-mono">
-                                      {item.hasPriceVariation ? (
-                                        <span
-                                          className={`text-[11px] font-semibold ${
-                                            item.priceDifference > 0
-                                              ? "text-amber-700"
-                                              : "text-sky-700"
-                                          }`}
-                                        >
-                                          {item.priceDifference > 0 ? "+" : ""}
-                                          {formatCurrency(item.priceDifference, invoicingQuotation.currency)} ({item.priceVariationPercent > 0 ? "+" : ""}{item.priceVariationPercent}%)
-                                        </span>
-                                      ) : (
-                                        <span className="text-[11px] text-neutral-400">
-                                          Sin cambio
-                                        </span>
-                                      )}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="text-xs text-neutral-400 italic">
-                          Seleccione un depósito para verificar existencias y precios.
-                        </p>
-                      )}
-                    </div>
 
                     {/* Modo de Facturación Administrativa */}
                     <div>
@@ -3110,22 +2698,6 @@ export const QuotationsView: React.FC = () => {
                 <Button
                   type="submit"
                   size="sm"
-                  disabled={
-                    loadingInvoiceConfig ||
-                    loadingVerification ||
-                    Boolean(verificationResult?.hasStockIssues) ||
-                    (isCredit && customerCreditInfo !== null && !customerCreditInfo.creditEnabled) ||
-                    (isCredit && isCreditExceeded && enforceCreditLimit && !requireApprovalCreditExceeded)
-                  }
-                  className={`text-white font-medium text-xs rounded-lg py-2 px-4 shadow-sm ${
-                    verificationResult?.hasStockIssues
-                      ? "bg-neutral-400 cursor-not-allowed hover:bg-neutral-400"
-                      : "bg-sky-600 hover:bg-sky-700"
-                  }`}
-                >
-                  {verificationResult?.hasStockIssues
-                    ? "Bloqueado (Stock Insuficiente)"
-                    : "Emitir Factura y Rebajar Stock"}
                   disabled={
                     loadingInvoiceConfig ||
                     loadingVerification ||

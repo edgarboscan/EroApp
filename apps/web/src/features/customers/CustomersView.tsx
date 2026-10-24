@@ -554,10 +554,10 @@ export const CustomersView: React.FC = () => {
       {/* Encabezado */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-neutral-900">
+          <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
             Directorio de Clientes
           </h1>
-          <p className="text-xs text-neutral-500 mt-0.5">
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
             Gestión de cartera, calificación comercial, condiciones de crédito y
             control de bloqueos
           </p>
@@ -570,7 +570,7 @@ export const CustomersView: React.FC = () => {
       </div>
 
       {/* Barra de Búsqueda y Filtros */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white p-3 rounded-lg border border-neutral-200">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white dark:bg-neutral-900 p-3 rounded-lg border border-neutral-200 dark:border-neutral-800">
         <div className="relative flex-1 max-w-md">
           <Search className="w-4 h-4 absolute left-3 top-3 text-neutral-400" />
           <input
@@ -578,7 +578,7 @@ export const CustomersView: React.FC = () => {
             placeholder="Buscar por RIF, cédula, nombre, correo o teléfono..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full h-10 pl-9 pr-4 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500"
+            className="w-full h-10 pl-9 pr-4 text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500"
           />
         </div>
 
@@ -604,8 +604,8 @@ export const CustomersView: React.FC = () => {
               onClick={() => setFilterStatus(item.id as any)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
                 filterStatus === item.id
-                  ? "bg-neutral-900 text-white shadow-xs"
-                  : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900"
+                  ? "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 shadow-xs"
+                  : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700 dark:hover:text-neutral-100"
               }`}
             >
               {item.label}
@@ -615,9 +615,9 @@ export const CustomersView: React.FC = () => {
       </div>
 
       {/* Tabla de Clientes */}
-      <div className="overflow-x-auto bg-white border border-neutral-200 rounded-lg shadow-xs">
+      <div className="overflow-x-auto bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-xs">
         <table className="w-full text-left text-xs">
-          <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-600 font-semibold uppercase tracking-wider">
+          <thead className="bg-neutral-50 dark:bg-neutral-800/60 border-b border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 font-semibold uppercase tracking-wider">
             <tr>
               <th className="py-3 px-4">Documento & Estado</th>
               <th className="py-3 px-4">Nombre / Razón Social</th>
@@ -628,7 +628,7 @@ export const CustomersView: React.FC = () => {
               <th className="py-3 px-4 text-center w-36">Acciones</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-neutral-100">
+          <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
             {isLoading ? (
               Array.from({ length: 5 }).map((_, idx) => (
                 <tr key={idx} className="animate-pulse">

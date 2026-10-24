@@ -49,6 +49,7 @@ export interface CashRegisterConfigItem {
   invoiceMode: "fiscal_printer" | "normal_printer";
   defaultBankAccountIdVES?: string | null;
   defaultBankAccountIdUSD?: string | null;
+  allowedDepartmentIds?: string[];
   isActive: boolean;
 }
 
@@ -178,8 +179,12 @@ export const CompanyConfigView: React.FC = () => {
     fiscalPrinterSerial: "",
     defaultBankAccountIdVES: "",
     defaultBankAccountIdUSD: "",
+    allowedDepartmentIds: [] as string[],
     isActive: true,
   });
+  const [availableDepartments, setAvailableDepartments] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
   const [isSavingRegister, setIsSavingRegister] = useState(false);
 
   // Formularios de modales
@@ -211,13 +216,22 @@ export const CompanyConfigView: React.FC = () => {
     setLoading(true);
     try {
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const [compRes, branchRes, whRes, rulesRes, regRes] = await Promise.all([
-        fetch("/api/config/company", { headers }),
-        fetch("/api/config/branches", { headers }),
-        fetch("/api/config/warehouses", { headers }),
-        fetch("/api/config/business-rules", { headers }),
-        fetch("/api/pos/registers", { headers }),
-      ]);
+      const [compRes, branchRes, whRes, rulesRes, regRes, deptsRes] =
+        await Promise.all([
+          fetch("/api/config/company", { headers }),
+          fetch("/api/config/branches", { headers }),
+          fetch("/api/config/warehouses", { headers }),
+          fetch("/api/config/business-rules", { headers }),
+          fetch("/api/pos/registers", { headers }),
+          fetch("/api/inventory/departments", { headers }),
+        ]);
+
+      if (deptsRes && deptsRes.ok) {
+        const d = await deptsRes.json();
+        if (d.success && Array.isArray(d.data)) {
+          setAvailableDepartments(d.data);
+        }
+      }
 
       if (compRes.ok) {
         const d = await compRes.json();
@@ -295,6 +309,7 @@ export const CompanyConfigView: React.FC = () => {
       fiscalPrinterSerial: "",
       defaultBankAccountIdVES: "",
       defaultBankAccountIdUSD: "",
+      allowedDepartmentIds: [],
       isActive: true,
     });
     setShowRegisterModal(true);
@@ -311,6 +326,7 @@ export const CompanyConfigView: React.FC = () => {
       fiscalPrinterSerial: reg.fiscalPrinterSerial || "",
       defaultBankAccountIdVES: reg.defaultBankAccountIdVES || "",
       defaultBankAccountIdUSD: reg.defaultBankAccountIdUSD || "",
+      allowedDepartmentIds: reg.allowedDepartmentIds || [],
       isActive: reg.isActive,
     });
     setShowRegisterModal(true);
@@ -348,6 +364,7 @@ export const CompanyConfigView: React.FC = () => {
           : null,
         defaultBankAccountIdVES: registerForm.defaultBankAccountIdVES || null,
         defaultBankAccountIdUSD: registerForm.defaultBankAccountIdUSD || null,
+        allowedDepartmentIds: registerForm.allowedDepartmentIds,
         isActive: registerForm.isActive,
       };
 
@@ -691,23 +708,23 @@ export const CompanyConfigView: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-xl font-bold text-neutral-900 tracking-tight">
+          <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100 tracking-tight">
             Configuración Empresarial & Operativa
           </h1>
-          <p className="text-xs text-neutral-500 mt-1">
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
             Gestión de perfil fiscal SENIAT, sucursales, almacenes y reglas de
             control comercial
           </p>
         </div>
 
         {/* Tab Selector */}
-        <div className="flex bg-neutral-100 p-1 rounded-lg border border-neutral-200">
+        <div className="flex bg-neutral-100 dark:bg-neutral-800 p-1 rounded-lg border border-neutral-200 dark:border-neutral-700">
           <button
             onClick={() => setActiveTab("company")}
-            className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+            className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
               activeTab === "company"
-                ? "bg-white text-neutral-900 shadow-sm"
-                : "text-neutral-600 hover:text-neutral-900"
+                ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow-sm"
+                : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200"
             }`}
           >
             <Building2 className="w-4 h-4" />
@@ -716,10 +733,10 @@ export const CompanyConfigView: React.FC = () => {
 
           <button
             onClick={() => setActiveTab("branches")}
-            className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+            className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
               activeTab === "branches"
-                ? "bg-white text-neutral-900 shadow-sm"
-                : "text-neutral-600 hover:text-neutral-900"
+                ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow-sm"
+                : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200"
             }`}
           >
             <GitBranch className="w-4 h-4" />
@@ -728,10 +745,10 @@ export const CompanyConfigView: React.FC = () => {
 
           <button
             onClick={() => setActiveTab("registers")}
-            className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+            className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
               activeTab === "registers"
-                ? "bg-white text-neutral-900 shadow-sm"
-                : "text-neutral-600 hover:text-neutral-900"
+                ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow-sm"
+                : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200"
             }`}
           >
             <CreditCard className="w-4 h-4" />
@@ -745,8 +762,8 @@ export const CompanyConfigView: React.FC = () => {
             }}
             className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
               activeTab === "rules"
-                ? "bg-white text-neutral-900 shadow-sm"
-                : "text-neutral-600 hover:text-neutral-900"
+                ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow-sm"
+                : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200"
             }`}
           >
             <SlidersHorizontal className="w-4 h-4" />
@@ -760,8 +777,8 @@ export const CompanyConfigView: React.FC = () => {
             }}
             className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
               activeTab === "payment-methods"
-                ? "bg-white text-neutral-900 shadow-sm"
-                : "text-neutral-600 hover:text-neutral-900"
+                ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow-sm"
+                : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200"
             }`}
           >
             <CreditCard className="w-4 h-4" />
@@ -772,19 +789,19 @@ export const CompanyConfigView: React.FC = () => {
 
       {loading ? (
         <div className="space-y-4">
-          <div className="h-32 bg-neutral-200 animate-pulse rounded-lg" />
-          <div className="h-64 bg-neutral-200 animate-pulse rounded-lg" />
+          <div className="h-32 bg-neutral-200 dark:bg-neutral-800 animate-pulse rounded-lg" />
+          <div className="h-64 bg-neutral-200 dark:bg-neutral-800 animate-pulse rounded-lg" />
         </div>
       ) : activeTab === "company" ? (
         /* TAB 1: PERFIL EMPRESA */
-        <div className="bg-white border border-neutral-200 rounded-lg p-6 shadow-sm">
+        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-6 shadow-sm">
           <form onSubmit={handleSaveCompany} className="space-y-6">
-            <div className="border-b border-neutral-200 pb-4">
-              <h2 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-sky-600" />
+            <div className="border-b border-neutral-200 dark:border-neutral-800 pb-4">
+              <h2 className="text-sm font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-sky-600 dark:text-sky-400" />
                 Identificación Fiscal & SENIAT
               </h2>
-              <p className="text-xs text-neutral-500 mt-1">
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
                 Datos emitidos en facturación, libros tributarios y comprobantes
                 de retención
               </p>
@@ -792,7 +809,7 @@ export const CompanyConfigView: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-medium text-neutral-700 mb-1">
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                   Razón Social *
                 </label>
                 <Input
@@ -805,7 +822,7 @@ export const CompanyConfigView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-neutral-700 mb-1">
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                   Nombre Comercial
                 </label>
                 <Input
@@ -817,7 +834,7 @@ export const CompanyConfigView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-neutral-700 mb-1">
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                   RIF (Registro de Información Fiscal) *
                 </label>
                 <Input
@@ -834,7 +851,7 @@ export const CompanyConfigView: React.FC = () => {
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-xs font-medium text-neutral-700 mb-1">
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                   Dirección Fiscal Legal *
                 </label>
                 <Input
@@ -847,7 +864,7 @@ export const CompanyConfigView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-neutral-700 mb-1">
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                   Teléfono Principal
                 </label>
                 <Input
@@ -859,7 +876,7 @@ export const CompanyConfigView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-neutral-700 mb-1">
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                   Correo Electrónico
                 </label>
                 <Input
@@ -872,7 +889,7 @@ export const CompanyConfigView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-neutral-700 mb-1">
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                   Moneda Base de Registro
                 </label>
                 <select
@@ -883,7 +900,7 @@ export const CompanyConfigView: React.FC = () => {
                       currencyBase: e.target.value as "USD" | "VES",
                     })
                   }
-                  className="w-full h-9 rounded-lg border border-neutral-300 bg-white px-3 text-xs text-neutral-900 focus-visible:ring-2 focus-visible:ring-sky-500"
+                  className="w-full h-9 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-xs text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
                 >
                   <option value="USD">USD - Dólares Americanos</option>
                   <option value="VES">VES - Bolívares Digitales</option>
@@ -891,7 +908,7 @@ export const CompanyConfigView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-neutral-700 mb-1">
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                   Moneda Secundaria de Referencia
                 </label>
                 <select
@@ -902,7 +919,7 @@ export const CompanyConfigView: React.FC = () => {
                       currencySecondary: e.target.value as "USD" | "VES",
                     })
                   }
-                  className="w-full h-9 rounded-lg border border-neutral-300 bg-white px-3 text-xs text-neutral-900 focus-visible:ring-2 focus-visible:ring-sky-500"
+                  className="w-full h-9 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-xs text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
                 >
                   <option value="VES">VES - Bolívares Digitales</option>
                   <option value="USD">USD - Dólares Americanos</option>
@@ -911,34 +928,34 @@ export const CompanyConfigView: React.FC = () => {
             </div>
 
             {/* Tasa Oficial de Cambio (BCV) */}
-            <div className="bg-sky-50/60 p-4 rounded-lg border border-sky-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-start gap-3">
-                <div className="p-2 bg-sky-100 rounded-lg text-sky-700 mt-0.5">
+                <div className="p-2 bg-sky-100 dark:bg-sky-900/50 rounded-lg text-sky-700 dark:text-sky-300 mt-0.5">
                   <Coins className="w-5 h-5" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-xs font-bold text-neutral-900 uppercase tracking-wider">
+                    <h3 className="text-xs font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider">
                       Tasa de Cambio Oficial (BCV)
                     </h3>
                     <Badge variant="info">Sincronización Centralizada</Badge>
                   </div>
-                  <p className="text-xs text-neutral-600 mt-1">
+                  <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
                     Valor actual del dólar estadounidense aplicado para
                     presupuestos, facturación y POS:
                   </p>
                   <div className="flex items-center gap-3 mt-2">
-                    <span className="font-mono text-base font-extrabold text-neutral-900">
+                    <span className="font-mono text-base font-extrabold text-neutral-900 dark:text-neutral-100">
                       Bs. {formatExchangeRate(rate, 4)}{" "}
-                      <span className="text-xs font-normal text-neutral-500">
+                      <span className="text-xs font-normal text-neutral-500 dark:text-neutral-400">
                         / USD
                       </span>
                     </span>
-                    <span className="text-[11px] text-neutral-500">
+                    <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
                       Fuente: {source}
                     </span>
                   </div>
-                  <p className="text-[10px] text-neutral-400 mt-1">
+                  <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">
                     Última actualización: {new Date(updatedAt).toLocaleString()}{" "}
                     por {updatedBy}
                   </p>
@@ -954,7 +971,7 @@ export const CompanyConfigView: React.FC = () => {
                     fetchHistory();
                     setShowRateHistoryModal(true);
                   }}
-                  className="flex items-center gap-1.5 bg-white shadow-xs"
+                  className="flex items-center gap-1.5 bg-white dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 shadow-xs"
                 >
                   <History className="w-3.5 h-3.5" />
                   <span>Ver Historial</span>
@@ -965,13 +982,13 @@ export const CompanyConfigView: React.FC = () => {
                     variant="outline"
                     size="sm"
                     onClick={() => setShowRateModal(true)}
-                    className="flex items-center gap-1.5 bg-white shadow-xs"
+                    className="flex items-center gap-1.5 bg-white dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 shadow-xs"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
                     <span>Actualizar Tasa</span>
                   </Button>
                 ) : (
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-100 text-neutral-500 rounded-lg border border-neutral-200 text-xs">
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 rounded-lg border border-neutral-200 dark:border-neutral-700 text-xs">
                     <Lock className="w-3.5 h-3.5" />
                     <span>Solo lectura (No autorizado)</span>
                   </div>
@@ -980,9 +997,9 @@ export const CompanyConfigView: React.FC = () => {
             </div>
 
             {/* Configuración SENIAT */}
-            <div className="bg-neutral-50 p-4 rounded-lg border border-neutral-200 space-y-4">
-              <h3 className="text-xs font-bold text-neutral-800 uppercase tracking-wider flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-sky-600" />
+            <div className="bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <h3 className="text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-sky-600 dark:text-sky-400" />
                 Régimen Impositivo SENIAT
               </h3>
 
@@ -1002,19 +1019,19 @@ export const CompanyConfigView: React.FC = () => {
                   />
                   <label
                     htmlFor="isSpecialTaxpayer"
-                    className="text-xs text-neutral-700 cursor-pointer"
+                    className="text-xs text-neutral-700 dark:text-neutral-300 cursor-pointer"
                   >
-                    <span className="font-semibold block">
+                    <span className="font-semibold text-neutral-900 dark:text-neutral-100 block">
                       Contribuyente Especial SENIAT
                     </span>
-                    <span className="text-neutral-500">
+                    <span className="text-neutral-500 dark:text-neutral-400">
                       Agente de retención de IVA e ISLR calificado
                     </span>
                   </label>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-neutral-700 mb-1">
+                  <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                     Porcentaje de Retención de IVA por Defecto
                   </label>
                   <select
@@ -1025,7 +1042,7 @@ export const CompanyConfigView: React.FC = () => {
                         ivaRetentionRate: Number(e.target.value),
                       })
                     }
-                    className="w-full h-9 rounded-lg border border-neutral-300 bg-white px-3 text-xs text-neutral-900 focus-visible:ring-2 focus-visible:ring-sky-500"
+                    className="w-full h-9 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-xs text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
                   >
                     <option value={75}>
                       75% (General Contribuyentes Especiales)
@@ -1055,14 +1072,14 @@ export const CompanyConfigView: React.FC = () => {
         /* TAB 2: SUCURSALES & ALMACENES */
         <div className="space-y-6">
           {/* Sucursales */}
-          <div className="bg-white border border-neutral-200 rounded-lg p-5 shadow-sm">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-5 shadow-sm">
             <div className="flex justify-between items-center mb-4">
               <div>
-                <h2 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
-                  <GitBranch className="w-4 h-4 text-sky-600" />
+                <h2 className="text-sm font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
+                  <GitBranch className="w-4 h-4 text-sky-600 dark:text-sky-400" />
                   Sucursales Habilitadas
                 </h2>
-                <p className="text-xs text-neutral-500 mt-0.5">
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
                   Establecimientos comerciales y centros de operación
                   multi-sucursal
                 </p>
@@ -1081,15 +1098,15 @@ export const CompanyConfigView: React.FC = () => {
               {branches.map((b) => (
                 <div
                   key={b.id}
-                  className="border border-neutral-200 rounded-lg p-4 bg-neutral-50/50 flex flex-col justify-between"
+                  className="bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800  items-start sm:items-center justify-between gap-4"
                 >
                   <div>
                     <div className="flex justify-between items-start">
                       <div>
-                        <span className="text-[11px] font-mono font-bold text-sky-600">
+                        <span className="text-[11px] font-mono font-bold text-sky-600 dark:text-sky-400">
                           {b.code}
                         </span>
-                        <h3 className="text-xs font-bold text-neutral-900 mt-0.5">
+                        <h3 className="text-xs font-bold text-neutral-900 dark:text-neutral-100 mt-0.5">
                           {b.name}
                         </h3>
                       </div>
@@ -1102,17 +1119,17 @@ export const CompanyConfigView: React.FC = () => {
                         </Badge>
                       </div>
                     </div>
-                    <p className="text-xs text-neutral-500 mt-2 line-clamp-2">
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-2 line-clamp-2">
                       {b.address || "Sin dirección fiscal registrada"}
                     </p>
-                    <div className="mt-3 pt-3 border-t border-neutral-200 flex justify-between items-center text-[11px] text-neutral-600">
+                    <div className="mt-3 pt-3 border-t border-neutral-200 dark:border-neutral-800 flex justify-between items-center text-[11px] text-neutral-600 dark:text-neutral-400">
                       <span>{b.phone || "Sin teléfono"}</span>
-                      <span className="font-semibold text-neutral-700">
+                      <span className="font-semibold text-neutral-700 dark:text-neutral-300">
                         {b.warehousesCount || 0} Almacenes
                       </span>
                     </div>
                   </div>
-                  <div className="mt-3 pt-2 border-t border-neutral-200 flex justify-end gap-1.5">
+                  <div className="mt-3 pt-2 border-t border-neutral-200 dark:border-neutral-800 flex justify-end gap-1.5">
                     <Button
                       type="button"
                       variant="outline"
@@ -1129,7 +1146,7 @@ export const CompanyConfigView: React.FC = () => {
                       variant="outline"
                       size="sm"
                       onClick={() => handleDeleteBranch(b.id, b.name)}
-                      className="h-7 px-2 text-xs text-red-600 border-red-200 hover:bg-red-50"
+                      className="h-7 px-2 text-xs text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-950/30"
                       title="Eliminar o desactivar sucursal"
                     >
                       <Trash2 className="w-3 h-3 mr-1" />
@@ -1142,14 +1159,14 @@ export const CompanyConfigView: React.FC = () => {
           </div>
 
           {/* Almacenes */}
-          <div className="bg-white border border-neutral-200 rounded-lg p-5 shadow-sm">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-5 shadow-sm">
             <div className="flex justify-between items-center mb-4">
               <div>
-                <h2 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
-                  <Warehouse className="w-4 h-4 text-sky-600" />
+                <h2 className="text-sm font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
+                  <Warehouse className="w-4 h-4 text-sky-600 dark:text-sky-400" />
                   Depósitos & Almacenes Físicos
                 </h2>
-                <p className="text-xs text-neutral-500 mt-0.5">
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
                   Ubicaciones de control de existencias, piso de venta y
                   traslados
                 </p>
@@ -1166,7 +1183,7 @@ export const CompanyConfigView: React.FC = () => {
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-600">
+                <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase text-[10px] tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
                   <tr>
                     <th className="py-2.5 px-3">Código</th>
                     <th className="py-2.5 px-3">Nombre del Depósito</th>
@@ -1176,32 +1193,37 @@ export const CompanyConfigView: React.FC = () => {
                     <th className="py-2.5 px-3 text-right">Acciones</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-neutral-200">
+                <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
                   {warehouses.map((w) => (
-                    <tr key={w.id} className="hover:bg-neutral-50">
-                      <td className="py-2 px-3 font-mono font-bold text-neutral-900">
+                    <tr
+                      key={w.id}
+                      className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                    >
+                      <td className="py-2 px-3 font-mono font-bold text-neutral-900 dark:text-neutral-100">
                         {w.code}
                       </td>
-                      <td className="py-2 px-3 text-neutral-900 font-medium">
+                      <td className="py-2 px-3 text-neutral-900 dark:text-neutral-100 font-medium">
                         {w.name}
                       </td>
-                      <td className="py-2 px-3 text-neutral-600">
+                      <td className="py-2 px-3 text-neutral-600 dark:text-neutral-400">
                         {w.branchName || w.branchCode}
                       </td>
                       <td className="py-2 px-3">
                         <div className="flex flex-wrap items-center gap-1">
                           {w.isDefaultSales && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                               Ventas (POS)
                             </span>
                           )}
                           {w.isDefaultPurchases && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-sky-50 text-sky-700 border border-sky-200">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
                               Compras (Recepción)
                             </span>
                           )}
                           {!w.isDefaultSales && !w.isDefaultPurchases && (
-                            <span className="text-neutral-400 text-xs">Secundario</span>
+                            <span className="text-neutral-400 dark:text-neutral-500 text-xs">
+                              Secundario
+                            </span>
                           )}
                         </div>
                       </td>
@@ -1228,7 +1250,7 @@ export const CompanyConfigView: React.FC = () => {
                             variant="outline"
                             size="sm"
                             onClick={() => handleDeleteWarehouse(w.id, w.name)}
-                            className="h-7 px-2 text-xs text-red-600 border-red-200 hover:bg-red-50"
+                            className="h-7 px-2 text-xs text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-950/30"
                             title="Eliminar o desactivar depósito"
                           >
                             <Trash2 className="w-3 h-3 mr-1" />
@@ -1246,14 +1268,14 @@ export const CompanyConfigView: React.FC = () => {
       ) : activeTab === "registers" ? (
         /* TAB 3: CAJAS / PUNTOS DE VENTA */
         <div className="space-y-6">
-          <div className="bg-white border border-neutral-200 rounded-lg p-6 shadow-sm">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-neutral-200">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-6 shadow-sm">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-neutral-200 dark:border-neutral-800">
               <div>
-                <h2 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
-                  <CreditCard className="w-4 h-4 text-sky-600" />
+                <h2 className="text-sm font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-sky-600 dark:text-sky-400" />
                   Cajas Registradoras y Puntos de Venta (POS)
                 </h2>
-                <p className="text-xs text-neutral-500 mt-1">
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
                   Configure cada caja registradora, estableciendo si cuenta con
                   impresora fiscal homologada conectada (SENIAT) o si opera en
                   modalidad no fiscal con ticket de entrega.
@@ -1271,12 +1293,12 @@ export const CompanyConfigView: React.FC = () => {
             </div>
 
             {registers.length === 0 ? (
-              <div className="py-12 text-center text-neutral-400 flex flex-col items-center">
-                <CreditCard className="w-10 h-10 mb-2 stroke-1 text-neutral-300" />
-                <p className="text-sm font-semibold text-neutral-700">
+              <div className="py-12 text-center text-neutral-400 dark:text-neutral-500 flex flex-col items-center">
+                <CreditCard className="w-10 h-10 mb-2 stroke-1 text-neutral-300 dark:text-neutral-600" />
+                <p className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">
                   No hay cajas registradoras configuradas
                 </p>
-                <p className="text-xs text-neutral-400 mt-1 max-w-sm">
+                <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1 max-w-sm">
                   Cree una caja para habilitar el cobro en el Punto de Venta y
                   defina si posee impresora fiscal conectada.
                 </p>
@@ -1294,7 +1316,7 @@ export const CompanyConfigView: React.FC = () => {
             ) : (
               <div className="overflow-x-auto mt-4">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-600">
+                  <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase text-[10px] tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
                     <tr>
                       <th className="py-2.5 px-3">Código</th>
                       <th className="py-2.5 px-3">Nombre de la Caja</th>
@@ -1310,7 +1332,7 @@ export const CompanyConfigView: React.FC = () => {
                       <th className="py-2.5 px-3 text-right">Acciones</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-neutral-200">
+                  <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
                     {registers.map((r) => {
                       const isFiscal = r.invoiceMode === "fiscal_printer";
                       const accVES = bankAccounts.find(
@@ -1320,22 +1342,25 @@ export const CompanyConfigView: React.FC = () => {
                         (a) => a.id === r.defaultBankAccountIdUSD,
                       );
                       return (
-                        <tr key={r.id} className="hover:bg-neutral-50">
-                          <td className="py-2.5 px-3 font-mono font-bold text-neutral-900">
+                        <tr
+                          key={r.id}
+                          className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                        >
+                          <td className="py-2.5 px-3 font-mono font-bold text-neutral-900 dark:text-neutral-100">
                             {r.code}
                           </td>
-                          <td className="py-2.5 px-3 text-neutral-900 font-medium">
+                          <td className="py-2.5 px-3 text-neutral-900 dark:text-neutral-100 font-medium">
                             {r.name}
                           </td>
-                          <td className="py-2.5 px-3 text-neutral-600">
+                          <td className="py-2.5 px-3 text-neutral-600 dark:text-neutral-400">
                             {r.branchName || "Sucursal Principal"}
                           </td>
                           <td className="py-2.5 px-3">
                             <div className="flex flex-col">
-                              <span className="font-medium text-neutral-800">
+                              <span className="font-medium text-neutral-800 dark:text-neutral-200">
                                 {r.warehouseName || "Almacén Principal"}
                               </span>
-                              <span className="text-[10px] text-neutral-400">
+                              <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
                                 Descarga y consulta de stock
                               </span>
                             </div>
@@ -1350,7 +1375,7 @@ export const CompanyConfigView: React.FC = () => {
                                   <Printer className="w-3 h-3" />
                                   Fiscal: {r.fiscalPrinterSerial || "Conectada"}
                                 </Badge>
-                                <span className="text-[10px] text-neutral-400">
+                                <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
                                   Factura Fiscal Homologada SENIAT
                                 </span>
                               </div>
@@ -1363,7 +1388,7 @@ export const CompanyConfigView: React.FC = () => {
                                   <Printer className="w-3 h-3" />
                                   No Fiscal
                                 </Badge>
-                                <span className="text-[10px] text-neutral-400">
+                                <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
                                   Pregunta impresión de ticket de venta
                                 </span>
                               </div>
@@ -1371,26 +1396,26 @@ export const CompanyConfigView: React.FC = () => {
                           </td>
                           <td className="py-2.5 px-3">
                             <div className="flex flex-col gap-1 text-[11px]">
-                              <span className="text-neutral-700">
-                                <strong className="font-semibold text-neutral-500">
+                              <span className="text-neutral-700 dark:text-neutral-300">
+                                <strong className="font-semibold text-neutral-500 dark:text-neutral-400">
                                   VES:
                                 </strong>{" "}
                                 {accVES ? (
                                   `${accVES.bankName} (${accVES.accountNumber.slice(-4)})`
                                 ) : (
-                                  <span className="text-neutral-400 italic">
+                                  <span className="text-neutral-400 dark:text-neutral-500 italic">
                                     No configurada
                                   </span>
                                 )}
                               </span>
-                              <span className="text-neutral-700">
-                                <strong className="font-semibold text-neutral-500">
+                              <span className="text-neutral-700 dark:text-neutral-300">
+                                <strong className="font-semibold text-neutral-500 dark:text-neutral-400">
                                   USD:
                                 </strong>{" "}
                                 {accUSD ? (
                                   `${accUSD.bankName} (${accUSD.accountNumber.slice(-4)})`
                                 ) : (
-                                  <span className="text-neutral-400 italic">
+                                  <span className="text-neutral-400 dark:text-neutral-500 italic">
                                     No configurada
                                   </span>
                                 )}
@@ -1425,7 +1450,7 @@ export const CompanyConfigView: React.FC = () => {
                                     ? "Desactivar caja"
                                     : "Activar caja"
                                 }
-                                className={`h-7 px-2 text-xs ${r.isActive ? "text-red-600 border-red-200 hover:bg-red-50" : "text-emerald-600 border-emerald-200 hover:bg-emerald-50"}`}
+                                className={`h-7 px-2 text-xs ${r.isActive ? "text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-950/30" : "text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"}`}
                               >
                                 {r.isActive ? "Desactivar" : "Activar"}
                               </Button>
@@ -1435,7 +1460,7 @@ export const CompanyConfigView: React.FC = () => {
                                 size="sm"
                                 onClick={() => handleDeleteRegister(r)}
                                 title="Eliminar o desactivar caja"
-                                className="h-7 px-2 text-xs text-red-600 border-red-200 hover:bg-red-50"
+                                className="h-7 px-2 text-xs text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-950/30"
                               >
                                 <Trash2 className="w-3 h-3 mr-1" />
                                 Eliminar
@@ -1453,14 +1478,14 @@ export const CompanyConfigView: React.FC = () => {
         </div>
       ) : activeTab === "rules" ? (
         /* TAB 4: REGLAS DE NEGOCIO */
-        <div className="bg-white border border-neutral-200 rounded-lg p-6 shadow-sm">
+        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-6 shadow-sm">
           <form onSubmit={handleSaveRules} className="space-y-6">
-            <div className="border-b border-neutral-200 pb-4">
-              <h2 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
-                <SlidersHorizontal className="w-4 h-4 text-sky-600" />
+            <div className="border-b border-neutral-200 dark:border-neutral-800 pb-4">
+              <h2 className="text-sm font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
+                <SlidersHorizontal className="w-4 h-4 text-sky-600 dark:text-sky-400" />
                 Políticas de Control Comercial y Facturación
               </h2>
-              <p className="text-xs text-neutral-500 mt-1">
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
                 Restricciones de crédito, autorizaciones de descuento y modo de
                 impresión fiscal
               </p>
@@ -1468,7 +1493,7 @@ export const CompanyConfigView: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Ventas a Crédito */}
-              <div className="p-4 bg-neutral-50 rounded-lg border border-neutral-200 space-y-3">
+              <div className="p-4 bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 space-y-3">
                 <div className="flex items-start gap-3">
                   <input
                     type="checkbox"
@@ -1477,23 +1502,23 @@ export const CompanyConfigView: React.FC = () => {
                     onChange={(e) =>
                       setRules({ ...rules, allowCreditSales: e.target.checked })
                     }
-                    className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-neutral-300 mt-0.5"
+                    className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-neutral-300 dark:border-neutral-700 mt-0.5"
                   />
                   <label
                     htmlFor="allowCreditSales"
                     className="text-xs cursor-pointer"
                   >
-                    <span className="font-bold text-neutral-900 block">
+                    <span className="font-bold text-neutral-900 dark:text-neutral-100 block">
                       Habilitar Facturación a Crédito
                     </span>
-                    <span className="text-neutral-500">
+                    <span className="text-neutral-500 dark:text-neutral-400">
                       Permite generar facturas comerciales con fecha de
                       vencimiento y registro en cuentas por cobrar
                     </span>
                   </label>
                 </div>
 
-                <div className="flex items-start gap-3 pt-2 border-t border-neutral-200">
+                <div className="flex items-start gap-3 pt-2 border-t border-neutral-200 dark:border-neutral-700">
                   <input
                     type="checkbox"
                     id="enforceCreditLimit"
@@ -1504,23 +1529,23 @@ export const CompanyConfigView: React.FC = () => {
                         enforceCreditLimit: e.target.checked,
                       })
                     }
-                    className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-neutral-300 mt-0.5"
+                    className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-neutral-300 dark:border-neutral-700 mt-0.5"
                   />
                   <label
                     htmlFor="enforceCreditLimit"
                     className="text-xs cursor-pointer"
                   >
-                    <span className="font-bold text-neutral-900 block">
+                    <span className="font-bold text-neutral-900 dark:text-neutral-100 block">
                       Validación Estricta de Límite de Crédito
                     </span>
-                    <span className="text-neutral-500">
+                    <span className="text-neutral-500 dark:text-neutral-400">
                       Bloquea automáticamente la venta si la deuda acumulada del
                       cliente excede su límite
                     </span>
                   </label>
                 </div>
 
-                <div className="flex items-start gap-3 pt-2 border-t border-neutral-200">
+                <div className="flex items-start gap-3 pt-2 border-t border-neutral-200 dark:border-neutral-700">
                   <input
                     type="checkbox"
                     id="requireApprovalCreditExceeded"
@@ -1531,16 +1556,16 @@ export const CompanyConfigView: React.FC = () => {
                         requireApprovalCreditExceeded: e.target.checked,
                       })
                     }
-                    className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-neutral-300 mt-0.5"
+                    className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-neutral-300 dark:border-neutral-700 mt-0.5"
                   />
                   <label
                     htmlFor="requireApprovalCreditExceeded"
                     className="text-xs cursor-pointer"
                   >
-                    <span className="font-bold text-neutral-900 block">
+                    <span className="font-bold text-neutral-900 dark:text-neutral-100 block">
                       Autorización por Exceso de Crédito
                     </span>
-                    <span className="text-neutral-500">
+                    <span className="text-neutral-500 dark:text-neutral-400">
                       Permite emitir la venta a crédito si un usuario de mayor
                       nivel (Administrador / Supervisor) autoriza el monto
                       excedente
@@ -1550,7 +1575,7 @@ export const CompanyConfigView: React.FC = () => {
               </div>
 
               {/* Descuentos & Aprobaciones */}
-              <div className="p-4 bg-neutral-50 rounded-lg border border-neutral-200 space-y-3">
+              <div className="p-4 bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 space-y-3">
                 <div className="flex items-start gap-3">
                   <input
                     type="checkbox"
@@ -1562,24 +1587,24 @@ export const CompanyConfigView: React.FC = () => {
                         requireApprovalDiscount: e.target.checked,
                       })
                     }
-                    className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-neutral-300 mt-0.5"
+                    className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-neutral-300 dark:border-neutral-700 mt-0.5"
                   />
                   <label
                     htmlFor="requireApprovalDiscount"
                     className="text-xs cursor-pointer"
                   >
-                    <span className="font-bold text-neutral-900 block">
+                    <span className="font-bold text-neutral-900 dark:text-neutral-100 block">
                       Exigir Aprobación de Descuento
                     </span>
-                    <span className="text-neutral-500">
+                    <span className="text-neutral-500 dark:text-neutral-400">
                       Requiere confirmación de supervisor cuando el descuento
                       comercial sobrepase el límite máximo
                     </span>
                   </label>
                 </div>
 
-                <div className="pt-2 border-t border-neutral-200">
-                  <label className="block text-xs font-medium text-neutral-700 mb-1">
+                <div className="pt-2 border-t border-neutral-200 dark:border-neutral-700">
+                  <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                     Descuento Máximo Permitido sin Aprobación (%)
                   </label>
                   <Input
@@ -1599,7 +1624,7 @@ export const CompanyConfigView: React.FC = () => {
               </div>
 
               {/* Control de Inventario y Stock en Negativo */}
-              <div className="p-4 bg-neutral-50 rounded-lg border border-neutral-200 space-y-3">
+              <div className="p-4 bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 space-y-3">
                 <div className="flex items-start gap-3">
                   <input
                     type="checkbox"
@@ -1611,16 +1636,16 @@ export const CompanyConfigView: React.FC = () => {
                         allowNegativeStock: e.target.checked,
                       })
                     }
-                    className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-neutral-300 mt-0.5"
+                    className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-neutral-300 dark:border-neutral-700 mt-0.5"
                   />
                   <label
                     htmlFor="allowNegativeStock"
                     className="text-xs cursor-pointer"
                   >
-                    <span className="font-bold text-neutral-900 block">
+                    <span className="font-bold text-neutral-900 dark:text-neutral-100 block">
                       Permitir Ventas con Existencia en Negativo
                     </span>
-                    <span className="text-neutral-500">
+                    <span className="text-neutral-500 dark:text-neutral-400">
                       Habilita la facturación y venta en el Punto de Venta (POS)
                       aun cuando el producto no posea inventario suficiente en
                       el almacén de la caja.
@@ -1628,7 +1653,7 @@ export const CompanyConfigView: React.FC = () => {
                   </label>
                 </div>
 
-                <div className="flex items-start gap-3 pt-2 border-t border-neutral-200">
+                <div className="flex items-start gap-3 pt-2 border-t border-neutral-200 dark:border-neutral-700">
                   <input
                     type="checkbox"
                     id="requireApprovalNegativeStock"
@@ -1643,16 +1668,16 @@ export const CompanyConfigView: React.FC = () => {
                         requireApprovalNegativeStock: e.target.checked,
                       })
                     }
-                    className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-neutral-300 mt-0.5 disabled:opacity-50"
+                    className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-neutral-300 dark:border-neutral-700 mt-0.5 disabled:opacity-50"
                   />
                   <label
                     htmlFor="requireApprovalNegativeStock"
                     className={`text-xs ${!rules.allowNegativeStock ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
                   >
-                    <span className="font-bold text-neutral-900 block">
+                    <span className="font-bold text-neutral-900 dark:text-neutral-100 block">
                       Exigir Autorización de Supervisor para Stock en Negativo
                     </span>
-                    <span className="text-neutral-500">
+                    <span className="text-neutral-500 dark:text-neutral-400">
                       Si está activo, al seleccionar un producto sin existencia
                       o al modificar la cantidad dejándola en negativo, el POS
                       notificará al cajero y solicitará credenciales de
@@ -1664,11 +1689,11 @@ export const CompanyConfigView: React.FC = () => {
               </div>
 
               {/* Modo de Facturación POS */}
-              <div className="p-4 bg-neutral-50 rounded-lg border border-neutral-200 space-y-3">
-                <h3 className="text-xs font-bold text-neutral-900">
+              <div className="p-4 bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 space-y-3">
+                <h3 className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
                   Modo de Facturación de Caja / POS
                 </h3>
-                <p className="text-xs text-neutral-500">
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">
                   Mecanismo de expedición de tickets y facturas en los puntos de
                   venta
                 </p>
@@ -1681,7 +1706,7 @@ export const CompanyConfigView: React.FC = () => {
                       posInvoiceMode: e.target.value as any,
                     })
                   }
-                  className="w-full h-9 rounded-lg border border-neutral-300 bg-white px-3 text-xs text-neutral-900 focus-visible:ring-2 focus-visible:ring-sky-500"
+                  className="w-full h-9 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-xs text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
                 >
                   <option value="normal_printer">
                     Impresora Estándar / Formato Digital PDF
@@ -1696,11 +1721,11 @@ export const CompanyConfigView: React.FC = () => {
               </div>
 
               {/* Modo de Facturación Administrativa (Ventas / Cotizaciones Fuera de POS) */}
-              <div className="p-4 bg-neutral-50 rounded-lg border border-neutral-200 space-y-3">
-                <h3 className="text-xs font-bold text-neutral-900">
+              <div className="p-4 bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 space-y-3">
+                <h3 className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
                   Modo de Facturación Administrativa (Ventas y Cotizaciones)
                 </h3>
-                <p className="text-xs text-neutral-500">
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">
                   Modalidad fiscal por defecto para la emisión directa de
                   facturas fuera del punto de venta
                 </p>
@@ -1713,7 +1738,7 @@ export const CompanyConfigView: React.FC = () => {
                       salesInvoiceMode: e.target.value as any,
                     })
                   }
-                  className="w-full h-9 rounded-lg border border-neutral-300 bg-white px-3 text-xs text-neutral-900 focus-visible:ring-2 focus-visible:ring-sky-500"
+                  className="w-full h-9 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-xs text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
                 >
                   <option value="free_form">
                     Factura Fiscal Forma Libre / Talonario Preimpreso (Exige N°
@@ -1730,11 +1755,11 @@ export const CompanyConfigView: React.FC = () => {
               </div>
 
               {/* Auditoría y Retención */}
-              <div className="p-4 bg-neutral-50 rounded-lg border border-neutral-200 space-y-3">
-                <h3 className="text-xs font-bold text-neutral-900">
+              <div className="p-4 bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 space-y-3">
+                <h3 className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
                   Período de Retención Fiscal de Auditoría
                 </h3>
-                <p className="text-xs text-neutral-500">
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">
                   Lapso legal de conservación inmutable de bitácoras de
                   auditoría y libros SENIAT
                 </p>
@@ -1753,7 +1778,7 @@ export const CompanyConfigView: React.FC = () => {
                     }
                     className="w-24"
                   />
-                  <span className="text-xs text-neutral-600 font-medium">
+                  <span className="text-xs text-neutral-600 dark:text-neutral-400 font-medium">
                     Años (Mínimo legal: 5 años)
                   </span>
                 </div>
@@ -1774,7 +1799,7 @@ export const CompanyConfigView: React.FC = () => {
         </div>
       ) : (
         /* TAB 5: MEDIOS DE PAGO */
-        <div className="bg-white border border-neutral-200 rounded-lg p-6 shadow-sm">
+        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-6 shadow-sm">
           <PaymentMethodsConfigView embedded />
         </div>
       )}
@@ -1791,7 +1816,7 @@ export const CompanyConfigView: React.FC = () => {
         <form onSubmit={handleSaveBranch} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-neutral-700 mb-1">
+              <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                 Código *
               </label>
               <Input
@@ -1807,7 +1832,7 @@ export const CompanyConfigView: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-neutral-700 mb-1">
+              <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                 Nombre *
               </label>
               <Input
@@ -1822,7 +1847,7 @@ export const CompanyConfigView: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-neutral-700 mb-1">
+            <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
               Dirección Fiscal
             </label>
             <Input
@@ -1835,7 +1860,7 @@ export const CompanyConfigView: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-neutral-700 mb-1">
+            <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
               Teléfono
             </label>
             <Input
@@ -1855,17 +1880,17 @@ export const CompanyConfigView: React.FC = () => {
               onChange={(e) =>
                 setBranchForm({ ...branchForm, isMain: e.target.checked })
               }
-              className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-neutral-300"
+              className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-neutral-300 dark:border-neutral-700"
             />
             <label
               htmlFor="branchIsMain"
-              className="text-xs text-neutral-700 cursor-pointer"
+              className="text-xs text-neutral-700 dark:text-neutral-300 cursor-pointer"
             >
               Definir como Sede Principal
             </label>
           </div>
 
-          <div className="flex justify-end gap-3 pt-3 border-t border-neutral-200">
+          <div className="flex justify-end gap-3 pt-3 border-t border-neutral-200 dark:border-neutral-800">
             <Button
               type="button"
               variant="outline"
@@ -1898,7 +1923,7 @@ export const CompanyConfigView: React.FC = () => {
       >
         <form onSubmit={handleSaveWarehouse} className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-neutral-700 mb-1">
+            <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
               Sucursal Asignada *
             </label>
             <select
@@ -1906,7 +1931,7 @@ export const CompanyConfigView: React.FC = () => {
               onChange={(e) =>
                 setWarehouseForm({ ...warehouseForm, branchId: e.target.value })
               }
-              className="w-full h-9 rounded-lg border border-neutral-300 bg-white px-3 text-xs text-neutral-900 focus-visible:ring-2 focus-visible:ring-sky-500"
+              className="w-full h-9 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-xs text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
               required
             >
               {branches.map((b) => (
@@ -1919,7 +1944,7 @@ export const CompanyConfigView: React.FC = () => {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-neutral-700 mb-1">
+              <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                 Código Depósito *
               </label>
               <Input
@@ -1935,7 +1960,7 @@ export const CompanyConfigView: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-neutral-700 mb-1">
+              <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                 Nombre Depósito *
               </label>
               <Input
@@ -1949,12 +1974,12 @@ export const CompanyConfigView: React.FC = () => {
             </div>
           </div>
 
-          <div className="space-y-2.5 pt-2 border-t border-neutral-100">
-            <span className="block text-xs font-semibold uppercase tracking-wider text-neutral-600">
+          <div className="space-y-2.5 pt-2 border-t border-neutral-100 dark:border-neutral-800">
+            <span className="block text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
               Asignación Predeterminada por Sucursal
             </span>
 
-            <div className="flex items-start gap-3 p-3 rounded-lg border border-neutral-200 bg-neutral-50/50 hover:bg-neutral-50 transition-colors">
+            <div className="flex items-start gap-3 p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors">
               <input
                 type="checkbox"
                 id="warehouseIsDefaultSales"
@@ -1965,22 +1990,24 @@ export const CompanyConfigView: React.FC = () => {
                     isDefaultSales: e.target.checked,
                   })
                 }
-                className="w-4 h-4 mt-0.5 rounded text-sky-600 focus:ring-sky-500 border-neutral-300 focus-visible:ring-2"
+                className="w-4 h-4 mt-0.5 rounded text-sky-600 focus:ring-sky-500 border-neutral-300 dark:border-neutral-700 focus-visible:ring-2"
               />
               <label
                 htmlFor="warehouseIsDefaultSales"
-                className="text-xs text-neutral-700 cursor-pointer select-none"
+                className="text-xs text-neutral-700 dark:text-neutral-300 cursor-pointer select-none"
               >
-                <span className="font-semibold text-neutral-900 block">
+                <span className="font-semibold text-neutral-900 dark:text-neutral-100 block">
                   Predeterminado para Ventas
                 </span>
-                <span className="text-neutral-500 block mt-0.5 leading-relaxed">
-                  Se asignará automáticamente por defecto en el POS, cotizaciones, pedidos, notas de entrega y facturación en esta sucursal (máximo uno por sucursal).
+                <span className="text-neutral-500 dark:text-neutral-400 block mt-0.5 leading-relaxed">
+                  Se asignará automáticamente por defecto en el POS,
+                  cotizaciones, pedidos, notas de entrega y facturación en esta
+                  sucursal (máximo uno por sucursal).
                 </span>
               </label>
             </div>
 
-            <div className="flex items-start gap-3 p-3 rounded-lg border border-neutral-200 bg-neutral-50/50 hover:bg-neutral-50 transition-colors">
+            <div className="flex items-start gap-3 p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors">
               <input
                 type="checkbox"
                 id="warehouseIsDefaultPurchases"
@@ -1991,23 +2018,25 @@ export const CompanyConfigView: React.FC = () => {
                     isDefaultPurchases: e.target.checked,
                   })
                 }
-                className="w-4 h-4 mt-0.5 rounded text-sky-600 focus:ring-sky-500 border-neutral-300 focus-visible:ring-2"
+                className="w-4 h-4 mt-0.5 rounded text-sky-600 focus:ring-sky-500 border-neutral-300 dark:border-neutral-700 focus-visible:ring-2"
               />
               <label
                 htmlFor="warehouseIsDefaultPurchases"
-                className="text-xs text-neutral-700 cursor-pointer select-none"
+                className="text-xs text-neutral-700 dark:text-neutral-300 cursor-pointer select-none"
               >
-                <span className="font-semibold text-neutral-900 block">
+                <span className="font-semibold text-neutral-900 dark:text-neutral-100 block">
                   Predeterminado para Compras
                 </span>
-                <span className="text-neutral-500 block mt-0.5 leading-relaxed">
-                  Se asignará automáticamente por defecto para ingresos de mercancía, recepciones de almacén y compras a proveedores en esta sucursal (máximo uno por sucursal).
+                <span className="text-neutral-500 dark:text-neutral-400 block mt-0.5 leading-relaxed">
+                  Se asignará automáticamente por defecto para ingresos de
+                  mercancía, recepciones de almacén y compras a proveedores en
+                  esta sucursal (máximo uno por sucursal).
                 </span>
               </label>
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-3 border-t border-neutral-200">
+          <div className="flex justify-end gap-3 pt-3 border-t border-neutral-200 dark:border-neutral-800">
             <Button
               type="button"
               variant="outline"
@@ -2033,14 +2062,14 @@ export const CompanyConfigView: React.FC = () => {
           title="Actualizar Tasa de Cambio Oficial (BCV)"
         >
           <form onSubmit={handleSaveRate} className="space-y-4">
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-lg p-3 text-xs text-amber-800 dark:text-amber-300">
               Esta tasa se guardará en base de datos MySQL con fecha efectiva e
               historial de auditoría, aplicándose de manera global a todos los
               módulos.
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-neutral-700 mb-1">
+              <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                 Tasa Oficial en Bolívares (Bs. por 1 USD) *
               </label>
               <Input
@@ -2055,7 +2084,7 @@ export const CompanyConfigView: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-neutral-700 mb-1">
+              <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                 Fuente o Referencia Oficial
               </label>
               <Input
@@ -2066,7 +2095,7 @@ export const CompanyConfigView: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-neutral-700 mb-1">
+              <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                 Notas / Justificación del Ajuste (Opcional)
               </label>
               <Input
@@ -2096,17 +2125,18 @@ export const CompanyConfigView: React.FC = () => {
       {/* Modal para ver historial de tasas oficiales en base de datos */}
       {showRateHistoryModal && (
         <Modal
+          maxWidth="max-w-[800px]"
           isOpen={showRateHistoryModal}
           onClose={() => setShowRateHistoryModal(false)}
           title="Historial de Tasas de Cambio Oficiales en Base de Datos"
         >
           <div className="space-y-4">
-            <div className="flex items-center justify-between text-xs text-neutral-500">
+            <div className="flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400">
               <span>{history.length} registros guardados en MySQL</span>
               <button
                 type="button"
                 onClick={() => fetchHistory()}
-                className="text-sky-600 hover:text-sky-800 font-medium cursor-pointer"
+                className="text-sky-600 dark:text-sky-400 hover:text-sky-800 dark:hover:text-sky-300 font-medium cursor-pointer"
               >
                 Refrescar historial
               </button>
@@ -2117,13 +2147,13 @@ export const CompanyConfigView: React.FC = () => {
                 Cargando historial de base de datos...
               </div>
             ) : history.length === 0 ? (
-              <div className="py-8 text-center text-xs text-neutral-400 border border-dashed border-neutral-200 rounded-lg">
+              <div className="py-8 text-center text-xs text-neutral-400 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-lg">
                 No se encontraron registros de tasas de cambio en base de datos.
               </div>
             ) : (
-              <div className="overflow-x-auto border border-neutral-200 rounded-lg max-h-72">
+              <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-800 rounded-lg max-h-72">
                 <table className="w-full text-xs text-left">
-                  <thead className="bg-neutral-50 text-neutral-600 border-b border-neutral-200 text-[10px] uppercase font-semibold sticky top-0">
+                  <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase text-[10px] tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
                     <tr>
                       <th className="py-2.5 px-3">Fecha Efectiva</th>
                       <th className="py-2.5 px-3 text-right">
@@ -2134,22 +2164,25 @@ export const CompanyConfigView: React.FC = () => {
                       <th className="py-2.5 px-3">Notas</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-neutral-100">
+                  <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
                     {history.map((h, i) => (
-                      <tr key={h.id || i} className="hover:bg-neutral-50/60">
-                        <td className="py-2 px-3 font-mono text-neutral-700 font-medium">
+                      <tr
+                        key={h.id || i}
+                        className="hover:bg-neutral-50/60 dark:hover:bg-neutral-800/60"
+                      >
+                        <td className="py-2 px-3 font-mono text-neutral-700 dark:text-neutral-300 font-medium">
                           {h.effectiveDate}
                         </td>
-                        <td className="py-2 px-3 text-right font-mono font-bold text-neutral-900">
+                        <td className="py-2 px-3 text-right font-mono font-bold text-neutral-900 dark:text-neutral-100">
                           Bs. {formatExchangeRate(h.rate, 4)}
                         </td>
-                        <td className="py-2 px-3 text-neutral-600 truncate max-w-[140px]">
+                        <td className="py-2 px-3 text-neutral-600 dark:text-neutral-300 max-w-[140px] break-words">
                           {h.source}
                         </td>
-                        <td className="py-2 px-3 text-neutral-500 truncate max-w-[120px]">
+                        <td className="py-2 px-3 text-neutral-500 dark:text-neutral-400 max-w-[120px] break-words">
                           {h.updatedBy}
                         </td>
-                        <td className="py-2 px-3 text-neutral-400 text-[11px] truncate max-w-[140px]">
+                        <td className="py-2 px-3 text-neutral-400 dark:text-neutral-500 line-clamp-2 max-w-[140px] break-words">
                           {h.notes || "—"}
                         </td>
                       </tr>
@@ -2159,7 +2192,7 @@ export const CompanyConfigView: React.FC = () => {
               </div>
             )}
 
-            <div className="flex justify-end pt-2 border-t border-neutral-100">
+            <div className="flex justify-end pt-2 border-t border-neutral-100 dark:border-neutral-800">
               <Button
                 type="button"
                 variant="outline"
@@ -2186,7 +2219,7 @@ export const CompanyConfigView: React.FC = () => {
           <form onSubmit={handleSaveRegister} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-neutral-700 mb-1">
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                   Sucursal Asignada *
                 </label>
                 <select
@@ -2206,7 +2239,7 @@ export const CompanyConfigView: React.FC = () => {
                       warehouseId: defWh,
                     });
                   }}
-                  className="w-full h-9 rounded-lg border border-neutral-300 bg-white px-3 text-xs text-neutral-900 focus-visible:ring-2 focus-visible:ring-sky-500"
+                  className="w-full h-9 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-xs text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
                   required
                 >
                   {branches.map((b) => (
@@ -2218,7 +2251,7 @@ export const CompanyConfigView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-neutral-700 mb-1">
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                   Almacén de Inventario *
                 </label>
                 <select
@@ -2229,7 +2262,7 @@ export const CompanyConfigView: React.FC = () => {
                       warehouseId: e.target.value,
                     })
                   }
-                  className="w-full h-9 rounded-lg border border-neutral-300 bg-white px-3 text-xs text-neutral-900 focus-visible:ring-2 focus-visible:ring-sky-500"
+                  className="w-full h-9 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-xs text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
                   required
                 >
                   <option value="">-- Seleccionar Almacén --</option>
@@ -2245,7 +2278,7 @@ export const CompanyConfigView: React.FC = () => {
                       </option>
                     ))}
                 </select>
-                <p className="text-[10px] text-neutral-400 mt-0.5">
+                <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">
                   Almacén del cual se consultará la existencia y se rebajará el
                   stock al vender.
                 </p>
@@ -2254,7 +2287,7 @@ export const CompanyConfigView: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-neutral-700 mb-1">
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                   Código de Caja *
                 </label>
                 <Input
@@ -2270,7 +2303,7 @@ export const CompanyConfigView: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-neutral-700 mb-1">
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                   Nombre / Descripción *
                 </label>
                 <Input
@@ -2285,8 +2318,8 @@ export const CompanyConfigView: React.FC = () => {
             </div>
 
             {/* Configuración de Impresora Fiscal */}
-            <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 space-y-3">
-              <label className="block text-xs font-bold text-neutral-900">
+            <div className="p-3 bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 space-y-3">
+              <label className="block text-xs font-bold text-neutral-900 dark:text-neutral-100">
                 ¿Tiene impresora fiscal conectada?
               </label>
 
@@ -2294,13 +2327,13 @@ export const CompanyConfigView: React.FC = () => {
                 <label
                   className={`p-3 rounded-lg border cursor-pointer flex flex-col gap-1 transition-colors ${
                     registerForm.isFiscal
-                      ? "border-sky-500 bg-sky-50/40 text-neutral-900 ring-1 ring-sky-500"
-                      : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
+                      ? "border-sky-500 bg-sky-50/40 dark:bg-sky-950/40 text-neutral-900 dark:text-neutral-100 ring-1 ring-sky-500"
+                      : "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-750"
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-xs flex items-center gap-1.5">
-                      <Printer className="w-3.5 h-3.5 text-emerald-600" />
+                      <Printer className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                       Sí, Impresora Fiscal
                     </span>
                     <input
@@ -2313,7 +2346,7 @@ export const CompanyConfigView: React.FC = () => {
                       className="w-4 h-4 text-sky-600 focus:ring-sky-500"
                     />
                   </div>
-                  <span className="text-[11px] text-neutral-500">
+                  <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
                     Modo Fiscal SENIAT con serial y emisión de libro tributario
                   </span>
                 </label>
@@ -2321,13 +2354,13 @@ export const CompanyConfigView: React.FC = () => {
                 <label
                   className={`p-3 rounded-lg border cursor-pointer flex flex-col gap-1 transition-colors ${
                     !registerForm.isFiscal
-                      ? "border-sky-500 bg-sky-50/40 text-neutral-900 ring-1 ring-sky-500"
-                      : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
+                      ? "border-sky-500 bg-sky-50/40 dark:bg-sky-950/40 text-neutral-900 dark:text-neutral-100 ring-1 ring-sky-500"
+                      : "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-750"
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-xs flex items-center gap-1.5">
-                      <CreditCard className="w-3.5 h-3.5 text-neutral-600" />
+                      <CreditCard className="w-3.5 h-3.5 text-neutral-600 dark:text-neutral-400" />
                       No, Sin Impresora Fiscal
                     </span>
                     <input
@@ -2340,7 +2373,7 @@ export const CompanyConfigView: React.FC = () => {
                       className="w-4 h-4 text-sky-600 focus:ring-sky-500"
                     />
                   </div>
-                  <span className="text-[11px] text-neutral-500">
+                  <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
                     Modo No Fiscal: preguntará si desea imprimir ticket al
                     cobrar
                   </span>
@@ -2348,8 +2381,8 @@ export const CompanyConfigView: React.FC = () => {
               </div>
 
               {registerForm.isFiscal && (
-                <div className="pt-2 border-t border-neutral-200">
-                  <label className="block text-xs font-medium text-neutral-700 mb-1">
+                <div className="pt-2 border-t border-neutral-200 dark:border-neutral-700">
+                  <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                     Serial de la Impresora Fiscal SENIAT *
                   </label>
                   <Input
@@ -2363,7 +2396,7 @@ export const CompanyConfigView: React.FC = () => {
                     }
                     required={registerForm.isFiscal}
                   />
-                  <p className="text-[11px] text-neutral-500 mt-1">
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
                     Ingrese el número de serie troquelado en la máquina fiscal
                     homologada ante el SENIAT.
                   </p>
@@ -2371,8 +2404,8 @@ export const CompanyConfigView: React.FC = () => {
               )}
 
               {!registerForm.isFiscal && (
-                <div className="pt-2 border-t border-neutral-200">
-                  <p className="text-[11px] text-neutral-600 bg-sky-50/50 p-2 rounded-lg border border-sky-100">
+                <div className="pt-2 border-t border-neutral-200 dark:border-neutral-700">
+                  <p className="text-[11px] text-neutral-600 dark:text-neutral-300 bg-sky-50/50 dark:bg-sky-950/30 p-2 rounded-lg border border-sky-100 dark:border-sky-800">
                     <strong>Comportamiento del POS:</strong> Al finalizar cada
                     venta en esta caja, la pantalla preguntará al cajero si
                     desea imprimir un ticket de venta para el cliente o
@@ -2383,18 +2416,18 @@ export const CompanyConfigView: React.FC = () => {
             </div>
 
             {/* Cuentas Bancarias Predeterminadas para el Cierre de Caja */}
-            <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 space-y-3">
-              <label className="block text-xs font-bold text-neutral-900">
+            <div className="p-3 bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 space-y-3">
+              <label className="block text-xs font-bold text-neutral-900 dark:text-neutral-100">
                 Cuentas Bancarias de Tesorería Predeterminadas para Depósito
               </label>
-              <p className="text-[11px] text-neutral-500">
+              <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
                 Estas cuentas se preseleccionarán automáticamente al realizar el
                 arqueo y cierre de turno en esta caja.
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-medium text-neutral-700 mb-1">
+                  <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                     Cuenta Predeterminada VES (Bolívares)
                   </label>
                   <select
@@ -2405,7 +2438,7 @@ export const CompanyConfigView: React.FC = () => {
                         defaultBankAccountIdVES: e.target.value,
                       })
                     }
-                    className="w-full h-9 rounded-lg border border-neutral-300 bg-white px-3 text-xs text-neutral-900 focus-visible:ring-2 focus-visible:ring-sky-500"
+                    className="w-full h-9 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-xs text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
                   >
                     <option value="">
                       -- Sin cuenta predeterminada VES --
@@ -2422,7 +2455,7 @@ export const CompanyConfigView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-medium text-neutral-700 mb-1">
+                  <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                     Cuenta Predeterminada USD (Divisas Custodia)
                   </label>
                   <select
@@ -2433,7 +2466,7 @@ export const CompanyConfigView: React.FC = () => {
                         defaultBankAccountIdUSD: e.target.value,
                       })
                     }
-                    className="w-full h-9 rounded-lg border border-neutral-300 bg-white px-3 text-xs text-neutral-900 focus-visible:ring-2 focus-visible:ring-sky-500"
+                    className="w-full h-9 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-xs text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
                   >
                     <option value="">
                       -- Sin cuenta predeterminada USD --
@@ -2451,6 +2484,67 @@ export const CompanyConfigView: React.FC = () => {
               </div>
             </div>
 
+            {/* Departamentos Permitidos */}
+            <div className="pt-2 bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-neutral-800 dark:text-neutral-200">
+                  Departamentos Visibles en esta Caja
+                </label>
+                <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                  {registerForm.allowedDepartmentIds.length === 0
+                    ? "Todos visibles (sin restricción)"
+                    : `${registerForm.allowedDepartmentIds.length} seleccionado(s)`}
+                </span>
+              </div>
+              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mb-2">
+                Restringe los departamentos de productos que podrá despachar
+                esta caja en POS y en la toma de pedidos. Si no marca ninguno,
+                mostrará todos los departamentos.
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-36 overflow-y-auto p-2 bg-sky-50/60 dark:bg-sky-950/30 rounded-lg border border-sky-200 dark:border-sky-800">
+                {availableDepartments.map((dept) => {
+                  const isChecked = registerForm.allowedDepartmentIds.includes(
+                    dept.id,
+                  );
+                  return (
+                    <label
+                      key={dept.id}
+                      className={`flex items-center gap-2 p-1.5 rounded-lg border text-xs cursor-pointer transition-colors ${
+                        isChecked
+                          ? "bg-sky-50 dark:bg-sky-950/50 border-sky-300 dark:border-sky-800 text-sky-800 dark:text-sky-300 font-semibold"
+                          : "bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-750"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(e) => {
+                          const current = [
+                            ...registerForm.allowedDepartmentIds,
+                          ];
+                          if (e.target.checked) {
+                            setRegisterForm({
+                              ...registerForm,
+                              allowedDepartmentIds: [...current, dept.id],
+                            });
+                          } else {
+                            setRegisterForm({
+                              ...registerForm,
+                              allowedDepartmentIds: current.filter(
+                                (id) => id !== dept.id,
+                              ),
+                            });
+                          }
+                        }}
+                        className="w-3.5 h-3.5 text-sky-600 rounded"
+                      />
+                      <span className="truncate">{dept.name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className="flex items-center gap-2 pt-1">
               <input
                 type="checkbox"
@@ -2462,17 +2556,17 @@ export const CompanyConfigView: React.FC = () => {
                     isActive: e.target.checked,
                   })
                 }
-                className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-neutral-300"
+                className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-neutral-300 dark:border-neutral-700"
               />
               <label
                 htmlFor="registerIsActive"
-                className="text-xs text-neutral-700 cursor-pointer"
+                className="text-xs text-neutral-700 dark:text-neutral-300 cursor-pointer"
               >
                 Caja registradora habilitada para turnos y ventas
               </label>
             </div>
 
-            <div className="flex justify-end gap-3 pt-3 border-t border-neutral-200">
+            <div className="flex justify-end gap-3 pt-3 border-t border-neutral-200 dark:border-neutral-800">
               <Button
                 type="button"
                 variant="outline"

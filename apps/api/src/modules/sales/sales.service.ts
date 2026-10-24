@@ -273,18 +273,6 @@ export class SalesService {
     const isForDelivery = forDelivery === true || forDelivery === 'true';
 
     const rows = await query<any>(
-  static async getQuotations(
-    companyId: string,
-    branchId?: string,
-    status?: string,
-    startDate?: string,
-    endDate?: string,
-    customerId?: string,
-    forDelivery?: boolean | string
-  ) {
-    const isForDelivery = forDelivery === true || forDelivery === 'true';
-
-    const rows = await query<any>(
       `SELECT sq.id, sq.company_id as companyId, sq.branch_id as branchId,
               sq.customer_id as customerId, sq.user_id as userId,
               sq.quotation_number as quotationNumber, sq.quotation_date as quotationDate,
@@ -362,42 +350,7 @@ export class SalesService {
              ) > 0
            )
          )
-         AND (? IS NULL OR sq.customer_id = ?)
-         AND (? IS NULL OR DATE(sq.quotation_date) >= ?)
-         AND (? IS NULL OR DATE(sq.quotation_date) <= ?)
-         AND (
-           ? = false OR (
-             sq.status = 'CONVERTED'
-             AND (
-               SELECT COUNT(*)
-               FROM sales_quotation_items sqi
-               WHERE sqi.quotation_id = sq.id
-                 AND sqi.quantity > (
-                   SELECT COALESCE(SUM(dni.quantity_delivered), 0)
-                   FROM delivery_note_items dni
-                   INNER JOIN delivery_notes dn ON dni.delivery_note_id = dn.id
-                   WHERE dn.quotation_id = sq.id
-                     AND dn.status != 'ANNULLED'
-                     AND (dni.quotation_item_id = sqi.id OR dni.product_id = sqi.product_id)
-                 )
-             ) > 0
-           )
-         )
        ORDER BY sq.quotation_date DESC, sq.created_at DESC`,
-      [
-        companyId,
-        branchId || null,
-        branchId || null,
-        status || null,
-        status || null,
-        customerId || null,
-        customerId || null,
-        startDate || null,
-        startDate || null,
-        endDate || null,
-        endDate || null,
-        isForDelivery,
-      ]
       [
         companyId,
         branchId || null,
@@ -463,15 +416,6 @@ export class SalesService {
               sqi.quantity, sqi.unit_price as unitPrice, sqi.tax_rate as taxRate,
               sqi.discount_percent as discountPercent, sqi.tax_amount as taxAmount,
               sqi.subtotal, sqi.total, sqi.notes,
-              p.sku as productSku, p.name as productName, p.unit_of_measure as unitOfMeasure,
-              (
-                SELECT COALESCE(SUM(dni.quantity_delivered), 0)
-                FROM delivery_note_items dni
-                INNER JOIN delivery_notes dn ON dni.delivery_note_id = dn.id
-                WHERE dn.quotation_id = sqi.quotation_id
-                  AND dn.status != 'ANNULLED'
-                  AND (dni.quotation_item_id = sqi.id OR dni.product_id = sqi.product_id)
-              ) as quantityDelivered
               p.sku as productSku, p.name as productName, p.unit_of_measure as unitOfMeasure,
               (
                 SELECT COALESCE(SUM(dni.quantity_delivered), 0)
@@ -712,16 +656,6 @@ export class SalesService {
     startDate?: string,
     endDate?: string
   ) {
-  static async getDeliveryNotes(
-    companyId: string,
-    branchId?: string,
-    warehouseId?: string,
-    status?: string,
-    customerId?: string,
-    hasQuotation?: string,
-    startDate?: string,
-    endDate?: string
-  ) {
     return await query<any>(
       `SELECT dn.id, dn.company_id as companyId, dn.branch_id as branchId,
               dn.warehouse_id as warehouseId, dn.customer_id as customerId,
@@ -774,33 +708,7 @@ export class SalesService {
          )
          AND (? IS NULL OR DATE(dn.delivery_date) >= ?)
          AND (? IS NULL OR DATE(dn.delivery_date) <= ?)
-         AND (? IS NULL OR dn.customer_id = ?)
-         AND (
-           ? IS NULL OR
-           (? = 'true' AND dn.quotation_id IS NOT NULL) OR
-           (? = 'false' AND dn.quotation_id IS NULL)
-         )
-         AND (? IS NULL OR DATE(dn.delivery_date) >= ?)
-         AND (? IS NULL OR DATE(dn.delivery_date) <= ?)
        ORDER BY dn.delivery_date DESC, dn.created_at DESC`,
-      [
-        companyId,
-        branchId || null,
-        branchId || null,
-        warehouseId || null,
-        warehouseId || null,
-        status || null,
-        status || null,
-        customerId || null,
-        customerId || null,
-        hasQuotation || null,
-        hasQuotation || null,
-        hasQuotation || null,
-        startDate || null,
-        startDate || null,
-        endDate || null,
-        endDate || null,
-      ]
       [
         companyId,
         branchId || null,
@@ -959,65 +867,13 @@ export class SalesService {
         }
       }
 
-      // 0. Si viene de una cotización, validar que exista, esté FACTURADA y no esté 100% entregada
-      let relatedInvoiceId: string | null = null;
-      if (input.quotationId) {
-        const [qRows] = await conn.execute<any[]>(
-          `SELECT id, quotation_number, status, total_amount FROM sales_quotations WHERE id = ? AND company_id = ?`,
-          [input.quotationId, companyId]
-        );
-        if (qRows.length === 0) {
-          throw new Error('La cotización seleccionada no existe en el sistema');
-        }
-        const quot = qRows[0];
-        if (quot.status !== 'CONVERTED') {
-          throw new Error(
-            `Solo se pueden despachar cotizaciones previamente facturadas. La cotización ${quot.quotation_number} no se encuentra facturada.`
-          );
-        }
-
-        // Buscar la factura asociada a esta cotización para vincularla a la nota de entrega
-        const [invRows] = await conn.execute<any[]>(
-          `SELECT id FROM sales_invoices WHERE quotation_id = ? ORDER BY created_at DESC LIMIT 1`,
-          [input.quotationId]
-        );
-        if (invRows.length > 0) {
-          relatedInvoiceId = invRows[0].id;
-        }
-
-        // Validar que la cotización tenga cantidades pendientes por despachar (no entregada al 100%)
-        const [pendingRows] = await conn.execute<any[]>(
-          `SELECT COUNT(*) as pendingCount
-           FROM sales_quotation_items sqi
-           WHERE sqi.quotation_id = ?
-             AND sqi.quantity > (
-               SELECT COALESCE(SUM(dni.quantity_delivered), 0)
-               FROM delivery_note_items dni
-               INNER JOIN delivery_notes dn ON dni.delivery_note_id = dn.id
-               WHERE dn.quotation_id = ?
-                 AND dn.status != 'ANNULLED'
-                 AND (dni.quotation_item_id = sqi.id OR dni.product_id = sqi.product_id)
-             )`,
-          [input.quotationId, input.quotationId]
-        );
-        if (Number(pendingRows[0]?.pendingCount || 0) === 0) {
-          throw new Error(
-            `La cotización ${quot.quotation_number} ya ha sido entregada al 100%. No posee mercancía pendiente por despachar.`
-          );
-        }
-      }
-
       // 1. Validar existencias físicas en el depósito para todos los productos
       for (const item of input.items) {
         const [stockRows] = await conn.execute<any[]>(
           `SELECT COALESCE(ps.available_stock, ps.current_stock - ps.reserved_stock, 0) as available_stock,
                   COALESCE(ps.current_stock, 0) as current_stock,
                   COALESCE(ps.reserved_stock, 0) as reserved_stock,
-                  p.sku, p.cost_price
-          `SELECT COALESCE(ps.available_stock, ps.current_stock - ps.reserved_stock, 0) as available_stock,
-                  COALESCE(ps.current_stock, 0) as current_stock,
-                  COALESCE(ps.reserved_stock, 0) as reserved_stock,
-                  p.sku, p.cost_price
+                  p.sku, p.cost_price, p.tracks_inventory
            FROM products p
            LEFT JOIN product_stocks ps ON ps.product_id = p.id AND ps.warehouse_id = ?
            WHERE p.id = ?`,
@@ -1028,6 +884,7 @@ export class SalesService {
           throw new Error(`Producto ${item.productId} no encontrado`);
         }
 
+        const tracksInventory = Boolean(stockRows[0]?.tracks_inventory !== 0 && stockRows[0]?.tracks_inventory !== false);
         const physical = Number(stockRows[0]?.current_stock || 0);
         const available = Number(stockRows[0]?.available_stock || 0);
 
@@ -1037,19 +894,8 @@ export class SalesService {
         const stockToCheck = input.quotationId ? physical : available;
         const stockLabel = input.quotationId ? 'Físico en almacén' : 'Disponible no reservado';
 
-        if (stockToCheck < item.quantityDelivered) {
-        const physical = Number(stockRows[0]?.current_stock || 0);
-        const available = Number(stockRows[0]?.available_stock || 0);
-
-        // Si viene de cotización facturada, el inventario ya fue reservado previamente para este despacho.
-        // Se valida contra el stock físico real (current_stock).
-        // Si es un despacho directo sin cotización, se valida contra el stock disponible no reservado (available_stock).
-        const stockToCheck = input.quotationId ? physical : available;
-        const stockLabel = input.quotationId ? 'Físico en almacén' : 'Disponible no reservado';
-
-        if (stockToCheck < item.quantityDelivered) {
+        if (tracksInventory && stockToCheck < item.quantityDelivered) {
           throw new Error(
-            `Stock insuficiente en el depósito para el producto ${stockRows[0].sku}. Solicitado: ${item.quantityDelivered}, ${stockLabel}: ${stockToCheck}`
             `Stock insuficiente en el depósito para el producto ${stockRows[0].sku}. Solicitado: ${item.quantityDelivered}, ${stockLabel}: ${stockToCheck}`
           );
         }
@@ -1059,13 +905,10 @@ export class SalesService {
 
       // 2. Insertar cabecera de Nota de Entrega
       const deliveryStatus = relatedInvoiceId ? 'INVOICED' : 'DELIVERED';
-      const deliveryStatus = relatedInvoiceId ? 'INVOICED' : 'DELIVERED';
       await conn.execute(
         `INSERT INTO delivery_notes (
           id, company_id, branch_id, warehouse_id, customer_id,
           quotation_id, user_id, delivery_number, currency, exchange_rate,
-          total_amount, driver_name, vehicle_plate, status, sales_invoice_id, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           total_amount, driver_name, vehicle_plate, status, sales_invoice_id, notes
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
@@ -1084,20 +927,18 @@ export class SalesService {
           input.vehiclePlate || null,
           deliveryStatus,
           relatedInvoiceId,
-          deliveryStatus,
-          relatedInvoiceId,
           input.notes || null,
         ]
       );
 
       // 3. Procesar ítems, rebaja física de inventario, liberación de reservas y auditoría Kardex
-      // 3. Procesar ítems, rebaja física de inventario, liberación de reservas y auditoría Kardex
       for (const item of input.items) {
         const [productRow] = await conn.execute<any[]>(
-          `SELECT cost_price FROM products WHERE id = ?`,
+          `SELECT cost_price, tracks_inventory FROM products WHERE id = ?`,
           [item.productId]
         );
         const unitCost = Number(productRow[0]?.cost_price || 0);
+        const tracksInventory = Boolean(productRow[0]?.tracks_inventory !== 0 && productRow[0]?.tracks_inventory !== false);
         const itemTotal = Number((item.quantityDelivered * item.unitPrice).toFixed(2));
 
         await conn.execute(
@@ -1118,77 +959,51 @@ export class SalesService {
           ]
         );
 
-        // Descontar inventario físico y liberar reserva si viene de cotización facturada
-        if (input.quotationId) {
-          await conn.execute(
-            `UPDATE product_stocks
-             SET current_stock = current_stock - ?,
-                 reserved_stock = GREATEST(0, reserved_stock - ?),
-                 last_movement_at = NOW()
-             WHERE product_id = ? AND warehouse_id = ?`,
-            [item.quantityDelivered, item.quantityDelivered, item.productId, input.warehouseId]
-          );
-        } else {
-          // Despacho directo sin cotización: descontar inventario físico
-          await conn.execute(
-            `UPDATE product_stocks
-             SET current_stock = current_stock - ?,
-                 last_movement_at = NOW()
-             WHERE product_id = ? AND warehouse_id = ?`,
-            [item.quantityDelivered, item.productId, input.warehouseId]
-          );
-        }
-        // Descontar inventario físico y liberar reserva si viene de cotización facturada
-        if (input.quotationId) {
-          await conn.execute(
-            `UPDATE product_stocks
-             SET current_stock = current_stock - ?,
-                 reserved_stock = GREATEST(0, reserved_stock - ?),
-                 last_movement_at = NOW()
-             WHERE product_id = ? AND warehouse_id = ?`,
-            [item.quantityDelivered, item.quantityDelivered, item.productId, input.warehouseId]
-          );
-        } else {
-          // Despacho directo sin cotización: descontar inventario físico
-          await conn.execute(
-            `UPDATE product_stocks
-             SET current_stock = current_stock - ?,
-                 last_movement_at = NOW()
-             WHERE product_id = ? AND warehouse_id = ?`,
-            [item.quantityDelivered, item.productId, input.warehouseId]
-          );
-        }
+        // Descontar inventario físico y liberar reserva solo si el producto maneja inventario
+        if (tracksInventory) {
+          if (input.quotationId) {
+            await conn.execute(
+              `UPDATE product_stocks
+               SET current_stock = current_stock - ?,
+                   reserved_stock = GREATEST(0, reserved_stock - ?),
+                   last_movement_at = NOW()
+               WHERE product_id = ? AND warehouse_id = ?`,
+              [item.quantityDelivered, item.quantityDelivered, item.productId, input.warehouseId]
+            );
+          } else {
+            // Despacho directo sin cotización: descontar inventario físico
+            await conn.execute(
+              `UPDATE product_stocks
+               SET current_stock = current_stock - ?,
+                   last_movement_at = NOW()
+               WHERE product_id = ? AND warehouse_id = ?`,
+              [item.quantityDelivered, item.productId, input.warehouseId]
+            );
+          }
 
-        // Registrar en Kardex la salida física real de inventario
-        // Registrar en Kardex la salida física real de inventario
-        await conn.execute(
-          `INSERT INTO inventory_movements (
-            id, branch_id, warehouse_id, product_id, user_id, movement_type,
-            id, branch_id, warehouse_id, product_id, user_id, movement_type,
-            quantity, unit_cost, reference_document, reason
-          ) VALUES (?, ?, ?, ?, ?, 'OUT', ?, ?, ?, ?)`,
-          ) VALUES (?, ?, ?, ?, ?, 'OUT', ?, ?, ?, ?)`,
-          [
-            crypto.randomUUID(),
-            input.branchId,
-            input.warehouseId,
-            item.productId,
-            userId,
-            userId,
-            item.quantityDelivered,
-            unitCost,
-            deliveryNumber,
-            input.quotationId
-              ? `Despacho de mercancía reservada según Nota de Entrega: ${deliveryNumber}`
-              : `Despacho según Nota de Entrega: ${deliveryNumber}`,
-            input.quotationId
-              ? `Despacho de mercancía reservada según Nota de Entrega: ${deliveryNumber}`
-              : `Despacho según Nota de Entrega: ${deliveryNumber}`,
-          ]
-        );
+          // Registrar en Kardex la salida física real de inventario
+          await conn.execute(
+            `INSERT INTO inventory_movements (
+              id, branch_id, warehouse_id, product_id, user_id, movement_type,
+              quantity, unit_cost, reference_document, reason
+            ) VALUES (?, ?, ?, ?, ?, 'OUT', ?, ?, ?, ?)`,
+            [
+              crypto.randomUUID(),
+              input.branchId,
+              input.warehouseId,
+              item.productId,
+              userId,
+              item.quantityDelivered,
+              unitCost,
+              deliveryNumber,
+              input.quotationId
+                ? `Despacho de mercancía reservada según Nota de Entrega: ${deliveryNumber}`
+                : `Despacho según Nota de Entrega: ${deliveryNumber}`,
+            ]
+          );
+        }
       }
 
-      // Si viene de una cotización, mantener como CONVERTED
       // Si viene de una cotización, mantener como CONVERTED
       if (input.quotationId) {
         await conn.execute(
@@ -1200,8 +1015,6 @@ export class SalesService {
       return {
         id: deliveryId,
         deliveryNumber,
-        status: deliveryStatus,
-        salesInvoiceId: relatedInvoiceId,
         status: deliveryStatus,
         salesInvoiceId: relatedInvoiceId,
         totalAmount,
@@ -1501,102 +1314,6 @@ export class SalesService {
             );
           }
         }
-      } else {
-        const paymentMethod = input.paymentMethod || 'CASH_USD';
-        const exRate = Number(delivery.exchange_rate) || 1.0;
-        const isUSD = delivery.currency === 'USD';
-        const totalAmount = totalInvoiceAmount;
-        const amountUSD = isUSD ? totalAmount : Number((totalAmount / exRate).toFixed(2));
-        const amountVES = isUSD ? Number((totalAmount * exRate).toFixed(2)) : totalAmount;
-
-        await conn.execute(
-          `INSERT INTO sales_payments (
-            id, invoice_id, method, amount_ves, amount_usd, exchange_rate,
-            applies_igtf, igtf_amount_ves, igtf_amount_usd, reference_number
-          ) VALUES (?, ?, ?, ?, ?, ?, 0, 0.00, 0.00, ?)`,
-          [
-            crypto.randomUUID(),
-            invoiceId,
-            paymentMethod,
-            amountVES,
-            amountUSD,
-            exRate,
-            input.paymentReference?.trim() || null,
-          ]
-        );
-
-        let targetBankAccountId = input.bankAccountId;
-        if (!targetBankAccountId) {
-          const isPaymentUSD = ['CASH_USD', 'ZELLE'].includes(paymentMethod) || (isUSD && !['CASH_VES', 'TRANSFER', 'PAGO_MOVIL', 'DEBIT_CARD', 'CREDIT_CARD'].includes(paymentMethod));
-          const targetCurrency = isPaymentUSD ? 'USD' : 'VES';
-
-          const [branchAccs] = await conn.execute<any[]>(
-            `SELECT id FROM bank_accounts 
-             WHERE company_id = ? AND branch_id = ? AND is_active = 1 AND currency = ? 
-             ORDER BY created_at ASC LIMIT 1`,
-            [companyId, delivery.branch_id, targetCurrency]
-          );
-
-          if (branchAccs.length > 0) {
-            targetBankAccountId = branchAccs[0].id;
-          } else {
-            const [companyAccs] = await conn.execute<any[]>(
-              `SELECT id FROM bank_accounts 
-               WHERE company_id = ? AND is_active = 1 AND currency = ? 
-               ORDER BY created_at ASC LIMIT 1`,
-              [companyId, targetCurrency]
-            );
-            if (companyAccs.length > 0) {
-              targetBankAccountId = companyAccs[0].id;
-            } else {
-              const [anyAccs] = await conn.execute<any[]>(
-                `SELECT id FROM bank_accounts 
-                 WHERE company_id = ? AND is_active = 1 
-                 ORDER BY created_at ASC LIMIT 1`,
-                [companyId]
-              );
-              if (anyAccs.length > 0) {
-                targetBankAccountId = anyAccs[0].id;
-              }
-            }
-          }
-        }
-
-        if (targetBankAccountId) {
-          const [accRows] = await conn.execute<any[]>(
-            `SELECT id, currency, current_balance FROM bank_accounts WHERE id = ? AND company_id = ? FOR UPDATE`,
-            [targetBankAccountId, companyId]
-          );
-          if (accRows.length > 0) {
-            const acc = accRows[0];
-            const depositAmount = acc.currency === 'USD' ? amountUSD : amountVES;
-            const updatedBalance = Number((Number(acc.current_balance) + depositAmount).toFixed(2));
-
-            await conn.execute(
-              `UPDATE bank_accounts SET current_balance = ? WHERE id = ?`,
-              [updatedBalance, targetBankAccountId]
-            );
-
-            const refNumber = (input.paymentReference?.trim() || invoiceNumber).slice(0, 60);
-            const concept = `Cobro Factura ${invoiceNumber} (${paymentMethod}) - Nota de Entrega ${delivery.delivery_number} [${customer.name}]`.slice(0, 255);
-
-            await conn.execute(
-              `INSERT INTO bank_movements (
-                id, account_id, user_id, movement_type, amount, balance_after,
-                movement_date, reference_number, concept, is_reconciled
-              ) VALUES (?, ?, ?, 'DEPOSIT', ?, ?, NOW(), ?, ?, 0)`,
-              [
-                crypto.randomUUID(),
-                targetBankAccountId,
-                userId,
-                depositAmount,
-                updatedBalance,
-                refNumber,
-                concept,
-              ]
-            );
-          }
-        }
       }
 
       // 8. Actualizar la nota de entrega a INVOICED
@@ -1662,15 +1379,10 @@ export class SalesService {
       const invoiceNumber = input.invoiceNumber?.trim() || (await this.generateInvoiceNumber(conn, companyId));
 
       // 3. Verificar cliente y crédito comercial
-      // 3. Verificar cliente y crédito comercial
-      // 3. Verificar cliente y crédito comercial
       const [customerRows] = await conn.execute<any[]>(
         `SELECT * FROM customers WHERE id = ?`,
         [quotation.customer_id]
       );
-      if (customerRows.length === 0) {
-        throw new Error('Cliente asociado a la cotización no encontrado');
-      }
       if (customerRows.length === 0) {
         throw new Error('Cliente asociado a la cotización no encontrado');
       }
@@ -1681,9 +1393,6 @@ export class SalesService {
 
       let creditApproval: any = null;
       if (input.isCredit) {
-        if (!customer.credit_enabled) {
-          throw new Error(`El cliente ${customer.name} no tiene línea de crédito comercial habilitada.`);
-        }
         if (!customer.credit_enabled) {
           throw new Error(`El cliente ${customer.name} no tiene línea de crédito comercial habilitada.`);
         }
@@ -1699,10 +1408,8 @@ export class SalesService {
       }
 
       // 4. Obtener ítems de la cotización, verificar stock en el depósito y comparar precios
-      // 4. Obtener ítems de la cotización, verificar stock en el depósito y comparar precios
       const [items] = await conn.execute<any[]>(
-        `SELECT sqi.*, p.cost_price, p.sku, p.name as product_name, p.base_price as current_base_price, p.currency as product_currency
-        `SELECT sqi.*, p.cost_price, p.sku, p.name as product_name, p.base_price as current_base_price, p.currency as product_currency
+        `SELECT sqi.*, p.cost_price, p.sku, p.name as product_name, p.base_price as current_base_price, p.currency as product_currency, p.tracks_inventory
          FROM sales_quotation_items sqi
          INNER JOIN products p ON sqi.product_id = p.id
          WHERE sqi.quotation_id = ?`,
@@ -1710,22 +1417,20 @@ export class SalesService {
       );
 
       for (const item of items) {
-        const [stockRow] = await conn.execute<any[]>(
-          `SELECT COALESCE(available_stock, current_stock, 0) as available_stock
-           FROM product_stocks
-           WHERE product_id = ? AND warehouse_id = ?`,
-          `SELECT COALESCE(available_stock, current_stock, 0) as available_stock
-           FROM product_stocks
-           WHERE product_id = ? AND warehouse_id = ?`,
-          [item.product_id, input.warehouseId]
-        );
-        const available = Number(stockRow[0]?.available_stock || 0);
-        const available = Number(stockRow[0]?.available_stock || 0);
-        if (available < item.quantity) {
-          throw new Error(
-            `Stock insuficiente en el depósito para el producto ${item.sku} (${item.product_name || ''}). Disponible: ${available}, Requerido: ${item.quantity}`
-            `Stock insuficiente en el depósito para el producto ${item.sku} (${item.product_name || ''}). Disponible: ${available}, Requerido: ${item.quantity}`
+        const tracksInventory = Boolean(item.tracks_inventory !== 0 && item.tracks_inventory !== false);
+        if (tracksInventory) {
+          const [stockRow] = await conn.execute<any[]>(
+            `SELECT COALESCE(available_stock, current_stock, 0) as available_stock
+             FROM product_stocks
+             WHERE product_id = ? AND warehouse_id = ?`,
+            [item.product_id, input.warehouseId]
           );
+          const available = Number(stockRow[0]?.available_stock || 0);
+          if (available < item.quantity) {
+            throw new Error(
+              `Stock insuficiente en el depósito para el producto ${item.sku} (${item.product_name || ''}). Disponible: ${available}, Requerido: ${item.quantity}`
+            );
+          }
         }
       }
 
@@ -1776,74 +1481,7 @@ export class SalesService {
           taxAmount: tax,
           subtotal,
           total,
-        };
-      });
-
-      const invoiceSubtotalAmount = input.updatePricesToCurrent ? Number(finalSubtotal.toFixed(2)) : Number(quotation.subtotal_amount);
-      const invoiceTaxAmount = input.updatePricesToCurrent ? Number(finalTax.toFixed(2)) : Number(quotation.tax_amount);
-      const invoiceDiscountAmount = input.updatePricesToCurrent ? Number(finalDiscount.toFixed(2)) : Number(quotation.discount_amount);
-      const invoiceTotalAmount = input.updatePricesToCurrent ? Number(finalTotal.toFixed(2)) : Number(quotation.total_amount);
-
-      // Revalidar crédito si se actualizaron precios
-      if (input.isCredit && input.updatePricesToCurrent) {
-        creditApproval = await this.validateCreditAndApproval(
-          conn,
-          companyId,
-          userId,
-          customer,
-          invoiceTotalAmount,
-          input.adminAuthorized,
-          input.supervisorApproval
-        );
-      }
-
-      // Preparar totales e ítems (respetando precio cotizado o actualizando según selección)
-      let finalSubtotal = 0;
-      let finalTax = 0;
-      let finalDiscount = 0;
-      let finalTotal = 0;
-
-      const quotationExRate = Number(quotation.exchange_rate || 1);
-
-      const preparedInvoiceItems = items.map((item) => {
-        let currentBasePrice = Number(item.current_base_price || 0);
-        if (item.product_currency && quotation.currency && item.product_currency !== quotation.currency) {
-          if (item.product_currency === 'USD' && quotation.currency === 'VES' && quotationExRate > 0) {
-            currentBasePrice = Number((currentBasePrice * quotationExRate).toFixed(4));
-          } else if (item.product_currency === 'VES' && quotation.currency === 'USD' && quotationExRate > 0) {
-            currentBasePrice = Number((currentBasePrice / quotationExRate).toFixed(4));
-          }
-        }
-
-        const unitPrice = input.updatePricesToCurrent
-          ? currentBasePrice
-          : Number(item.unit_price);
-        const qty = Number(item.quantity);
-        const discountPct = Number(item.discount_percent || 0);
-        const taxRate = Number(item.tax_rate || 0);
-
-        const gross = qty * unitPrice;
-        const discount = Number((gross * (discountPct / 100)).toFixed(2));
-        const subtotal = Number((gross - discount).toFixed(2));
-        const tax = Number((subtotal * (taxRate / 100)).toFixed(2));
-        const total = Number((subtotal + tax).toFixed(2));
-
-        finalSubtotal += subtotal;
-        finalTax += tax;
-        finalDiscount += discount;
-        finalTotal += total;
-
-        return {
-          id: crypto.randomUUID(),
-          productId: item.product_id,
-          quantity: qty,
-          unitPrice,
-          unitCost: Number(item.cost_price || 0),
-          taxRate,
-          discountPercent: discountPct,
-          taxAmount: tax,
-          subtotal,
-          total,
+          tracks_inventory: item.tracks_inventory,
         };
       });
 
@@ -1871,12 +1509,10 @@ export class SalesService {
       await conn.execute(
         `INSERT INTO sales_invoices (
           id, branch_id, warehouse_id, customer_id, user_id, quotation_id,
-          id, branch_id, warehouse_id, customer_id, user_id, quotation_id,
           invoice_number, control_number, invoice_date, invoice_mode,
           currency, exchange_rate, base_exempt_amount, base_taxable_amount,
           tax_amount, igtf_amount, discount_amount, total_amount,
           is_credit, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, 0.00, ?, ?, 0.00, ?, ?, ?, ?)`,
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, 0.00, ?, ?, 0.00, ?, ?, ?, ?)`,
         [
           invoiceId,
@@ -1885,16 +1521,11 @@ export class SalesService {
           quotation.customer_id,
           userId,
           input.quotationId,
-          input.quotationId,
           invoiceNumber,
           finalControlNumber,
           invoiceMode,
           quotation.currency,
           quotation.exchange_rate,
-          invoiceSubtotalAmount,
-          invoiceTaxAmount,
-          invoiceDiscountAmount,
-          invoiceTotalAmount,
           invoiceSubtotalAmount,
           invoiceTaxAmount,
           invoiceDiscountAmount,
@@ -1922,7 +1553,6 @@ export class SalesService {
               creditLimit: creditApproval.creditLimit,
               currentDebt: creditApproval.currentDebt,
               saleAmount: invoiceTotalAmount,
-              saleAmount: invoiceTotalAmount,
               approvedBy: creditApproval.approvedByUserName,
               notes: creditApproval.notes,
             }),
@@ -1932,8 +1562,6 @@ export class SalesService {
 
       // 6. Procesar ítems y reservar stock en el depósito (el stock físico se descarga al emitir la Nota de Entrega)
       for (const item of preparedInvoiceItems) {
-      // 6. Procesar ítems y reservar stock en el depósito (el stock físico se descarga al emitir la Nota de Entrega)
-      for (const item of preparedInvoiceItems) {
         await conn.execute(
           `INSERT INTO sales_invoice_items (
             id, invoice_id, product_id, quantity, unit_price,
@@ -1941,16 +1569,9 @@ export class SalesService {
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             item.id,
-            item.id,
             invoiceId,
             item.productId,
-            item.productId,
             item.quantity,
-            item.unitPrice,
-            item.unitCost,
-            item.taxRate,
-            item.discountPercent,
-            item.taxAmount,
             item.unitPrice,
             item.unitCost,
             item.taxRate,
@@ -1961,25 +1582,20 @@ export class SalesService {
           ]
         );
 
-        // Reservar stock en el depósito (disponible se reduce, stock físico se mantiene intacto para el despacho)
-        // Reservar stock en el depósito (disponible se reduce, stock físico se mantiene intacto para el despacho)
-        await conn.execute(
-          `INSERT INTO product_stocks (product_id, warehouse_id, current_stock, reserved_stock, last_movement_at)
-           VALUES (?, ?, 0.00, ?, NOW())
-           ON DUPLICATE KEY UPDATE
-             reserved_stock = reserved_stock + ?,
-             last_movement_at = NOW()`,
-          [item.productId, input.warehouseId, item.quantity, item.quantity]
-          `INSERT INTO product_stocks (product_id, warehouse_id, current_stock, reserved_stock, last_movement_at)
-           VALUES (?, ?, 0.00, ?, NOW())
-           ON DUPLICATE KEY UPDATE
-             reserved_stock = reserved_stock + ?,
-             last_movement_at = NOW()`,
-          [item.productId, input.warehouseId, item.quantity, item.quantity]
-        );
+        const tracksInventory = Boolean(item.tracks_inventory !== 0 && item.tracks_inventory !== false);
+        if (tracksInventory) {
+          // Reservar stock en el depósito (disponible se reduce, stock físico se mantiene intacto para el despacho)
+          await conn.execute(
+            `INSERT INTO product_stocks (product_id, warehouse_id, current_stock, reserved_stock, last_movement_at)
+             VALUES (?, ?, 0.00, ?, NOW())
+             ON DUPLICATE KEY UPDATE
+               reserved_stock = reserved_stock + ?,
+               last_movement_at = NOW()`,
+            [item.productId, input.warehouseId, item.quantity, item.quantity]
+          );
+        }
       }
 
-      // 7. Si es a crédito, registrar en receivables (CxC); si es de contado, registrar pago y movimiento bancario
       // 7. Si es a crédito, registrar en receivables (CxC); si es de contado, registrar pago y movimiento bancario
       if (input.isCredit) {
         const receivableId = crypto.randomUUID();
@@ -2245,7 +1861,7 @@ export class SalesService {
               sqi.tax_amount as quotedTaxAmount, sqi.total as quotedTotal,
               p.sku as productSku, p.name as productName, p.unit_of_measure as unitOfMeasure,
               p.base_price as currentBasePrice, p.cost_price as currentCostPrice,
-              p.currency as productCurrency,
+              p.currency as productCurrency, p.tracks_inventory as tracksInventory,
               COALESCE(ps.available_stock, ps.current_stock, 0) as availableStock
        FROM sales_quotation_items sqi
        INNER JOIN products p ON sqi.product_id = p.id
@@ -2268,6 +1884,7 @@ export class SalesService {
       const quotedUnitPrice = Number(item.quotedUnitPrice || 0);
       let currentBasePrice = Number(item.currentBasePrice || 0);
       const availableStock = Number(item.availableStock || 0);
+      const tracksInventory = item.tracksInventory !== 0 && item.tracksInventory !== false;
 
       // Si las monedas difieren, convertir el precio vigente a la moneda de la cotización
       if (item.productCurrency && quotationCurrency && item.productCurrency !== quotationCurrency) {
@@ -2278,209 +1895,8 @@ export class SalesService {
         }
       }
 
-      const hasSufficientStock = availableStock >= quantity;
-      if (!hasSufficientStock) {
-        hasStockIssues = true;
-        insufficientCount++;
-      }
-      const stockShortage = hasSufficientStock ? 0 : Number((quantity - availableStock).toFixed(2));
-
-      const priceDifference = Number((currentBasePrice - quotedUnitPrice).toFixed(4));
-      const hasPriceVariation = Math.abs(priceDifference) > 0.0001;
-      if (hasPriceVariation) {
-        hasPriceVariations = true;
-        priceVariationsCount++;
-      }
-      const priceVariationPercent = quotedUnitPrice > 0
-        ? Number(((priceDifference / quotedUnitPrice) * 100).toFixed(2))
-        : 0;
-
-      const discountPercent = Number(item.discountPercent || 0);
-      const taxRate = Number(item.taxRate || 0);
-      const currentGross = quantity * currentBasePrice;
-      const currentDiscount = Number((currentGross * (discountPercent / 100)).toFixed(2));
-      const currentSubtotal = Number((currentGross - currentDiscount).toFixed(2));
-      const currentTax = Number((currentSubtotal * (taxRate / 100)).toFixed(2));
-      const currentTotal = Number((currentSubtotal + currentTax).toFixed(2));
-
-      totalCurrentAmount += currentTotal;
-
-      return {
-        id: item.id,
-        productId: item.productId,
-        productSku: item.productSku,
-        productName: item.productName,
-        unitOfMeasure: item.unitOfMeasure,
-        quantity,
-        availableStock,
-        hasSufficientStock,
-        stockShortage,
-        quotedUnitPrice,
-        currentBasePrice,
-        hasPriceVariation,
-        priceDifference,
-        priceVariationPercent,
-        quotedTotal: Number(item.quotedTotal || 0),
-        currentTotal,
-      };
-    });
-
-    const totalQuotedAmount = Number(quotation.totalAmount || 0);
-    const totalDifference = Number((totalCurrentAmount - totalQuotedAmount).toFixed(2));
-
-    return {
-      quotationId,
-      quotationNumber: quotation.quotationNumber,
-      currency: quotation.currency,
-      exchangeRate: quotation.exchangeRate,
-      warehouseId: finalWarehouseId,
-      warehouseName,
-      canInvoice: !hasStockIssues,
-      hasStockIssues,
-      hasPriceVariations,
-      insufficientCount,
-      priceVariationsCount,
-      totalQuotedAmount,
-      totalCurrentAmount: Number(totalCurrentAmount.toFixed(2)),
-      totalDifference,
-      items: evaluatedItems,
-    };
-  }
-
-  static async getPaymentBankAccounts(companyId: string) {
-    const rows = await query<any>(
-      `SELECT ba.id, ba.company_id, ba.bank_id, ba.branch_id,
-              b.code as bank_code, b.name as bank_name,
-              br.name as branch_name,
-              ba.account_number, ba.account_type, ba.currency,
-              ba.description, ba.current_balance, ba.is_active
-       FROM bank_accounts ba
-       INNER JOIN banks b ON ba.bank_id = b.id
-       LEFT JOIN branches br ON ba.branch_id = br.id
-       WHERE ba.company_id = ? AND ba.is_active = 1
-       ORDER BY ba.currency DESC, b.name ASC`,
-      [companyId]
-    );
-
-    return rows.map((r) => ({
-      id: r.id,
-      companyId: r.company_id,
-      bankId: r.bank_id,
-      bankCode: r.bank_code,
-      bankName: r.bank_name,
-      branchId: r.branch_id,
-      branchName: r.branch_name,
-      accountNumber: r.account_number,
-      accountType: r.account_type,
-      currency: r.currency,
-      description: r.description,
-      currentBalance: Number(r.current_balance),
-      isActive: Boolean(r.is_active),
-    }));
-  }
-
-  static async getSalesCustomersSummary(companyId: string) {
-    return await query<any>(
-      `SELECT c.id, c.name, CONCAT(c.doc_type, '-', c.doc_number) as doc,
-              c.credit_enabled as creditEnabled, c.credit_limit as creditLimit,
-              (SELECT COUNT(*) FROM delivery_notes dn WHERE dn.customer_id = c.id AND dn.company_id = c.company_id) as deliveryNotesCount,
-              (SELECT COUNT(*) FROM sales_quotations sq WHERE sq.customer_id = c.id AND sq.company_id = c.company_id) as quotationsCount,
-              (SELECT COUNT(*) FROM sales_quotations sq WHERE sq.customer_id = c.id AND sq.company_id = c.company_id AND sq.status IN ('EMITTED', 'ACCEPTED')) as activeQuotationsCount
-       FROM customers c
-       WHERE c.company_id = ?
-       ORDER BY c.name ASC`,
-      [companyId]
-    );
-  }
-
-  static async verifyQuotationForInvoicing(companyId: string, quotationId: string, warehouseId?: string) {
-    const qRows = await query<any>(
-      `SELECT sq.id, sq.branch_id as branchId, sq.quotation_number as quotationNumber, sq.status, sq.currency,
-              sq.exchange_rate as exchangeRate, sq.total_amount as totalAmount,
-              sq.subtotal_amount as subtotalAmount, sq.tax_amount as taxAmount
-       FROM sales_quotations sq
-       WHERE sq.id = ? AND sq.company_id = ?`,
-      [quotationId, companyId]
-    );
-    if (!qRows || qRows.length === 0) {
-      throw new Error('Cotización no encontrada');
-    }
-    const quotation = qRows[0];
-
-    // 1. Resolver depósito: validar pertenencia a la empresa a través de branches
-    let whRows: any[] = [];
-    if (warehouseId && warehouseId.trim() !== '') {
-      whRows = await query<any>(
-        `SELECT w.id, w.name, w.branch_id as branchId
-         FROM warehouses w
-         INNER JOIN branches b ON w.branch_id = b.id
-         WHERE w.id = ? AND b.company_id = ?`,
-        [warehouseId, companyId]
-      );
-    }
-
-    // Si no se proporcionó o no se encontró, obtener el depósito de ventas predeterminado
-    if (!whRows || whRows.length === 0) {
-      whRows = await query<any>(
-        `SELECT w.id, w.name, w.branch_id as branchId
-         FROM warehouses w
-         INNER JOIN branches b ON w.branch_id = b.id
-         WHERE b.company_id = ?
-           AND (w.branch_id = ? OR ? IS NULL)
-           AND w.is_active = 1
-         ORDER BY (w.branch_id = ?) DESC, w.is_default_sales DESC, w.is_default DESC, w.name ASC
-         LIMIT 1`,
-        [companyId, quotation.branchId, quotation.branchId, quotation.branchId]
-      );
-    }
-
-    const resolvedWarehouse = whRows?.[0];
-    const finalWarehouseId = resolvedWarehouse?.id || warehouseId || '';
-    const warehouseName = resolvedWarehouse?.name || 'Depósito Seleccionado';
-
-    // 2. Consultar ítems de la cotización, precios de catálogo vigentes y stock en depósito
-    const items = await query<any>(
-      `SELECT sqi.id, sqi.product_id as productId, sqi.quantity,
-              sqi.unit_price as quotedUnitPrice, sqi.tax_rate as taxRate,
-              sqi.discount_percent as discountPercent, sqi.subtotal as quotedSubtotal,
-              sqi.tax_amount as quotedTaxAmount, sqi.total as quotedTotal,
-              p.sku as productSku, p.name as productName, p.unit_of_measure as unitOfMeasure,
-              p.base_price as currentBasePrice, p.cost_price as currentCostPrice,
-              p.currency as productCurrency,
-              COALESCE(ps.available_stock, ps.current_stock, 0) as availableStock
-       FROM sales_quotation_items sqi
-       INNER JOIN products p ON sqi.product_id = p.id
-       LEFT JOIN product_stocks ps ON ps.product_id = p.id AND ps.warehouse_id = ?
-       WHERE sqi.quotation_id = ?`,
-      [finalWarehouseId || null, quotationId]
-    );
-
-    let hasStockIssues = false;
-    let hasPriceVariations = false;
-    let totalCurrentAmount = 0;
-    let insufficientCount = 0;
-    let priceVariationsCount = 0;
-
-    const quotationExRate = Number(quotation.exchangeRate || 1);
-    const quotationCurrency = quotation.currency || 'USD';
-
-    const evaluatedItems = items.map((item: any) => {
-      const quantity = Number(item.quantity || 0);
-      const quotedUnitPrice = Number(item.quotedUnitPrice || 0);
-      let currentBasePrice = Number(item.currentBasePrice || 0);
-      const availableStock = Number(item.availableStock || 0);
-
-      // Si las monedas difieren, convertir el precio vigente a la moneda de la cotización
-      if (item.productCurrency && quotationCurrency && item.productCurrency !== quotationCurrency) {
-        if (item.productCurrency === 'USD' && quotationCurrency === 'VES' && quotationExRate > 0) {
-          currentBasePrice = Number((currentBasePrice * quotationExRate).toFixed(4));
-        } else if (item.productCurrency === 'VES' && quotationCurrency === 'USD' && quotationExRate > 0) {
-          currentBasePrice = Number((currentBasePrice / quotationExRate).toFixed(4));
-        }
-      }
-
-      const hasSufficientStock = availableStock >= quantity;
-      if (!hasSufficientStock) {
+      const hasSufficientStock = !tracksInventory || availableStock >= quantity;
+      if (tracksInventory && !hasSufficientStock) {
         hasStockIssues = true;
         insufficientCount++;
       }
@@ -2580,3 +1996,4 @@ export class SalesService {
     }));
   }
 }
+

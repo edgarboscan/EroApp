@@ -1106,10 +1106,10 @@ export const DynamicDashboard: React.FC = () => {
 
       {/* Grid Dinámico de Widgets */}
       {activeWidgets.length === 0 ? (
-        <div className="bg-white border border-neutral-200 rounded-lg p-12 text-center space-y-3">
-          <Layers className="w-10 h-10 text-neutral-300 mx-auto" />
-          <h3 className="text-sm font-bold text-neutral-800">No hay widgets en tu dashboard</h3>
-          <p className="text-xs text-neutral-500 max-w-sm mx-auto">
+        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-12 text-center space-y-3">
+          <Layers className="w-10 h-10 text-neutral-300 dark:text-neutral-600 mx-auto" />
+          <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">No hay widgets en tu dashboard</h3>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto">
             Has ocultado todos los widgets. Añade widgets desde el catálogo para personalizar tu panel.
           </p>
           <div className="flex justify-center gap-2 pt-2">
@@ -1144,23 +1144,23 @@ export const DynamicDashboard: React.FC = () => {
       {/* MODAL / DRAWER CATÁLOGO DE WIDGETS */}
       {isCatalogOpen && (
         <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="relative w-full max-w-2xl max-h-[92vh] bg-white rounded-lg border border-neutral-200 shadow-2xl flex flex-col overflow-hidden z-10 my-auto">
+          <div className="relative w-full max-w-2xl max-h-[92vh] bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 shadow-2xl flex flex-col overflow-hidden z-10 my-auto">
             {/* Header del Modal */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
+            <div className="px-5 py-3.5 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between shrink-0 bg-white dark:bg-neutral-900">
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="p-1.5 bg-neutral-100 text-neutral-700 rounded-lg shrink-0">
-                  <Layers className="w-5 h-5 text-neutral-700" />
+                <div className="p-1.5 bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 rounded-lg shrink-0">
+                  <Layers className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
                 </div>
                 <div className="truncate">
-                  <h3 className="text-sm font-semibold text-neutral-900 truncate">Catálogo de Widgets Disponibles</h3>
-                  <p className="text-xs text-neutral-500">Selecciona componentes para agregar a tu panel de control</p>
+                  <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">Catálogo de Widgets Disponibles</h3>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">Selecciona componentes para agregar a tu panel de control</p>
                 </div>
               </div>
 
               <button
                 type="button"
                 onClick={() => setIsCatalogOpen(false)}
-                className="text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 p-1.5 rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-neutral-400 cursor-pointer"
+                className="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 p-1.5 rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-neutral-400 cursor-pointer"
                 title="Cerrar modal (Esc)"
               >
                 <X className="w-5 h-5" />
@@ -1169,7 +1169,7 @@ export const DynamicDashboard: React.FC = () => {
 
             {/* Scrollable Body */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
-              <p className="text-xs text-neutral-500">
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">
                 Selecciona los widgets que deseas agregar a tu panel de control. Podrás organizarlos y ajustar sus dimensiones libremente.
               </p>
 
@@ -1180,12 +1180,12 @@ export const DynamicDashboard: React.FC = () => {
                   return (
                     <div
                       key={catWidget.code}
-                      className="border border-neutral-200 rounded-lg p-3.5 flex flex-col justify-between hover:border-neutral-300 transition-colors bg-white"
+                      className="border border-neutral-200 dark:border-neutral-800 rounded-lg p-3.5 flex flex-col justify-between hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors bg-white dark:bg-neutral-800/60"
                     >
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-neutral-900">{catWidget.title}</span>
-                          <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-lg bg-neutral-100 text-neutral-600">
+                          <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100">{catWidget.title}</span>
+                          <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300">
                             {catWidget.category === 'kpi'
                               ? 'KPI'
                               : catWidget.category === 'chart'
@@ -1193,13 +1193,13 @@ export const DynamicDashboard: React.FC = () => {
                               : 'Tabla'}
                           </span>
                         </div>
-                        <p className="text-[11px] text-neutral-500 leading-snug">
+                        <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-snug">
                           {catWidget.description}
                         </p>
                       </div>
 
-                      <div className="pt-3 mt-3 border-t border-neutral-100 flex items-center justify-between">
-                        <span className="text-[10px] text-neutral-400">
+                      <div className="pt-3 mt-3 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between">
+                        <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
                           {catWidget.defaultColSpan === 1
                             ? '1 columna'
                             : catWidget.defaultColSpan === 2
@@ -1222,7 +1222,7 @@ export const DynamicDashboard: React.FC = () => {
             </div>
 
             {/* Pinned Footer */}
-            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
+            <div className="px-5 py-3.5 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 flex items-center justify-end gap-2 shrink-0">
               <Button variant="outline" size="sm" onClick={() => setIsCatalogOpen(false)}>
                 Cerrar Catálogo
               </Button>

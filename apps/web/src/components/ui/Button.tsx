@@ -19,10 +19,10 @@ export const Button: React.FC<ButtonProps> = ({
 
   const variantStyles = {
     primary: 'bg-sky-600 text-white hover:bg-sky-700 focus-visible:ring-sky-500',
-    secondary: 'bg-neutral-800 text-white hover:bg-neutral-900 focus-visible:ring-neutral-700',
-    outline: 'border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50 focus-visible:ring-sky-500',
+    secondary: 'bg-neutral-800 dark:bg-neutral-700 text-white hover:bg-neutral-900 dark:hover:bg-neutral-600 focus-visible:ring-neutral-700',
+    outline: 'border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-750 focus-visible:ring-sky-500',
     danger: 'bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500',
-    ghost: 'text-neutral-700 hover:bg-neutral-100 focus-visible:ring-neutral-400',
+    ghost: 'text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 focus-visible:ring-neutral-400',
   };
 
   const sizeStyles = {

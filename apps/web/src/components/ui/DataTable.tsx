@@ -61,7 +61,7 @@ export function DataTable<T extends Record<string, any>>({
               setCurrentPage(1);
             }}
             placeholder={searchPlaceholder}
-            className="w-full h-10 pl-9 pr-3 text-sm bg-white border border-neutral-300 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+            className="w-full h-10 pl-9 pr-3 text-sm bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
           />
         </div>
 
@@ -74,43 +74,43 @@ export function DataTable<T extends Record<string, any>>({
       </div>
 
       {/* Tabla con scroll horizontal */}
-      <div className="border border-neutral-200 rounded-lg overflow-hidden bg-white shadow-sm">
+      <div className="border border-neutral-200 dark:border-neutral-800 rounded-lg overflow-hidden bg-white dark:bg-neutral-900 shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm border-collapse">
-            <thead>
-              <tr className="bg-neutral-50 border-b border-neutral-200">
+            <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase  tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
+              <tr className="py-2.5 px-3">
                 {columns.map((col, idx) => (
                   <th
                     key={idx}
-                    className={`py-3 px-4 text-xs font-semibold text-neutral-600 tracking-wider uppercase ${col.className || ''}`}
+                    className={`py-3 px-4 text-xs font-semibold text-neutral-600 dark:text-neutral-400 tracking-wider uppercase ${col.className || ''}`}
                   >
                     {col.header}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-100">
+            <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i} className="border-b border-neutral-100">
+                  <tr key={i} className="border-b border-neutral-100 dark:border-neutral-800">
                     {columns.map((col, idx) => (
                       <td key={idx} className={`py-3 px-4 ${col.className || ''}`}>
-                        <div className="h-4 bg-neutral-200/70 rounded animate-pulse w-3/4" />
+                        <div className="h-4 bg-neutral-200/70 dark:bg-neutral-700/60 rounded animate-pulse w-3/4" />
                       </td>
                     ))}
                   </tr>
                 ))
               ) : paginatedData.length === 0 ? (
                 <tr>
-                  <td colSpan={columns.length} className="py-12 text-center text-neutral-500">
+                  <td colSpan={columns.length} className="py-12 text-center text-neutral-500 dark:text-neutral-400">
                     {emptyMessage}
                   </td>
                 </tr>
               ) : (
                 paginatedData.map((row, rowIdx) => (
-                  <tr key={rowIdx} className="hover:bg-neutral-50/80 transition-colors">
+                  <tr key={rowIdx} className="hover:bg-neutral-50/80 dark:hover:bg-neutral-800/50 transition-colors">
                     {columns.map((col, colIdx) => (
-                      <td key={colIdx} className={`py-3 px-4 text-neutral-800 ${col.className || ''}`}>
+                      <td key={colIdx} className={`py-3 px-4 text-neutral-800 dark:text-neutral-200 ${col.className || ''}`}>
                         {col.cell ? col.cell(row) : col.accessorKey ? String(row[col.accessorKey] ?? '') : ''}
                       </td>
                     ))}
@@ -122,7 +122,7 @@ export function DataTable<T extends Record<string, any>>({
         </div>
 
         {/* Paginación */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-neutral-200 bg-neutral-50/50 text-xs text-neutral-600">
+        <div className="flex items-center justify-between px-4 py-3 border-t border-neutral-200 shrink-0 bg-white dark:bg-neutral-900 text-xs text-neutral-600 dark:text-neutral-400">
           <span>
             Mostrando {filteredData.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} a{' '}
             {Math.min(currentPage * pageSize, filteredData.length)} de {filteredData.length} registros
@@ -137,7 +137,7 @@ export function DataTable<T extends Record<string, any>>({
             >
               <ChevronLeft className="w-4 h-4" />
             </Button>
-            <span className="font-medium">
+            <span className="font-medium text-neutral-700 dark:text-neutral-300">
               Página {currentPage} de {totalPages}
             </span>
             <Button

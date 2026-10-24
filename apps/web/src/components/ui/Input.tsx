@@ -13,22 +13,22 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="flex flex-col gap-1.5 w-full">
         {label && (
-          <label htmlFor={inputId} className="text-xs font-semibold text-neutral-700 tracking-wide">
+          <label htmlFor={inputId} className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 tracking-wide">
             {label}
           </label>
         )}
         <input
           ref={ref}
           id={inputId}
-          className={`h-10 px-3 text-sm bg-white border rounded-lg text-neutral-900 placeholder:text-neutral-400 transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:bg-neutral-100 disabled:cursor-not-allowed ${
+          className={`h-10 px-3 text-sm bg-white dark:bg-neutral-800 border rounded-lg text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:bg-neutral-100 dark:disabled:bg-neutral-900 disabled:cursor-not-allowed ${
             error
               ? 'border-red-500 focus-visible:ring-red-500'
-              : 'border-neutral-300 focus-visible:ring-sky-500 hover:border-neutral-400'
+              : 'border-neutral-300 dark:border-neutral-700 focus-visible:ring-sky-500 hover:border-neutral-400 dark:hover:border-neutral-600'
           } ${className}`}
           {...props}
         />
-        {error && <span className="text-xs text-red-600 font-medium">{error}</span>}
-        {helperText && !error && <span className="text-xs text-neutral-500">{helperText}</span>}
+        {error && <span className="text-xs text-red-600 dark:text-red-400 font-medium">{error}</span>}
+        {helperText && !error && <span className="text-xs text-neutral-500 dark:text-neutral-400">{helperText}</span>}
       </div>
     );
   }

@@ -23,6 +23,7 @@ import { taxesRouter } from './modules/taxes/taxes.routes';
 import { configRouter } from './modules/config/config.routes';
 import { licensesRouter } from './modules/licenses/licenses.routes';
 import { auditRouter } from './modules/audit/audit.routes';
+import { restaurantRouter } from './modules/restaurant/restaurant.routes';
 
 dotenv.config();
 
@@ -69,6 +70,7 @@ app.route('/api/taxes', taxesRouter);
 app.route('/api/config', configRouter);
 app.route('/api/licenses', licensesRouter);
 app.route('/api/audit', auditRouter);
+app.route('/api/restaurant', restaurantRouter);
 
 // Manejador Global de Errores
 app.onError((err, c) => {

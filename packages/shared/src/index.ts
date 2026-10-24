@@ -11,6 +11,7 @@ export * from './schemas/treasury';
 export * from './schemas/purchases';
 export * from './schemas/sales';
 export * from './schemas/customerNotes';
+export * from './schemas/restaurant';
 export * from './schemas/config';
 export * from './lib/fiscal-ve';
 export * from './lib/inventory-costing';

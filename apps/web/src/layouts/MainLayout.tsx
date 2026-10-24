@@ -44,8 +44,13 @@ import {
   Minimize2,
   PanelLeftClose,
   PanelLeftOpen,
+  Utensils,
+  ChefHat,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { useExchangeRateStore } from "../stores/exchangeRateStore";
+import { useThemeStore } from "../stores/themeStore";
 import { BcvRateAutoSyncModal } from "../components/BcvRateAutoSyncModal";
 import { useEscapeKey } from "../components/ui/Modal";
 import { Button } from "../components/ui/Button";
@@ -144,6 +149,8 @@ export const MainLayout: React.FC = () => {
     useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const { resolvedTheme, toggleTheme } = useThemeStore();
 
   const rate = useExchangeRateStore((s) => s.rate);
   const source = useExchangeRateStore((s) => s.source);
@@ -321,6 +328,27 @@ export const MainLayout: React.FC = () => {
           to: "/receivables",
           icon: CreditCard,
           module: "receivables",
+          action: "read",
+        },
+      ],
+    },
+    {
+      id: "restaurant",
+      title: "Restaurante & Comandas",
+      icon: Utensils,
+      children: [
+        {
+          label: "Toma de Pedidos (Mesas)",
+          to: "/restaurant/orders",
+          icon: Utensils,
+          module: "pos",
+          action: "read",
+        },
+        {
+          label: "Cocina & Barra (KDS)",
+          to: "/restaurant/kds",
+          icon: ChefHat,
+          module: "pos",
           action: "read",
         },
       ],
@@ -647,7 +675,7 @@ export const MainLayout: React.FC = () => {
   const canSwitchEnv = canSwitchBranch || canSwitchWarehouse;
 
   return (
-    <div className="flex h-screen bg-neutral-50 overflow-hidden">
+    <div className="flex h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 overflow-hidden">
       {/* Sidebar Móvil Backdrop */}
       {sidebarOpen && (
         <div
@@ -818,12 +846,12 @@ export const MainLayout: React.FC = () => {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden ">
         {/* Topbar */}
-        <header className="h-16 bg-white border-b border-neutral-200 flex items-center justify-between px-4 lg:px-8 shrink-0">
+        <header className="h-16 bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between px-4 lg:px-8 shrink-0">
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Botón abrir menú en móvil */}
             <button
               type="button"
-              className="lg:hidden text-neutral-600 hover:text-neutral-900 p-2 rounded-lg hover:bg-neutral-100 transition-colors cursor-pointer"
+              className="lg:hidden text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
               onClick={() => setSidebarOpen(true)}
               title="Abrir menú"
             >
@@ -835,33 +863,33 @@ export const MainLayout: React.FC = () => {
               type="button"
               onClick={toggleDesktopSidebar}
               title={desktopSidebarVisible ? "Ocultar menú lateral (Ctrl+B)" : "Mostrar menú lateral (Ctrl+B)"}
-              className="hidden lg:flex items-center justify-center p-2 rounded-lg border border-neutral-200 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-neutral-400"
+              className="hidden lg:flex items-center justify-center p-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-neutral-400"
             >
               {desktopSidebarVisible ? (
                 <PanelLeftClose className="w-4 h-4" />
               ) : (
-                <PanelLeftOpen className="w-4 h-4 text-sky-600" />
+                <PanelLeftOpen className="w-4 h-4 text-sky-600 dark:text-sky-400" />
               )}
             </button>
 
             {/* Selectores de Sucursal y Depósito */}
             <div className="hidden sm:flex items-center gap-2 text-xs">
-              <div className="flex items-center gap-1.5 bg-neutral-100 px-3 py-1.5 rounded-lg border border-neutral-200">
-                <Building2 className="w-3.5 h-3.5 text-neutral-500" />
-                <span className="font-semibold text-neutral-700">
+              <div className="flex items-center gap-1.5 bg-neutral-100 dark:bg-neutral-800 px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                <Building2 className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
+                <span className="font-semibold text-neutral-700 dark:text-neutral-300">
                   Sucursal:
                 </span>
-                <span className="font-medium text-neutral-900">
+                <span className="font-medium text-neutral-900 dark:text-neutral-100">
                   {branchLabel}
                 </span>
               </div>
 
-              <div className="flex items-center gap-1.5 bg-neutral-100 px-3 py-1.5 rounded-lg border border-neutral-200">
-                <Warehouse className="w-3.5 h-3.5 text-neutral-500" />
-                <span className="font-semibold text-neutral-700">
+              <div className="flex items-center gap-1.5 bg-neutral-100 dark:bg-neutral-800 px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                <Warehouse className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
+                <span className="font-semibold text-neutral-700 dark:text-neutral-300">
                   Depósito:
                 </span>
-                <span className="font-medium text-neutral-900">
+                <span className="font-medium text-neutral-900 dark:text-neutral-100">
                   {warehouseLabel}
                 </span>
               </div>
@@ -870,7 +898,7 @@ export const MainLayout: React.FC = () => {
                 <button
                   onClick={() => navigate("/select-branch")}
                   title="Cambiar sucursal o depósito"
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-neutral-200 hover:bg-neutral-100 text-sky-700 font-medium transition-colors cursor-pointer"
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-sky-700 dark:text-sky-400 font-medium transition-colors cursor-pointer"
                 >
                   <ArrowRightLeft className="w-3 h-3" />
                   {/* <span>Cambiar</span> */}
@@ -878,7 +906,7 @@ export const MainLayout: React.FC = () => {
               ) : (
                 <div
                   title="Entorno operativo asignado a su perfil (Sin autorización para cambiar)"
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-neutral-200 bg-neutral-50 text-neutral-400 font-medium"
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-850 text-neutral-400 font-medium"
                 >
                   <Lock className="w-3 h-3 text-neutral-400" />
                   <span>Fijado</span>
@@ -889,10 +917,10 @@ export const MainLayout: React.FC = () => {
 
           <div className="flex items-center gap-3 text-xs">
             {/* Tasa Oficial BCV */}
-            <div className="flex items-center gap-1.5 bg-neutral-100 px-3 py-1.5 rounded-lg border border-neutral-200">
-              <Coins className="w-3.5 h-3.5 text-neutral-500" />
-              <span className="font-semibold text-neutral-700">BCV:</span>
-              <span className="font-mono font-bold text-neutral-900">
+            <div className="flex items-center gap-1.5 bg-neutral-100 dark:bg-neutral-800 px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700">
+              <Coins className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
+              <span className="font-semibold text-neutral-700 dark:text-neutral-300">BCV:</span>
+              <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100">
                 Bs. {formatExchangeRate(rate, 2)}
               </span>
               <button
@@ -903,7 +931,7 @@ export const MainLayout: React.FC = () => {
                   fetchHistory();
                 }}
                 title="Ver historial de tasas oficiales en base de datos"
-                className="ml-1 text-neutral-500 hover:text-neutral-800 p-0.5 rounded hover:bg-neutral-200 cursor-pointer"
+                className="ml-1 text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200 p-0.5 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 cursor-pointer"
               >
                 <History className="w-3 h-3" />
               </button>
@@ -915,7 +943,7 @@ export const MainLayout: React.FC = () => {
                     setShowRateModal(true);
                   }}
                   title="Actualizar tasa de cambio oficial (Usuario Autorizado)"
-                  className="ml-0.5 text-sky-600 hover:text-sky-800 p-0.5 rounded hover:bg-neutral-200 cursor-pointer"
+                  className="ml-0.5 text-sky-600 hover:text-sky-800 dark:text-sky-400 dark:hover:text-sky-300 p-0.5 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 cursor-pointer"
                 >
                   <Edit2 className="w-3 h-3" />
                 </button>
@@ -931,27 +959,45 @@ export const MainLayout: React.FC = () => {
               SENIAT Conectado
             </div>
 
+            {/* Botón Alternar Tema Claro / Oscuro */}
+            <button
+              type="button"
+              onClick={toggleTheme}
+              title={resolvedTheme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-neutral-400"
+              aria-label="Alternar tema claro y oscuro"
+            >
+              {resolvedTheme === "dark" ? (
+                <Sun className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              ) : (
+                <Moon className="w-3.5 h-3.5 text-neutral-600 dark:text-neutral-300 shrink-0" />
+              )}
+              {/* <span className="hidden sm:inline">
+                {resolvedTheme === "dark" ? "Claro" : "Oscuro"}
+              </span> */}
+            </button>
+
             {/* Botón Pantalla Completa */}
             <button
               type="button"
               onClick={toggleFullscreen}
               title={isFullscreen ? "Salir de pantalla completa (Esc o F11)" : "Modo pantalla completa (F11)"}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-neutral-200 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-neutral-400"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-neutral-400"
             >
               {isFullscreen ? (
-                <Minimize2 className="w-3.5 h-3.5 text-neutral-600 shrink-0" />
+                <Minimize2 className="w-3.5 h-3.5 text-neutral-600 dark:text-neutral-400 shrink-0" />
               ) : (
-                <Maximize2 className="w-3.5 h-3.5 text-neutral-600 shrink-0" />
+                <Maximize2 className="w-3.5 h-3.5 text-neutral-600 dark:text-neutral-400 shrink-0" />
               )}
-              <span className="hidden sm:inline">
+              {/* <span className="hidden sm:inline">
                 {isFullscreen ? "Restaurar" : "Pantalla completa"}
-              </span>
+              </span> */}
             </button>
           </div>
         </header>
 
         {/* Scrollable Page Content */}
-        <main className="flex-1 overflow-y-auto p-4 lg:p-8">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-8 bg-neutral-50 dark:bg-neutral-950">
           <Outlet />
         </main>
       </div>
@@ -959,18 +1005,18 @@ export const MainLayout: React.FC = () => {
       {/* Modal para Modificar / Ver Historial de Tasa Oficial BCV */}
       {showRateModal && (
         <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="relative w-full max-w-lg max-h-[92vh] bg-white rounded-lg border border-neutral-200 shadow-2xl flex flex-col overflow-hidden z-10 my-auto">
+          <div className="relative w-full max-w-lg max-h-[92vh] bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 shadow-2xl flex flex-col overflow-hidden z-10 my-auto">
             {/* Header del Modal */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
+            <div className="px-5 py-3.5 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between shrink-0 bg-white dark:bg-neutral-900">
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="p-1.5 bg-neutral-100 text-neutral-700 rounded-lg shrink-0">
-                  <Coins className="w-5 h-5 text-neutral-700" />
+                <div className="p-1.5 bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 rounded-lg shrink-0">
+                  <Coins className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
                 </div>
                 <div className="truncate">
-                  <h3 className="text-sm font-semibold text-neutral-900 truncate">
+                  <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">
                     Gestión de Tasa de Cambio Oficial (BCV)
                   </h3>
-                  <p className="text-xs text-neutral-500">
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
                     Historial y ajuste de la tasa de referencia en bolívares
                   </p>
                 </div>
@@ -978,7 +1024,7 @@ export const MainLayout: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowRateModal(false)}
-                className="text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 p-1.5 rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-neutral-400 cursor-pointer"
+                className="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 p-1.5 rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-neutral-400 cursor-pointer"
                 title="Cerrar modal (Esc)"
               >
                 <X className="w-5 h-5" />
@@ -986,15 +1032,15 @@ export const MainLayout: React.FC = () => {
             </div>
 
             {/* Selector de Pestañas */}
-            <div className="flex border-b border-neutral-200 bg-neutral-50 px-5 text-xs font-medium shrink-0">
+            <div className="flex border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/40 px-5 text-xs font-medium shrink-0">
               {canEditRate && (
                 <button
                   type="button"
                   onClick={() => setActiveRateTab("update")}
                   className={`py-2.5 px-3 border-b-2 transition-colors cursor-pointer ${
                     activeRateTab === "update"
-                      ? "border-neutral-900 text-neutral-900 font-semibold"
-                      : "border-transparent text-neutral-500 hover:text-neutral-800"
+                      ? "border-neutral-900 dark:border-neutral-100 text-neutral-900 dark:text-neutral-100 font-semibold"
+                      : "border-transparent text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200"
                   }`}
                 >
                   Actualizar Tasa
@@ -1008,8 +1054,8 @@ export const MainLayout: React.FC = () => {
                 }}
                 className={`py-2.5 px-3 border-b-2 transition-colors cursor-pointer ${
                   activeRateTab === "history"
-                    ? "border-neutral-900 text-neutral-900 font-semibold"
-                    : "border-transparent text-neutral-500 hover:text-neutral-800"
+                    ? "border-neutral-900 dark:border-neutral-100 text-neutral-900 dark:text-neutral-100 font-semibold"
+                    : "border-transparent text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200"
                 }`}
               >
                 Historial de Cambios ({history.length})
@@ -1023,12 +1069,12 @@ export const MainLayout: React.FC = () => {
               >
                 <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
                   {/* Sincronización Directa BCV */}
-                  <div className="flex items-center justify-between p-3 bg-neutral-50 border border-neutral-200 rounded-lg">
+                  <div className="flex items-center justify-between p-3 bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200 dark:border-neutral-800 rounded-lg">
                     <div>
-                      <span className="text-xs font-semibold text-neutral-800 block">
+                      <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 block">
                         Sincronización Oficial BCV
                       </span>
-                      <span className="text-[11px] text-neutral-500">
+                      <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
                         Consultar portal oficial en tiempo real
                       </span>
                     </div>
@@ -1063,11 +1109,11 @@ export const MainLayout: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                       Tasa de Cambio Oficial (Bs. por 1 USD) *
                     </label>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-neutral-400 font-mono">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-neutral-400 dark:text-neutral-500 font-mono">
                         Bs.
                       </span>
                       <input
@@ -1077,17 +1123,17 @@ export const MainLayout: React.FC = () => {
                         value={formRate}
                         onChange={(e) => setFormRate(e.target.value)}
                         placeholder="ej: 36.8500"
-                        className="w-full pl-9 pr-3 py-2 text-sm font-mono font-bold border border-neutral-200 rounded-lg focus-visible:ring-2 focus-visible:ring-neutral-400"
+                        className="w-full pl-9 pr-3 py-2 text-sm font-mono font-bold bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 rounded-lg focus-visible:ring-2 focus-visible:ring-neutral-400"
                       />
                     </div>
-                    <p className="text-[10px] text-neutral-500 mt-1">
+                    <p className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-1">
                       Esta tasa se guardará en base de datos con fecha efectiva
                       y se aplicará a todas las operaciones actuales.
                     </p>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                       Fuente de Referencia Oficial *
                     </label>
                     <input
@@ -1096,12 +1142,12 @@ export const MainLayout: React.FC = () => {
                       value={formSource}
                       onChange={(e) => setFormSource(e.target.value)}
                       placeholder="ej: Banco Central de Venezuela (BCV)"
-                      className="w-full px-3 py-2 text-xs border border-neutral-200 rounded-lg focus-visible:ring-2 focus-visible:ring-neutral-400"
+                      className="w-full px-3 py-2 text-xs bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 rounded-lg focus-visible:ring-2 focus-visible:ring-neutral-400"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                       Notas / Justificación del Ajuste (Opcional)
                     </label>
                     <input
@@ -1109,11 +1155,11 @@ export const MainLayout: React.FC = () => {
                       value={formNotes}
                       onChange={(e) => setFormNotes(e.target.value)}
                       placeholder="ej: Cierre oficial publicado por el BCV al término de la jornada"
-                      className="w-full px-3 py-2 text-xs border border-neutral-200 rounded-lg focus-visible:ring-2 focus-visible:ring-neutral-400"
+                      className="w-full px-3 py-2 text-xs bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 rounded-lg focus-visible:ring-2 focus-visible:ring-neutral-400"
                     />
                   </div>
 
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 space-y-1">
+                  <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-lg p-3 text-xs text-amber-800 dark:text-amber-300 space-y-1">
                     <span className="font-semibold block">
                       Aviso de Auditoría:
                     </span>
@@ -1126,7 +1172,7 @@ export const MainLayout: React.FC = () => {
                 </div>
 
                 {/* Pinned Footer */}
-                <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
+                <div className="px-5 py-3.5 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 flex items-center justify-end gap-2 shrink-0">
                   <Button
                     type="button"
                     variant="outline"
@@ -1147,7 +1193,7 @@ export const MainLayout: React.FC = () => {
               <div className="flex-1 flex flex-col overflow-hidden">
                 <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-neutral-700">
+                    <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                       Registro Histórico de Tasas en Base de Datos:
                     </span>
                     <Button
@@ -1166,14 +1212,14 @@ export const MainLayout: React.FC = () => {
                       Cargando historial de base de datos...
                     </div>
                   ) : history.length === 0 ? (
-                    <div className="py-8 text-center text-xs text-neutral-400 border border-dashed border-neutral-200 rounded-lg">
+                    <div className="py-8 text-center text-xs text-neutral-400 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-lg">
                       No se encontraron registros de tasas previas en base de
                       datos.
                     </div>
                   ) : (
-                    <div className="overflow-x-auto border border-neutral-200 rounded-lg">
+                    <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-800 rounded-lg">
                       <table className="w-full text-xs text-left">
-                        <thead className="bg-neutral-50 text-neutral-600 border-b border-neutral-200 text-[10px] uppercase font-semibold">
+                        <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 text-[10px] uppercase font-semibold">
                           <tr>
                             <th className="py-2 px-3">Fecha</th>
                             <th className="py-2 px-3 text-right">Tasa (Bs.)</th>
@@ -1181,22 +1227,22 @@ export const MainLayout: React.FC = () => {
                             <th className="py-2 px-3">Usuario</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-neutral-100">
+                        <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
                           {history.map((h, i) => (
                             <tr
                               key={h.id || i}
-                              className="hover:bg-neutral-50/60"
+                              className="hover:bg-neutral-50/60 dark:hover:bg-neutral-800/50"
                             >
-                              <td className="py-2 px-3 font-mono text-[11px] text-neutral-700">
+                              <td className="py-2 px-3 font-mono text-[11px] text-neutral-700 dark:text-neutral-300">
                                 {h.effectiveDate}
                               </td>
-                              <td className="py-2 px-3 text-right font-mono font-bold text-neutral-900">
+                              <td className="py-2 px-3 text-right font-mono font-bold text-neutral-900 dark:text-neutral-100">
                                 Bs. {formatExchangeRate(h.rate, 4)}
                               </td>
-                              <td className="py-2 px-3 text-neutral-600 text-[11px] truncate max-w-[120px]">
+                              <td className="py-2 px-3 text-neutral-600 dark:text-neutral-400 text-[11px] truncate max-w-[120px]">
                                 {h.source}
                               </td>
-                              <td className="py-2 px-3 text-neutral-500 text-[11px] truncate max-w-[120px]">
+                              <td className="py-2 px-3 text-neutral-500 dark:text-neutral-400 text-[11px] truncate max-w-[120px]">
                                 {h.updatedBy}
                               </td>
                             </tr>
@@ -1208,7 +1254,7 @@ export const MainLayout: React.FC = () => {
                 </div>
 
                 {/* Pinned Footer */}
-                <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
+                <div className="px-5 py-3.5 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 flex items-center justify-end gap-2 shrink-0">
                   <Button
                     type="button"
                     variant="outline"

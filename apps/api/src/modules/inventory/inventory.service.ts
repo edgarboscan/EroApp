@@ -381,6 +381,7 @@ export class InventoryService {
   }) {
     const rows = await query<any>(
       `SELECT p.id, p.sku, p.barcode, p.name, p.description, p.product_type as productType,
+              p.tracks_inventory as tracksInventory,
               p.department_id as departmentId, d.name as departmentName,
               p.group_id as groupId, g.name as groupName,
               p.subgroup_id as subgroupId, sg.name as subgroupName,
@@ -465,6 +466,7 @@ export class InventoryService {
       hasSerials: Boolean(r.hasSerials),
       taxInclusive: Boolean(r.taxInclusive),
       isActive: Boolean(r.isActive),
+      tracksInventory: Boolean(r.tracksInventory !== 0 && r.tracksInventory !== false),
       presentations: presentationsMap[r.id] || [],
     }));
   }
@@ -473,15 +475,19 @@ export class InventoryService {
     return await withTransaction(async (conn) => {
       const id = input.id || crypto.randomUUID();
 
+      const tracksInventoryValue = input.tracksInventory !== undefined
+        ? (input.tracksInventory ? 1 : 0)
+        : (input.productType === 'service' ? 0 : 1);
+
       await conn.query(
         `INSERT INTO products (
-          id, company_id, sku, barcode, name, description, product_type,
+          id, company_id, sku, barcode, name, description, product_type, tracks_inventory,
           department_id, group_id, subgroup_id, supplier_id, brand, unit_of_measure,
           cost_price, base_price, currency, default_tax_rate_id, tax_inclusive,
           min_stock, max_stock, has_batches, has_serials, is_active
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          id, input.companyId, input.sku.trim().toUpperCase(), input.barcode?.trim() || null, input.name.trim(), input.description || null, input.productType,
+          id, input.companyId, input.sku.trim().toUpperCase(), input.barcode?.trim() || null, input.name.trim(), input.description || null, input.productType, tracksInventoryValue,
           input.departmentId || null, input.groupId || null, input.subgroupId || null, input.supplierId || null,
           input.brand || null, input.unitOfMeasure, input.costPrice, input.basePrice, input.currency,
           input.defaultTaxRateId || null, input.taxInclusive ? 1 : 0, input.minStock, input.maxStock,
@@ -561,6 +567,7 @@ export class InventoryService {
   static async getProductById(companyId: string, id: string) {
     const rows = await query<any>(
       `SELECT p.id, p.sku, p.barcode, p.name, p.description, p.product_type as productType,
+              p.tracks_inventory as tracksInventory,
               p.department_id as departmentId, d.name as departmentName,
               p.group_id as groupId, g.name as groupName,
               p.subgroup_id as subgroupId, sg.name as subgroupName,
@@ -618,6 +625,7 @@ export class InventoryService {
       hasSerials: Boolean(product.hasSerials),
       taxInclusive: Boolean(product.taxInclusive),
       isActive: Boolean(product.isActive),
+      tracksInventory: Boolean(product.tracksInventory !== 0 && product.tracksInventory !== false),
       locations,
       skus: skus.map((s: any) => ({
         ...s,
@@ -666,18 +674,21 @@ export class InventoryService {
     const hasBatches = input.hasBatches !== undefined ? (input.hasBatches ? 1 : 0) : cur.has_batches;
     const hasSerials = input.hasSerials !== undefined ? (input.hasSerials ? 1 : 0) : cur.has_serials;
     const isActive = input.isActive !== undefined ? (input.isActive ? 1 : 0) : cur.is_active;
+    const tracksInventory = input.tracksInventory !== undefined
+      ? (input.tracksInventory ? 1 : 0)
+      : (cur.tracks_inventory !== undefined ? cur.tracks_inventory : 1);
 
     await withTransaction(async (conn) => {
       await conn.query(
         `UPDATE products SET
-           sku = ?, barcode = ?, name = ?, description = ?, product_type = ?,
+           sku = ?, barcode = ?, name = ?, description = ?, product_type = ?, tracks_inventory = ?,
            department_id = ?, group_id = ?, subgroup_id = ?, supplier_id = ?, brand = ?,
            unit_of_measure = ?, cost_price = ?, base_price = ?, currency = ?,
            default_tax_rate_id = ?, tax_inclusive = ?, min_stock = ?, max_stock = ?,
            has_batches = ?, has_serials = ?, is_active = ?, updated_at = NOW()
          WHERE id = ? AND company_id = ?`,
         [
-          sku, barcode, name, description, productType,
+          sku, barcode, name, description, productType, tracksInventory,
           departmentId, groupId, subgroupId, supplierId, brand,
           unitOfMeasure, costPrice, basePrice, currency,
           defaultTaxRateId, taxInclusive, minStock, maxStock,

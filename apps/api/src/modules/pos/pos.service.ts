@@ -130,6 +130,15 @@ export class POSService {
       params
     );
 
+    const crdRows = await query<any>(`SELECT cash_register_id, department_id FROM cash_register_departments`);
+    const deptMap = new Map<string, string[]>();
+    for (const d of crdRows) {
+      if (!deptMap.has(d.cash_register_id)) {
+        deptMap.set(d.cash_register_id, []);
+      }
+      deptMap.get(d.cash_register_id)!.push(d.department_id);
+    }
+
     return rows.map((r) => ({
       id: r.id,
       branchId: r.branch_id,
@@ -142,6 +151,7 @@ export class POSService {
       invoiceMode: r.invoice_mode,
       defaultBankAccountIdVES: r.default_bank_account_ves_id || null,
       defaultBankAccountIdUSD: r.default_bank_account_usd_id || null,
+      allowedDepartmentIds: deptMap.get(r.id) || [],
       isActive: Boolean(r.is_active),
       activeShiftId: r.active_shift_id || null,
       activeCashierName: r.active_cashier_name || null,
@@ -196,6 +206,15 @@ export class POSService {
       ]
     );
 
+    if (input.allowedDepartmentIds && input.allowedDepartmentIds.length > 0) {
+      for (const deptId of input.allowedDepartmentIds) {
+        await query(
+          `INSERT IGNORE INTO cash_register_departments (cash_register_id, department_id) VALUES (?, ?)`,
+          [id, deptId]
+        );
+      }
+    }
+
     return {
       id,
       branchId: input.branchId,
@@ -206,6 +225,7 @@ export class POSService {
       invoiceMode,
       defaultBankAccountIdVES: input.defaultBankAccountIdVES || null,
       defaultBankAccountIdUSD: input.defaultBankAccountIdUSD || null,
+      allowedDepartmentIds: input.allowedDepartmentIds || [],
       isActive: true,
     };
   }
@@ -253,6 +273,25 @@ export class POSService {
       [code, name, fiscalPrinterSerial, invoiceMode, defaultBankAccountIdVES, defaultBankAccountIdUSD, warehouseId, isActive, id]
     );
 
+    let allowedDepartmentIds = input.allowedDepartmentIds;
+    if (allowedDepartmentIds !== undefined) {
+      await query(`DELETE FROM cash_register_departments WHERE cash_register_id = ?`, [id]);
+      if (allowedDepartmentIds.length > 0) {
+        for (const deptId of allowedDepartmentIds) {
+          await query(
+            `INSERT IGNORE INTO cash_register_departments (cash_register_id, department_id) VALUES (?, ?)`,
+            [id, deptId]
+          );
+        }
+      }
+    } else {
+      const crdRows = await query<any>(
+        `SELECT department_id FROM cash_register_departments WHERE cash_register_id = ?`,
+        [id]
+      );
+      allowedDepartmentIds = crdRows.map((r: any) => r.department_id);
+    }
+
     return {
       id,
       branchId: current.branch_id,
@@ -263,6 +302,7 @@ export class POSService {
       invoiceMode,
       defaultBankAccountIdVES,
       defaultBankAccountIdUSD,
+      allowedDepartmentIds: allowedDepartmentIds || [],
       isActive: Boolean(isActive),
     };
   }
@@ -1258,6 +1298,20 @@ export class POSService {
 
       if ((!allowNegativeStock || requireApprovalNegative) && effectiveWarehouseId) {
         for (const item of payload.items) {
+          // Consultar si el producto maneja inventario
+          const [productRows]: any = await conn.query(
+            `SELECT tracks_inventory FROM products WHERE id = ?`,
+            [item.productId]
+          );
+          const tracksInventory = productRows && productRows.length > 0
+            ? Boolean(productRows[0].tracks_inventory !== 0 && productRows[0].tracks_inventory !== false)
+            : true;
+
+          // Si el producto no maneja inventario, se permite vender sin validar existencias
+          if (!tracksInventory) {
+            continue;
+          }
+
           const unitsRequested = Number(item.quantity) * Number(item.multiplier || 1);
           const [stockRow]: any = await conn.query(
             `SELECT current_stock FROM product_stocks WHERE product_id = ? AND warehouse_id = ?`,
@@ -1405,7 +1459,16 @@ export class POSService {
           ]
         );
 
-        if (effectiveWarehouseId) {
+        // Consultar si el producto descuenta inventario
+        const [productTrackRows]: any = await conn.query(
+          `SELECT tracks_inventory FROM products WHERE id = ?`,
+          [item.productId]
+        );
+        const tracksInventory = productTrackRows && productTrackRows.length > 0
+          ? Boolean(productTrackRows[0].tracks_inventory !== 0 && productTrackRows[0].tracks_inventory !== false)
+          : true;
+
+        if (tracksInventory && effectiveWarehouseId) {
           const unitsToDeduct = Number(item.quantity) * Number(item.multiplier || 1);
           // Descontar inventario en el depósito correspondiente (permitiendo valores negativos según reglas)
           await conn.query(
@@ -1454,8 +1517,8 @@ export class POSService {
             payment.amountUSD,
             payment.exchangeRate,
             payment.appliesIGTF ? 1 : 0,
-            payment.igtfAmountVES,
-            payment.igtfAmountUSD,
+            payment.igtfAmountVES || 0.0,
+            payment.igtfAmountUSD || 0.0,
             payment.referenceNumber || null,
           ]
         );

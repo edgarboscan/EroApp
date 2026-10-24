@@ -19,6 +19,8 @@ import { DynamicDashboard } from '../features/dashboards/DynamicDashboard';
 import { POSRegister } from '../features/pos/POSRegister';
 import { CashRegisterView } from '../features/pos/CashRegisterView';
 import { CashAuditVerificationView } from '../features/pos/CashAuditVerificationView';
+import { RestaurantOrdersView } from '../features/restaurant/RestaurantOrdersView';
+import { KitchenDisplayView } from '../features/restaurant/KitchenDisplayView';
 import { ProductCatalog } from '../features/inventory/ProductCatalog';
 import { HierarchyManager } from '../features/inventory/HierarchyManager';
 import { PhysicalLocationsView } from '../features/inventory/PhysicalLocationsView';
@@ -133,6 +135,25 @@ export const AppRouter: React.FC = () => {
         <Route
           path="/pos/verificacion"
           element={<Navigate to="/pos/auditoria-arqueos" replace />}
+        />
+
+        {/* Módulo de Restaurante & Comandas */}
+        <Route
+          path="/restaurant/orders"
+          element={
+            <RequirePermission module="pos" action="read">
+              <RestaurantOrdersView />
+            </RequirePermission>
+          }
+        />
+
+        <Route
+          path="/restaurant/kds"
+          element={
+            <RequirePermission module="pos" action="read">
+              <KitchenDisplayView />
+            </RequirePermission>
+          }
         />
 
         <Route

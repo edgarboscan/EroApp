@@ -34,12 +34,14 @@ import {
   Percent,
   Eye,
   Package,
+  Utensils,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { showLeaveCartAlert, showClearCartAlert } from '../../lib/sweetalert';
 import { useAuthStore } from '../../stores/authStore';
 import { useExchangeRateStore } from '../../stores/exchangeRateStore';
 import { FiscalInvoiceModal, FiscalInvoiceTicketData } from './FiscalInvoiceModal';
+import { ImportRestaurantOrderModal } from './ImportRestaurantOrderModal';
 import {
   formatNumber,
   formatCurrency,
@@ -74,6 +76,7 @@ interface ProductItem {
   priceUSD: number;
   taxRatePercent: number;
   stock?: number;
+  tracksInventory?: boolean;
   barcode?: string;
   unitOfMeasure?: string;
   presentations?: ProductPresentationPOS[];
@@ -170,32 +173,6 @@ export const POSRegister: React.FC = () => {
   } | null>(null);
   const [discountInputPercent, setDiscountInputPercent] = useState<string>('0');
 
-  // Opciones de visualización y densidad del catálogo de productos
-  const [catalogViewMode, setCatalogViewMode] = useState<'grid' | 'list'>('grid');
-  const [catalogOptions, setCatalogOptions] = useState({
-    showBarcode: true,
-    showSku: true,
-    showPrice: true,
-    showStock: true,
-    showDescription: true,
-  });
-  const [isOptionsDropdownOpen, setIsOptionsDropdownOpen] = useState(false);
-
-  // Modal de Selección de Presentaciones del Producto
-  const [isPresentationModalOpen, setIsPresentationModalOpen] = useState(false);
-  const [selectedProductForPresentation, setSelectedProductForPresentation] = useState<ProductItem | null>(null);
-  const [selectedPresentationId, setSelectedPresentationId] = useState<string | null>(null);
-  const [presentationQty, setPresentationQty] = useState<number>(1);
-  const [presentationModalError, setPresentationModalError] = useState<string | null>(null);
-
-  // Modal para aplicar descuento individual a renglón del carrito
-  const [editingDiscountItem, setEditingDiscountItem] = useState<{
-    productId: string;
-    presentationId: string | null;
-    productName: string;
-    currentDiscountPercent: number;
-  } | null>(null);
-  const [discountInputPercent, setDiscountInputPercent] = useState<string>('0');
 
   // Reglas de negocio (Stock negativo y autorizaciones)
   const [businessRules, setBusinessRules] = useState<{
@@ -269,6 +246,57 @@ export const POSRegister: React.FC = () => {
   const [invoiceTicketData, setInvoiceTicketData] = useState<FiscalInvoiceTicketData | null>(null);
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
   const [showPrintPromptModal, setShowPrintPromptModal] = useState(false);
+
+  // Integración Restaurante -> POS (Importar Comandas Cerradas)
+  const [isImportRestaurantModalOpen, setIsImportRestaurantModalOpen] = useState(false);
+  const [importedRestaurantOrderId, setImportedRestaurantOrderId] = useState<string | null>(null);
+
+  const handleImportRestaurantOrder = (restaurantOrder: any) => {
+    if (!restaurantOrder || !restaurantOrder.items || restaurantOrder.items.length === 0) {
+      toast.error('La comanda seleccionada no contiene productos');
+      return;
+    }
+
+    const newCartItems: CartItem[] = restaurantOrder.items.map((it: any) => {
+      const matchedProd = products.find((p) => p.id === it.product_id || p.sku === it.sku);
+      const taxRatePercent = matchedProd ? matchedProd.taxRatePercent : 16;
+      const unitPrice = Number(it.unit_price_usd);
+      const quantity = Number(it.quantity);
+      const grossAmount = Number((unitPrice * quantity).toFixed(2));
+      const discountPercent = 0;
+      const discountAmount = 0;
+      const subtotal = grossAmount;
+      const taxAmount = Number(((subtotal * taxRatePercent) / 100).toFixed(2));
+      const total = Number((subtotal + taxAmount).toFixed(2));
+
+      return {
+        productId: it.product_id || `rest-${it.id}`,
+        sku: it.sku || 'REST-ITEM',
+        name: it.product_name,
+        quantity,
+        unitPrice,
+        taxRatePercent,
+        grossAmount,
+        discountPercent,
+        discountAmount,
+        subtotal,
+        taxAmount,
+        total,
+      };
+    });
+
+    setCart(newCartItems);
+    setImportedRestaurantOrderId(restaurantOrder.id);
+
+    if (restaurantOrder.customer_id) {
+      setSelectedCustomerId(restaurantOrder.customer_id);
+      if (restaurantOrder.customer_name) {
+        setCustomerName(restaurantOrder.customer_name);
+      }
+    }
+
+    toast.success(`Comanda ${restaurantOrder.order_number} (${restaurantOrder.table_name || 'Mesa'}) importada al carrito`);
+  };
 
   // Modal de captura / edición de referencia bancaria o lote
   const [quickRefPrompt, setQuickRefPrompt] = useState<{
@@ -576,6 +604,7 @@ export const POSRegister: React.FC = () => {
               priceUSD: isNaN(price) || price <= 0 ? 0 : price,
               taxRatePercent: isNaN(parsedTax) ? 16.0 : parsedTax,
               stock: isNaN(stock) ? 0 : stock,
+              tracksInventory: p.tracksInventory !== false && p.tracks_inventory !== 0,
               barcode: p.barcode,
               unitOfMeasure: p.unitOfMeasure,
               presentations: Array.isArray(p.presentations)
@@ -933,9 +962,10 @@ export const POSRegister: React.FC = () => {
 
     const totalBaseUnitsRequested = otherCommittedUnits + targetQty * multiplier;
     const availableStock = product.stock ?? 0;
+    const tracksInventory = product.tracksInventory !== false;
 
-    // Validar si el producto no tiene existencia suficiente en almacén
-    if (totalBaseUnitsRequested > availableStock) {
+    // Validar si el producto no tiene existencia suficiente en almacén (solo si maneja inventario)
+    if (tracksInventory && totalBaseUnitsRequested > availableStock) {
       if (!businessRules.allowNegativeStock) {
         toast.error(
           `Existencia insuficiente para "${displayName}" en almacén (Disponible: ${availableStock} unidades base, Requerido total: ${totalBaseUnitsRequested}). Las reglas de negocio no permiten ventas con existencia en negativo.`
@@ -1146,9 +1176,10 @@ export const POSRegister: React.FC = () => {
       .reduce((sum, i) => sum + i.quantity * (i.multiplier || 1), 0);
 
     const totalBaseUnitsRequested = otherCommittedUnits + targetQty * multiplier;
+    const tracksInventory = product ? product.tracksInventory !== false : true;
 
-    // Solo se valida stock si se está aumentando la cantidad
-    if (delta > 0 && totalBaseUnitsRequested > availableStock) {
+    // Solo se valida stock si se está aumentando la cantidad y el producto controla existencias
+    if (tracksInventory && delta > 0 && totalBaseUnitsRequested > availableStock) {
       if (!businessRules.allowNegativeStock) {
         toast.error(
           `Existencia insuficiente para "${existing.name}" en almacén (Disponible: ${availableStock} unidades base, Solicitado total: ${totalBaseUnitsRequested}). Las reglas de negocio no permiten ventas con existencia en negativo.`
@@ -1612,6 +1643,24 @@ export const POSRegister: React.FC = () => {
         })),
       });
 
+      // Si la venta provino de una comanda de restaurante, marcarla como facturada
+      if (importedRestaurantOrderId) {
+        try {
+          await fetch(`/api/restaurant/orders/${importedRestaurantOrderId}/mark-invoiced`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              ...(activeBranchId ? { 'x-branch-id': activeBranchId } : {}),
+            },
+            body: JSON.stringify({ invoice_id: json.data.invoiceId }),
+          });
+        } catch (e) {
+          console.error('Error marking restaurant order as invoiced:', e);
+        }
+        setImportedRestaurantOrderId(null);
+      }
+
       // Limpiar carrito y cerrar modal de pago
       setCart([]);
       setPayments([]);
@@ -1820,7 +1869,7 @@ export const POSRegister: React.FC = () => {
       <div className="flex-1 flex flex-col gap-4 overflow-hidden">
         {/* Banner de Caja Activa y Modalidad Fiscal */}
         {activeShift && (
-          <div className="bg-white border border-neutral-200 rounded-lg p-2.5 flex items-center justify-between text-xs shadow-xs">
+          <div className="bg-white border border- -200 rounded-lg p-2.5 flex items-center justify-between text-xs shadow-xs">
             <div className="flex items-center gap-2">
               <span className="font-bold text-neutral-900">
                 {activeShift.cashRegisterCode || 'CAJA-01'}
@@ -1928,6 +1977,19 @@ export const POSRegister: React.FC = () => {
                 >
                   <SlidersHorizontal className="w-3.5 h-3.5 mr-1 text-neutral-500" />
                   <span>Columnas e Info</span>
+                </Button>
+
+                {/* Botón para Importar Comanda Cerrada de Restaurante */}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsImportRestaurantModalOpen(true)}
+                  className="h-8 px-2.5 text-xs text-sky-700 bg-sky-50 border-sky-300 hover:bg-sky-100 flex items-center gap-1.5 cursor-pointer ml-1"
+                  title="Importar comanda cerrada de restaurante para facturación fiscal"
+                >
+                  <Utensils className="w-3.5 h-3.5 text-sky-600" />
+                  <span>Importar Comanda</span>
                 </Button>
 
                 {isOptionsDropdownOpen && (
@@ -2041,7 +2103,11 @@ export const POSRegister: React.FC = () => {
                         </div>
 
                         {catalogOptions.showStock && (
-                          hasNoStock ? (
+                          p.tracksInventory === false ? (
+                            <span className="shrink-0 text-[9px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                              Sin control
+                            </span>
+                          ) : hasNoStock ? (
                             <span className="shrink-0 text-[9px] font-semibold text-amber-700 bg-amber-50 px-1 py-0.2 rounded border border-amber-200">
                               Sin stock ({p.stock ?? 0})
                             </span>
@@ -2152,7 +2218,11 @@ export const POSRegister: React.FC = () => {
 
                           {catalogOptions.showStock && (
                             <td className="py-1.5 px-2 text-center font-mono text-xs whitespace-nowrap">
-                              {hasNoStock ? (
+                              {p.tracksInventory === false ? (
+                                <span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                  Sin control
+                                </span>
+                              ) : hasNoStock ? (
                                 <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-1 py-0.2 rounded border border-amber-200">
                                   {p.stock ?? 0}
                                 </span>
@@ -4171,6 +4241,15 @@ export const POSRegister: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Modal Importar Comanda de Restaurante */}
+      <ImportRestaurantOrderModal
+        isOpen={isImportRestaurantModalOpen}
+        onClose={() => setIsImportRestaurantModalOpen(false)}
+        onImportOrder={handleImportRestaurantOrder}
+        token={token}
+        activeBranchId={activeBranchId}
+      />
     </div>
   );
 };

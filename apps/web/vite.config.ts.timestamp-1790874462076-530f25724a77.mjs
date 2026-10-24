@@ -1,6 +1,6 @@
 // vite.config.ts
 import { defineConfig } from "file:///F:/Desarrollo/EroApp/node_modules/.pnpm/vite@5.4.21_@types+node@20.19.43/node_modules/vite/dist/node/index.js";
-import react from "file:///F:/Desarrollo/EroApp/node_modules/.pnpm/@vitejs+plugin-react@4.7.0_vite@5.4.21_@types+node@20.19.43_/node_modules/@vitejs/plugin-react/dist/index.js";
+simport react from "file:///F:/Desarrollo/EroApp/node_modules/.pnpm/@vitejs+plugin-react@4.7.0_vite@5.4.21_@types+node@20.19.43_/node_modules/@vitejs/plugin-react/dist/index.js";
 import path from "path";
 var __vite_injected_original_dirname = "F:\\Desarrollo\\EroApp\\apps\\web";
 var vite_config_default = defineConfig({

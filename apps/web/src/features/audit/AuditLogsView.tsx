@@ -80,10 +80,10 @@ export const AuditLogsView: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-xl font-bold text-neutral-900 tracking-tight">
+          <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100 tracking-tight">
             Bitácora de Auditoría Integral (Audit Log)
           </h1>
-          <p className="text-xs text-neutral-500 mt-1">
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
             Registro cronológico inmutable de transacciones, mutaciones de datos y accesos al sistema
           </p>
         </div>
@@ -96,14 +96,14 @@ export const AuditLogsView: React.FC = () => {
       </div>
 
       {/* Barra de Filtros */}
-      <div className="bg-white border border-neutral-200 rounded-lg p-4 shadow-sm">
+      <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-4 shadow-sm">
         <form onSubmit={handleSearch} className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 gap-3 items-end">
           <div>
-            <label className="block text-xs font-medium text-neutral-700 mb-1">Módulo del Sistema</label>
+            <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">Módulo del Sistema</label>
             <select
               value={selectedModule}
               onChange={(e) => setSelectedModule(e.target.value)}
-              className="w-full h-9 rounded-lg border border-neutral-300 bg-white px-3 text-xs text-neutral-900 focus-visible:ring-2 focus-visible:ring-sky-500"
+              className="w-full h-9 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-xs text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
             >
               <option value="">Todos los Módulos</option>
               <option value="sales">Ventas & Cotizaciones</option>
@@ -116,7 +116,7 @@ export const AuditLogsView: React.FC = () => {
           </div>
 
           <div className="sm:col-span-2">
-            <label className="block text-xs font-medium text-neutral-700 mb-1">Búsqueda (ID, Entidad, IP)</label>
+            <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">Búsqueda (ID, Entidad, IP)</label>
             <div className="relative">
               <Input
                 placeholder="Buscar por documento, entidad o dirección IP..."
@@ -124,7 +124,7 @@ export const AuditLogsView: React.FC = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-8"
               />
-              <Search className="w-4 h-4 text-neutral-400 absolute left-2.5 top-2.5 pointer-events-none" />
+              <Search className="w-4 h-4 text-neutral-400 dark:text-neutral-500 absolute left-2.5 top-2.5 pointer-events-none" />
             </div>
           </div>
 
@@ -138,31 +138,31 @@ export const AuditLogsView: React.FC = () => {
       </div>
 
       {/* Tabla de Auditoría */}
-      <div className="bg-white border border-neutral-200 rounded-lg overflow-hidden shadow-sm">
-        <div className="p-4 border-b border-neutral-200 bg-neutral-50 flex justify-between items-center">
-          <h2 className="text-xs font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-2">
-            <History className="w-4 h-4 text-sky-600" />
+      <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg overflow-hidden shadow-sm">
+        <div className="p-4 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-850 flex justify-between items-center">
+          <h2 className="text-xs font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider flex items-center gap-2">
+            <History className="w-4 h-4 text-sky-600 dark:text-sky-400" />
             Eventos Registrados
           </h2>
-          <span className="text-xs text-neutral-500">{logs.length} eventos listados</span>
+          <span className="text-xs text-neutral-500 dark:text-neutral-400">{logs.length} eventos listados</span>
         </div>
 
         {loading ? (
           <div className="p-6 space-y-3">
-            <div className="h-10 bg-neutral-200 animate-pulse rounded-lg" />
-            <div className="h-10 bg-neutral-200 animate-pulse rounded-lg" />
-            <div className="h-10 bg-neutral-200 animate-pulse rounded-lg" />
+            <div className="h-10 bg-neutral-200 dark:bg-neutral-800 animate-pulse rounded-lg" />
+            <div className="h-10 bg-neutral-200 dark:bg-neutral-800 animate-pulse rounded-lg" />
+            <div className="h-10 bg-neutral-200 dark:bg-neutral-800 animate-pulse rounded-lg" />
           </div>
         ) : logs.length === 0 ? (
           <div className="text-center py-12">
-            <ShieldCheck className="w-10 h-10 text-neutral-300 mx-auto mb-2" />
-            <p className="text-xs font-semibold text-neutral-600">No se encontraron eventos de auditoría</p>
-            <p className="text-[11px] text-neutral-400 mt-1">Intente cambiar los filtros o el rango de búsqueda</p>
+            <ShieldCheck className="w-10 h-10 text-neutral-300 dark:text-neutral-600 mx-auto mb-2" />
+            <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">No se encontraron eventos de auditoría</p>
+            <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1">Intente cambiar los filtros o el rango de búsqueda</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-neutral-50/50 border-b border-neutral-200 text-neutral-600">
+              <thead className="bg-neutral-50/50 dark:bg-neutral-850/60 border-b border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">
                 <tr>
                   <th className="py-2.5 px-4">Fecha y Hora</th>
                   <th className="py-2.5 px-4">Usuario</th>
@@ -173,14 +173,14 @@ export const AuditLogsView: React.FC = () => {
                   <th className="py-2.5 px-4 text-right">Detalle</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-200">
+              <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
                 {logs.map((log) => (
-                  <tr key={log.id} className="hover:bg-neutral-50">
-                    <td className="py-3 px-4 font-mono text-[11px] text-neutral-700 whitespace-nowrap">
+                  <tr key={log.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                    <td className="py-3 px-4 font-mono text-[11px] text-neutral-700 dark:text-neutral-300 whitespace-nowrap">
                       {new Date(log.createdAt).toLocaleString('es-VE')}
                     </td>
-                    <td className="py-3 px-4 font-medium text-neutral-900 flex items-center gap-1.5">
-                      <User className="w-3.5 h-3.5 text-neutral-400" />
+                    <td className="py-3 px-4 font-medium text-neutral-900 dark:text-neutral-100 flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500" />
                       <span>{log.userName || 'Sistema'}</span>
                     </td>
                     <td className="py-3 px-4">
@@ -188,14 +188,14 @@ export const AuditLogsView: React.FC = () => {
                         {log.module}
                       </Badge>
                     </td>
-                    <td className="py-3 px-4 font-mono font-bold text-neutral-800">
+                    <td className="py-3 px-4 font-mono font-bold text-neutral-800 dark:text-neutral-200">
                       {log.action}
                     </td>
                     <td className="py-3 px-4">
-                      <span className="text-neutral-500">{log.entity}: </span>
-                      <span className="font-mono font-bold text-neutral-900">{log.entityId || 'N/A'}</span>
+                      <span className="text-neutral-500 dark:text-neutral-400">{log.entity}: </span>
+                      <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100">{log.entityId || 'N/A'}</span>
                     </td>
-                    <td className="py-3 px-4 text-neutral-500 font-mono text-[11px]">
+                    <td className="py-3 px-4 text-neutral-500 dark:text-neutral-400 font-mono text-[11px]">
                       {log.ipAddress || '127.0.0.1'}
                     </td>
                     <td className="py-3 px-4 text-right">
@@ -224,33 +224,33 @@ export const AuditLogsView: React.FC = () => {
         title={`Inspección de Cambio - ${selectedLog?.module}.${selectedLog?.action}`}
       >
         <div className="space-y-4 text-xs">
-          <div className="grid grid-cols-2 gap-3 p-3 bg-neutral-50 rounded-lg border border-neutral-200">
+          <div className="grid grid-cols-2 gap-3 p-3 bg-neutral-50 dark:bg-neutral-850 rounded-lg border border-neutral-200 dark:border-neutral-700">
             <div>
-              <span className="text-neutral-500 block">Entidad afectada:</span>
-              <span className="font-bold text-neutral-900">{selectedLog?.entity} ({selectedLog?.entityId})</span>
+              <span className="text-neutral-500 dark:text-neutral-400 block">Entidad afectada:</span>
+              <span className="font-bold text-neutral-900 dark:text-neutral-100">{selectedLog?.entity} ({selectedLog?.entityId})</span>
             </div>
             <div>
-              <span className="text-neutral-500 block">Usuario ejecutor:</span>
-              <span className="font-bold text-neutral-900">{selectedLog?.userName}</span>
+              <span className="text-neutral-500 dark:text-neutral-400 block">Usuario ejecutor:</span>
+              <span className="font-bold text-neutral-900 dark:text-neutral-100">{selectedLog?.userName}</span>
             </div>
             <div>
-              <span className="text-neutral-500 block">Dirección IP:</span>
-              <span className="font-mono font-medium text-neutral-800">{selectedLog?.ipAddress}</span>
+              <span className="text-neutral-500 dark:text-neutral-400 block">Dirección IP:</span>
+              <span className="font-mono font-medium text-neutral-800 dark:text-neutral-200">{selectedLog?.ipAddress}</span>
             </div>
             <div>
-              <span className="text-neutral-500 block">Agente de Navegador:</span>
-              <span className="text-neutral-700 truncate block">{selectedLog?.userAgent}</span>
+              <span className="text-neutral-500 dark:text-neutral-400 block">Agente de Navegador:</span>
+              <span className="text-neutral-700 dark:text-neutral-300 truncate block">{selectedLog?.userAgent}</span>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Antes */}
             <div>
-              <div className="flex items-center gap-1.5 font-bold text-neutral-700 mb-1">
+              <div className="flex items-center gap-1.5 font-bold text-neutral-700 dark:text-neutral-300 mb-1">
                 <span className="w-2 h-2 rounded-full bg-amber-500" />
                 <span>Estado Previo (Before)</span>
               </div>
-              <pre className="bg-neutral-900 text-neutral-200 p-3 rounded-lg overflow-x-auto text-[11px] font-mono h-48">
+              <pre className="bg-neutral-900 dark:bg-neutral-950 text-neutral-200 p-3 rounded-lg overflow-x-auto text-[11px] font-mono h-48 border border-neutral-800">
                 {selectedLog?.beforeJson
                   ? JSON.stringify(selectedLog.beforeJson, null, 2)
                   : '// Sin estado anterior (Creación nueva)'}
@@ -259,11 +259,11 @@ export const AuditLogsView: React.FC = () => {
 
             {/* Después */}
             <div>
-              <div className="flex items-center gap-1.5 font-bold text-neutral-700 mb-1">
+              <div className="flex items-center gap-1.5 font-bold text-neutral-700 dark:text-neutral-300 mb-1">
                 <span className="w-2 h-2 rounded-full bg-emerald-500" />
                 <span>Estado Posterior (After)</span>
               </div>
-              <pre className="bg-neutral-900 text-neutral-200 p-3 rounded-lg overflow-x-auto text-[11px] font-mono h-48">
+              <pre className="bg-neutral-900 dark:bg-neutral-950 text-neutral-200 p-3 rounded-lg overflow-x-auto text-[11px] font-mono h-48 border border-neutral-800">
                 {selectedLog?.afterJson
                   ? JSON.stringify(selectedLog.afterJson, null, 2)
                   : '// Sin cambios registrados'}
@@ -271,7 +271,7 @@ export const AuditLogsView: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex justify-end pt-3 border-t border-neutral-200">
+          <div className="flex justify-end pt-3 border-t border-neutral-200 dark:border-neutral-800">
             <Button variant="outline" onClick={() => setSelectedLog(null)}>
               Cerrar Inspección
             </Button>

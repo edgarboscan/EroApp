@@ -121,6 +121,7 @@ export const productSchema = z.object({
   taxInclusive: coerceBoolean(false),
   
   // Control de Stock
+  tracksInventory: coerceBoolean(true),
   minStock: coerceNumber(0),
   maxStock: coerceNumber(0),
   hasBatches: coerceBoolean(false),

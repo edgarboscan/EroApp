@@ -277,13 +277,22 @@ export class CustomerNotesService {
           ]
         );
 
-        // Reingreso físico de stock si es devolución
+        // Reingreso físico de stock si es devolución y el producto maneja inventario
         if (data.type === 'CREDIT' && item.returnToInventory && item.productId && data.warehouseId) {
-          const [stockRows]: any = await conn.query(
-            `SELECT current_stock FROM product_stocks
-             WHERE product_id = ? AND warehouse_id = ? FOR UPDATE`,
-            [item.productId, data.warehouseId]
+          const [prodRow]: any = await conn.query(
+            `SELECT tracks_inventory FROM products WHERE id = ?`,
+            [item.productId]
           );
+          const tracksInventory = prodRow.length > 0
+            ? Boolean(prodRow[0].tracks_inventory !== 0 && prodRow[0].tracks_inventory !== false)
+            : true;
+
+          if (tracksInventory) {
+            const [stockRows]: any = await conn.query(
+              `SELECT current_stock FROM product_stocks
+               WHERE product_id = ? AND warehouse_id = ? FOR UPDATE`,
+              [item.productId, data.warehouseId]
+            );
 
           let prevStock = 0;
           let newStock = item.quantity;
@@ -328,6 +337,7 @@ export class CustomerNotesService {
           );
         }
       }
+    }
 
       // 7. Si es NOTA DE DÉBITO: Generar automáticamente la cuenta por cobrar en receivables
       let generatedReceivableId: string | null = null;

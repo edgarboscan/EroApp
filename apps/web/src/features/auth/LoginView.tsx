@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
+import { useThemeStore } from '../../stores/themeStore';
 import { getDefaultAppRoute } from '../../lib/navigation';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -20,6 +21,8 @@ import {
   AlertCircle,
   Clock,
   Sparkles,
+  Sun,
+  Moon,
 } from 'lucide-react';
 
 interface QuickAccount {
@@ -39,6 +42,9 @@ export const LoginView: React.FC = () => {
   const location = useLocation();
   const setAuth = useAuthStore((state) => state.setAuth);
   const setRequires2FA = useAuthStore((state) => state.setRequires2FA);
+  const theme = useThemeStore((state) => state.theme);
+  const resolvedTheme = useThemeStore((state) => state.resolvedTheme);
+  const toggleTheme = useThemeStore((state) => state.toggleTheme);
 
   // Modo de visualización: LOGIN, CHANGE_PASSWORD, RECOVER_PASSWORD
   const [mode, setMode] = useState<'LOGIN' | 'CHANGE_PASSWORD' | 'RECOVER_PASSWORD'>('LOGIN');
@@ -396,9 +402,9 @@ export const LoginView: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-50 flex flex-col lg:flex-row select-none">
+    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 flex flex-col lg:flex-row select-none">
       {/* Columna Izquierda: Panel de Autenticación y Formularios */}
-      <div className="w-full lg:w-[480px] xl:w-[540px] flex flex-col justify-between p-6 sm:p-10 lg:p-12 xl:p-14 bg-white border-r border-neutral-200 shrink-0 min-h-screen">
+      <div className="w-full lg:w-[480px] xl:w-[540px] flex flex-col justify-between p-6 sm:p-10 lg:p-12 xl:p-14 bg-white dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-800 shrink-0 min-h-screen">
         {/* Brand Header y Formularios */}
         <div>
           {/* Brand Header */}
@@ -408,17 +414,31 @@ export const LoginView: React.FC = () => {
                 E
               </div>
               <div className="text-left">
-                <span className="text-lg font-bold tracking-tight text-neutral-900 leading-tight block">
+                <span className="text-lg font-bold tracking-tight text-neutral-900 dark:text-neutral-100 leading-tight block">
                   ERO ERP VE
                 </span>
-                <span className="text-[11px] font-medium text-neutral-500 tracking-wide block">
+                <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 tracking-wide block">
                   Gestión Fiscal & Comercial Homologada
                 </span>
               </div>
             </div>
-            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-neutral-100 text-neutral-600 border border-neutral-200">
-              v1.0.0
-            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="p-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors focus-visible:ring-2 focus-visible:ring-neutral-400 cursor-pointer"
+                title={`Tema actual: ${theme}. Clic para alternar`}
+              >
+                {resolvedTheme === "dark" ? (
+                  <Sun className="w-4 h-4 text-amber-400" />
+                ) : (
+                  <Moon className="w-4 h-4 text-neutral-600" />
+                )}
+              </button>
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700">
+                v1.0.0
+              </span>
+            </div>
           </div>
 
           {/* Contenedor Principal de Formularios */}
@@ -429,9 +449,9 @@ export const LoginView: React.FC = () => {
             {mode === 'LOGIN' && (
               <div className="space-y-5">
                 {/* Encabezado de Sección */}
-                <div className="border-b border-neutral-100 pb-3">
-                  <h1 className="text-xl font-bold tracking-tight text-neutral-900">Iniciar Sesión</h1>
-                  <p className="text-xs text-neutral-500 mt-1">
+                <div className="border-b border-neutral-100 dark:border-neutral-800 pb-3">
+                  <h1 className="text-xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">Iniciar Sesión</h1>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
                     Acceda a su terminal de facturación y control empresarial
                   </p>
                 </div>
@@ -447,8 +467,8 @@ export const LoginView: React.FC = () => {
                 {quickAccounts.length > 0 && !showManualForm && (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-neutral-700 flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-sky-600" />
+                      <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
                         Inicio Rápido (Cuentas Recordadas):
                       </span>
                       <button
@@ -459,7 +479,7 @@ export const LoginView: React.FC = () => {
                           setUsernameOrEmail('');
                           setPassword('');
                         }}
-                        className="text-[11px] font-medium text-sky-700 hover:text-sky-800 hover:underline cursor-pointer"
+                        className="text-[11px] font-medium text-sky-700 dark:text-sky-400 hover:text-sky-800 dark:hover:text-sky-300 hover:underline cursor-pointer"
                       >
                         Usar otra cuenta
                       </button>
@@ -474,21 +494,21 @@ export const LoginView: React.FC = () => {
                             onClick={() => handleSelectQuickAccount(acc)}
                             className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between group ${
                               isSelected
-                                ? 'border-sky-500 bg-sky-50/50 shadow-sm'
-                                : 'border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50/70'
+                                ? 'border-sky-500 bg-sky-50/50 dark:bg-sky-950/30 shadow-sm'
+                                : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-800/40 hover:border-neutral-300 dark:hover:border-neutral-700 hover:bg-neutral-50/70 dark:hover:bg-neutral-800/80'
                             }`}
                           >
                             <div className="flex items-center gap-3 min-w-0">
-                              <div className="w-9 h-9 rounded-lg bg-sky-100 text-sky-800 font-bold flex items-center justify-center text-xs shrink-0 border border-sky-200">
+                              <div className="w-9 h-9 rounded-lg bg-sky-100 dark:bg-sky-900/60 text-sky-800 dark:text-sky-200 font-bold flex items-center justify-center text-xs shrink-0 border border-sky-200 dark:border-sky-800">
                                 {acc.avatarInitials}
                               </div>
                               <div className="min-w-0">
-                                <div className="text-xs font-bold text-neutral-900 truncate">
+                                <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100 truncate">
                                   {acc.fullName}
                                 </div>
-                                <div className="text-[11px] text-neutral-500 font-mono flex items-center gap-1.5 truncate">
+                                <div className="text-[11px] text-neutral-500 dark:text-neutral-400 font-mono flex items-center gap-1.5 truncate">
                                   <span>@{acc.username}</span>
-                                  <span className="text-neutral-300">•</span>
+                                  <span className="text-neutral-300 dark:text-neutral-600">•</span>
                                   <span className="capitalize">{acc.role.replace('_', ' ')}</span>
                                 </div>
                               </div>
@@ -496,12 +516,12 @@ export const LoginView: React.FC = () => {
 
                             <div className="flex items-center gap-1 shrink-0 ml-2">
                               {isSelected && (
-                                <span className="w-2 h-2 rounded-full bg-sky-600 mr-1" title="Seleccionado" />
+                                <span className="w-2 h-2 rounded-full bg-sky-600 dark:bg-sky-400 mr-1" title="Seleccionado" />
                               )}
                               <button
                                 type="button"
                                 onClick={(e) => handleRemoveQuickAccount(e, acc.username)}
-                                className="text-neutral-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 border border-transparent hover:border-red-200 transition-colors cursor-pointer"
+                                className="text-neutral-400 hover:text-red-600 dark:hover:text-red-400 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 border border-transparent hover:border-red-200 dark:hover:border-red-900 transition-colors cursor-pointer"
                                 title="Eliminar de inicio rápido"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -552,7 +572,7 @@ export const LoginView: React.FC = () => {
                   {/* Campo Contraseña */}
                   <div>
                     <div className="flex flex-col gap-1.5 w-full">
-                      <label className="text-xs font-semibold text-neutral-700 tracking-wide flex items-center justify-between">
+                      <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 tracking-wide flex items-center justify-between">
                         <span>
                           Contraseña {selectedQuickAccount && !showManualForm && `para ${selectedQuickAccount.fullName}`}
                         </span>
@@ -566,12 +586,12 @@ export const LoginView: React.FC = () => {
                           disabled={isLoading}
                           required
                           autoFocus={!showManualForm && quickAccounts.length > 0}
-                          className="h-10 w-full pl-3 pr-10 text-sm bg-white border border-neutral-300 rounded-lg text-neutral-900 placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 font-mono"
+                          className="h-10 w-full pl-3 pr-10 text-sm bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 font-mono"
                         />
                         <button
                           type="button"
                           onClick={() => setShowPassword((prev) => !prev)}
-                          className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-600 p-0.5 rounded cursor-pointer"
+                          className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-0.5 rounded cursor-pointer"
                           title={showPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
                         >
                           {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -587,7 +607,7 @@ export const LoginView: React.FC = () => {
                           setChangeUsername(usernameOrEmail);
                           setErrorMessage('');
                         }}
-                        className="text-neutral-500 hover:text-sky-700 hover:underline cursor-pointer"
+                        className="text-neutral-500 dark:text-neutral-400 hover:text-sky-700 dark:hover:text-sky-400 hover:underline cursor-pointer"
                       >
                         Cambiar clave
                       </button>
@@ -599,7 +619,7 @@ export const LoginView: React.FC = () => {
                           setRecoveryStep(1);
                           setErrorMessage('');
                         }}
-                        className="text-neutral-500 hover:text-sky-700 hover:underline cursor-pointer"
+                        className="text-neutral-500 dark:text-neutral-400 hover:text-sky-700 dark:hover:text-sky-400 hover:underline cursor-pointer"
                       >
                         ¿Olvidó su contraseña?
                       </button>
@@ -607,18 +627,18 @@ export const LoginView: React.FC = () => {
                   </div>
 
                   {/* Casilla de Inicio Rápido */}
-                  <label className="flex items-start gap-2.5 cursor-pointer text-xs text-neutral-700 select-none pt-1">
+                  <label className="flex items-start gap-2.5 cursor-pointer text-xs text-neutral-700 dark:text-neutral-300 select-none pt-1">
                     <input
                       type="checkbox"
                       checked={saveQuickLogin}
                       onChange={(e) => setSaveQuickLogin(e.target.checked)}
-                      className="mt-0.5 rounded border-neutral-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
+                      className="mt-0.5 rounded border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-sky-600 focus:ring-sky-500 cursor-pointer"
                     />
                     <div className="flex flex-col">
-                      <span className="font-semibold text-neutral-800">
+                      <span className="font-semibold text-neutral-800 dark:text-neutral-200">
                         Guardar para Inicio Rápido en este equipo
                       </span>
-                      <span className="text-[11px] text-neutral-500">
+                      <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
                         Permite iniciar sesión fácilmente con 1-clic desde este navegador
                       </span>
                     </div>
@@ -636,13 +656,13 @@ export const LoginView: React.FC = () => {
                 </form>
 
                 {/* Botón y Bloque de Ayuda Demo */}
-                <div className="pt-3 border-t border-neutral-100 flex flex-col gap-2.5">
+                <div className="pt-3 border-t border-neutral-100 dark:border-neutral-800 flex flex-col gap-2.5">
                   <button
                     type="button"
                     onClick={handleFillDemo}
-                    className="w-full py-2 px-3 rounded-lg border border-neutral-200 hover:bg-neutral-50 text-xs font-medium text-neutral-700 flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                    className="w-full py-2 px-3 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 text-xs font-medium text-neutral-700 dark:text-neutral-300 flex items-center justify-center gap-2 transition-colors cursor-pointer"
                   >
-                    <KeyRound className="w-3.5 h-3.5 text-neutral-500" />
+                    <KeyRound className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
                     <span>Cargar Credenciales de Demo (Admin)</span>
                   </button>
                 </div>
@@ -654,7 +674,7 @@ export const LoginView: React.FC = () => {
             {/* ========================================================================= */}
             {mode === 'CHANGE_PASSWORD' && (
               <div className="space-y-4">
-                <div className="border-b border-neutral-100 pb-3 flex items-center justify-between">
+                <div className="border-b border-neutral-100 dark:border-neutral-800 pb-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
@@ -662,14 +682,14 @@ export const LoginView: React.FC = () => {
                         setMode('LOGIN');
                         setChangeError('');
                       }}
-                      className="p-1 text-neutral-400 hover:text-neutral-700 rounded-lg hover:bg-neutral-100 cursor-pointer"
+                      className="p-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer"
                       title="Volver al Login (Esc)"
                     >
                       <ArrowLeft className="w-4 h-4" />
                     </button>
                     <div>
-                      <h2 className="text-lg font-bold text-neutral-900">Cambiar Contraseña</h2>
-                      <p className="text-xs text-neutral-500">
+                      <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">Cambiar Contraseña</h2>
+                      <p className="text-xs text-neutral-500 dark:text-neutral-400">
                         Actualice su clave corporativa de acceso
                       </p>
                     </div>
@@ -695,7 +715,7 @@ export const LoginView: React.FC = () => {
                   />
 
                   <div className="flex flex-col gap-1.5 w-full">
-                    <label className="text-xs font-semibold text-neutral-700 tracking-wide">
+                    <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 tracking-wide">
                       Contraseña Actual *
                     </label>
                     <div className="relative">
@@ -706,12 +726,12 @@ export const LoginView: React.FC = () => {
                         placeholder="••••••••"
                         disabled={isChangingPassword}
                         required
-                        className="h-10 w-full pl-3 pr-10 text-sm bg-white border border-neutral-300 rounded-lg text-neutral-900 focus-visible:ring-2 focus-visible:ring-sky-500 font-mono"
+                        className="h-10 w-full pl-3 pr-10 text-sm bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500 font-mono"
                       />
                       <button
                         type="button"
                         onClick={() => setShowChangePasswords((prev) => !prev)}
-                        className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-600 p-0.5 rounded cursor-pointer"
+                        className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-0.5 rounded cursor-pointer"
                       >
                         {showChangePasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
@@ -719,7 +739,7 @@ export const LoginView: React.FC = () => {
                   </div>
 
                   <div className="flex flex-col gap-1.5 w-full">
-                    <label className="text-xs font-semibold text-neutral-700 tracking-wide">
+                    <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 tracking-wide">
                       Nueva Contraseña (mínimo 6 caracteres) *
                     </label>
                     <input
@@ -729,12 +749,12 @@ export const LoginView: React.FC = () => {
                       placeholder="••••••••"
                       disabled={isChangingPassword}
                       required
-                      className="h-10 w-full px-3 text-sm bg-white border border-neutral-300 rounded-lg text-neutral-900 focus-visible:ring-2 focus-visible:ring-sky-500 font-mono"
+                      className="h-10 w-full px-3 text-sm bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500 font-mono"
                     />
                   </div>
 
                   <div className="flex flex-col gap-1.5 w-full">
-                    <label className="text-xs font-semibold text-neutral-700 tracking-wide">
+                    <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 tracking-wide">
                       Confirmar Nueva Contraseña *
                     </label>
                     <input
@@ -744,11 +764,11 @@ export const LoginView: React.FC = () => {
                       placeholder="••••••••"
                       disabled={isChangingPassword}
                       required
-                      className="h-10 w-full px-3 text-sm bg-white border border-neutral-300 rounded-lg text-neutral-900 focus-visible:ring-2 focus-visible:ring-sky-500 font-mono"
+                      className="h-10 w-full px-3 text-sm bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500 font-mono"
                     />
                   </div>
 
-                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-100">
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-100 dark:border-neutral-800">
                     <Button
                       type="button"
                       variant="outline"
@@ -777,7 +797,7 @@ export const LoginView: React.FC = () => {
             {/* ========================================================================= */}
             {mode === 'RECOVER_PASSWORD' && (
               <div className="space-y-4">
-                <div className="border-b border-neutral-100 pb-3 flex items-center justify-between">
+                <div className="border-b border-neutral-100 dark:border-neutral-800 pb-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
@@ -786,21 +806,21 @@ export const LoginView: React.FC = () => {
                         setRecoverError('');
                         setRecoveryStep(1);
                       }}
-                      className="p-1 text-neutral-400 hover:text-neutral-700 rounded-lg hover:bg-neutral-100 cursor-pointer"
+                      className="p-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer"
                       title="Volver al Login (Esc)"
                     >
                       <ArrowLeft className="w-4 h-4" />
                     </button>
                     <div>
-                      <h2 className="text-lg font-bold text-neutral-900">Recuperar Acceso</h2>
-                      <p className="text-xs text-neutral-500">
+                      <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">Recuperar Acceso</h2>
+                      <p className="text-xs text-neutral-500 dark:text-neutral-400">
                         {recoveryStep === 1
                           ? 'Identificación de usuario o correo corporativo'
                           : 'Validación de código y asignación de nueva clave'}
                       </p>
                     </div>
                   </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 bg-sky-50 text-sky-800 rounded border border-sky-200">
+                  <span className="text-[10px] font-bold px-2 py-0.5 bg-sky-50 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300 rounded border border-sky-200 dark:border-sky-800">
                     Paso {recoveryStep} de 2
                   </span>
                 </div>
@@ -814,7 +834,7 @@ export const LoginView: React.FC = () => {
 
                 {recoveryStep === 1 && (
                   <form onSubmit={handleRecoverRequest} className="space-y-3.5 text-xs">
-                    <p className="text-xs text-neutral-600 leading-relaxed">
+                    <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed">
                       Ingrese el nombre de usuario o correo con el que está registrado en el ERP para generar el código de validación.
                     </p>
 
@@ -829,7 +849,7 @@ export const LoginView: React.FC = () => {
                       autoFocus
                     />
 
-                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-100">
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-100 dark:border-neutral-800">
                       <Button
                         type="button"
                         variant="outline"
@@ -855,12 +875,12 @@ export const LoginView: React.FC = () => {
                 {recoveryStep === 2 && (
                   <form onSubmit={handleRecoverSubmit} className="space-y-3.5 text-xs">
                     {recoverInfo && (
-                      <div className="p-3 rounded-lg border border-sky-200 bg-sky-50 text-xs text-sky-900 space-y-1">
+                      <div className="p-3 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/40 text-xs text-sky-900 dark:text-sky-200 space-y-1">
                         <div className="font-semibold flex items-center gap-1.5">
-                          <CheckCircle2 className="w-4 h-4 text-sky-700" />
+                          <CheckCircle2 className="w-4 h-4 text-sky-700 dark:text-sky-400" />
                           Código de verificación generado
                         </div>
-                        <p className="text-[11px] text-sky-800">
+                        <p className="text-[11px] text-sky-800 dark:text-sky-300">
                           {recoverInfo.maskedEmail && `Asociado a: ${recoverInfo.maskedEmail}. `}
                           {recoverInfo.hint || 'Ingrese el código de 6 dígitos para autorizar el cambio.'}
                         </p>
@@ -880,7 +900,7 @@ export const LoginView: React.FC = () => {
                     />
 
                     <div className="flex flex-col gap-1.5 w-full">
-                      <label className="text-xs font-semibold text-neutral-700 tracking-wide">
+                      <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 tracking-wide">
                         Nueva Contraseña *
                       </label>
                       <div className="relative">
@@ -891,12 +911,12 @@ export const LoginView: React.FC = () => {
                           placeholder="••••••••"
                           disabled={isRecovering}
                           required
-                          className="h-10 w-full pl-3 pr-10 text-sm bg-white border border-neutral-300 rounded-lg text-neutral-900 focus-visible:ring-2 focus-visible:ring-sky-500 font-mono"
+                          className="h-10 w-full pl-3 pr-10 text-sm bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500 font-mono"
                         />
                         <button
                           type="button"
                           onClick={() => setShowRecoverPasswords((prev) => !prev)}
-                          className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-600 p-0.5 rounded cursor-pointer"
+                          className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-0.5 rounded cursor-pointer"
                         >
                           {showRecoverPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
@@ -904,7 +924,7 @@ export const LoginView: React.FC = () => {
                     </div>
 
                     <div className="flex flex-col gap-1.5 w-full">
-                      <label className="text-xs font-semibold text-neutral-700 tracking-wide">
+                      <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 tracking-wide">
                         Confirmar Nueva Contraseña *
                       </label>
                       <input
@@ -914,11 +934,11 @@ export const LoginView: React.FC = () => {
                         placeholder="••••••••"
                         disabled={isRecovering}
                         required
-                        className="h-10 w-full px-3 text-sm bg-white border border-neutral-300 rounded-lg text-neutral-900 focus-visible:ring-2 focus-visible:ring-sky-500 font-mono"
+                        className="h-10 w-full px-3 text-sm bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500 font-mono"
                       />
                     </div>
 
-                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-100">
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-100 dark:border-neutral-800">
                       <Button
                         type="button"
                         variant="outline"
@@ -943,7 +963,7 @@ export const LoginView: React.FC = () => {
         </div>
 
         {/* Footer Institucional y Cumplimiento SENIAT */}
-        <div className="pt-6 mt-8 border-t border-neutral-100 flex items-center justify-between text-[11px] text-neutral-400">
+        <div className="pt-6 mt-8 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between text-[11px] text-neutral-400 dark:text-neutral-500">
           <span className="flex items-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-sky-600" />
             <span>Providencias SENIAT SNAT/2024</span>

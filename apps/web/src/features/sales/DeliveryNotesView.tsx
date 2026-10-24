@@ -217,8 +217,6 @@ export const DeliveryNotesView: React.FC = () => {
       else if (isAddingFromSearch) setIsAddingFromSearch(false);
       else if (isImportQuotationOpen) setIsImportQuotationOpen(false);
       else if (viewingDelivery) setViewingDelivery(null);
-      else if (isImportQuotationOpen) setIsImportQuotationOpen(false);
-      else if (viewingDelivery) setViewingDelivery(null);
       else if (invoicingDelivery) setInvoicingDelivery(null);
       else if (isCreateOpen) setIsCreateOpen(false);
     },
@@ -313,13 +311,6 @@ export const DeliveryNotesView: React.FC = () => {
           if (firstActive && !customerId) {
             setCustomerId(firstActive.id);
           }
-        }
-      }
-
-      if (summaryRes.ok) {
-        const sJson = await summaryRes.json();
-        if (sJson.success && Array.isArray(sJson.data)) {
-          setCustomersSummary(sJson.data);
         }
       }
 
@@ -426,6 +417,157 @@ export const DeliveryNotesView: React.FC = () => {
       ]);
     }
     setIsCreateOpen(true);
+  };
+
+  const handleOpenImportModal = async () => {
+    setIsImportQuotationOpen(true);
+    setLoadingQuotations(true);
+    try {
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const params = new URLSearchParams();
+      if (activeBranchId) params.append("branchId", activeBranchId);
+      params.append("forDelivery", "true");
+      const res = await fetch(`/api/sales/quotations?${params.toString()}`, {
+        headers,
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          setQuotationsList(json.data);
+        } else {
+          setQuotationsList([]);
+        }
+      } else {
+        setQuotationsList([]);
+      }
+    } catch {
+      setQuotationsList([]);
+    } finally {
+      setLoadingQuotations(false);
+    }
+  };
+
+  const handleSelectQuotationToImport = async (quot: QuotationOption) => {
+    // Validar que esté previamente facturada
+    if (quot.status !== "CONVERTED") {
+      toast.error(
+        `Solo se pueden despachar cotizaciones previamente facturadas. La cotización ${quot.quotationNumber} no ha sido facturada aún.`,
+      );
+      return;
+    }
+
+    try {
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const res = await fetch(`/api/sales/quotations/${quot.id}`, { headers });
+      if (!res.ok) {
+        toast.error("No se pudo obtener el detalle de la cotización");
+        return;
+      }
+      const json = await res.json();
+      if (!json.success || !json.data) {
+        toast.error("Error al procesar la cotización");
+        return;
+      }
+
+      const fullQuot = json.data;
+      if (!Array.isArray(fullQuot.items) || fullQuot.items.length === 0) {
+        toast.error("La cotización no contiene productos para despachar");
+        return;
+      }
+
+      // Filtrar únicamente los ítems que aún tengan cantidades pendientes por entregar
+      const itemsWithPending = fullQuot.items.filter((i: any) => {
+        const pending =
+          i.quantityPending !== undefined
+            ? Number(i.quantityPending)
+            : Number(i.quantity);
+        return pending > 0;
+      });
+
+      if (itemsWithPending.length === 0) {
+        toast.error(
+          `La cotización ${fullQuot.quotationNumber} ya fue entregada al 100%. No posee productos pendientes por despachar.`,
+        );
+        return;
+      }
+
+      const targetCustomerId = fullQuot.customerId || quot.customerId;
+      const targetCust = availableCustomers.find((c) => c.id === targetCustomerId);
+      if (targetCust?.isBlocked) {
+        toast.error(
+          `La cotización ${fullQuot.quotationNumber} pertenece al cliente "${targetCust.name}" que se encuentra BLOQUEADO. Motivo: ${targetCust.blockReason || 'Consulte con administración'}. No se permite emitir notas de entrega.`
+        );
+        return;
+      }
+
+      setCustomerId(targetCustomerId);
+      setSelectedQuotation({
+        id: fullQuot.id,
+        number: fullQuot.quotationNumber,
+        total: Number(fullQuot.totalAmount || 0),
+        status: fullQuot.status,
+      });
+      setQuotationRef(fullQuot.quotationNumber);
+
+      const mapped: NewDeliveryItem[] = itemsWithPending.map((i: any) => {
+        const qtyToDeliver =
+          i.quantityPending !== undefined && Number(i.quantityPending) > 0
+            ? Number(i.quantityPending)
+            : Number(i.quantity || 1);
+
+        return {
+          productId: i.productId,
+          productName: i.productName || "",
+          sku: i.productSku || "",
+          quantityDelivered: qtyToDeliver,
+          unitPrice: Number(i.unitPrice || 0),
+          total: Number((qtyToDeliver * (i.unitPrice || 0)).toFixed(2)),
+          notes:
+            i.notes ||
+            (Number(i.quantityDelivered || 0) > 0
+              ? `Entrega restante (${qtyToDeliver} de ${i.quantity} cotizados)`
+              : undefined),
+          quotationItemId: i.id || null,
+        };
+      });
+
+      setDeliveryItems(mapped);
+      setIsImportQuotationOpen(false);
+      setIsCreateOpen(true);
+      toast.success(
+        `Cotización facturada ${fullQuot.quotationNumber} importada con ${mapped.length} producto(s) pendiente(s) por despachar.`,
+      );
+    } catch {
+      toast.error("Error de comunicación con el servidor al importar");
+    }
+  };
+
+  const handleClearQuotationBinding = () => {
+    setSelectedQuotation(null);
+    setQuotationRef("");
+    toast.info("Vinculación con cotización eliminada. Despacho directo.");
+  };
+
+  const handleViewDetail = async (id: string) => {
+    setLoadingDetail(true);
+    try {
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const res = await fetch(`/api/sales/deliveries/${id}`, { headers });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          setViewingDelivery(json.data);
+        } else {
+          toast.error("No se pudo obtener el detalle de la nota de entrega");
+        }
+      } else {
+        toast.error("Error al consultar el despacho");
+      }
+    } catch {
+      toast.error("Error de comunicación con el servidor");
+    } finally {
+      setLoadingDetail(false);
+    }
   };
 
   const handleAddItem = () => {

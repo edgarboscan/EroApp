@@ -318,8 +318,8 @@ export const CollectionsView: React.FC = () => {
           Volver a CxC
         </Button>
         <div>
-          <h1 className="text-xl font-bold text-neutral-900">Registro de Cobranza</h1>
-          <p className="text-xs text-neutral-500 mt-0.5">
+          <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">Registro de Cobranza</h1>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
             Abono o liquidación de cuentas por cobrar comerciales
           </p>
         </div>
@@ -330,13 +330,13 @@ export const CollectionsView: React.FC = () => {
           {/* Selección de Cuenta por Cobrar */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-semibold text-neutral-700">
+              <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                 Seleccione la Factura / Cuenta por Cobrar Pendiente
               </label>
               <button
                 type="button"
                 onClick={() => setShowInvoiceSearch(true)}
-                className="text-xs text-sky-600 hover:text-sky-700 font-medium flex items-center gap-1 cursor-pointer"
+                className="text-xs text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 font-medium flex items-center gap-1 cursor-pointer"
               >
                 <Search className="w-3.5 h-3.5" />
                 <span>Buscar en modal</span>
@@ -346,7 +346,7 @@ export const CollectionsView: React.FC = () => {
               <select
                 value={selectedReceivableId}
                 onChange={(e) => setSelectedReceivableId(e.target.value)}
-                className="flex-1 h-11 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500"
+                className="flex-1 h-11 px-3 text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500"
               >
                 {receivables.map((r) => {
                   const typeLabel = r.documentType === 'DEBIT_NOTE' ? '[ND]' : '[FAC]';
@@ -364,7 +364,7 @@ export const CollectionsView: React.FC = () => {
                 title="Buscar factura o cliente pendiente"
                 className="h-11 px-3 shrink-0 flex items-center gap-1.5 text-xs"
               >
-                <Search className="w-4 h-4 text-neutral-500" />
+                <Search className="w-4 h-4 text-neutral-500 dark:text-neutral-400" />
                 <span>Buscar</span>
               </Button>
             </div>
@@ -372,14 +372,14 @@ export const CollectionsView: React.FC = () => {
 
           {/* Banner de Saldo a Favor por Notas de Crédito Disponibles */}
           {totalAvailableCreditUSD > 0.005 && (
-            <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-emerald-900">
+            <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-emerald-900 dark:text-emerald-200">
               <div className="flex items-start gap-2.5">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-bold text-emerald-950">
+                  <div className="font-bold text-emerald-950 dark:text-emerald-100">
                     Saldo a Favor de Notas de Crédito: {formatMoneyUSD(totalAvailableCreditUSD)}
                   </div>
-                  <div className="text-[11px] text-emerald-800 mt-0.5">
+                  <div className="text-[11px] text-emerald-800 dark:text-emerald-300 mt-0.5">
                     Este cliente posee {availableCredits.length} Nota(s) de Crédito activas con saldo disponible para compensar esta deuda.
                   </div>
                 </div>
@@ -396,7 +396,7 @@ export const CollectionsView: React.FC = () => {
                     setAmount(Number(maxUsable.toFixed(2)));
                   }
                 }}
-                className="bg-white border-emerald-300 text-emerald-800 hover:bg-emerald-100 shrink-0"
+                className="bg-white dark:bg-neutral-800 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100 dark:hover:bg-neutral-700 shrink-0"
               >
                 <RotateCcw className="w-3.5 h-3.5 mr-1" />
                 Compensar con Nota de Crédito
@@ -406,33 +406,33 @@ export const CollectionsView: React.FC = () => {
 
           {/* Resumen de la Factura Seleccionada */}
           {selectedReceivable && (
-            <div className="p-4 bg-neutral-50 rounded-lg border border-neutral-200 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="p-4 bg-neutral-50 dark:bg-neutral-850 rounded-lg border border-neutral-200 dark:border-neutral-800 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               <div>
-                <span className="text-neutral-500 block">Cliente:</span>
-                <span className="font-semibold text-neutral-900 block truncate">
+                <span className="text-neutral-500 dark:text-neutral-400 block">Cliente:</span>
+                <span className="font-semibold text-neutral-900 dark:text-neutral-100 block truncate">
                   {selectedReceivable.customerName}
                 </span>
-                <span className="text-[10px] text-neutral-400 font-mono">
+                <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono">
                   {selectedReceivable.customerDoc}
                 </span>
               </div>
               <div>
-                <span className="text-neutral-500 block">
+                <span className="text-neutral-500 dark:text-neutral-400 block">
                   {selectedReceivable.documentType === 'DEBIT_NOTE' ? 'Tipo Documento:' : 'Monto Original:'}
                 </span>
-                <span className="font-semibold text-neutral-900 block font-mono">
+                <span className="font-semibold text-neutral-900 dark:text-neutral-100 block font-mono">
                   {selectedReceivable.documentType === 'DEBIT_NOTE' ? 'Nota de Débito' : formatMoneyUSD(selectedReceivable.amountTotal)}
                 </span>
               </div>
               <div>
-                <span className="text-neutral-500 block">Abonado Previo:</span>
-                <span className="font-semibold text-emerald-700 block font-mono">
+                <span className="text-neutral-500 dark:text-neutral-400 block">Abonado Previo:</span>
+                <span className="font-semibold text-emerald-700 dark:text-emerald-400 block font-mono">
                   {formatMoneyUSD(selectedReceivable.amountPaid)}
                 </span>
               </div>
               <div>
-                <span className="text-neutral-500 block">Saldo Pendiente:</span>
-                <span className="font-bold text-amber-700 block font-mono text-sm">
+                <span className="text-neutral-500 dark:text-neutral-400 block">Saldo Pendiente:</span>
+                <span className="font-bold text-amber-700 dark:text-amber-400 block font-mono text-sm">
                   {formatMoneyUSD(selectedReceivable.amountBalance)}
                 </span>
               </div>
@@ -442,10 +442,10 @@ export const CollectionsView: React.FC = () => {
           {/* Medio de Pago Cargado de la Base de Datos */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-semibold text-neutral-700">
+              <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                 Forma de Pago del Cliente
               </label>
-              <span className="text-[10px] text-neutral-400">
+              <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
                 Configurados en base de datos
               </span>
             </div>
@@ -453,11 +453,11 @@ export const CollectionsView: React.FC = () => {
             {isPaymentMethodsLoading ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                 {Array.from({ length: 6 }).map((_, idx) => (
-                  <div key={idx} className="h-16 bg-neutral-100 rounded-lg animate-pulse" />
+                  <div key={idx} className="h-16 bg-neutral-100 dark:bg-neutral-800 rounded-lg animate-pulse" />
                 ))}
               </div>
             ) : paymentMethods.length === 0 ? (
-              <div className="p-4 bg-neutral-50 rounded-lg border border-neutral-200 text-center text-xs text-neutral-500">
+              <div className="p-4 bg-neutral-50 dark:bg-neutral-850 rounded-lg border border-neutral-200 dark:border-neutral-800 text-center text-xs text-neutral-500 dark:text-neutral-400">
                 No se encontraron medios de pago activos en el sistema.
               </div>
             ) : (
@@ -469,30 +469,30 @@ export const CollectionsView: React.FC = () => {
                     onClick={() => handleSelectPaymentMethod(m)}
                     className={`p-3 rounded-lg border text-left cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${
                       paymentMethodCode === m.code
-                        ? 'border-sky-600 bg-sky-50/50 ring-2 ring-sky-500'
-                        : 'border-neutral-200 bg-white hover:border-neutral-300'
+                        ? 'border-sky-600 bg-sky-50/50 dark:bg-sky-950/40 ring-2 ring-sky-500'
+                        : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-850 hover:border-neutral-300 dark:hover:border-neutral-700'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-1">
-                      <span className="text-xs font-semibold text-neutral-900 truncate">
+                      <span className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 truncate">
                         {m.name}
                       </span>
                       <span
                         className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-lg border shrink-0 ${
                           m.currency === 'USD'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : 'bg-sky-50 text-sky-700 border-sky-200'
+                            ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                            : 'bg-sky-50 dark:bg-sky-950/50 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800'
                         }`}
                       >
                         {m.currency}
                       </span>
                     </div>
-                    <div className="text-[10px] text-neutral-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
                       {m.requiresReference && (
-                        <span className="text-rose-600 font-medium">• Ref. requerida</span>
+                        <span className="text-rose-600 dark:text-rose-400 font-medium">• Ref. requerida</span>
                       )}
                       {m.requiresBankAccount ? (
-                        <span className="text-purple-700 font-medium">• Conciliable</span>
+                        <span className="text-purple-700 dark:text-purple-400 font-medium">• Conciliable</span>
                       ) : (
                         <span>• Caja / Efectivo</span>
                       )}
@@ -505,18 +505,18 @@ export const CollectionsView: React.FC = () => {
 
           {/* Cuenta Bancaria de Destino (Tesorería) */}
           {paymentMethodCode !== 'NOTA_CREDITO' && (
-            <div className="p-3.5 bg-neutral-50 rounded-lg border border-neutral-200 space-y-2">
+            <div className="p-3.5 bg-neutral-50 dark:bg-neutral-850 rounded-lg border border-neutral-200 dark:border-neutral-800 space-y-2">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                <label className="text-xs font-semibold text-neutral-800 flex items-center gap-1.5">
-                  <Building2 className="w-4 h-4 text-sky-600" />
+                <label className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
+                  <Building2 className="w-4 h-4 text-sky-600 dark:text-sky-400" />
                   <span>Cuenta Bancaria Receptora (Tesorería)</span>
                   {selectedMethod?.requiresBankAccount && (
-                    <span className="text-[10px] text-rose-600 font-bold ml-1">
+                    <span className="text-[10px] text-rose-600 dark:text-rose-400 font-bold ml-1">
                       * Requerido para conciliación
                     </span>
                   )}
                 </label>
-                <span className="text-[10px] text-neutral-500">
+                <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
                   Se generará el registro en el libro de banco para la conciliación bancaria
                 </span>
               </div>
@@ -524,10 +524,10 @@ export const CollectionsView: React.FC = () => {
                 value={selectedBankAccountId}
                 onChange={(e) => setSelectedBankAccountId(e.target.value)}
                 required={selectedMethod?.requiresBankAccount}
-                className={`w-full h-10 px-3 text-xs bg-white border rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500 ${
+                className={`w-full h-10 px-3 text-xs bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 border rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500 ${
                   selectedMethod?.requiresBankAccount && !selectedBankAccountId
-                    ? 'border-rose-400 ring-1 ring-rose-200'
-                    : 'border-neutral-300'
+                    ? 'border-rose-400 ring-1 ring-rose-200 dark:ring-rose-900'
+                    : 'border-neutral-300 dark:border-neutral-700'
                 }`}
               >
                 {!selectedMethod?.requiresBankAccount && (
@@ -549,13 +549,13 @@ export const CollectionsView: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-semibold text-neutral-700">
+                <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                   Monto a Cobrar ($ USD)
                 </label>
                 <button
                   type="button"
                   onClick={handlePayFull}
-                  className="text-[11px] text-sky-700 hover:text-sky-800 underline font-medium cursor-pointer"
+                  className="text-[11px] text-sky-700 dark:text-sky-400 hover:text-sky-800 dark:hover:text-sky-300 underline font-medium cursor-pointer"
                 >
                   Saldar Total
                 </button>
@@ -568,10 +568,10 @@ export const CollectionsView: React.FC = () => {
                 onChange={(e) => setAmount(Number(e.target.value))}
                 required
               />
-              <div className="text-[11px] text-neutral-500 mt-1 font-mono">
+              <div className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 font-mono">
                 {selectedMethod?.currency === 'VES' ? (
                   <span>
-                    Equivalente en Bolívares: <strong className="text-neutral-900">{formatMoneyVES(amountVES)}</strong> (Tasa: {formatExchangeRate(exchangeRateBCV, 2)})
+                    Equivalente en Bolívares: <strong className="text-neutral-900 dark:text-neutral-100">{formatMoneyVES(amountVES)}</strong> (Tasa: {formatExchangeRate(exchangeRateBCV, 2)})
                   </span>
                 ) : (
                   <span>
@@ -583,17 +583,17 @@ export const CollectionsView: React.FC = () => {
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-semibold text-neutral-700">
+                <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                   {paymentMethodCode === 'NOTA_CREDITO'
                     ? 'Nota de Crédito a Aplicar'
                     : 'Número de Referencia / Comprobante'}
                 </label>
                 {selectedMethod?.requiresReference || paymentMethodCode === 'NOTA_CREDITO' ? (
-                  <span className="text-[10px] text-rose-600 font-bold">
+                  <span className="text-[10px] text-rose-600 dark:text-rose-400 font-bold">
                     * Obligatorio
                   </span>
                 ) : (
-                  <span className="text-[10px] text-neutral-400">
+                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
                     Opcional
                   </span>
                 )}
@@ -610,14 +610,14 @@ export const CollectionsView: React.FC = () => {
                       );
                       if (sel && selectedReceivable) {
                         const maxCompensable = Math.min(
-                          selectedReceivable.amountBalance,
-                          sel.amountBalance
+                           selectedReceivable.amountBalance,
+                           sel.amountBalance
                         );
                         setAmount(Number(maxCompensable.toFixed(2)));
                       }
                     }}
                     required
-                    className="w-full h-10 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500"
+                    className="w-full h-10 px-3 text-xs bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 border border-neutral-300 dark:border-neutral-700 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500"
                   >
                     <option value="">-- Seleccione la Nota de Crédito --</option>
                     {availableCredits.map((c) => (
@@ -627,7 +627,7 @@ export const CollectionsView: React.FC = () => {
                     ))}
                   </select>
                 ) : (
-                  <div className="p-2.5 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg">
+                  <div className="p-2.5 text-xs text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-lg">
                     El cliente no posee Notas de Crédito activas con saldo a favor disponible.
                   </div>
                 )
@@ -643,7 +643,7 @@ export const CollectionsView: React.FC = () => {
                   required={selectedMethod?.requiresReference}
                   className={
                     selectedMethod?.requiresReference && !referenceNumber.trim()
-                      ? 'border-rose-300 focus-visible:ring-rose-500'
+                      ? 'border-rose-300 dark:border-rose-700 focus-visible:ring-rose-500'
                       : ''
                   }
                 />
@@ -658,7 +658,7 @@ export const CollectionsView: React.FC = () => {
             onChange={(e) => setNotes(e.target.value)}
           />
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-neutral-100">
+          <div className="flex justify-end gap-3 pt-4 border-t border-neutral-100 dark:border-neutral-800">
             <Button
               type="button"
               variant="outline"

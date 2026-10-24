@@ -68,6 +68,7 @@ export interface ProductItem {
   name: string;
   description?: string;
   productType?: "physical" | "service" | "kit" | "raw_material";
+  tracksInventory?: boolean;
   departmentId?: string;
   departmentName?: string;
   groupId?: string;
@@ -210,6 +211,7 @@ export const ProductCatalog: React.FC = () => {
     name: string;
     description: string;
     productType: "physical" | "service" | "kit" | "raw_material";
+    tracksInventory: boolean;
     departmentId: string;
     groupId: string;
     subgroupId: string;
@@ -237,6 +239,7 @@ export const ProductCatalog: React.FC = () => {
     name: "",
     description: "",
     productType: "physical",
+    tracksInventory: true,
     departmentId: "",
     groupId: "",
     subgroupId: "",
@@ -418,6 +421,7 @@ export const ProductCatalog: React.FC = () => {
       name: "",
       description: "",
       productType: "physical",
+      tracksInventory: true,
       departmentId: departments[0]?.id || "",
       groupId: "",
       subgroupId: "",
@@ -464,6 +468,7 @@ export const ProductCatalog: React.FC = () => {
         name: p.name || "",
         description: p.description || "",
         productType: p.productType || "physical",
+        tracksInventory: p.tracksInventory !== false,
         departmentId: p.departmentId || "",
         groupId: p.groupId || "",
         subgroupId: p.subgroupId || "",
@@ -576,6 +581,7 @@ export const ProductCatalog: React.FC = () => {
         name: productForm.name.trim(),
         description: productForm.description?.trim() || null,
         productType: productForm.productType || "physical",
+        tracksInventory: Boolean(productForm.tracksInventory),
         departmentId: productForm.departmentId?.trim() || null,
         groupId: productForm.groupId?.trim() || null,
         subgroupId: productForm.subgroupId?.trim() || null,
@@ -1132,6 +1138,11 @@ export const ProductCatalog: React.FC = () => {
                   Lotes & Vence
                 </span>
               )}
+              {row.tracksInventory === false && (
+                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-lg bg-neutral-100 text-neutral-600 border border-neutral-200">
+                  Sin control de stock
+                </span>
+              )}
             </div>
           </div>
         );
@@ -1218,6 +1229,13 @@ export const ProductCatalog: React.FC = () => {
     {
       header: "Stock",
       cell: (row) => {
+        if (row.tracksInventory === false) {
+          return (
+            <span className="text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
+              Sin control
+            </span>
+          );
+        }
         const stock = row.currentStock || 0;
         const min = row.minStock || 5;
         let colorClass = "text-neutral-900 font-medium";
@@ -1607,12 +1625,14 @@ export const ProductCatalog: React.FC = () => {
                   </label>
                   <select
                     value={productForm.productType}
-                    onChange={(e: any) =>
+                    onChange={(e: any) => {
+                      const newType = e.target.value;
                       setProductForm({
                         ...productForm,
-                        productType: e.target.value,
-                      })
-                    }
+                        productType: newType,
+                        tracksInventory: newType === "service" ? false : productForm.tracksInventory,
+                      });
+                    }}
                     className="w-full h-10 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
                   >
                     <option value="physical">Físico / Mercancía</option>
@@ -1782,6 +1802,47 @@ export const ProductCatalog: React.FC = () => {
                     className="w-full h-10 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
                   />
                 </div>
+              </div>
+
+              {/* Control de Manejo de Inventario */}
+              <div className="border border-neutral-200 rounded-lg p-3 bg-neutral-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-2.5">
+                  <div className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${productForm.tracksInventory ? 'bg-sky-100 text-sky-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                    <Boxes className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-neutral-900 flex items-center gap-2">
+                      <span>Control de Inventario / Existencias</span>
+                      {productForm.tracksInventory ? (
+                        <Badge variant="info">Maneja Inventario</Badge>
+                      ) : (
+                        <Badge variant="success">Sin Control de Stock</Badge>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-neutral-500 mt-0.5">
+                      {productForm.tracksInventory
+                        ? "El producto valida existencias disponibles, descuenta stock físico en almacén y asienta movimientos en Kardex."
+                        : "El producto se puede vender libremente sin tomar en cuenta la existencia (útil para servicios, preparados, platos, conceptos no inventariables o insumos)."}
+                    </p>
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={productForm.tracksInventory}
+                    onChange={(e) =>
+                      setProductForm({
+                        ...productForm,
+                        tracksInventory: e.target.checked,
+                      })
+                    }
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-neutral-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-600"></div>
+                  <span className="ml-2 text-xs font-semibold text-neutral-700">
+                    {productForm.tracksInventory ? "Activo" : "Inactivo"}
+                  </span>
+                </label>
               </div>
             </div>
           )}
@@ -2151,7 +2212,22 @@ export const ProductCatalog: React.FC = () => {
                 />
               </div>
 
-              <div className="border border-neutral-200 rounded-lg p-3 bg-neutral-50 flex items-center gap-6">
+              <div className="border border-neutral-200 rounded-lg p-3 bg-neutral-50 flex flex-wrap items-center gap-6">
+                <label className="flex items-center gap-2 text-xs text-neutral-800 font-medium cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={productForm.tracksInventory}
+                    onChange={(e) =>
+                      setProductForm({
+                        ...productForm,
+                        tracksInventory: e.target.checked,
+                      })
+                    }
+                    className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500"
+                  />
+                  Controlar Existencias en Inventario
+                </label>
+
                 <label className="flex items-center gap-2 text-xs text-neutral-800 font-medium cursor-pointer">
                   <input
                     type="checkbox"
@@ -2182,6 +2258,13 @@ export const ProductCatalog: React.FC = () => {
                   Manejo de Números de Serie
                 </label>
               </div>
+
+              {!productForm.tracksInventory && (
+                <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center gap-2">
+                  <Info className="w-4 h-4 shrink-0 text-emerald-600" />
+                  <span>Este producto no maneja control de inventario. Se podrá vender sin validar stock disponible ni requerir existencias en almacén.</span>
+                </div>
+              )}
 
               <div className="pt-2">
                 <h4 className="text-xs font-bold text-neutral-900 uppercase mb-2">

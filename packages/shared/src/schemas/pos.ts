@@ -102,6 +102,7 @@ export const cashRegisterSchema = z.object({
   invoiceMode: z.preprocess(normalizeInvoiceMode, z.nativeEnum(POS_INVOICE_MODES)).default(POS_INVOICE_MODES.NORMAL_PRINTER),
   defaultBankAccountIdVES: z.string().optional().nullable(),
   defaultBankAccountIdUSD: z.string().optional().nullable(),
+  allowedDepartmentIds: z.array(z.string()).optional().default([]),
   isActive: z.boolean().optional().default(true),
 });
 

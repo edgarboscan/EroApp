@@ -74,63 +74,63 @@ export const MODULE_METADATA: Record<
 > = {
   sales: {
     label: "Ventas y Facturación",
-    badgeColor: "bg-blue-50 text-blue-700 border-blue-200",
+    badgeColor: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800",
   },
   pos: {
     label: "Punto de Venta (POS)",
-    badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800",
   },
   customers: {
     label: "Clientes y Directorio",
-    badgeColor: "bg-sky-50 text-sky-700 border-sky-200",
+    badgeColor: "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800",
   },
   receivables: {
     label: "Cuentas por Cobrar (CxC)",
-    badgeColor: "bg-indigo-50 text-indigo-700 border-indigo-200",
+    badgeColor: "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800",
   },
   purchases: {
     label: "Compras y Abastecimiento",
-    badgeColor: "bg-purple-50 text-purple-700 border-purple-200",
+    badgeColor: "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800",
   },
   suppliers: {
     label: "Proveedores y Contactos",
-    badgeColor: "bg-violet-50 text-violet-700 border-violet-200",
+    badgeColor: "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-800",
   },
   payables: {
     label: "Cuentas por Pagar (CxP)",
-    badgeColor: "bg-rose-50 text-rose-700 border-rose-200",
+    badgeColor: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800",
   },
   inventory: {
     label: "Inventario y Almacenes",
-    badgeColor: "bg-amber-50 text-amber-700 border-amber-200",
+    badgeColor: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800",
   },
   pricing: {
     label: "Precios y Tasa Oficial",
-    badgeColor: "bg-amber-100 text-amber-800 border-amber-300",
+    badgeColor: "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-700",
   },
   treasury: {
     label: "Tesorería y Cuentas",
-    badgeColor: "bg-teal-50 text-teal-700 border-teal-200",
+    badgeColor: "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800",
   },
   taxes: {
     label: "Impuestos y SENIAT",
-    badgeColor: "bg-red-50 text-red-700 border-red-200",
+    badgeColor: "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800",
   },
   reports: {
     label: "Reportes Gerenciales",
-    badgeColor: "bg-cyan-50 text-cyan-700 border-cyan-200",
+    badgeColor: "bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/40 dark:text-cyan-300 dark:border-cyan-800",
   },
   config: {
     label: "Configuración y Accesos",
-    badgeColor: "bg-neutral-100 text-neutral-800 border-neutral-200",
+    badgeColor: "bg-neutral-100 text-neutral-800 border-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:border-neutral-700",
   },
   dashboards: {
     label: "Dashboards e Indicadores",
-    badgeColor: "bg-orange-50 text-orange-700 border-orange-200",
+    badgeColor: "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800",
   },
   audit: {
     label: "Auditoría y Bitácora",
-    badgeColor: "bg-stone-50 text-stone-700 border-stone-200",
+    badgeColor: "bg-stone-50 text-stone-700 border-stone-200 dark:bg-stone-900/60 dark:text-stone-300 dark:border-stone-800",
   },
 };
 
@@ -1040,10 +1040,10 @@ export const UsersAndRolesView: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-xl font-bold text-neutral-900 tracking-tight">
+          <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100 tracking-tight">
             Usuarios, Roles y Control de Acceso (RBAC)
           </h1>
-          <p className="text-xs text-neutral-500 mt-1">
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
             Gestión centralizada de credenciales, autenticación en dos pasos
             (2FA), roles y matriz de permisos por módulo
           </p>
@@ -1063,13 +1063,13 @@ export const UsersAndRolesView: React.FC = () => {
           )}
 
           {/* Selector de Pestañas */}
-          <div className="flex bg-neutral-100 p-1 rounded-lg border border-neutral-200">
+          <div className="flex bg-neutral-100 dark:bg-neutral-800 p-1 rounded-lg border border-neutral-200 dark:border-neutral-700">
             <button
               onClick={() => setActiveTab("users")}
               className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
                 activeTab === "users"
-                  ? "bg-white text-neutral-900 shadow-sm"
-                  : "text-neutral-600 hover:text-neutral-900"
+                  ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow-sm"
+                  : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100"
               }`}
             >
               <Users className="w-4 h-4" />
@@ -1080,8 +1080,8 @@ export const UsersAndRolesView: React.FC = () => {
               onClick={() => setActiveTab("roles")}
               className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
                 activeTab === "roles"
-                  ? "bg-white text-neutral-900 shadow-sm"
-                  : "text-neutral-600 hover:text-neutral-900"
+                  ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow-sm"
+                  : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100"
               }`}
             >
               <Shield className="w-4 h-4" />
@@ -1093,14 +1093,14 @@ export const UsersAndRolesView: React.FC = () => {
 
       {loading ? (
         <div className="space-y-3">
-          <div className="h-10 bg-neutral-100 animate-pulse rounded-lg" />
-          <div className="h-48 bg-neutral-100 animate-pulse rounded-lg" />
+          <div className="h-10 bg-neutral-100 dark:bg-neutral-800 animate-pulse rounded-lg" />
+          <div className="h-48 bg-neutral-100 dark:bg-neutral-800 animate-pulse rounded-lg" />
         </div>
       ) : activeTab === "users" ? (
         /* VISTA DE USUARIOS */
         <div className="space-y-4">
           {/* Barra de Búsqueda y Filtros */}
-          <div className="bg-white border border-neutral-200 rounded-lg p-3.5 flex flex-col sm:flex-row gap-3 items-center justify-between shadow-sm">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-3.5 flex flex-col sm:flex-row gap-3 items-center justify-between shadow-sm">
             <div className="relative w-full sm:w-80">
               <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -1108,7 +1108,7 @@ export const UsersAndRolesView: React.FC = () => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Buscar por usuario, nombre o email..."
-                className="w-full pl-9 pr-3 py-2 text-xs border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                className="w-full pl-9 pr-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
               />
             </div>
 
@@ -1116,7 +1116,7 @@ export const UsersAndRolesView: React.FC = () => {
               <select
                 value={roleFilter}
                 onChange={(e) => setRoleFilter(e.target.value)}
-                className="px-3 py-2 text-xs border border-neutral-200 rounded-lg bg-white text-neutral-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                className="px-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
               >
                 <option value="ALL">Todos los roles</option>
                 {roles.map((r) => (
@@ -1129,7 +1129,7 @@ export const UsersAndRolesView: React.FC = () => {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2 text-xs border border-neutral-200 rounded-lg bg-white text-neutral-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                className="px-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
               >
                 <option value="ALL">Todos los estados</option>
                 <option value="ACTIVE">Solo Activos</option>
@@ -1139,13 +1139,13 @@ export const UsersAndRolesView: React.FC = () => {
           </div>
 
           {/* Tabla de Usuarios */}
-          <div className="bg-white border border-neutral-200 rounded-lg overflow-hidden shadow-sm">
-            <div className="p-3.5 border-b border-neutral-200 bg-neutral-50 flex items-center justify-between">
-              <h2 className="text-xs font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-2">
-                <UserCheck className="w-4 h-4 text-sky-600" />
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg overflow-hidden shadow-sm">
+            <div className="p-3.5 border-b border-sky-200 dark:border-sky-800 bg-sky-50/60 dark:bg-sky-950/30 flex items-center justify-between">
+              <h2 className="text-xs font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider flex items-center gap-2">
+                <UserCheck className="w-4 h-4 text-sky-600 dark:text-sky-400" />
                 Cuentas de Acceso Registradas ({filteredUsers.length})
               </h2>
-              <span className="text-xs text-neutral-500">
+              <span className="text-xs text-neutral-500 dark:text-neutral-400">
                 {users.filter((u) => u.isActive).length} activos de{" "}
                 {users.length} totales
               </span>
@@ -1153,7 +1153,7 @@ export const UsersAndRolesView: React.FC = () => {
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-neutral-50/50 border-b border-neutral-200 text-neutral-600">
+                <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase text-[10px] tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
                   <tr>
                     <th className="py-2.5 px-4 hidden">Usuario</th>
                     <th className="py-2.5 px-4">Nombre Completo</th>
@@ -1167,12 +1167,12 @@ export const UsersAndRolesView: React.FC = () => {
                     <th className="py-2.5 px-4 text-right">Acciones</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-neutral-200">
+                <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
                   {filteredUsers.length === 0 ? (
                     <tr>
                       <td
                         colSpan={10}
-                        className="py-8 text-center text-neutral-500"
+                        className="py-8 text-center text-neutral-500 dark:text-neutral-400"
                       >
                         No se encontraron usuarios que coincidan con los
                         criterios de búsqueda.
@@ -1182,30 +1182,30 @@ export const UsersAndRolesView: React.FC = () => {
                     filteredUsers.map((u) => (
                       <tr
                         key={u.id}
-                        className="hover:bg-neutral-50/70 transition-colors"
+                        className="hover:bg-neutral-50/70 dark:hover:bg-neutral-800/50 transition-colors"
                       >
-                        <td className="py-3 px-4 font-mono font-bold text-neutral-900 hidden">
+                        <td className="py-3 px-4 font-mono font-bold text-neutral-900 dark:text-neutral-100 hidden">
                           {u.username}
                         </td>
-                        <td className="py-3 px-4 font-medium text-neutral-900 ">
+                        <td className="py-3 px-4 font-medium text-neutral-900 dark:text-neutral-100">
                           {u.fullName}
                         </td>
-                        <td className="py-3 px-4 text-neutral-600">
+                        <td className="py-3 px-4 text-neutral-600 dark:text-neutral-400">
                           {u.email}
                         </td>
                         <td className="py-3 px-4">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-medium bg-neutral-100 text-neutral-800 border border-neutral-200">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-700">
                             {u.roleName}
                           </span>
                         </td>
                         <td className="py-3 px-4">
                           {u.allBranches ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-sky-50 text-sky-700 border border-sky-200">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
                               <Building2 className="w-3 h-3" />
                               Todas
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium bg-neutral-100 text-neutral-700 border border-neutral-200">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700">
                               <Building2 className="w-3 h-3" />
                               {(u.branchIds || []).length}{" "}
                               {(u.branchIds || []).length === 1
@@ -1216,12 +1216,12 @@ export const UsersAndRolesView: React.FC = () => {
                         </td>
                         <td className="py-3 px-4">
                           {u.canSwitchWarehouses !== false ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                               <Warehouse className="w-3 h-3" />
                               Libre
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
                               <Warehouse className="w-3 h-3" />
                               Fijo
                             </span>
@@ -1229,7 +1229,7 @@ export const UsersAndRolesView: React.FC = () => {
                         </td>
                         <td className="py-3 px-4 text-center hidden">
                           {u.is2faEnabled ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-lg border border-emerald-200 dark:border-emerald-800">
                               <CheckCircle2 className="w-3 h-3" />
                               Activo
                             </span>
@@ -1239,7 +1239,7 @@ export const UsersAndRolesView: React.FC = () => {
                             </span>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-neutral-500 font-mono text-[11px]">
+                        <td className="py-3 px-4 text-neutral-500 dark:text-neutral-400 font-mono text-[11px]">
                           {u.lastLoginAt ? u.lastLoginAt : "Nunca"}
                         </td>
                         <td className="py-3 px-4 text-center">
@@ -1252,8 +1252,7 @@ export const UsersAndRolesView: React.FC = () => {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="p-0 rounded-lg text-neutral-700 hover:text-sky-700
-                              hover:bg-sky-100/80 "
+                              className="p-0 rounded-lg text-neutral-700 dark:text-neutral-300 hover:text-sky-700 dark:hover:text-sky-400 hover:bg-sky-100/80 dark:hover:bg-neutral-800 border-neutral-200 dark:border-neutral-700"
                               onClick={() => handleOpenEditUser(u)}
                               title="Editar Usuario"
                             >
@@ -1266,8 +1265,8 @@ export const UsersAndRolesView: React.FC = () => {
                               onClick={() => handleToggleStatus(u)}
                               className={
                                 u.isActive
-                                  ? "text-red-600 hover:bg-red-50"
-                                  : "text-emerald-600 hover:bg-emerald-50 bg-red-100/80"
+                                  ? "text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 border-neutral-200 dark:border-neutral-700"
+                                  : "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 bg-red-100/80 dark:bg-red-950/40 border-neutral-200 dark:border-neutral-700"
                               }
                               title={
                                 u.isActive
@@ -1301,7 +1300,7 @@ export const UsersAndRolesView: React.FC = () => {
         /* VISTA DE ROLES Y PERMISOS */
         <div className="space-y-4">
           {/* Barra de Búsqueda de Roles */}
-          <div className="bg-white border border-neutral-200 rounded-lg p-3.5 flex flex-col sm:flex-row gap-3 items-center justify-between shadow-sm">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-3.5 flex flex-col sm:flex-row gap-3 items-center justify-between shadow-sm">
             <div className="relative w-full sm:w-80">
               <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -1309,11 +1308,11 @@ export const UsersAndRolesView: React.FC = () => {
                 value={roleSearchTerm}
                 onChange={(e) => setRoleSearchTerm(e.target.value)}
                 placeholder="Buscar por rol o descripción..."
-                className="w-full pl-9 pr-3 py-2 text-xs border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                className="w-full pl-9 pr-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
               />
             </div>
 
-            <div className="text-xs text-neutral-500">
+            <div className="text-xs text-neutral-500 dark:text-neutral-400">
               Mostrando {filteredRoles.length} de {roles.length} roles
               configurados
             </div>
@@ -1321,7 +1320,7 @@ export const UsersAndRolesView: React.FC = () => {
 
           {/* Grid de Roles */}
           {filteredRoles.length === 0 ? (
-            <div className="bg-white border border-neutral-200 rounded-lg p-8 text-center text-neutral-500 text-xs shadow-sm">
+            <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-8 text-center text-neutral-500 dark:text-neutral-400 text-xs shadow-sm">
               No se encontraron roles que coincidan con la búsqueda.
             </div>
           ) : (
@@ -1338,15 +1337,15 @@ export const UsersAndRolesView: React.FC = () => {
                 return (
                   <div
                     key={r.id}
-                    className="bg-white border border-neutral-200 rounded-lg p-5 shadow-sm space-y-4 flex flex-col justify-between hover:border-neutral-300 transition-colors"
+                    className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-5 shadow-sm space-y-4 flex flex-col justify-between hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors"
                   >
                     <div className="space-y-3">
                       <div className="flex justify-between items-start gap-2">
                         <div>
-                          <h3 className="text-sm font-bold text-neutral-900">
+                          <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
                             {r.name}
                           </h3>
-                          <p className="text-xs text-neutral-500 mt-1 line-clamp-2">
+                          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 line-clamp-2">
                             {r.description}
                           </p>
                         </div>
@@ -1359,10 +1358,10 @@ export const UsersAndRolesView: React.FC = () => {
 
                       {/* Recuento de permisos */}
                       <div className="pt-2 flex items-center justify-between text-xs">
-                        <span className="text-neutral-500">
+                        <span className="text-neutral-500 dark:text-neutral-400">
                           Permisos asignados:
                         </span>
-                        <span className="font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-lg border border-sky-200">
+                        <span className="font-bold text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 px-2 py-0.5 rounded-lg border border-sky-200 dark:border-sky-800">
                           {r.permissionsCount || activePerms.length} acciones
                         </span>
                       </div>
@@ -1382,7 +1381,7 @@ export const UsersAndRolesView: React.FC = () => {
                                   className={`inline-flex items-center px-1.5 py-0.5 rounded-lg text-[10px] font-medium border ${
                                     meta
                                       ? meta.badgeColor
-                                      : "bg-neutral-100 text-neutral-700 border-neutral-200"
+                                      : "bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700"
                                   }`}
                                 >
                                   {meta ? meta.label.split(" ")[0] : mod}
@@ -1395,12 +1394,12 @@ export const UsersAndRolesView: React.FC = () => {
                     </div>
 
                     {/* Acciones */}
-                    <div className="pt-3 border-t border-neutral-200 flex justify-end">
+                    <div className="pt-3 border-t border-neutral-200 dark:border-neutral-800 flex justify-end">
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => handleOpenEditRole(r)}
-                        className="w-full justify-center"
+                        className="w-full justify-center border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800"
                       >
                         <Edit2 className="w-3.5 h-3.5 mr-1.5" />
                         {r.isSystem
@@ -1419,18 +1418,18 @@ export const UsersAndRolesView: React.FC = () => {
       {/* MODAL CREAR / EDITAR USUARIO */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg max-w-lg w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
+          <div className="bg-white dark:bg-neutral-900 rounded-lg max-w-lg w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 dark:border-neutral-800 my-auto text-neutral-900 dark:text-neutral-100">
             {/* Header (Pinned) */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
+            <div className="px-5 py-3.5 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between shrink-0 bg-white dark:bg-neutral-900">
               <div className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-sky-600" />
+                <Users className="w-5 h-5 text-sky-600 dark:text-sky-400" />
                 <div>
-                  <h3 className="text-sm font-bold text-neutral-900">
+                  <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
                     {editingUser
                       ? `Editar Usuario: ${editingUser.username}`
                       : "Registrar Nuevo Usuario"}
                   </h3>
-                  <p className="text-[11px] text-neutral-500">
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
                     Gestión de credenciales, roles y accesos
                   </p>
                 </div>
@@ -1439,7 +1438,7 @@ export const UsersAndRolesView: React.FC = () => {
                 type="button"
                 onClick={() => setIsModalOpen(false)}
                 title="Cerrar modal (Esc)"
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
+                className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1454,7 +1453,7 @@ export const UsersAndRolesView: React.FC = () => {
               <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                       Nombre de Usuario *
                     </label>
                     <input
@@ -1466,7 +1465,7 @@ export const UsersAndRolesView: React.FC = () => {
                         setFormUsername(e.target.value.toLowerCase())
                       }
                       placeholder="ej: jgonzalez"
-                      className="w-full px-3 py-2 text-xs border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:bg-neutral-100 disabled:text-neutral-500 font-mono"
+                      className="w-full px-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:bg-neutral-100 dark:disabled:bg-neutral-800/60 disabled:text-neutral-500 dark:disabled:text-neutral-400 font-mono"
                     />
                     {editingUser && (
                       <p className="text-[10px] text-neutral-400 mt-1">
@@ -1476,13 +1475,13 @@ export const UsersAndRolesView: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                       Rol en el Sistema *
                     </label>
                     <select
                       value={formRoleId}
                       onChange={(e) => setFormRoleId(e.target.value)}
-                      className="w-full px-3 py-2 text-xs border border-neutral-200 rounded-lg bg-white text-neutral-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      className="w-full px-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                     >
                       {roles.map((r) => (
                         <option key={r.id} value={r.id}>
@@ -1494,7 +1493,7 @@ export const UsersAndRolesView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                  <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                     Nombre y Apellido Completo *
                   </label>
                   <input
@@ -1503,12 +1502,12 @@ export const UsersAndRolesView: React.FC = () => {
                     value={formFullName}
                     onChange={(e) => setFormFullName(e.target.value)}
                     placeholder="ej: Juan González"
-                    className="w-full px-3 py-2 text-xs border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    className="w-full px-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                  <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                     Correo Electrónico Corporativo *
                   </label>
                   <input
@@ -1517,12 +1516,12 @@ export const UsersAndRolesView: React.FC = () => {
                     value={formEmail}
                     onChange={(e) => setFormEmail(e.target.value)}
                     placeholder="ej: jgonzalez@erove.com"
-                    className="w-full px-3 py-2 text-xs border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    className="w-full px-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                  <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                     {editingUser
                       ? "Nueva Contraseña (dejar en blanco para conservar actual)"
                       : "Contraseña de Acceso *"}
@@ -1537,298 +1536,300 @@ export const UsersAndRolesView: React.FC = () => {
                       placeholder={
                         editingUser ? "••••••••" : "Mínimo 8 caracteres"
                       }
-                      className="w-full pl-9 pr-3 py-2 text-xs border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      className="w-full pl-9 pr-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
                     />
                   </div>
-                  {/* 1. Alcance de Sucursales */}
-                  <div className="pt-3 border-t border-neutral-200 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-neutral-800 flex items-center gap-1.5">
-                        <Building2 className="w-3.5 h-3.5 text-sky-600" />
-                        Acceso a Sucursales
-                      </label>
-                      <span className="text-[10px] text-neutral-500">
-                        {formAllBranches
-                          ? "Todas las sucursales"
-                          : `${formBranchIds.length} seleccionada(s)`}
-                      </span>
-                    </div>
+                </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <label
-                        className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
-                          formAllBranches
-                            ? "border-sky-500 bg-sky-50/40 text-neutral-900 ring-1 ring-sky-500"
-                            : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="branchScope"
-                          checked={formAllBranches}
-                          onChange={() => setFormAllBranches(true)}
-                          className="mt-0.5 w-3.5 h-3.5 text-sky-600 focus:ring-sky-500"
-                        />
-                        <div className="text-[11px] leading-snug">
-                          <span className="font-semibold block text-neutral-900">
-                            Todas las sucursales
-                          </span>
-                          <span className="text-[10px] text-neutral-500">
-                            Permite ver y alternar entre todas las sedes de la
-                            empresa
-                          </span>
-                        </div>
-                      </label>
-
-                      <label
-                        className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
-                          !formAllBranches
-                            ? "border-sky-500 bg-sky-50/40 text-neutral-900 ring-1 ring-sky-500"
-                            : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="branchScope"
-                          checked={!formAllBranches}
-                          onChange={() => {
-                            setFormAllBranches(false);
-                            if (
-                              formBranchIds.length === 0 &&
-                              availableBranches.length > 0
-                            ) {
-                              setFormBranchIds([availableBranches[0].id]);
-                            }
-                          }}
-                          className="mt-0.5 w-3.5 h-3.5 text-sky-600 focus:ring-sky-500"
-                        />
-                        <div className="text-[11px] leading-snug">
-                          <span className="font-semibold block text-neutral-900">
-                            Sucursales específicas
-                          </span>
-                          <span className="text-[10px] text-neutral-500">
-                            Restringir acceso únicamente a sedes autorizadas
-                          </span>
-                        </div>
-                      </label>
-                    </div>
-
-                    {!formAllBranches && (
-                      <div className="p-2.5 bg-neutral-50 rounded-lg border border-neutral-200 space-y-2 mt-2">
-                        <span className="text-[11px] font-semibold text-neutral-700 block">
-                          Seleccione las sucursales permitidas:
-                        </span>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                          {availableBranches.map((b) => {
-                            const isChecked = formBranchIds.includes(b.id);
-                            return (
-                              <label
-                                key={b.id}
-                                className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer transition-colors ${
-                                  isChecked
-                                    ? "border-sky-300 bg-white shadow-xs text-neutral-900"
-                                    : "border-neutral-200 bg-neutral-100/60 text-neutral-600 hover:bg-white"
-                                }`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setFormBranchIds([
-                                        ...formBranchIds,
-                                        b.id,
-                                      ]);
-                                    } else {
-                                      setFormBranchIds(
-                                        formBranchIds.filter(
-                                          (id) => id !== b.id,
-                                        ),
-                                      );
-                                    }
-                                  }}
-                                  className="w-3.5 h-3.5 text-sky-600 rounded border-neutral-300 focus:ring-sky-500"
-                                />
-                                <div className="truncate">
-                                  <span className="font-medium text-[11px]">
-                                    {b.name}
-                                  </span>
-                                  <span className="text-[10px] text-neutral-400 font-mono ml-1">
-                                    ({b.code})
-                                  </span>
-                                </div>
-                              </label>
-                            );
-                          })}
-                        </div>
-                        <p className="text-[10px] text-neutral-500 pt-0.5">
-                          {formBranchIds.length === 1
-                            ? "Al asignar exactamente 1 sucursal, el usuario quedará fijado a ella sin opción de cambio."
-                            : formBranchIds.length > 1
-                              ? "Al tener varias sucursales asignadas, el usuario podrá alternar entre ellas en el sistema."
-                              : "Debe marcar al menos 1 sucursal autorizada."}
-                        </p>
-                      </div>
-                    )}
+                {/* 1. Alcance de Sucursales */}
+                <div className="pt-3 border-t border-neutral-200 dark:border-neutral-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                      Acceso a Sucursales
+                    </label>
+                    <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                      {formAllBranches
+                        ? "Todas las sucursales"
+                        : `${formBranchIds.length} seleccionada(s)`}
+                    </span>
                   </div>
 
-                  {/* 2. Control de Almacenes */}
-                  <div className="pt-3 border-t border-neutral-200 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-neutral-800 flex items-center gap-1.5">
-                        <Warehouse className="w-3.5 h-3.5 text-emerald-600" />
-                        Operación de Depósitos / Almacenes
-                      </label>
-                      <span className="text-[10px] text-neutral-500">
-                        {formCanSwitchWarehouses
-                          ? "Libre alternancia"
-                          : "Almacén único fijado"}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <label
-                        className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
-                          formCanSwitchWarehouses
-                            ? "border-emerald-500 bg-emerald-50/40 text-neutral-900 ring-1 ring-emerald-500"
-                            : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="warehouseScope"
-                          checked={formCanSwitchWarehouses}
-                          onChange={() => setFormCanSwitchWarehouses(true)}
-                          className="mt-0.5 w-3.5 h-3.5 text-emerald-600 focus:ring-emerald-500"
-                        />
-                        <div className="text-[11px] leading-snug">
-                          <span className="font-semibold block text-neutral-900">
-                            Permitir cambiar de almacén
-                          </span>
-                          <span className="text-[10px] text-neutral-500">
-                            El usuario puede alternar entre los depósitos
-                            activos de su sucursal
-                          </span>
-                        </div>
-                      </label>
-
-                      <label
-                        className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
-                          !formCanSwitchWarehouses
-                            ? "border-emerald-500 bg-emerald-50/40 text-neutral-900 ring-1 ring-emerald-500"
-                            : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="warehouseScope"
-                          checked={!formCanSwitchWarehouses}
-                          onChange={() => setFormCanSwitchWarehouses(false)}
-                          className="mt-0.5 w-3.5 h-3.5 text-emerald-600 focus:ring-emerald-500"
-                        />
-                        <div className="text-[11px] leading-snug">
-                          <span className="font-semibold block text-neutral-900">
-                            Establecer almacén fijo por sucursal
-                          </span>
-                          <span className="text-[10px] text-neutral-500">
-                            Bloquea al usuario a un depósito específico e impide
-                            su cambio
-                          </span>
-                        </div>
-                      </label>
-                    </div>
-
-                    {!formCanSwitchWarehouses && (
-                      <div className="p-2.5 bg-neutral-50 rounded-lg border border-neutral-200 space-y-2 mt-2">
-                        <span className="text-[11px] font-semibold text-neutral-700 block">
-                          Seleccione el almacén fijo para cada sede autorizada:
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <label
+                      className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                        formAllBranches
+                          ? "border-sky-500 bg-sky-50/40 dark:bg-sky-950/40 text-neutral-900 dark:text-neutral-100 ring-1 ring-sky-500"
+                          : "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800/50 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="branchScope"
+                        checked={formAllBranches}
+                        onChange={() => setFormAllBranches(true)}
+                        className="mt-0.5 w-3.5 h-3.5 text-sky-600 focus:ring-sky-500"
+                      />
+                      <div className="text-[11px] leading-snug">
+                        <span className="font-semibold block text-neutral-900 dark:text-neutral-100">
+                          Todas las sucursales
                         </span>
-                        {(formAllBranches
-                          ? availableBranches
-                          : availableBranches.filter((b) =>
-                              formBranchIds.includes(b.id),
-                            )
-                        ).map((b) => {
-                          const currentWhVal =
-                            formWarehouseByBranch[b.id] ||
-                            b.warehouses.find((w) => w.isDefault)?.id ||
-                            b.warehouses[0]?.id ||
-                            "";
+                        <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                          Permite ver y alternar entre todas las sedes de la
+                          empresa
+                        </span>
+                      </div>
+                    </label>
+
+                    <label
+                      className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                        !formAllBranches
+                          ? "border-sky-500 bg-sky-50/40 dark:bg-sky-950/40 text-neutral-900 dark:text-neutral-100 ring-1 ring-sky-500"
+                          : "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800/50 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="branchScope"
+                        checked={!formAllBranches}
+                        onChange={() => {
+                          setFormAllBranches(false);
+                          if (
+                            formBranchIds.length === 0 &&
+                            availableBranches.length > 0
+                          ) {
+                            setFormBranchIds([availableBranches[0].id]);
+                          }
+                        }}
+                        className="mt-0.5 w-3.5 h-3.5 text-sky-600 focus:ring-sky-500"
+                      />
+                      <div className="text-[11px] leading-snug">
+                        <span className="font-semibold block text-neutral-900 dark:text-neutral-100">
+                          Sucursales específicas
+                        </span>
+                        <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                          Restringir acceso únicamente a sedes autorizadas
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+
+                  {!formAllBranches && (
+                    <div className="p-2.5 bg-neutral-50 dark:bg-neutral-850 rounded-lg border border-neutral-200 dark:border-neutral-700 space-y-2 mt-2">
+                      <span className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 block">
+                        Seleccione las sucursales permitidas:
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                        {availableBranches.map((b) => {
+                          const isChecked = formBranchIds.includes(b.id);
                           return (
-                            <div
+                            <label
                               key={b.id}
-                              className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 bg-white border border-neutral-200 rounded-lg text-xs"
+                              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer transition-colors ${
+                                isChecked
+                                  ? "border-sky-300 dark:border-sky-700 bg-white dark:bg-neutral-800 shadow-xs text-neutral-900 dark:text-neutral-100"
+                                  : "border-neutral-200 dark:border-neutral-700 bg-neutral-100/60 dark:bg-neutral-800/40 text-neutral-600 dark:text-neutral-400 hover:bg-white dark:hover:bg-neutral-800"
+                              }`}
                             >
-                              <div className="min-w-0">
-                                <span className="font-semibold text-neutral-800 text-[11px] block truncate">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setFormBranchIds([
+                                      ...formBranchIds,
+                                      b.id,
+                                    ]);
+                                  } else {
+                                    setFormBranchIds(
+                                      formBranchIds.filter(
+                                        (id) => id !== b.id,
+                                      ),
+                                    );
+                                  }
+                                }}
+                                className="w-3.5 h-3.5 text-sky-600 rounded border-neutral-300 focus:ring-sky-500"
+                              />
+                              <div className="truncate">
+                                <span className="font-medium text-[11px]">
                                   {b.name}
                                 </span>
-                                <span className="text-[10px] text-neutral-400 font-mono">
+                                <span className="text-[10px] text-neutral-400 font-mono ml-1">
                                   ({b.code})
                                 </span>
                               </div>
-                              {b.warehouses.length > 0 ? (
-                                <select
-                                  value={currentWhVal}
-                                  onChange={(e) => {
-                                    setFormWarehouseByBranch((prev) => ({
-                                      ...prev,
-                                      [b.id]: e.target.value,
-                                    }));
-                                  }}
-                                  className="px-2.5 py-1 text-xs border border-neutral-200 rounded-lg bg-white text-neutral-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                                >
-                                  {b.warehouses.map((w) => (
-                                    <option key={w.id} value={w.id}>
-                                      {w.name} ({w.code}){" "}
-                                      {w.isDefault ? "• Principal" : ""}
-                                    </option>
-                                  ))}
-                                </select>
-                              ) : (
-                                <span className="text-[10px] text-neutral-400 italic">
-                                  Sin depósitos activos
-                                </span>
-                              )}
-                            </div>
+                            </label>
                           );
                         })}
                       </div>
-                    )}
+                      <p className="text-[10px] text-neutral-500 dark:text-neutral-400 pt-0.5">
+                        {formBranchIds.length === 1
+                          ? "Al asignar exactamente 1 sucursal, el usuario quedará fijado a ella sin opción de cambio."
+                          : formBranchIds.length > 1
+                            ? "Al tener varias sucursales asignadas, el usuario podrá alternar entre ellas en el sistema."
+                            : "Debe marcar al menos 1 sucursal autorizada."}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Control de Almacenes */}
+                <div className="pt-3 border-t border-neutral-200 dark:border-neutral-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
+                      <Warehouse className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                      Operación de Depósitos / Almacenes
+                    </label>
+                    <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                      {formCanSwitchWarehouses
+                        ? "Libre alternancia"
+                        : "Almacén único fijado"}
+                    </span>
                   </div>
 
-                  <div className="pt-2 border-t border-neutral-200 flex flex-col sm:flex-row gap-4 justify-between">
-                    <label className="flex items-center gap-2 cursor-pointer text-xs text-neutral-700">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <label
+                      className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                        formCanSwitchWarehouses
+                          ? "border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/40 text-neutral-900 dark:text-neutral-100 ring-1 ring-emerald-500"
+                          : "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800/50 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                      }`}
+                    >
                       <input
-                        type="checkbox"
-                        checked={formIs2fa}
-                        onChange={(e) => setFormIs2fa(e.target.checked)}
-                        className="w-4 h-4 text-sky-600 rounded border-neutral-300 focus:ring-sky-500"
+                        type="radio"
+                        name="warehouseScope"
+                        checked={formCanSwitchWarehouses}
+                        onChange={() => setFormCanSwitchWarehouses(true)}
+                        className="mt-0.5 w-3.5 h-3.5 text-emerald-600 focus:ring-emerald-500"
                       />
-                      <span>Requerir Autenticación 2FA (TOTP)</span>
+                      <div className="text-[11px] leading-snug">
+                        <span className="font-semibold block text-neutral-900 dark:text-neutral-100">
+                          Permitir cambiar de almacén
+                        </span>
+                        <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                          El usuario puede alternar entre los depósitos
+                          activos de su sucursal
+                        </span>
+                      </div>
                     </label>
 
-                    <label className="flex items-center gap-2 cursor-pointer text-xs text-neutral-700">
+                    <label
+                      className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                        !formCanSwitchWarehouses
+                          ? "border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/40 text-neutral-900 dark:text-neutral-100 ring-1 ring-emerald-500"
+                          : "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800/50 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                      }`}
+                    >
                       <input
-                        type="checkbox"
-                        checked={formIsActive}
-                        onChange={(e) => setFormIsActive(e.target.checked)}
-                        className="w-4 h-4 text-sky-600 rounded border-neutral-300 focus:ring-sky-500"
+                        type="radio"
+                        name="warehouseScope"
+                        checked={!formCanSwitchWarehouses}
+                        onChange={() => setFormCanSwitchWarehouses(false)}
+                        className="mt-0.5 w-3.5 h-3.5 text-emerald-600 focus:ring-emerald-500"
                       />
-                      <span>Usuario Activo en el Sistema</span>
+                      <div className="text-[11px] leading-snug">
+                        <span className="font-semibold block text-neutral-900 dark:text-neutral-100">
+                          Establecer almacén fijo por sucursal
+                        </span>
+                        <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                          Bloquea al usuario a un depósito específico e impide
+                          su cambio
+                        </span>
+                      </div>
                     </label>
                   </div>
+
+                  {!formCanSwitchWarehouses && (
+                    <div className="p-2.5 bg-neutral-50 dark:bg-neutral-850 rounded-lg border border-neutral-200 dark:border-neutral-700 space-y-2 mt-2">
+                      <span className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 block">
+                        Seleccione el almacén fijo para cada sede autorizada:
+                      </span>
+                      {(formAllBranches
+                        ? availableBranches
+                        : availableBranches.filter((b) =>
+                            formBranchIds.includes(b.id),
+                          )
+                      ).map((b) => {
+                        const currentWhVal =
+                          formWarehouseByBranch[b.id] ||
+                          b.warehouses.find((w) => w.isDefault)?.id ||
+                          b.warehouses[0]?.id ||
+                          "";
+                        return (
+                          <div
+                            key={b.id}
+                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg text-xs"
+                          >
+                            <div className="min-w-0">
+                              <span className="font-semibold text-neutral-800 dark:text-neutral-200 text-[11px] block truncate">
+                                {b.name}
+                              </span>
+                              <span className="text-[10px] text-neutral-400 font-mono">
+                                ({b.code})
+                              </span>
+                            </div>
+                            {b.warehouses.length > 0 ? (
+                              <select
+                                value={currentWhVal}
+                                onChange={(e) => {
+                                  setFormWarehouseByBranch((prev) => ({
+                                    ...prev,
+                                    [b.id]: e.target.value,
+                                  }));
+                                }}
+                                className="px-2.5 py-1 text-xs border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                              >
+                                {b.warehouses.map((w) => (
+                                  <option key={w.id} value={w.id}>
+                                    {w.name} ({w.code}){" "}
+                                    {w.isDefault ? "• Principal" : ""}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="text-[10px] text-neutral-400 italic">
+                                Sin depósitos activos
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-2 border-t border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row gap-4 justify-between">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs text-neutral-700 dark:text-neutral-300">
+                    <input
+                      type="checkbox"
+                      checked={formIs2fa}
+                      onChange={(e) => setFormIs2fa(e.target.checked)}
+                      className="w-4 h-4 text-sky-600 rounded border-neutral-300 focus:ring-sky-500"
+                    />
+                    <span>Requerir Autenticación 2FA (TOTP)</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer text-xs text-neutral-700 dark:text-neutral-300">
+                    <input
+                      type="checkbox"
+                      checked={formIsActive}
+                      onChange={(e) => setFormIsActive(e.target.checked)}
+                      className="w-4 h-4 text-sky-600 rounded border-neutral-300 focus:ring-sky-500"
+                    />
+                    <span>Usuario Activo en el Sistema</span>
+                  </label>
                 </div>
               </div>
 
               {/* Footer (Pinned) */}
-              <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex justify-end gap-2 shrink-0">
+              <div className="px-5 py-3.5 border-t border-neutral-200 dark:border-neutral-800 flex justify-end gap-2 shrink-0 bg-white dark:bg-neutral-900">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => setIsModalOpen(false)}
                   disabled={submitting}
+                  className="border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
                 >
                   Cancelar
                 </Button>
@@ -1848,20 +1849,20 @@ export const UsersAndRolesView: React.FC = () => {
       {/* MODAL CREAR / EDITAR ROL Y MATRIZ DE PERMISOS */}
       {isRoleModalOpen && (
         <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg max-w-3xl w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
+          <div className="bg-white dark:bg-neutral-900 rounded-lg max-w-3xl w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 dark:border-neutral-800 my-auto text-neutral-900 dark:text-neutral-100">
             {/* Header Modal (Pinned) */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
+            <div className="px-5 py-3.5 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between shrink-0 bg-white dark:bg-neutral-900">
               <div className="flex items-center gap-2">
-                <Shield className="w-5 h-5 text-sky-600" />
+                <Shield className="w-5 h-5 text-sky-600 dark:text-sky-400" />
                 <div>
-                  <h3 className="text-sm font-bold text-neutral-900">
+                  <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
                     {editingRole
                       ? editingRole.isSystem
                         ? `Consultar / Configurar Rol: ${editingRole.name}`
                         : `Editar Rol: ${editingRole.name}`
                       : "Crear Nuevo Rol del Sistema"}
                   </h3>
-                  <p className="text-[11px] text-neutral-500">
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
                     Defina los privilegios de acceso y acciones autorizadas por
                     módulo
                   </p>
@@ -1871,7 +1872,7 @@ export const UsersAndRolesView: React.FC = () => {
                 type="button"
                 onClick={() => setIsRoleModalOpen(false)}
                 title="Cerrar modal (Esc)"
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
+                className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1886,7 +1887,7 @@ export const UsersAndRolesView: React.FC = () => {
                 {/* Datos básicos del Rol */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                       Nombre del Rol *
                     </label>
                     <input
@@ -1896,7 +1897,7 @@ export const UsersAndRolesView: React.FC = () => {
                       value={roleFormName}
                       onChange={(e) => setRoleFormName(e.target.value)}
                       placeholder="ej: Auditor Contable"
-                      className="w-full px-3 py-2 text-xs border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:bg-neutral-100 disabled:text-neutral-500"
+                      className="w-full px-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:bg-neutral-100 dark:disabled:bg-neutral-800/60 disabled:text-neutral-500 dark:disabled:text-neutral-400"
                     />
                     {editingRole?.isSystem && (
                       <p className="text-[10px] text-neutral-400 mt-1">
@@ -1907,7 +1908,7 @@ export const UsersAndRolesView: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                       Descripción del Rol
                     </label>
                     <input
@@ -1915,18 +1916,18 @@ export const UsersAndRolesView: React.FC = () => {
                       value={roleFormDesc}
                       onChange={(e) => setRoleFormDesc(e.target.value)}
                       placeholder="ej: Supervisión de transacciones y cierres fiscales"
-                      className="w-full px-3 py-2 text-xs border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      className="w-full px-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
                     />
                   </div>
                 </div>
 
                 {/* Barra de control de matriz de permisos */}
-                <div className="pt-2 border-t border-neutral-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-neutral-50 p-3 rounded-lg border">
+                <div className="pt-2 border-t border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700 shrink-0 bg-white dark:bg-neutral-900">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-neutral-800">
+                    <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
                       Matriz de Permisos:
                     </span>
-                    <span className="text-xs font-mono font-bold text-sky-700 bg-sky-100 px-2 py-0.5 rounded-lg border border-sky-300">
+                    <span className="text-xs font-mono font-bold text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-950/60 px-2 py-0.5 rounded-lg border border-sky-300 dark:border-sky-800">
                       {roleSelectedPerms.length} de {permissions.length}{" "}
                       seleccionados
                     </span>
@@ -1936,14 +1937,14 @@ export const UsersAndRolesView: React.FC = () => {
                     <button
                       type="button"
                       onClick={handleSelectAllPerms}
-                      className="text-[11px] font-semibold text-sky-700 hover:text-sky-900 px-2 py-1 rounded-lg border border-sky-200 hover:bg-sky-50 transition-colors cursor-pointer"
+                      className="text-[11px] font-semibold text-sky-700 dark:text-sky-400 hover:text-sky-900 dark:hover:text-sky-200 px-2 py-1 rounded-lg border border-sky-200 dark:border-sky-800 hover:bg-sky-50 dark:hover:bg-sky-950/40 transition-colors cursor-pointer"
                     >
                       Marcar Todos
                     </button>
                     <button
                       type="button"
                       onClick={handleDeselectAllPerms}
-                      className="text-[11px] font-semibold text-neutral-600 hover:text-neutral-900 px-2 py-1 rounded-lg border border-neutral-200 hover:bg-neutral-100 transition-colors cursor-pointer"
+                      className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100 px-2 py-1 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
                     >
                       Desmarcar Todos
                     </button>
@@ -1958,7 +1959,7 @@ export const UsersAndRolesView: React.FC = () => {
                     value={permSearchQuery}
                     onChange={(e) => setPermSearchQuery(e.target.value)}
                     placeholder="Filtrar permisos por texto (ej: tasa, factura, anular, SENIAT)..."
-                    className="w-full pl-8 pr-3 py-1.5 text-xs border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    className="w-full pl-8 pr-3 py-1.5 text-xs border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   />
                 </div>
 
@@ -1969,7 +1970,7 @@ export const UsersAndRolesView: React.FC = () => {
                       const meta = MODULE_METADATA[moduleName] || {
                         label: moduleName.toUpperCase(),
                         badgeColor:
-                          "bg-neutral-100 text-neutral-800 border-neutral-200",
+                          "bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 border-neutral-200 dark:border-neutral-700",
                       };
                       const modulePermKeys = modulePerms.map((p) => p.key);
                       const selectedInModule = modulePermKeys.filter((k) =>
@@ -1982,17 +1983,17 @@ export const UsersAndRolesView: React.FC = () => {
                       return (
                         <div
                           key={moduleName}
-                          className="border border-neutral-200 rounded-lg overflow-hidden bg-white shadow-xs"
+                          className="border border-neutral-200 dark:border-neutral-800 rounded-lg overflow-hidden bg-white dark:bg-neutral-900 shadow-xs"
                         >
                           {/* Cabecera del Módulo */}
-                          <div className="p-2.5 bg-neutral-50/70 border-b border-neutral-200 flex items-center justify-between">
+                          <div className="p-2.5 bg-neutral-50/70 dark:bg-neutral-850 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between shrink-0">
                             <div className="flex items-center gap-2">
                               <span
                                 className={`text-[11px] font-bold px-2 py-0.5 rounded-lg border ${meta.badgeColor}`}
                               >
                                 {meta.label}
                               </span>
-                              <span className="text-[11px] text-neutral-500">
+                              <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
                                 ({selectedInModule} de {modulePermKeys.length}{" "}
                                 activos)
                               </span>
@@ -2001,11 +2002,11 @@ export const UsersAndRolesView: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => handleToggleModule(modulePermKeys)}
-                              className="flex items-center gap-1 text-[11px] font-semibold text-neutral-600 hover:text-neutral-900 cursor-pointer"
+                              className="flex items-center gap-1 text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100 cursor-pointer"
                             >
                               {isAllModuleSelected ? (
                                 <>
-                                  <CheckSquare className="w-3.5 h-3.5 text-sky-600" />
+                                  <CheckSquare className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
                                   <span>Desmarcar módulo</span>
                                 </>
                               ) : (
@@ -2032,9 +2033,9 @@ export const UsersAndRolesView: React.FC = () => {
                                   className={`flex items-start gap-2.5 p-2 rounded-lg border transition-colors cursor-pointer ${
                                     isChecked
                                       ? isExchangeRatePerm
-                                        ? "bg-amber-50/60 border-amber-300"
-                                        : "bg-sky-50/50 border-sky-200"
-                                      : "border-neutral-100 hover:bg-neutral-50"
+                                        ? "bg-amber-50/60 dark:bg-amber-950/30 border-amber-300 dark:border-amber-700"
+                                        : "bg-sky-50/50 dark:bg-sky-950/30 border-sky-200 dark:border-sky-800"
+                                      : "border-neutral-100 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
                                   }`}
                                 >
                                   <input
@@ -2045,17 +2046,17 @@ export const UsersAndRolesView: React.FC = () => {
                                   />
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-1.5 flex-wrap">
-                                      <span className="font-mono text-[10px] font-bold text-neutral-700 bg-white px-1.5 py-0.5 rounded border border-neutral-200">
+                                      <span className="font-mono text-[10px] font-bold text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 px-1.5 py-0.5 rounded border border-neutral-200 dark:border-neutral-700">
                                         {perm.key}
                                       </span>
                                       {isExchangeRatePerm && (
-                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-300">
+                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-700">
                                           <Coins className="w-2.5 h-2.5" />
                                           Tasa Oficial BCV
                                         </span>
                                       )}
                                     </div>
-                                    <p className="text-xs text-neutral-600 mt-1 leading-tight">
+                                    <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1 leading-tight">
                                       {perm.description}
                                     </p>
                                   </div>
@@ -2071,8 +2072,8 @@ export const UsersAndRolesView: React.FC = () => {
               </div>
 
               {/* Footer Modal (Pinned) */}
-              <div className="px-5 py-3.5 border-t border-neutral-200 flex justify-between items-center bg-neutral-50 shrink-0">
-                <span className="text-xs text-neutral-500">
+              <div className="px-5 py-3.5 border-t border-neutral-200 dark:border-neutral-800 flex justify-between items-center shrink-0 bg-white dark:bg-neutral-900">
+                <span className="text-xs text-neutral-500 dark:text-neutral-400 ">
                   {roleSelectedPerms.length} privilegios seleccionados
                 </span>
 
@@ -2083,6 +2084,7 @@ export const UsersAndRolesView: React.FC = () => {
                     size="sm"
                     onClick={() => setIsRoleModalOpen(false)}
                     disabled={submittingRole}
+                    className="border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
                   >
                     Cancelar
                   </Button>
