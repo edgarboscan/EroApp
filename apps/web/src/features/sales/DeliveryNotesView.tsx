@@ -3,7 +3,7 @@ import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
 import { DataTable, Column } from "../../components/ui/DataTable";
-import { useEscapeKey } from "../../components/ui/Modal";
+import { Modal } from "../../components/ui/Modal";
 import {
   Truck,
   Plus,
@@ -210,26 +210,7 @@ export const DeliveryNotesView: React.FC = () => {
     title: "",
   });
 
-  useEscapeKey(
-    () => {
-      if (showCustomerSearch) setShowCustomerSearch(false);
-      else if (productSearchRowIdx !== null) setProductSearchRowIdx(null);
-      else if (isAddingFromSearch) setIsAddingFromSearch(false);
-      else if (isImportQuotationOpen) setIsImportQuotationOpen(false);
-      else if (viewingDelivery) setViewingDelivery(null);
-      else if (invoicingDelivery) setInvoicingDelivery(null);
-      else if (isCreateOpen) setIsCreateOpen(false);
-    },
-    Boolean(
-      showCustomerSearch ||
-        productSearchRowIdx !== null ||
-        isAddingFromSearch ||
-        isImportQuotationOpen ||
-        viewingDelivery ||
-        invoicingDelivery ||
-        isCreateOpen,
-    ),
-  );
+
 
   // Formulario Nueva Nota de Entrega
   const [customerId, setCustomerId] = useState("");
@@ -553,10 +534,12 @@ export const DeliveryNotesView: React.FC = () => {
     try {
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
       const res = await fetch(`/api/sales/deliveries/${id}`, { headers });
+
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.data) {
           setViewingDelivery(json.data);
+
         } else {
           toast.error("No se pudo obtener el detalle de la nota de entrega");
         }
@@ -1008,10 +991,11 @@ export const DeliveryNotesView: React.FC = () => {
         <div className="flex items-center gap-1.5 justify-end">
           <button
             onClick={() => handleViewDetail(item.id)}
-            className="p-1.5 text-neutral-500 hover:text-emerald-700 rounded-lg hover:bg-neutral-100 cursor-pointer"
+            disabled={loadingDetail}
+            className="p-1.5 text-neutral-500 hover:text-emerald-700 dark:hover:text-emerald-400 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer disabled:opacity-50"
             title="Ver Detalle y Porcentaje Entregado"
           >
-            <Eye className="w-4 h-4 text-emerald-600" />
+            <Eye className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           </button>
           <button
             onClick={() =>
@@ -1022,10 +1006,10 @@ export const DeliveryNotesView: React.FC = () => {
                 filename: `nota_entrega_${item.deliveryNumber}.pdf`,
               })
             }
-            className="p-1.5 text-neutral-500 hover:text-sky-600 rounded-lg hover:bg-neutral-100 cursor-pointer"
+            className="p-1.5 text-neutral-500 hover:text-sky-600 dark:hover:text-sky-400 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer"
             title="Ver / Reimprimir Nota de Entrega en PDF"
           >
-            <FileText className="w-4 h-4 text-sky-600" />
+            <FileText className="w-4 h-4 text-sky-600 dark:text-sky-400" />
           </button>
           {item.status === "DELIVERED" && (
             <Button
@@ -1174,9 +1158,10 @@ export const DeliveryNotesView: React.FC = () => {
             <label className="text-[11px] font-medium text-neutral-500">
               Tipo de Clientes:
             </label>
-            <div className="flex items-center gap-1 bg-neutral-100 p-1 rounded-lg">
+            <div className="flex bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 items-center gap-1 p-1 rounded-lg p-2">
               <button
                 type="button"
+                title="Todas"
                 onClick={() => {
                   setCustomerFilterType("ALL");
                   setSelectedCustomerId("");
@@ -1184,7 +1169,7 @@ export const DeliveryNotesView: React.FC = () => {
                 className={`flex-1 py-1 text-[11px] rounded-lg font-medium transition-colors cursor-pointer ${
                   customerFilterType === "ALL"
                     ? "bg-white text-neutral-900 shadow-xs"
-                    : "text-neutral-600 hover:text-neutral-900"
+                    : "text-neutral-300 hover:text-neutral-400"
                 }`}
               >
                 Todos
@@ -1198,7 +1183,7 @@ export const DeliveryNotesView: React.FC = () => {
                 className={`flex-1 py-1 text-[11px] rounded-lg font-medium transition-colors cursor-pointer ${
                   customerFilterType === "WITH_DELIVERIES"
                     ? "bg-white text-neutral-900 shadow-xs"
-                    : "text-neutral-600 hover:text-neutral-900"
+                    : "text-neutral-300 hover:text-neutral-400"
                 }`}
                 title="Clientes con Notas de Entrega emitidas"
               >
@@ -1213,7 +1198,7 @@ export const DeliveryNotesView: React.FC = () => {
                 className={`flex-1 py-1 text-[11px] rounded-lg font-medium transition-colors cursor-pointer ${
                   customerFilterType === "WITH_QUOTATIONS"
                     ? "bg-white text-neutral-900 shadow-xs"
-                    : "text-neutral-600 hover:text-neutral-900"
+                    : "text-neutral-300 hover:text-neutral-400"
                 }`}
                 title="Clientes con Cotizaciones o Presupuestos registrados"
               >
@@ -1227,10 +1212,11 @@ export const DeliveryNotesView: React.FC = () => {
             <label className="text-[11px] font-medium text-neutral-500">
               Cliente:
             </label>
+            <div className="flex items-center gap-1.5  px-2.5 py-1.5  p-4 rounded-lg">
             <select
               value={selectedCustomerId}
               onChange={(e) => setSelectedCustomerId(e.target.value)}
-              className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-2.5 py-1.5 text-neutral-800"
+              className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
             >
               <option value="">
                 {customerFilterType === "WITH_DELIVERIES"
@@ -1249,12 +1235,14 @@ export const DeliveryNotesView: React.FC = () => {
               ))}
             </select>
           </div>
+          </div>
 
           {/* Filtro por Origen */}
           <div className="space-y-1">
             <label className="text-[11px] font-medium text-neutral-500">
               Origen del Despacho:
             </label>
+            <div className="flex items-center gap-1.5  px-2.5 py-1.5  p-4 rounded-lg">
             <select
               value={originFilter}
               onChange={(e) =>
@@ -1262,12 +1250,13 @@ export const DeliveryNotesView: React.FC = () => {
                   e.target.value as "ALL" | "FROM_QUOTATION" | "DIRECT",
                 )
               }
-              className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-2.5 py-1.5 text-neutral-800"
+              className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
             >
               <option value="ALL">Todos los orígenes</option>
               <option value="FROM_QUOTATION">Desde Cotización</option>
               <option value="DIRECT">Despacho Directo</option>
             </select>
+            </div>
           </div>
 
           {/* Rango de Fechas */}
@@ -1275,13 +1264,13 @@ export const DeliveryNotesView: React.FC = () => {
             <label className="text-[11px] font-medium text-neutral-500">
               Fecha Desde:
             </label>
-            <div className="flex items-center gap-1.5 bg-white px-2 py-1.5 rounded-lg border border-neutral-300">
+            <div className="flex items-center gap-1.5  px-2.5 py-1.5  p-4 rounded-lg">
               <Calendar className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full bg-transparent border-0 text-xs text-neutral-800 p-0 focus:ring-0 focus:outline-none"
+                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
               />
             </div>
           </div>
@@ -1290,13 +1279,13 @@ export const DeliveryNotesView: React.FC = () => {
             <label className="text-[11px] font-medium text-neutral-500">
               Fecha Hasta:
             </label>
-            <div className="flex items-center gap-1.5 bg-white px-2 py-1.5 rounded-lg border border-neutral-300">
+            <div className="flex items-center gap-1.5  px-2.5 py-1.5  p-4 rounded-lg ">
               <Calendar className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-full bg-transparent border-0 text-xs text-neutral-800 p-0 focus:ring-0 focus:outline-none"
+                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500 p-0 focus:ring-0 focus:outline-none"
               />
             </div>
           </div>
@@ -1314,49 +1303,53 @@ export const DeliveryNotesView: React.FC = () => {
       </Card>
 
       {/* Modal Nueva Nota de Entrega */}
-      {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/60 backdrop-blur-xs p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg border border-neutral-200 w-full max-w-4xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden my-auto">
-            {/* Header (Pinned) */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
-              <div>
-                <h3 className="text-sm font-bold text-neutral-900">
-                  Nueva Nota de Entrega / Despacho
-                </h3>
-                <p className="text-[11px] text-neutral-500 mt-0.5">
-                  Salida física de productos desde el depósito con rebaja de
-                  stock
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleOpenImportModal}
-                  className="text-xs border-sky-300 text-sky-700 hover:bg-sky-50 flex items-center gap-1.5 py-1 px-2.5 rounded-lg"
-                >
-                  <Download className="w-3.5 h-3.5 text-sky-600" />
-                  <span>Importar Cotización</span>
-                </Button>
-                <button
-                  type="button"
-                  onClick={() => setIsCreateOpen(false)}
-                  className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
-                  title="Cerrar modal (Esc)"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+      <Modal
+        isOpen={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+        title="Nueva Nota de Entrega / Despacho"
+        subtitle="Salida física de productos desde el depósito con rebaja de stock"
+        size="4xl"
+        footer={
+          <div className="flex items-center justify-between gap-2 w-full">
+            <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100 font-mono">
+              Total Despacho: {formatMoneyUSD(totalDeliveryAmount)}
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleOpenImportModal}
+                className="text-xs border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-950/40 flex items-center gap-1.5"
+              >
+                <Download className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                <span>Importar Cotización</span>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsCreateOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                form="createDeliveryForm"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs"
+              >
+                Confirmar Despacho y Rebajar Stock
+              </Button>
             </div>
-
-            <form
-              id="createDeliveryForm"
-              onSubmit={handleCreateDelivery}
-              className="flex-1 flex flex-col overflow-hidden"
-            >
-              {/* Body (Scrollable) */}
-              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
+          </div>
+        }
+      >
+        <form
+          id="createDeliveryForm"
+          onSubmit={handleCreateDelivery}
+          className="space-y-4 text-xs"
+        >
                 {/* Banner de Cotización Vinculada si aplica */}
                 {selectedQuotation && (
                   <div className="bg-sky-50 border border-sky-200 rounded-lg p-3 flex items-center justify-between text-xs text-sky-900">
@@ -1397,7 +1390,7 @@ export const DeliveryNotesView: React.FC = () => {
                           }
                           setCustomerId(e.target.value);
                         }}
-                        className="w-5/6 text-xs bg-white border border-neutral-300 rounded-lg px-3 py-2 text-neutral-800"
+                        className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                       >
                         {availableCustomers.length === 0 ? (
                           <option value="">No hay clientes registrados</option>
@@ -1429,7 +1422,7 @@ export const DeliveryNotesView: React.FC = () => {
                     <select
                       value={selectedWarehouseId}
                       onChange={(e) => setSelectedWarehouseId(e.target.value)}
-                      className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-3 py-2 text-neutral-800"
+                      className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                     >
                       <option value="">Seleccione depósito...</option>
                       {warehouses.map((w) => (
@@ -1449,7 +1442,7 @@ export const DeliveryNotesView: React.FC = () => {
                       placeholder="Ej. Juan Pérez"
                       value={driverName}
                       onChange={(e) => setDriverName(e.target.value)}
-                      className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-3 py-2 text-neutral-800"
+                      className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                     />
                   </div>
 
@@ -1462,7 +1455,7 @@ export const DeliveryNotesView: React.FC = () => {
                       placeholder="Ej. A88CK2D"
                       value={vehiclePlate}
                       onChange={(e) => setVehiclePlate(e.target.value)}
-                      className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-3 py-2 text-neutral-800"
+                      className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                     />
                   </div>
 
@@ -1475,7 +1468,7 @@ export const DeliveryNotesView: React.FC = () => {
                       placeholder="Ej. COT-2026-0001"
                       value={quotationRef}
                       onChange={(e) => setQuotationRef(e.target.value)}
-                      className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-3 py-2 text-neutral-800"
+                      className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                     />
                   </div>
                 </div>
@@ -1512,7 +1505,7 @@ export const DeliveryNotesView: React.FC = () => {
 
                   <div className="overflow-x-auto border border-neutral-200 rounded-lg">
                     <table className="w-full text-left text-xs">
-                      <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-600 font-medium">
+                      <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase text-[10px] tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
                         <tr>
                           <th className="py-2.5 px-3">Producto</th>
                           <th className="py-2.5 px-3 w-32">Cant. Despachar</th>
@@ -1537,7 +1530,7 @@ export const DeliveryNotesView: React.FC = () => {
                                       e.target.value,
                                     )
                                   }
-                                  className="flex-1 text-xs bg-white border border-neutral-300 rounded-lg px-2.5 py-1.5 text-neutral-800 min-w-[140px]"
+                                  className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                                 >
                                   {availableProducts.length === 0 ? (
                                     <option value="">Sin productos</option>
@@ -1575,7 +1568,7 @@ export const DeliveryNotesView: React.FC = () => {
                                     e.target.value,
                                   )
                                 }
-                                className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-2.5 py-1.5 text-neutral-800"
+                                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                               />
                             </td>
                             <td className="py-2 px-3">
@@ -1591,10 +1584,10 @@ export const DeliveryNotesView: React.FC = () => {
                                     e.target.value,
                                   )
                                 }
-                                className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-2.5 py-1.5 text-neutral-800"
+                                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                               />
                             </td>
-                            <td className="py-2 px-3 text-right font-medium text-neutral-900 font-mono">
+                            <td className="py-2 px-3 text-right font-medium text-neutral-300 font-mono">
                               {formatMoneyUSD(item.total)}
                             </td>
                             <td className="py-2 px-3 text-center">
@@ -1624,73 +1617,42 @@ export const DeliveryNotesView: React.FC = () => {
                     fiscal.
                   </p>
                 </div>
-              </div>
 
-              {/* Footer (Pinned) */}
-              <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-between gap-2 shrink-0">
-                <span className="text-sm font-bold text-neutral-900 font-mono">
-                  Total Despacho: {formatMoneyUSD(totalDeliveryAmount)}
-                </span>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsCreateOpen(false)}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    type="submit"
-                    size="sm"
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs rounded-lg py-2 px-4 shadow-sm"
-                  >
-                    Confirmar Despacho y Rebajar Stock
-                  </Button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+        </form>
+      </Modal>
 
       {/* Modal Importar Cotización Facturada */}
-      {isImportQuotationOpen && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-neutral-900/70 backdrop-blur-xs p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg border border-neutral-200 w-full max-w-4xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden my-auto">
-            {/* Header */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
-              <div className="flex items-center gap-2">
-                <Download className="w-5 h-5 text-sky-600" />
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-900">
-                    Importar Cotización Facturada a Nota de Entrega
-                  </h3>
-                  <p className="text-[11px] text-neutral-500">
-                    Seleccione una cotización previamente facturada con saldo pendiente por despachar
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsImportQuotationOpen(false)}
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
-                title="Cerrar (Esc)"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      <Modal
+        isOpen={isImportQuotationOpen}
+        onClose={() => setIsImportQuotationOpen(false)}
+        title="Importar Cotización Facturada a Nota de Entrega"
+        subtitle="Seleccione una cotización previamente facturada con saldo pendiente por despachar"
+        size="4xl"
+        footer={
+          <div className="flex items-center justify-end w-full">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsImportQuotationOpen(false)}
+            >
+              Cerrar
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4 text-xs">
 
             {/* Search & Notice */}
-            <div className="p-4 border-b border-neutral-200 space-y-3 bg-neutral-50">
-              <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-neutral-300 shadow-2xs">
+            <div className="p-4  space-y-3 bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800">
+              <div className="flex items-center gap-2  shadow-2xs">
                 <Search className="w-4 h-4 text-neutral-400 shrink-0" />
                 <input
                   type="text"
                   placeholder="Buscar cotización por número o nombre de cliente..."
                   value={quotationSearch}
                   onChange={(e) => setQuotationSearch(e.target.value)}
-                  className="w-full bg-transparent border-0 text-xs text-neutral-800 p-0 focus:ring-0 focus:outline-none"
+                  className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   autoFocus
                 />
                 {quotationSearch && (
@@ -1731,7 +1693,7 @@ export const DeliveryNotesView: React.FC = () => {
               ) : (
                 <div className="overflow-x-auto border border-neutral-200 rounded-lg">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-600 font-medium">
+                    <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase text-[10px] tracking-wider border-b border-neutral-200 dark:border-neutral-700">
                       <tr>
                         <th className="py-2.5 px-3">Nº Cotización</th>
                         <th className="py-2.5 px-3">Fecha</th>
@@ -1754,23 +1716,23 @@ export const DeliveryNotesView: React.FC = () => {
 
                         return (
                           <tr key={q.id} className="hover:bg-neutral-50/50">
-                            <td className="py-2.5 px-3 font-mono font-semibold text-sky-700">
+                            <td className="py-2.5 px-3 font-mono font-semibold text-sky-300">
                               {q.quotationNumber}
                             </td>
-                            <td className="py-2.5 px-3 text-neutral-600">
+                            <td className="py-2.5 px-3 text-neutral-300">
                               {new Date(q.quotationDate).toLocaleDateString(
                                 "es-VE",
                               )}
                             </td>
                             <td className="py-2.5 px-3">
-                              <p className="font-medium text-neutral-900">
+                              <p className="font-medium text-neutral-300">
                                 {q.customerName}
                               </p>
                               <span className="font-mono text-[10px] text-neutral-400">
                                 {q.customerDoc}
                               </span>
                             </td>
-                            <td className="py-2.5 px-3 text-right font-mono font-semibold text-neutral-900">
+                            <td className="py-2.5 px-3 text-right font-mono font-semibold text-neutral-300">
                               {formatMoneyUSD(q.totalAmount)}
                             </td>
                             <td className="py-2.5 px-3 text-center">
@@ -1782,7 +1744,7 @@ export const DeliveryNotesView: React.FC = () => {
                             <td className="py-2.5 px-3 text-center">
                               {totalQuotQty > 0 ? (
                                 <div className="inline-flex flex-col items-center">
-                                  <span className="text-[11px] font-semibold text-neutral-700">
+                                  <span className="text-[11px] font-semibold text-neutral-300">
                                     {pendingQty} pend. / {totalQuotQty} total
                                   </span>
                                   {pctDelivered > 0 && (
@@ -1819,52 +1781,405 @@ export const DeliveryNotesView: React.FC = () => {
               )}
             </div>
 
-            {/* Footer */}
-            <div className="px-5 py-3 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end shrink-0">
+        </div>
+      </Modal>
+
+      {/* Modal Detalle de Nota de Entrega y Porcentaje Entregado */}
+      <Modal
+        isOpen={Boolean(viewingDelivery)}
+        onClose={() => setViewingDelivery(null)}
+        title={
+          viewingDelivery
+            ? `Detalle de Nota de Entrega: ${viewingDelivery.deliveryNumber}`
+            : "Detalle de Nota de Entrega"
+        }
+        subtitle={
+          viewingDelivery
+            ? `Emitida el ${new Date(viewingDelivery.deliveryDate).toLocaleDateString("es-VE")}`
+            : undefined
+        }
+        size="3xl"
+        footer={
+          viewingDelivery && (
+            <div className="flex items-center justify-between w-full">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => setIsImportQuotationOpen(false)}
+                onClick={() =>
+                  setPdfModal({
+                    isOpen: true,
+                    endpoint: `/api/sales/deliveries/${viewingDelivery.id}/pdf`,
+                    title: `Nota de Entrega ${viewingDelivery.deliveryNumber}`,
+                    filename: `nota_entrega_${viewingDelivery.deliveryNumber}.pdf`,
+                  })
+                }
+                className="flex items-center gap-1.5 text-xs text-sky-700 dark:text-sky-400 border-sky-300 dark:border-sky-800 hover:bg-sky-50 dark:hover:bg-neutral-800"
               >
-                Cerrar
+                <FileText className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                <span>Imprimir / Ver PDF</span>
               </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* Modal Facturar Despacho en CxC */}
-      {invoicingDelivery && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/60 backdrop-blur-xs p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg border border-neutral-200 w-full max-w-lg max-h-[92vh] shadow-2xl flex flex-col overflow-hidden my-auto">
-            {/* Header (Pinned) */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setViewingDelivery(null)}
+                >
+                  Cerrar
+                </Button>
+                {viewingDelivery.status === "DELIVERED" && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      const d = viewingDelivery;
+                      setViewingDelivery(null);
+                      setInvoicingDelivery(d);
+                    }}
+                    className="bg-sky-600 hover:bg-sky-700 text-white font-medium text-xs rounded-lg py-1.5 px-3 flex items-center gap-1.5"
+                  >
+                    <Receipt className="w-3.5 h-3.5" />
+                    <span>Facturar a CxC</span>
+                  </Button>
+                )}
+              </div>
+            </div>
+          )
+        }
+      >
+        {viewingDelivery && (
+          <div className="space-y-4 text-xs">
+            {/* Sección de Vinculación con Cotización & Porcentaje Entregado */}
+            {viewingDelivery.quotationNumber ? (
+              <div className="bg-sky-50/70 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-lg p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-sky-700 dark:text-sky-400" />
+                    <span className="font-semibold text-neutral-900 dark:text-neutral-100 text-xs">
+                      Cotización Vinculada:
+                    </span>
+                    <span className="font-mono text-xs font-bold text-sky-800 dark:text-sky-300">
+                      {viewingDelivery.quotationNumber}
+                    </span>
+                    {renderQuotationStatusBadge(viewingDelivery.quotationStatus)}
+                  </div>
+                  <div className="text-xs text-neutral-600 dark:text-neutral-400 flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span>
+                      Subtotal Cotizado:{" "}
+                      <strong className="font-mono text-neutral-900 dark:text-neutral-100">
+                        {formatMoneyUSD(
+                          Number(
+                            viewingDelivery.quotationSubtotalAmount ??
+                              viewingDelivery.quotationTotalAmount ??
+                              0,
+                          ),
+                        )}
+                      </strong>
+                    </span>
+                    {Number(viewingDelivery.quotationTaxAmount || 0) > 0 && (
+                      <span className="text-neutral-500 dark:text-neutral-400 font-mono">
+                        (IVA:{" "}
+                        {formatMoneyUSD(
+                          Number(viewingDelivery.quotationTaxAmount),
+                        )}
+                        )
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {(() => {
+                  const totalQty = Number(
+                    viewingDelivery.quotationTotalQuantity || 0,
+                  );
+                  const deliveredQty = Number(
+                    viewingDelivery.quotationDeliveredQuantity || 0,
+                  );
+                  const subtotalQuot = Number(
+                    viewingDelivery.quotationSubtotalAmount ??
+                      viewingDelivery.quotationTotalAmount ??
+                      0,
+                  );
+                  const deliveredTotal = Number(
+                    viewingDelivery.quotationDeliveredTotal ||
+                      viewingDelivery.totalAmount ||
+                      0,
+                  );
+
+                  const pct =
+                    totalQty > 0
+                      ? Math.min(
+                          100,
+                          Number(((deliveredQty / totalQty) * 100).toFixed(1)),
+                        )
+                      : subtotalQuot > 0
+                        ? Math.min(
+                            100,
+                            Number(
+                              ((deliveredTotal / subtotalQuot) * 100).toFixed(1),
+                            ),
+                          )
+                        : 100;
+                  const isComplete = pct >= 100;
+
+                  return (
+                    <div className="space-y-1.5 pt-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-medium text-neutral-700 dark:text-neutral-300">
+                          Progreso de Entrega Física:
+                        </span>
+                        <div className="flex items-center gap-2">
+                          {totalQty > 0 && (
+                            <span className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400">
+                              ({deliveredQty} de {totalQty} un.)
+                            </span>
+                          )}
+                          <span
+                            className={`font-bold font-mono text-sm ${
+                              isComplete
+                                ? "text-emerald-700 dark:text-emerald-400"
+                                : "text-sky-700 dark:text-sky-400"
+                            }`}
+                          >
+                            {pct}%
+                          </span>
+                        </div>
+                      </div>
+                      <div className="w-full bg-neutral-200 dark:bg-neutral-700 rounded-lg h-2.5 overflow-hidden">
+                        <div
+                          className={`h-full rounded-lg transition-all duration-500 ${
+                            isComplete ? "bg-emerald-600" : "bg-sky-600"
+                          }`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-neutral-500 dark:text-neutral-400">
+                        <span>
+                          Acumulado despachado (Neto):{" "}
+                          <strong className="font-mono text-neutral-700 dark:text-neutral-300">
+                            {formatMoneyUSD(deliveredTotal)}
+                          </strong>
+                        </span>
+                        {isComplete ? (
+                          <span className="text-emerald-700 dark:text-emerald-400 font-medium flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Entrega
+                            completa de los productos cotizados
+                          </span>
+                        ) : (
+                          <span>
+                            Restante por despachar:{" "}
+                            <strong className="font-mono text-neutral-700 dark:text-neutral-300">
+                              {totalQty > 0
+                                ? `${Math.max(0, totalQty - deliveredQty)} un.`
+                                : formatMoneyUSD(
+                                    Math.max(0, subtotalQuot - deliveredTotal),
+                                  )}
+                            </strong>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            ) : (
+              <div className="bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700 rounded-lg p-3 text-xs text-neutral-600 dark:text-neutral-400 flex items-center gap-2">
+                <Truck className="w-4 h-4 text-neutral-500 shrink-0" />
+                <span>
+                  <strong>Despacho Directo:</strong> Esta nota de entrega fue
+                  emitida directamente sin vincularse a una cotización previa
+                  (100% despachado en este documento).
+                </span>
+              </div>
+            )}
+
+            {/* Datos de Entrega y Logística */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 bg-neutral-50 dark:bg-neutral-800/60 p-3.5 rounded-lg border border-neutral-200 dark:border-neutral-700">
               <div>
-                <h3 className="text-sm font-bold text-neutral-900">
-                  Facturar Despacho a CxC
-                </h3>
-                <p className="text-[11px] text-neutral-500 mt-0.5">
-                  Generación de factura fiscal vinculada a la nota de entrega
+                <span className="text-[10px] text-neutral-400 block uppercase font-medium">
+                  Cliente Destinatario
+                </span>
+                <p className="font-semibold text-neutral-900 dark:text-neutral-100 mt-0.5">
+                  {viewingDelivery.customerName}
+                </p>
+                <p className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400">
+                  {viewingDelivery.customerDoc}
+                </p>
+                {viewingDelivery.customerPhone && (
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                    Tlf: {viewingDelivery.customerPhone}
+                  </p>
+                )}
+                {viewingDelivery.customerAddress && (
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                    {viewingDelivery.customerAddress}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <span className="text-[10px] text-neutral-400 block uppercase font-medium">
+                  Depósito y Sucursal
+                </span>
+                <p className="font-medium text-neutral-800 dark:text-neutral-200 mt-0.5">
+                  {viewingDelivery.warehouseName}
+                </p>
+                <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                  {viewingDelivery.branchName}
+                </p>
+                <p className="text-[11px] text-neutral-400">
+                  Despachó: {viewingDelivery.dispatchedByUserName}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setInvoicingDelivery(null)}
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
-                title="Cerrar modal (Esc)"
-              >
-                <X className="w-5 h-5" />
-              </button>
+
+              <div>
+                <span className="text-[10px] text-neutral-400 block uppercase font-medium">
+                  Transporte y Conductor
+                </span>
+                <p className="font-medium text-neutral-800 dark:text-neutral-200 mt-0.5">
+                  {viewingDelivery.driverName || "Entrega en Mostrador"}
+                </p>
+                {viewingDelivery.vehiclePlate && (
+                  <p className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400">
+                    Placa: {viewingDelivery.vehiclePlate}
+                  </p>
+                )}
+                <div className="mt-1">
+                  {viewingDelivery.status === "DELIVERED" ? (
+                    <Badge variant="info" className="text-[10px]">
+                      Despachada / Pendiente Factura
+                    </Badge>
+                  ) : (
+                    <Badge variant="success" className="text-[10px]">
+                      Facturada en CxC
+                    </Badge>
+                  )}
+                </div>
+              </div>
             </div>
 
-            <form
-              id="invoiceDeliveryForm"
-              onSubmit={handleInvoiceDelivery}
-              className="flex-1 flex flex-col overflow-hidden"
-            >
-              {/* Body (Scrollable) */}
-              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
+            {/* Tabla de Productos Despachados */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider">
+                Productos Despachados ({viewingDelivery.items?.length || 0})
+              </h4>
+              <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-700 rounded-lg">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase text-[10px] tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
+                    <tr>
+                      <th className="py-2 px-3">Código</th>
+                      <th className="py-2 px-3">Descripción</th>
+                      <th className="py-2 px-3 text-right">Cant. Despachada</th>
+                      <th className="py-2 px-3 text-right">Precio Unit. ($)</th>
+                      <th className="py-2 px-3 text-right">Subtotal ($)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                    {viewingDelivery.items && viewingDelivery.items.length > 0 ? (
+                      viewingDelivery.items.map((i, idx) => (
+                        <tr key={idx} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/40">
+                          <td className="py-2 px-3 font-mono text-neutral-500 dark:text-neutral-400">
+                            {i.productSku}
+                          </td>
+                          <td className="py-2 px-3 font-medium text-neutral-900 dark:text-neutral-100">
+                            {i.productName}
+                            {i.notes && (
+                              <span className="block text-[10px] text-neutral-400 font-normal">
+                                {i.notes}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono font-semibold text-neutral-800 dark:text-neutral-200">
+                            {i.quantityDelivered}{" "}
+                            <span className="text-[10px] text-neutral-400 font-normal">
+                              {i.unitOfMeasure || "UND"}
+                            </span>
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono text-neutral-700 dark:text-neutral-300">
+                            {formatMoneyUSD(i.unitPrice)}
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono font-bold text-neutral-900 dark:text-neutral-100">
+                            {formatMoneyUSD(i.total)}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="py-4 text-center text-neutral-400 dark:text-neutral-500"
+                        >
+                          Sin ítems registrados
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Totales */}
+            <div className="flex justify-end pt-1">
+              <div className="bg-neutral-50 dark:bg-neutral-800/60 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700 text-right min-w-[220px] space-y-1">
+                <div className="flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
+                  <span>Total Despacho ($):</span>
+                  <strong className="text-neutral-900 dark:text-neutral-100 font-mono text-sm">
+                    {formatMoneyUSD(viewingDelivery.totalAmount)}
+                  </strong>
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-neutral-500 dark:text-neutral-400">
+                  <span>Equivalente en Bs:</span>
+                  <span className="font-mono text-neutral-700 dark:text-neutral-300">
+                    {formatMoneyVES(
+                      viewingDelivery.totalAmount *
+                        viewingDelivery.exchangeRate,
+                    )}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal Facturar Despacho en CxC */}
+      <Modal
+        isOpen={Boolean(invoicingDelivery)}
+        onClose={() => setInvoicingDelivery(null)}
+        title="Facturar Despacho a CxC"
+        subtitle="Generación de factura fiscal vinculada a la nota de entrega"
+        size="lg"
+        footer={
+          invoicingDelivery && (
+            <div className="flex items-center justify-end gap-2 w-full">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setInvoicingDelivery(null)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                form="invoiceDeliveryForm"
+                className="bg-sky-600 hover:bg-sky-700 text-white font-medium text-xs"
+              >
+                Emitir Factura y Asentar en CxC
+              </Button>
+            </div>
+          )
+        }
+      >
+        {invoicingDelivery && (
+          <form
+            id="invoiceDeliveryForm"
+            onSubmit={handleInvoiceDelivery}
+            className="space-y-4 text-xs"
+          >
                 <div className="bg-neutral-50 p-3 rounded-lg border border-neutral-200 text-xs">
                   <p className="font-semibold text-neutral-900">
                     {invoicingDelivery.customerName}
@@ -1896,7 +2211,7 @@ export const DeliveryNotesView: React.FC = () => {
                     placeholder="Ej. FACT-001096"
                     value={invoiceNumber}
                     onChange={(e) => setInvoiceNumber(e.target.value)}
-                    className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-3 py-2 text-neutral-800"
+                    className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   />
                 </div>
 
@@ -1909,7 +2224,7 @@ export const DeliveryNotesView: React.FC = () => {
                     placeholder="Ej. 00-112233"
                     value={controlNumber}
                     onChange={(e) => setControlNumber(e.target.value)}
-                    className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-3 py-2 text-neutral-800"
+                    className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   />
                 </div>
 
@@ -1938,34 +2253,14 @@ export const DeliveryNotesView: React.FC = () => {
                       type="date"
                       value={dueDate}
                       onChange={(e) => setDueDate(e.target.value)}
-                      className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-3 py-2 text-neutral-800"
+                      className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                     />
                   </div>
                 )}
-              </div>
 
-              {/* Footer (Pinned) */}
-              <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setInvoicingDelivery(null)}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  type="submit"
-                  size="sm"
-                  className="bg-sky-600 hover:bg-sky-700 text-white font-medium text-xs rounded-lg py-2 px-4 shadow-sm"
-                >
-                  Emitir Factura y Asentar en CxC
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+          </form>
+        )}
+      </Modal>
 
       {/* Modal Buscador de Clientes */}
       <CustomerSearchModal

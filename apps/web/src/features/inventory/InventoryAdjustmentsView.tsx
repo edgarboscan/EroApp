@@ -22,7 +22,7 @@ import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/authStore';
 import { formatMoneyUSD } from '../../utils/formatters';
 import { showConfirmQuestion } from '../../lib/sweetalert';
-import { useEscapeKey } from '../../components/ui/Modal';
+import { Modal } from '../../components/ui/Modal';
 import { PdfViewerModal } from '../../components/ui/PdfViewerModal';
 
 interface AdjustmentRecord {
@@ -69,10 +69,6 @@ export const InventoryAdjustmentsView: React.FC = () => {
     title: '',
   });
 
-  useEscapeKey(() => {
-    if (showProductSearch) setShowProductSearch(false);
-    else if (showModal) setShowModal(false);
-  }, Boolean(showProductSearch || showModal));
 
   // Form State
   const [adjustmentType, setAdjustmentType] = useState<string>('DAMAGE_SPOILED');
@@ -418,184 +414,166 @@ export const InventoryAdjustmentsView: React.FC = () => {
       </Card>
 
       {/* Modal de Nuevo Ajuste */}
-      {showModal && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
-            {/* Header (Pinned) */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
-              <div className="flex items-center gap-2">
-                <ClipboardList className="w-5 h-5 text-sky-600" />
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-900">Registrar Ajuste de Inventario</h3>
-                  <p className="text-[11px] text-neutral-500">Ajuste de existencias por mermas, vencimientos o conteo físico</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowModal(false)}
-                title="Cerrar modal (Esc)"
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
+      <Modal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        title="Registrar Ajuste de Inventario"
+        description="Ajuste de existencias por mermas, vencimientos o conteo físico"
+        size="2xl"
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowModal(false)}>
+              Cancelar
+            </Button>
+            <Button size="sm" disabled={submitting || items.length === 0} onClick={handleSubmitAdjustment}>
+              <Check className="w-4 h-4 mr-1.5" />
+              Aplicar Ajuste a Inventario
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4 text-xs">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Tipo de Ajuste</label>
+              <select
+                value={adjustmentType}
+                onChange={(e) => setAdjustmentType(e.target.value)}
+                className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
               >
-                <X className="w-5 h-5" />
-              </button>
+                <option value="DAMAGE_SPOILED">Merma / Producto Dañado</option>
+                <option value="EXPIRED">Producto Vencido</option>
+                <option value="PHYSICAL_COUNT">Corrección por Conteo Físico</option>
+                <option value="FOUND_SURPLUS">Sobrante Encontrado</option>
+                <option value="THEFT_LOSS">Faltante / Pérdida</option>
+                <option value="INTERNAL_CONSUMPTION">Consumo Interno</option>
+              </select>
             </div>
 
-            {/* Body (Scrollable) */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-neutral-700 mb-1">Tipo de Ajuste</label>
-                  <select
-                    value={adjustmentType}
-                    onChange={(e) => setAdjustmentType(e.target.value)}
-                    className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs bg-white"
+            <div>
+              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Motivo / Justificación</label>
+              <input
+                type="text"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Ej: Empaques averiados durante descarga de camión"
+                className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400"
+              />
+            </div>
+          </div>
+
+          {/* Agregar Producto al Ajuste */}
+          <div className="p-3 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg border border-neutral-200 dark:border-neutral-700 space-y-2">
+            <span className="font-semibold text-neutral-800 dark:text-neutral-200 block">Agregar Producto a la Lista:</span>
+            <div className="grid grid-cols-12 gap-2 items-end">
+              <div className="col-span-5">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] text-neutral-500 dark:text-neutral-400 block">Producto</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowProductSearch(true)}
+                    className="text-[11px] text-sky-600 dark:text-sky-400 hover:text-sky-700 font-medium flex items-center gap-1 cursor-pointer"
                   >
-                    <option value="DAMAGE_SPOILED">Merma / Producto Dañado</option>
-                    <option value="EXPIRED">Producto Vencido</option>
-                    <option value="PHYSICAL_COUNT">Corrección por Conteo Físico</option>
-                    <option value="FOUND_SURPLUS">Sobrante Encontrado</option>
-                    <option value="THEFT_LOSS">Faltante / Pérdida</option>
-                    <option value="INTERNAL_CONSUMPTION">Consumo Interno</option>
+                    <Search className="w-3 h-3" />
+                    <span>Buscar en catálogo</span>
+                  </button>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <select
+                    value={newProductId}
+                    onChange={(e) => {
+                      setNewProductId(e.target.value);
+                      const p = catalog.find((c) => c.id === e.target.value);
+                      if (p) setNewUnitCost(p.cost);
+                    }}
+                    className="flex-1 h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+                  >
+                    {catalog.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.sku} - {p.name}
+                      </option>
+                    ))}
                   </select>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-neutral-700 mb-1">Motivo / Justificación</label>
-                  <input
-                    type="text"
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    placeholder="Ej: Empaques averiados durante descarga de camión"
-                    className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs"
-                  />
-                </div>
-              </div>
-
-              {/* Agregar Producto al Ajuste */}
-              <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 space-y-2">
-                <span className="font-semibold text-neutral-800 block">Agregar Producto a la Lista:</span>
-                <div className="grid grid-cols-12 gap-2 items-end">
-                  <div className="col-span-5">
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-[11px] text-neutral-500 block">Producto</label>
-                      <button
-                        type="button"
-                        onClick={() => setShowProductSearch(true)}
-                        className="text-[11px] text-sky-600 hover:text-sky-700 font-medium flex items-center gap-1 cursor-pointer"
-                      >
-                        <Search className="w-3 h-3" />
-                        <span>Buscar en catálogo</span>
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <select
-                        value={newProductId}
-                        onChange={(e) => {
-                          setNewProductId(e.target.value);
-                          const p = catalog.find((c) => c.id === e.target.value);
-                          if (p) setNewUnitCost(p.cost);
-                        }}
-                        className="flex-1 h-8 px-2 border border-neutral-300 rounded-lg text-xs bg-white"
-                      >
-                        {catalog.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.sku} - {p.name}
-                          </option>
-                        ))}
-                      </select>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowProductSearch(true)}
-                        title="Buscar producto en modal"
-                        className="h-8 px-2 shrink-0 flex items-center justify-center"
-                      >
-                        <Search className="w-3.5 h-3.5 text-neutral-500" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="col-span-3">
-                    <label className="text-[11px] text-neutral-500 block mb-1">Acción</label>
-                    <select
-                      value={newMovementType}
-                      onChange={(e) => setNewMovementType(e.target.value as any)}
-                      className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs bg-white"
-                    >
-                      <option value="ADJUST_OUT">Salida / Descontar (-)</option>
-                      <option value="ADJUST_IN">Entrada / Sumar (+)</option>
-                    </select>
-                  </div>
-
-                  <div className="col-span-2">
-                    <label className="text-[11px] text-neutral-500 block mb-1">Cantidad</label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={newQuantity}
-                      onChange={(e) => setNewQuantity(parseFloat(e.target.value) || 1)}
-                      className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs font-mono font-bold"
-                    />
-                  </div>
-
-                  <div className="col-span-2">
-                    <Button size="sm" variant="outline" onClick={handleAddItem} className="w-full h-8">
-                      <Plus className="w-3.5 h-3.5 mr-1" />
-                      Añadir
-                    </Button>
-                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowProductSearch(true)}
+                    title="Buscar producto en modal"
+                    className="h-8 px-2 shrink-0 flex items-center justify-center"
+                  >
+                    <Search className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
+                  </Button>
                 </div>
               </div>
 
-              {/* Lista de Items */}
-              <div className="space-y-2">
-                <span className="font-semibold text-neutral-800 block">
-                  Productos a Ajustar ({items.length}):
-                </span>
-                <div className="divide-y divide-neutral-200 border border-neutral-200 rounded-lg overflow-hidden max-h-48 overflow-y-auto">
-                  {items.map((it, idx) => (
-                    <div key={idx} className="p-2.5 bg-white flex items-center justify-between text-xs">
-                      <div>
-                        <div className="font-semibold text-neutral-900">{it.productName}</div>
-                        <div className="text-[11px] text-neutral-500 font-mono">
-                          {it.sku} • Costo: {formatMoneyUSD(it.unitCost)}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <Badge variant={it.movementType === 'ADJUST_IN' ? 'success' : 'danger'}>
-                          {it.movementType === 'ADJUST_IN' ? `+${it.quantity}` : `-${it.quantity}`}
-                        </Badge>
-                        <span className="font-mono font-bold text-xs">
-                          {formatMoneyUSD(it.quantity * it.unitCost)}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveItem(idx)}
-                          className="text-neutral-400 hover:text-red-500 p-1"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              <div className="col-span-3">
+                <label className="text-[11px] text-neutral-500 dark:text-neutral-400 block mb-1">Acción</label>
+                <select
+                  value={newMovementType}
+                  onChange={(e) => setNewMovementType(e.target.value as any)}
+                  className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+                >
+                  <option value="ADJUST_OUT">Salida / Descontar (-)</option>
+                  <option value="ADJUST_IN">Entrada / Sumar (+)</option>
+                </select>
+              </div>
+
+              <div className="col-span-2">
+                <label className="text-[11px] text-neutral-500 dark:text-neutral-400 block mb-1">Cantidad</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={newQuantity}
+                  onChange={(e) => setNewQuantity(parseFloat(e.target.value) || 1)}
+                  className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs font-mono font-bold bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+                />
+              </div>
+
+              <div className="col-span-2">
+                <Button size="sm" variant="outline" onClick={handleAddItem} className="w-full h-8">
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  Añadir
+                </Button>
               </div>
             </div>
+          </div>
 
-            {/* Footer (Pinned) */}
-            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
-              <Button variant="outline" size="sm" onClick={() => setShowModal(false)}>
-                Cancelar
-              </Button>
-              <Button size="sm" disabled={submitting || items.length === 0} onClick={handleSubmitAdjustment}>
-                <Check className="w-4 h-4 mr-1.5" />
-                Aplicar Ajuste a Inventario
-              </Button>
+          {/* Lista de Items */}
+          <div className="space-y-2">
+            <span className="font-semibold text-neutral-800 dark:text-neutral-200 block">
+              Productos a Ajustar ({items.length}):
+            </span>
+            <div className="divide-y divide-neutral-200 dark:divide-neutral-700 border border-neutral-200 dark:border-neutral-700 rounded-lg overflow-hidden max-h-48 overflow-y-auto">
+              {items.map((it, idx) => (
+                <div key={idx} className="p-2.5 bg-white dark:bg-neutral-800/80 flex items-center justify-between text-xs">
+                  <div>
+                    <div className="font-semibold text-neutral-900 dark:text-neutral-100">{it.productName}</div>
+                    <div className="text-[11px] text-neutral-500 dark:text-neutral-400 font-mono">
+                      {it.sku} • Costo: {formatMoneyUSD(it.unitCost)}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Badge variant={it.movementType === 'ADJUST_IN' ? 'success' : 'danger'}>
+                      {it.movementType === 'ADJUST_IN' ? `+${it.quantity}` : `-${it.quantity}`}
+                    </Badge>
+                    <span className="font-mono font-bold text-xs text-neutral-900 dark:text-neutral-100">
+                      {formatMoneyUSD(it.quantity * it.unitCost)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveItem(idx)}
+                      className="text-neutral-400 hover:text-red-500 p-1"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
-      )}
+      </Modal>
 
       {/* Modal Buscador de Productos */}
       <ProductSearchModal

@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import autoTableImport from 'jspdf-autotable';
+import type { RestaurantTipsReport } from '@ero/shared';
 
 const autoTable = (typeof autoTableImport === 'function'
   ? autoTableImport
@@ -1144,6 +1145,224 @@ export class ReportsPdfEngine {
         13: { halign: 'right' },
       },
       margin: { left: 14, right: 14, bottom: 12 },
+    });
+
+    return this.finalize(doc);
+  }
+
+  /**
+   * REPORTE DE PROPINAS POR MESERO / USUARIO QUE GENERÓ LA COMANDA (LANDSCAPE)
+   */
+  static generateRestaurantTipsReportPDF(
+    data: RestaurantTipsReport,
+    company: CompanyPdfInfo,
+    userName: string,
+    options: {
+      startDate?: string;
+      endDate?: string;
+      branchName?: string;
+      waiterName?: string;
+    }
+  ): Buffer {
+    const periodText = options.startDate && options.endDate ? `Período: ${options.startDate} al ${options.endDate}` : undefined;
+    const subtitle = options.waiterName ? `Mesero / Usuario: ${options.waiterName}  •  Distribución y Liquidación de Propinas` : 'Distribución y Liquidación de Propinas de Servicio por Comanda';
+
+    const { doc, startY, pageWidth } = this.initDocument(company, {
+      title: 'Reporte de Propinas por Mesero / Usuario',
+      subtitle,
+      periodText,
+      branchName: options.branchName,
+      userName,
+      orientation: 'landscape',
+      auditId: `RPT-PROP-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
+    });
+
+    // KPI Cards
+    const cards: KpiCardItem[] = [
+      {
+        label: 'Total Propinas USD',
+        value: this.fmtUSD(data.summary?.totalTipsUSD),
+        sub: `Equivalente en Bs: ${this.fmtVES(data.summary?.totalTipsVES)}`,
+      },
+      {
+        label: 'Comandas con Propina',
+        value: this.fmtQty(data.summary?.ordersWithTipCount),
+        sub: `De ${this.fmtQty(data.summary?.ordersCount)} comandas cerradas`,
+      },
+      {
+        label: 'Consumo Total Comandas',
+        value: this.fmtUSD(data.summary?.totalSalesUSD),
+        sub: 'Base de consumo servido',
+      },
+      {
+        label: 'Promedio de Propina',
+        value: `${this.fmtUSD(data.summary?.averageTipUSD)} (${data.summary?.averageTipPercent || 0}%)`,
+        sub: 'Porcentaje promedio de servicio',
+      },
+    ];
+
+    let currentY = this.drawKpiCards(doc, startY, cards, pageWidth);
+
+    // 1. TABLA RESUMEN POR MESERO / USUARIO
+    if (data.byWaiter && data.byWaiter.length > 0) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(this.COLOR_PRIMARY[0], this.COLOR_PRIMARY[1], this.COLOR_PRIMARY[2]);
+      doc.text('RESUMEN ACUMULADO POR MESERO / USUARIO GENERADOR', 14, currentY + 4);
+      currentY += 6;
+
+      const waiterHeaders = ['Mesero / Usuario', 'Comandas Totales', 'Con Propina', 'Venta Servida ($)', 'Total Propina ($)', 'Total Propina (Bs)', 'Prom. Propina ($)', 'Prom. %'];
+      const waiterRows = data.byWaiter.map((w) => [
+        w.waiterName,
+        this.fmtQty(w.ordersCount),
+        this.fmtQty(w.ordersWithTipCount),
+        this.fmtUSD(w.totalSalesUSD),
+        this.fmtUSD(w.totalTipsUSD),
+        this.fmtVES(w.totalTipsVES),
+        this.fmtUSD(w.averageTipUSD),
+        `${w.averageTipPercent}%`,
+      ]);
+
+      const waiterFoot = [
+        { content: 'TOTALES:', colSpan: 1, styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
+        this.fmtQty(data.summary.ordersCount),
+        this.fmtQty(data.summary.ordersWithTipCount),
+        this.fmtUSD(data.summary.totalSalesUSD),
+        this.fmtUSD(data.summary.totalTipsUSD),
+        this.fmtVES(data.summary.totalTipsVES),
+        this.fmtUSD(data.summary.averageTipUSD),
+        `${data.summary.averageTipPercent}%`,
+      ];
+
+      autoTable(doc, {
+        head: [waiterHeaders],
+        body: waiterRows,
+        foot: [waiterFoot],
+        startY: currentY,
+        theme: 'striped',
+        headStyles: {
+          fillColor: this.COLOR_HEADER,
+          textColor: 255,
+          fontStyle: 'bold',
+          fontSize: 7,
+          halign: 'center',
+          cellPadding: 1.8,
+        },
+        bodyStyles: {
+          fontSize: 6.8,
+          cellPadding: 1.5,
+          textColor: this.COLOR_PRIMARY,
+        },
+        alternateRowStyles: { fillColor: this.COLOR_BG_LIGHT },
+        footStyles: {
+          fillColor: this.COLOR_TOTALS,
+          textColor: this.COLOR_PRIMARY,
+          fontStyle: 'bold',
+          fontSize: 7,
+          cellPadding: 2,
+        },
+        columnStyles: {
+          0: { halign: 'left', fontStyle: 'bold' },
+          1: { halign: 'center' },
+          2: { halign: 'center' },
+          3: { halign: 'right' },
+          4: { halign: 'right', fontStyle: 'bold' },
+          5: { halign: 'right', fontStyle: 'bold' },
+          6: { halign: 'right' },
+          7: { halign: 'center' },
+        },
+        margin: { left: 14, right: 14 },
+      });
+
+      currentY = (doc as any).lastAutoTable.finalY + 8;
+    }
+
+    // 2. TABLA DETALLADA DE COMANDAS Y PROPINAS
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(this.COLOR_PRIMARY[0], this.COLOR_PRIMARY[1], this.COLOR_PRIMARY[2]);
+    doc.text('DETALLE DE COMANDAS Y PROPINAS ASIGNADAS', 14, currentY + 4);
+    currentY += 6;
+
+    const detailHeaders = [
+      'N° Comanda',
+      'Mesero / Generador',
+      'Mesa / Área',
+      'Fecha / Cierre',
+      'Cliente',
+      'Consumo ($)',
+      'Propina ($)',
+      'Propina (Bs)',
+      '% Prop.',
+      'Factura Fiscal POS',
+      'Estado',
+    ];
+
+    const detailRows = (data.orders || []).map((o) => [
+      o.orderNumber,
+      o.waiterName,
+      `${o.tableNumber} (${o.zone || 'Salón'})`,
+      o.closedAt ? new Date(o.closedAt).toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' }) : '-',
+      (o.customerName || 'Consumidor Final').slice(0, 20),
+      this.fmtUSD(o.subtotalUSD),
+      this.fmtUSD(o.tipUSD),
+      this.fmtVES(o.tipVES),
+      `${o.tipPercent}%`,
+      o.posInvoiceNumber || (o.isInvoiced ? 'Facturada' : 'Pendiente'),
+      o.isInvoiced ? 'FACTURADA' : 'PENDIENTE',
+    ]);
+
+    const detailFoot = [
+      { content: 'TOTALES GENERALES:', colSpan: 5, styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
+      this.fmtUSD(data.summary?.totalSalesUSD),
+      this.fmtUSD(data.summary?.totalTipsUSD),
+      this.fmtVES(data.summary?.totalTipsVES),
+      `${data.summary?.averageTipPercent}%`,
+      '',
+      '',
+    ];
+
+    autoTable(doc, {
+      head: [detailHeaders],
+      body: detailRows,
+      foot: [detailFoot],
+      startY: currentY,
+      theme: 'striped',
+      headStyles: {
+        fillColor: this.COLOR_HEADER,
+        textColor: 255,
+        fontStyle: 'bold',
+        fontSize: 6.8,
+        halign: 'center',
+        cellPadding: 1.8,
+      },
+      bodyStyles: {
+        fontSize: 6.5,
+        cellPadding: 1.4,
+        textColor: this.COLOR_PRIMARY,
+      },
+      alternateRowStyles: { fillColor: this.COLOR_BG_LIGHT },
+      footStyles: {
+        fillColor: this.COLOR_TOTALS,
+        textColor: this.COLOR_PRIMARY,
+        fontStyle: 'bold',
+        fontSize: 6.8,
+        cellPadding: 1.8,
+      },
+      columnStyles: {
+        0: { halign: 'center', fontStyle: 'bold' },
+        1: { halign: 'left' },
+        2: { halign: 'left' },
+        3: { halign: 'center' },
+        4: { halign: 'left' },
+        5: { halign: 'right' },
+        6: { halign: 'right', fontStyle: 'bold' },
+        7: { halign: 'right', fontStyle: 'bold' },
+        8: { halign: 'center' },
+        9: { halign: 'center' },
+        10: { halign: 'center' },
+      },
+      margin: { left: 14, right: 14, bottom: 20 },
     });
 
     return this.finalize(doc);

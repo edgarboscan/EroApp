@@ -89,6 +89,7 @@ export const posSaleSubmitSchema = z.object({
   isCredit: z.boolean().default(false),
   creditDays: z.number().int().min(0).default(0),
   notes: z.string().max(255).optional().nullable(),
+  restaurantOrderId: z.string().optional().nullable(),
 });
 
 export type POSSaleSubmit = z.infer<typeof posSaleSubmitSchema>;

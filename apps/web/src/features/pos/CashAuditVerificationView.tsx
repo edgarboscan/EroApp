@@ -32,6 +32,7 @@ import {
   parseFormattedNumber,
 } from "@ero/shared";
 import { PdfViewerModal } from "../../components/ui/PdfViewerModal";
+import { Modal } from "../../components/ui/Modal";
 
 interface ShiftAuditItem {
   id: string;
@@ -892,7 +893,7 @@ export const CashAuditVerificationView: React.FC = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate("/pos/cash-register")}
+            onClick={() => navigate("/pos/cierre")}
           >
             Ir a Cierre & Arqueo Cajero
           </Button>
@@ -1055,385 +1056,17 @@ export const CashAuditVerificationView: React.FC = () => {
       </Card>
 
       {/* MODAL 1: Auditoría Detallada y Dictamen */}
-      {selectedShiftForAudit && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg max-w-3xl w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
-            {/* Header */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-sky-600" />
-                <h3 className="text-sm font-bold text-neutral-900">
-                  Auditoría de Turno #{selectedShiftForAudit.id.slice(0, 8)} -{" "}
-                  {selectedShiftForAudit.cashRegisterCode}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedShiftForAudit(null);
-                  setAuditDetails(null);
-                }}
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Body */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
-              {loadingDetails ? (
-                <div className="space-y-3 py-6">
-                  <div className="h-4 bg-neutral-200 rounded animate-pulse w-3/4" />
-                  <div className="h-4 bg-neutral-200 rounded animate-pulse w-1/2" />
-                  <div className="h-16 bg-neutral-100 rounded animate-pulse" />
-                </div>
-              ) : (
-                <>
-                  {/* Reporte de Auditoría Automático si hubo discrepancia */}
-                  {selectedShiftForAudit.hasDiscrepancy && (
-                    <div className="p-3.5 bg-red-50 rounded-lg border border-red-300 space-y-1.5">
-                      <div className="flex items-center gap-2 text-red-900 font-bold">
-                        <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
-                        <span>Alerta de Discrepancia Registrada al Cierre</span>
-                      </div>
-                      <p className="text-[11px] text-red-800 whitespace-pre-line font-mono bg-white p-2.5 rounded border border-red-200">
-                        {selectedShiftForAudit.auditReportText ||
-                          "Discrepancia detectada entre efectivo esperado y contado."}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Resumen del Arqueo */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 space-y-1.5">
-                      <span className="font-bold text-neutral-800 text-xs">
-                        Cuadre Efectivo USD ($)
-                      </span>
-                      <div className="grid grid-cols-3 gap-2 font-mono text-[11px]">
-                        <div>
-                          <span className="text-neutral-400 block text-[10px]">
-                            Inicial:
-                          </span>
-                          <span>
-                            {formatMoneyUSD(
-                              selectedShiftForAudit.initialCashUSD,
-                            )}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-neutral-400 block text-[10px]">
-                            Esperado:
-                          </span>
-                          <span>
-                            {formatMoneyUSD(
-                              selectedShiftForAudit.finalCashUSDExpected,
-                            )}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-neutral-400 block text-[10px]">
-                            Contado:
-                          </span>
-                          <span className="font-bold">
-                            {formatMoneyUSD(
-                              selectedShiftForAudit.finalCashUSDCounted,
-                            )}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="pt-1 flex items-center justify-between border-t border-neutral-200">
-                        <span className="text-[11px] text-neutral-500">
-                          Diferencia:
-                        </span>
-                        <Badge
-                          variant={
-                            selectedShiftForAudit.differenceUSD === 0
-                              ? "success"
-                              : "danger"
-                          }
-                        >
-                          {selectedShiftForAudit.differenceUSD === 0
-                            ? "Cuadrado"
-                            : `${selectedShiftForAudit.differenceUSD > 0 ? "+" : ""}${formatMoneyUSD(selectedShiftForAudit.differenceUSD)}`}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 space-y-1.5">
-                      <span className="font-bold text-neutral-800 text-xs">
-                        Cuadre Efectivo VES (Bs)
-                      </span>
-                      <div className="grid grid-cols-3 gap-2 font-mono text-[11px]">
-                        <div>
-                          <span className="text-neutral-400 block text-[10px]">
-                            Inicial:
-                          </span>
-                          <span>
-                            {formatMoneyVES(
-                              selectedShiftForAudit.initialCashVES,
-                            )}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-neutral-400 block text-[10px]">
-                            Esperado:
-                          </span>
-                          <span>
-                            {formatMoneyVES(
-                              selectedShiftForAudit.finalCashVESExpected,
-                            )}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-neutral-400 block text-[10px]">
-                            Contado:
-                          </span>
-                          <span className="font-bold">
-                            {formatMoneyVES(
-                              selectedShiftForAudit.finalCashVESCounted,
-                            )}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="pt-1 flex items-center justify-between border-t border-neutral-200">
-                        <span className="text-[11px] text-neutral-500">
-                          Diferencia:
-                        </span>
-                        <Badge
-                          variant={
-                            selectedShiftForAudit.differenceVES === 0
-                              ? "success"
-                              : "danger"
-                          }
-                        >
-                          {selectedShiftForAudit.differenceVES === 0
-                            ? "Cuadrado"
-                            : `${selectedShiftForAudit.differenceVES > 0 ? "+" : ""}${formatMoneyVES(selectedShiftForAudit.differenceVES)}`}
-                        </Badge>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Desglose de Ventas por Método de Pago */}
-                  {auditDetails &&
-                    auditDetails.paymentsBreakdown.length > 0 && (
-                      <div className="space-y-2">
-                        <span className="font-bold text-neutral-800 text-xs">
-                          Recaudación por Método de Pago (
-                          {auditDetails.invoices.length} facturas)
-                        </span>
-                        <div className="overflow-x-auto border border-neutral-200 rounded-lg">
-                          <table className="w-full text-xs text-left">
-                            <thead className="bg-neutral-50 text-neutral-600 font-semibold border-b border-neutral-200">
-                              <tr>
-                                <th className="px-3 py-2">Método</th>
-                                <th className="px-3 py-2 text-center">
-                                  Transacciones
-                                </th>
-                                <th className="px-3 py-2 text-right">
-                                  Monto USD
-                                </th>
-                                <th className="px-3 py-2 text-right">
-                                  Monto VES
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-neutral-200 font-mono">
-                              {auditDetails.paymentsBreakdown.map((p) => (
-                                <tr
-                                  key={p.method}
-                                  className="hover:bg-neutral-50"
-                                >
-                                  <td className="px-3 py-1.5 font-sans font-medium text-neutral-900">
-                                    {p.method}
-                                  </td>
-                                  <td className="px-3 py-1.5 text-center">
-                                    {p.txCount}
-                                  </td>
-                                  <td className="px-3 py-1.5 text-right font-medium">
-                                    {formatMoneyUSD(p.totalUSD)}
-                                  </td>
-                                  <td className="px-3 py-1.5 text-right font-medium">
-                                    {formatMoneyVES(p.totalVES)}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    )}
-
-                  {/* Movimientos de Caja (Entradas y Salidas) */}
-                  {auditDetails && auditDetails.movements.length > 0 && (
-                    <div className="space-y-2">
-                      <span className="font-bold text-neutral-800 text-xs">
-                        Movimientos Manuales Registrados
-                      </span>
-                      <div className="overflow-x-auto border border-neutral-200 rounded-lg">
-                        <table className="w-full text-xs text-left">
-                          <thead className="bg-neutral-50 text-neutral-600 font-semibold border-b border-neutral-200">
-                            <tr>
-                              <th className="px-3 py-1.5">Tipo</th>
-                              <th className="px-3 py-1.5">Monto</th>
-                              <th className="px-3 py-1.5">Motivo</th>
-                              <th className="px-3 py-1.5">Usuario</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-neutral-200 font-mono">
-                            {auditDetails.movements.map((m) => (
-                              <tr key={m.id}>
-                                <td className="px-3 py-1.5 font-sans">
-                                  <Badge
-                                    variant={
-                                      m.type === "INFLOW" ? "success" : "danger"
-                                    }
-                                  >
-                                    {m.type === "INFLOW" ? "Entrada" : "Salida"}
-                                  </Badge>
-                                </td>
-                                <td className="px-3 py-1.5 font-bold">
-                                  {m.currency === "USD"
-                                    ? formatMoneyUSD(m.amount)
-                                    : formatMoneyVES(m.amount)}
-                                </td>
-                                <td className="px-3 py-1.5 font-sans">
-                                  {m.reason}
-                                </td>
-                                <td className="px-3 py-1.5 font-sans text-neutral-500">
-                                  {m.userName}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Depósitos ya vinculados */}
-                  {auditDetails && auditDetails.deposits.length > 0 && (
-                    <div className="space-y-2">
-                      <span className="font-bold text-neutral-800 text-xs">
-                        Depósitos Bancarios Registrados
-                      </span>
-                      <div className="overflow-x-auto border border-neutral-200 rounded-lg">
-                        <table className="w-full text-xs text-left">
-                          <thead className="bg-neutral-50 text-neutral-600 font-semibold border-b border-neutral-200">
-                            <tr>
-                              <th className="px-3 py-1.5">Banco / Cuenta</th>
-                              <th className="px-3 py-1.5">Tipo</th>
-                              <th className="px-3 py-1.5 text-right">Monto</th>
-                              <th className="px-3 py-1.5">Referencia</th>
-                              <th className="px-3 py-1.5">Depositante</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-neutral-200 font-mono">
-                            {auditDetails.deposits.map((d) => (
-                              <tr key={d.id}>
-                                <td className="px-3 py-1.5 font-sans">
-                                  {d.bankName} (...{d.accountNumber.slice(-4)})
-                                </td>
-                                <td className="px-3 py-1.5 font-sans text-[11px]">
-                                  {d.depositType}
-                                </td>
-                                <td className="px-3 py-1.5 text-right font-bold text-emerald-700">
-                                  {d.currency === "USD"
-                                    ? formatMoneyUSD(d.amount)
-                                    : formatMoneyVES(d.amount)}
-                                </td>
-                                <td className="px-3 py-1.5">
-                                  {d.referenceNumber}
-                                </td>
-                                <td className="px-3 py-1.5 font-sans text-neutral-500">
-                                  {d.userName}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Formulario de Dictamen del Supervisor */}
-                  <div className="p-3.5 bg-neutral-50 rounded-lg border border-neutral-200 space-y-3">
-                    <span className="font-bold text-neutral-900 text-xs block">
-                      Dictamen de Verificación y Auditoría
-                    </span>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-neutral-600 font-medium mb-1">
-                          Estado de Auditoría
-                        </label>
-                        {selectedShiftForAudit.verificationStatus ===
-                        "DEPOSITED" ? (
-                          <div className="h-9 px-3 flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-semibold text-emerald-800">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                            <span>
-                              Depositado en Cuentas Bancarias (Definitivo)
-                            </span>
-                          </div>
-                        ) : (
-                          <select
-                            value={auditVerdictStatus}
-                            onChange={(e) =>
-                              setAuditVerdictStatus(e.target.value as any)
-                            }
-                            className="w-full h-9 px-3 border border-neutral-300 rounded-lg text-xs bg-white focus-visible:ring-2 focus-visible:ring-sky-500"
-                          >
-                            <option value="VERIFIED">
-                              Verificado & Conforme
-                            </option>
-                            <option value="DISCREPANCY_REVIEW">
-                              En Revisión de Discrepancia
-                            </option>
-                            <option value="PENDING">Pendiente</option>
-                          </select>
-                        )}
-                      </div>
-
-                      {selectedShiftForAudit.hasDiscrepancy && (
-                        <div className="flex items-center gap-2 pt-6">
-                          <input
-                            type="checkbox"
-                            id="resolveNotif"
-                            checked={auditResolveNotif}
-                            onChange={(e) =>
-                              setAuditResolveNotif(e.target.checked)
-                            }
-                            className="w-4 h-4 text-sky-600 rounded border-neutral-300"
-                          />
-                          <label
-                            htmlFor="resolveNotif"
-                            className="text-neutral-700 text-xs font-medium cursor-pointer"
-                          >
-                            Marcar alerta de auditoría como resuelta
-                          </label>
-                        </div>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="block text-neutral-600 font-medium mb-1">
-                        Notas de Supervisión / Justificación del Dictamen
-                      </label>
-                      <textarea
-                        rows={2}
-                        value={auditVerdictNotes}
-                        onChange={(e) => setAuditVerdictNotes(e.target.value)}
-                        placeholder="Ej: Conteo físico verificado en bóveda; diferencia justificada por billete roto devuelto."
-                        className="w-full p-2.5 border border-neutral-300 rounded-lg text-xs focus-visible:ring-2 focus-visible:ring-sky-500"
-                      />
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-between shrink-0">
+      <Modal
+        isOpen={!!selectedShiftForAudit}
+        onClose={() => {
+          setSelectedShiftForAudit(null);
+          setAuditDetails(null);
+        }}
+        title={`Auditoría de Turno #${selectedShiftForAudit?.id.slice(0, 8) || ""} - ${selectedShiftForAudit?.cashRegisterCode || ""}`}
+        size="3xl"
+        footer={
+          selectedShiftForAudit ? (
+            <div className="flex items-center justify-between w-full">
               <Button
                 variant="outline"
                 size="sm"
@@ -1454,262 +1087,376 @@ export const CashAuditVerificationView: React.FC = () => {
                 </Button>
               )}
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 2: Registrar Depósitos Bancarios del Turno */}
-      {selectedShiftForDeposits && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
-            {/* Header */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
-              <div className="flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-sky-600" />
-                <h3 className="text-sm font-bold text-neutral-900">
-                  Registrar Depósitos Bancarios - Turno #
-                  {selectedShiftForDeposits.id.slice(0, 8)} (
-                  {selectedShiftForDeposits.cashRegisterCode})
-                </h3>
+          ) : undefined
+        }
+      >
+        {selectedShiftForAudit && (
+          <div className="space-y-4 text-xs">
+            {loadingDetails ? (
+              <div className="space-y-3 py-6">
+                <div className="h-4 bg-neutral-200 dark:bg-neutral-700 rounded animate-pulse w-3/4" />
+                <div className="h-4 bg-neutral-200 dark:bg-neutral-700 rounded animate-pulse w-1/2" />
+                <div className="h-16 bg-neutral-100 dark:bg-neutral-800 rounded animate-pulse" />
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedShiftForDeposits(null);
-                  setDepositDrafts([]);
-                }}
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+            ) : (
+              <>
+                {/* Reporte de Auditoría Automático si hubo discrepancia */}
+                {selectedShiftForAudit.hasDiscrepancy && (
+                  <div className="p-3.5 bg-red-50 dark:bg-red-950/40 rounded-lg border border-red-300 dark:border-red-900/60 space-y-1.5">
+                    <div className="flex items-center gap-2 text-red-900 dark:text-red-200 font-bold">
+                      <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                      <span>Alerta de Discrepancia Registrada al Cierre</span>
+                    </div>
+                    <p className="text-[11px] text-red-800 dark:text-red-300 whitespace-pre-line font-mono bg-white dark:bg-neutral-900 p-2.5 rounded border border-red-200 dark:border-red-900/50">
+                      {selectedShiftForAudit.auditReportText ||
+                        "Discrepancia detectada entre efectivo esperado y contado."}
+                    </p>
+                  </div>
+                )}
 
-            {/* Body */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
-              <div className="p-3 bg-sky-50/70 border border-sky-200 rounded-lg text-neutral-700 leading-relaxed text-[11px]">
-                Asigne los fondos recaudados en este turno a las cuentas
-                bancarias de la empresa. Cada depósito generará un movimiento de
-                tipo <strong>DEPOSIT</strong> en Tesorería, actualizando el
-                saldo bancario y dejándolo disponible para la{" "}
-                <strong>conciliación bancaria</strong>.
-              </div>
-
-              {/* Botón para agregar línea */}
-              <div className="flex justify-between items-center">
-                <span className="font-bold text-neutral-800 text-xs">
-                  Líneas de Depósito a Registrar
-                </span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleAddDepositDraft}
-                >
-                  <Plus className="w-3.5 h-3.5 mr-1 text-sky-600" />
-                  Agregar Línea de Depósito
-                </Button>
-              </div>
-
-              {/* Lista de Líneas de Depósito */}
-              <div className="space-y-3">
-                {depositDrafts.map((draft, idx) => (
-                  <div
-                    key={draft.id}
-                    className="p-3.5 bg-neutral-50 rounded-lg border border-neutral-200 space-y-2.5 relative"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-neutral-800 text-xs">
-                        Depósito #{idx + 1}
+                {/* Resumen del Arqueo */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="p-3 bg-neutral-50 dark:bg-neutral-800/60 rounded-lg border border-neutral-200 dark:border-neutral-700 space-y-1.5">
+                    <span className="font-bold text-neutral-800 dark:text-neutral-200 text-xs">
+                      Cuadre Efectivo USD ($)
+                    </span>
+                    <div className="grid grid-cols-3 gap-2 font-mono text-[11px]">
+                      <div>
+                        <span className="text-neutral-400 dark:text-neutral-500 block text-[10px]">
+                          Inicial:
+                        </span>
+                        <span className="text-neutral-800 dark:text-neutral-200">
+                          {formatMoneyUSD(
+                            selectedShiftForAudit.initialCashUSD,
+                          )}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-neutral-400 dark:text-neutral-500 block text-[10px]">
+                          Esperado:
+                        </span>
+                        <span className="text-neutral-800 dark:text-neutral-200">
+                          {formatMoneyUSD(
+                            selectedShiftForAudit.finalCashUSDExpected,
+                          )}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-neutral-400 dark:text-neutral-500 block text-[10px]">
+                          Contado:
+                        </span>
+                        <span className="font-bold text-neutral-900 dark:text-neutral-100">
+                          {formatMoneyUSD(
+                            selectedShiftForAudit.finalCashUSDCounted,
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="pt-1 flex items-center justify-between border-t border-neutral-200 dark:border-neutral-700">
+                      <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                        Diferencia:
                       </span>
-                      {depositDrafts.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveDepositDraft(draft.id)}
-                          className="text-neutral-400 hover:text-red-600 cursor-pointer p-1 rounded"
-                          title="Eliminar esta línea"
+                      <Badge
+                        variant={
+                          selectedShiftForAudit.differenceUSD === 0
+                            ? "success"
+                            : "danger"
+                        }
+                      >
+                        {selectedShiftForAudit.differenceUSD === 0
+                          ? "Cuadrado"
+                          : `${selectedShiftForAudit.differenceUSD > 0 ? "+" : ""}${formatMoneyUSD(selectedShiftForAudit.differenceUSD)}`}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-neutral-50 dark:bg-neutral-800/60 rounded-lg border border-neutral-200 dark:border-neutral-700 space-y-1.5">
+                    <span className="font-bold text-neutral-800 dark:text-neutral-200 text-xs">
+                      Cuadre Efectivo VES (Bs)
+                    </span>
+                    <div className="grid grid-cols-3 gap-2 font-mono text-[11px]">
+                      <div>
+                        <span className="text-neutral-400 dark:text-neutral-500 block text-[10px]">
+                          Inicial:
+                        </span>
+                        <span className="text-neutral-800 dark:text-neutral-200">
+                          {formatMoneyVES(
+                            selectedShiftForAudit.initialCashVES,
+                          )}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-neutral-400 dark:text-neutral-500 block text-[10px]">
+                          Esperado:
+                        </span>
+                        <span className="text-neutral-800 dark:text-neutral-200">
+                          {formatMoneyVES(
+                            selectedShiftForAudit.finalCashVESExpected,
+                          )}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-neutral-400 dark:text-neutral-500 block text-[10px]">
+                          Contado:
+                        </span>
+                        <span className="font-bold text-neutral-900 dark:text-neutral-100">
+                          {formatMoneyVES(
+                            selectedShiftForAudit.finalCashVESCounted,
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="pt-1 flex items-center justify-between border-t border-neutral-200 dark:border-neutral-700">
+                      <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                        Diferencia:
+                      </span>
+                      <Badge
+                        variant={
+                          selectedShiftForAudit.differenceVES === 0
+                            ? "success"
+                            : "danger"
+                        }
+                      >
+                        {selectedShiftForAudit.differenceVES === 0
+                          ? "Cuadrado"
+                          : `${selectedShiftForAudit.differenceVES > 0 ? "+" : ""}${formatMoneyVES(selectedShiftForAudit.differenceVES)}`}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Desglose de Ventas por Método de Pago */}
+                {auditDetails &&
+                  auditDetails.paymentsBreakdown.length > 0 && (
+                    <div className="space-y-2">
+                      <span className="font-bold text-neutral-800 dark:text-neutral-200 text-xs">
+                        Recaudación por Método de Pago (
+                        {auditDetails.invoices.length} facturas)
+                      </span>
+                      <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-700 rounded-lg">
+                        <table className="w-full text-xs text-left">
+                          <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 font-semibold border-b border-neutral-200 dark:border-neutral-700">
+                            <tr>
+                              <th className="px-3 py-2">Método</th>
+                              <th className="px-3 py-2 text-center">
+                                Transacciones
+                              </th>
+                              <th className="px-3 py-2 text-right">
+                                Monto USD
+                              </th>
+                              <th className="px-3 py-2 text-right">
+                                Monto VES
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-neutral-200 dark:divide-neutral-700 font-mono">
+                            {auditDetails.paymentsBreakdown.map((p) => (
+                              <tr
+                                key={p.method}
+                                className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                              >
+                                <td className="px-3 py-1.5 font-sans font-medium text-neutral-900 dark:text-neutral-100">
+                                  {p.method}
+                                </td>
+                                <td className="px-3 py-1.5 text-center text-neutral-800 dark:text-neutral-200">
+                                  {p.txCount}
+                                </td>
+                                <td className="px-3 py-1.5 text-right font-medium text-neutral-900 dark:text-neutral-100">
+                                  {formatMoneyUSD(p.totalUSD)}
+                                </td>
+                                <td className="px-3 py-1.5 text-right font-medium text-neutral-900 dark:text-neutral-100">
+                                  {formatMoneyVES(p.totalVES)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                {/* Movimientos de Caja (Entradas y Salidas) */}
+                {auditDetails && auditDetails.movements.length > 0 && (
+                  <div className="space-y-2">
+                    <span className="font-bold text-neutral-800 dark:text-neutral-200 text-xs">
+                      Movimientos Manuales Registrados
+                    </span>
+                    <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-700 rounded-lg">
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 font-semibold border-b border-neutral-200 dark:border-neutral-700">
+                          <tr>
+                            <th className="px-3 py-1.5">Tipo</th>
+                            <th className="px-3 py-1.5">Monto</th>
+                            <th className="px-3 py-1.5">Motivo</th>
+                            <th className="px-3 py-1.5">Usuario</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-neutral-200 dark:divide-neutral-700 font-mono">
+                          {auditDetails.movements.map((m) => (
+                            <tr key={m.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                              <td className="px-3 py-1.5 font-sans">
+                                <Badge
+                                  variant={
+                                    m.type === "INFLOW" ? "success" : "danger"
+                                  }
+                                >
+                                  {m.type === "INFLOW" ? "Entrada" : "Salida"}
+                                </Badge>
+                              </td>
+                              <td className="px-3 py-1.5 font-bold text-neutral-900 dark:text-neutral-100">
+                                {m.currency === "USD"
+                                  ? formatMoneyUSD(m.amount)
+                                  : formatMoneyVES(m.amount)}
+                              </td>
+                              <td className="px-3 py-1.5 font-sans text-neutral-800 dark:text-neutral-200">
+                                {m.reason}
+                              </td>
+                              <td className="px-3 py-1.5 font-sans text-neutral-500 dark:text-neutral-400">
+                                {m.userName}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Depósitos ya vinculados */}
+                {auditDetails && auditDetails.deposits.length > 0 && (
+                  <div className="space-y-2">
+                    <span className="font-bold text-neutral-800 dark:text-neutral-200 text-xs">
+                      Depósitos Bancarios Registrados
+                    </span>
+                    <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-700 rounded-lg">
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 font-semibold border-b border-neutral-200 dark:border-neutral-700">
+                          <tr>
+                            <th className="px-3 py-1.5">Banco / Cuenta</th>
+                            <th className="px-3 py-1.5">Tipo</th>
+                            <th className="px-3 py-1.5 text-right">Monto</th>
+                            <th className="px-3 py-1.5">Referencia</th>
+                            <th className="px-3 py-1.5">Depositante</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-neutral-200 dark:divide-neutral-700 font-mono">
+                          {auditDetails.deposits.map((d) => (
+                            <tr key={d.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                              <td className="px-3 py-1.5 font-sans text-neutral-900 dark:text-neutral-100">
+                                {d.bankName} (...{d.accountNumber.slice(-4)})
+                              </td>
+                              <td className="px-3 py-1.5 font-sans text-[11px] text-neutral-700 dark:text-neutral-300">
+                                {d.depositType}
+                              </td>
+                              <td className="px-3 py-1.5 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                                {d.currency === "USD"
+                                  ? formatMoneyUSD(d.amount)
+                                  : formatMoneyVES(d.amount)}
+                              </td>
+                              <td className="px-3 py-1.5 text-neutral-800 dark:text-neutral-200">
+                                {d.referenceNumber}
+                              </td>
+                              <td className="px-3 py-1.5 font-sans text-neutral-500 dark:text-neutral-400">
+                                {d.userName}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Formulario de Dictamen del Supervisor */}
+                <div className="p-3.5 bg-neutral-50 dark:bg-neutral-800/60 rounded-lg border border-neutral-200 dark:border-neutral-700 space-y-3">
+                  <span className="font-bold text-neutral-900 dark:text-neutral-100 text-xs block">
+                    Dictamen de Verificación y Auditoría
+                  </span>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-neutral-600 dark:text-neutral-400 font-medium mb-1">
+                        Estado de Auditoría
+                      </label>
+                      {selectedShiftForAudit.verificationStatus ===
+                      "DEPOSITED" ? (
+                        <div className="h-9 px-3 flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 rounded-lg text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span>
+                            Depositado en Cuentas Bancarias (Definitivo)
+                          </span>
+                        </div>
+                      ) : (
+                        <select
+                          value={auditVerdictStatus}
+                          onChange={(e) =>
+                            setAuditVerdictStatus(e.target.value as any)
+                          }
+                          className="w-full h-9 px-3 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
                         >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                          <option value="VERIFIED">
+                            Verificado & Conforme
+                          </option>
+                          <option value="DISCREPANCY_REVIEW">
+                            En Revisión de Discrepancia
+                          </option>
+                          <option value="PENDING">Pendiente</option>
+                        </select>
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
-                      {/* Cuenta Bancaria */}
-                      <div>
-                        <label className="block text-[11px] text-neutral-600 mb-1 font-medium">
-                          Cuenta Bancaria Destino:
-                        </label>
-                        <select
-                          value={draft.bankAccountId}
-                          onChange={(e) => {
-                            const accId = e.target.value;
-                            const acc = bankAccounts.find(
-                              (a) => a.id === accId,
-                            );
-                            setDepositDrafts((prev) =>
-                              prev.map((d) =>
-                                d.id === draft.id
-                                  ? {
-                                      ...d,
-                                      bankAccountId: accId,
-                                      currency: acc ? acc.currency : d.currency,
-                                    }
-                                  : d,
-                              ),
-                            );
-                          }}
-                          className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs bg-white focus-visible:ring-2 focus-visible:ring-sky-500"
+                    {selectedShiftForAudit.hasDiscrepancy && (
+                      <div className="flex items-center gap-2 pt-6">
+                        <input
+                          type="checkbox"
+                          id="resolveNotif"
+                          checked={auditResolveNotif}
+                          onChange={(e) =>
+                            setAuditResolveNotif(e.target.checked)
+                          }
+                          className="w-4 h-4 text-sky-600 rounded border-neutral-300 dark:border-neutral-700"
+                        />
+                        <label
+                          htmlFor="resolveNotif"
+                          className="text-neutral-700 dark:text-neutral-300 text-xs font-medium cursor-pointer"
                         >
-                          <option value="">Seleccione cuenta...</option>
-                          {bankAccounts.map((a) => (
-                            <option key={a.id} value={a.id}>
-                              {a.bankName} ({a.currency}) - ...
-                              {a.accountNumber.slice(-4)} [Saldo:{" "}
-                              {a.currency === "USD"
-                                ? formatMoneyUSD(a.currentBalance)
-                                : formatMoneyVES(a.currentBalance)}
-                              ]
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* Tipo de Depósito */}
-                      <div>
-                        <label className="block text-[11px] text-neutral-600 mb-1 font-medium">
-                          Tipo de Depósito:
+                          Marcar alerta de auditoría como resuelta
                         </label>
-                        <select
-                          value={draft.depositType}
-                          onChange={(e) => {
-                            const val = e.target.value as any;
-                            const isUsd = val === "CASH_USD" || val === "ZELLE";
-                            setDepositDrafts((prev) =>
-                              prev.map((d) =>
-                                d.id === draft.id
-                                  ? {
-                                      ...d,
-                                      depositType: val,
-                                      currency: isUsd ? "USD" : d.currency,
-                                    }
-                                  : d,
-                              ),
-                            );
-                          }}
-                          className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs bg-white focus-visible:ring-2 focus-visible:ring-sky-500"
-                        >
-                          <option value="CASH_USD">
-                            Efectivo Divisas (USD)
-                          </option>
-                          <option value="CASH_VES">
-                            Efectivo Bolívares (VES)
-                          </option>
-                          <option value="POS_BATCH">
-                            Lote Punto de Venta (POS)
-                          </option>
-                          <option value="PAGO_MOVIL">Pago Móvil</option>
-                          <option value="ZELLE">Zelle (USD)</option>
-                          <option value="TRANSFER">
-                            Transferencia Bancaria
-                          </option>
-                          <option value="OTHER">Otro Depósito</option>
-                        </select>
                       </div>
-
-                      {/* Monto y Moneda */}
-                      <div>
-                        <label className="block text-[11px] text-neutral-600 mb-1 font-medium">
-                          Monto ({draft.currency}):
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={draft.amount || ""}
-                          onChange={(e) => {
-                            const val = parseFloat(e.target.value) || 0;
-                            setDepositDrafts((prev) =>
-                              prev.map((d) =>
-                                d.id === draft.id ? { ...d, amount: val } : d,
-                              ),
-                            );
-                          }}
-                          className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs font-mono font-bold focus-visible:ring-2 focus-visible:ring-sky-500"
-                          placeholder="0.00"
-                        />
-                      </div>
-
-                      {/* Nro de Referencia */}
-                      <div>
-                        <label className="block text-[11px] text-neutral-600 mb-1 font-medium">
-                          Nro. de Referencia / Comprobante:
-                        </label>
-                        <input
-                          type="text"
-                          value={draft.referenceNumber}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setDepositDrafts((prev) =>
-                              prev.map((d) =>
-                                d.id === draft.id
-                                  ? { ...d, referenceNumber: val }
-                                  : d,
-                              ),
-                            );
-                          }}
-                          className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs focus-visible:ring-2 focus-visible:ring-sky-500"
-                          placeholder="Ej: DEP-89201 o LOTE-449"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      <div>
-                        <label className="block text-[10px] text-neutral-500 mb-0.5">
-                          Fecha de Depósito:
-                        </label>
-                        <input
-                          type="date"
-                          value={draft.depositDate}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setDepositDrafts((prev) =>
-                              prev.map((d) =>
-                                d.id === draft.id
-                                  ? { ...d, depositDate: val }
-                                  : d,
-                              ),
-                            );
-                          }}
-                          className="w-full h-7 px-2 border border-neutral-300 rounded-lg text-xs bg-white"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] text-neutral-500 mb-0.5">
-                          Concepto / Notas:
-                        </label>
-                        <input
-                          type="text"
-                          value={draft.notes}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setDepositDrafts((prev) =>
-                              prev.map((d) =>
-                                d.id === draft.id ? { ...d, notes: val } : d,
-                              ),
-                            );
-                          }}
-                          className="w-full h-7 px-2 border border-neutral-300 rounded-lg text-xs"
-                          placeholder="Notas adicionales..."
-                        />
-                      </div>
-                    </div>
+                    )}
                   </div>
-                ))}
-              </div>
-            </div>
 
-            {/* Footer */}
-            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-between shrink-0">
+                  <div>
+                    <label className="block text-neutral-600 dark:text-neutral-400 font-medium mb-1">
+                      Notas de Supervisión / Justificación del Dictamen
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={auditVerdictNotes}
+                      onChange={(e) => setAuditVerdictNotes(e.target.value)}
+                      placeholder="Ej: Conteo físico verificado en bóveda; diferencia justificada por billete roto devuelto."
+                      className="w-full p-2.5 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {/* MODAL 2: Registrar Depósitos Bancarios del Turno */}
+      <Modal
+        isOpen={!!selectedShiftForDeposits}
+        onClose={() => {
+          setSelectedShiftForDeposits(null);
+          setDepositDrafts([]);
+        }}
+        title={`Registrar Depósitos Bancarios - Turno #${selectedShiftForDeposits?.id.slice(0, 8) || ""} (${selectedShiftForDeposits?.cashRegisterCode || ""})`}
+        size="4xl"
+        footer={
+          selectedShiftForDeposits ? (
+            <div className="flex items-center justify-between w-full">
               <Button
                 variant="outline"
                 size="sm"
@@ -1728,124 +1475,330 @@ export const CashAuditVerificationView: React.FC = () => {
                 Confirmar y Registrar en Tesorería
               </Button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 3: Lista de Alertas / Notificaciones de Auditoría */}
-      {showNotificationsModal && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
-            {/* Header */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
-                <h3 className="text-sm font-bold text-neutral-900">
-                  Alertas de Discrepancia en Arqueos ({notifications.length})
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowNotificationsModal(false)}
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
+          ) : undefined
+        }
+      >
+        {selectedShiftForDeposits && (
+          <div className="space-y-4 text-xs">
+            <div className="p-3 bg-sky-50/70 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-900/60 rounded-lg text-neutral-700 dark:text-neutral-300 leading-relaxed text-[11px]">
+              Asigne los fondos recaudados en este turno a las cuentas
+              bancarias de la empresa. Cada depósito generará un movimiento de
+              tipo <strong>DEPOSIT</strong> en Tesorería, actualizando el
+              saldo bancario y dejándolo disponible para la{" "}
+              <strong>conciliación bancaria</strong>.
             </div>
 
-            {/* Body */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 text-xs">
-              {notifications.length === 0 ? (
-                <p className="text-center text-neutral-400 py-8">
-                  No hay alertas de discrepancia pendientes.
-                </p>
-              ) : (
-                notifications.map((notif) => (
-                  <div
-                    key={notif.id}
-                    className="p-3.5 rounded-lg border border-red-200 bg-red-50/50 space-y-2"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-red-950">
-                        {notif.title}
-                      </span>
-                      <span className="text-[10px] text-neutral-400 font-mono">
-                        {new Date(notif.createdAt).toLocaleString("es-VE")}
-                      </span>
-                    </div>
-                    <p className="text-neutral-700 leading-relaxed text-[11px]">
-                      {notif.message}
-                    </p>
-                    <div className="text-[11px] text-neutral-500 font-mono">
-                      Cajero responsable:{" "}
-                      <span className="font-sans font-semibold text-neutral-800">
-                        {notif.cashierName}
-                      </span>
-                    </div>
-
-                    {resolvingNotificationId === notif.id ? (
-                      <div className="pt-2 space-y-2 border-t border-red-200">
-                        <textarea
-                          rows={2}
-                          value={notificationResolutionNotes}
-                          onChange={(e) =>
-                            setNotificationResolutionNotes(e.target.value)
-                          }
-                          placeholder="Ingrese justificación de resolución (ej. verificado con supervisor)..."
-                          className="w-full p-2 border border-neutral-300 rounded-lg text-xs bg-white"
-                        />
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setResolvingNotificationId(null);
-                              setNotificationResolutionNotes("");
-                            }}
-                          >
-                            Cancelar
-                          </Button>
-                          <Button
-                            size="sm"
-                            disabled={submitting}
-                            onClick={() => handleResolveNotification(notif.id)}
-                          >
-                            Confirmar Resolución
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="pt-1 flex justify-end">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setResolvingNotificationId(notif.id);
-                            setNotificationResolutionNotes("");
-                          }}
-                          className="border-neutral-300"
-                        >
-                          Resolver Alerta
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="px-5 py-3 border-t border-neutral-200 bg-neutral-50 flex justify-end shrink-0">
+            {/* Botón para agregar línea */}
+            <div className="flex justify-between items-center">
+              <span className="font-bold text-neutral-800 dark:text-neutral-200 text-xs">
+                Líneas de Depósito a Registrar
+              </span>
               <Button
                 size="sm"
-                onClick={() => setShowNotificationsModal(false)}
+                variant="outline"
+                onClick={handleAddDepositDraft}
               >
-                Entendido
+                <Plus className="w-3.5 h-3.5 mr-1 text-sky-600 dark:text-sky-400" />
+                Agregar Línea de Depósito
               </Button>
             </div>
+
+            {/* Lista de Líneas de Depósito */}
+            <div className="space-y-3">
+              {depositDrafts.map((draft, idx) => (
+                <div
+                  key={draft.id}
+                  className="p-3.5 bg-neutral-50 dark:bg-neutral-800/60 rounded-lg border border-neutral-200 dark:border-neutral-700 space-y-2.5 relative"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-neutral-800 dark:text-neutral-200 text-xs">
+                      Depósito #{idx + 1}
+                    </span>
+                    {depositDrafts.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveDepositDraft(draft.id)}
+                        className="text-neutral-400 hover:text-red-600 dark:hover:text-red-400 cursor-pointer p-1 rounded-lg"
+                        title="Eliminar esta línea"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
+                    {/* Cuenta Bancaria */}
+                    <div>
+                      <label className="block text-[11px] text-neutral-600 dark:text-neutral-400 mb-1 font-medium">
+                        Cuenta Bancaria Destino:
+                      </label>
+                      <select
+                        value={draft.bankAccountId}
+                        onChange={(e) => {
+                          const accId = e.target.value;
+                          const acc = bankAccounts.find(
+                            (a) => a.id === accId,
+                          );
+                          setDepositDrafts((prev) =>
+                            prev.map((d) =>
+                              d.id === draft.id
+                                ? {
+                                    ...d,
+                                    bankAccountId: accId,
+                                    currency: acc ? acc.currency : d.currency,
+                                  }
+                                : d,
+                            ),
+                          );
+                        }}
+                        className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
+                      >
+                        <option value="">Seleccione cuenta...</option>
+                        {bankAccounts.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.bankName} ({a.currency}) - ...
+                            {a.accountNumber.slice(-4)} [Saldo:{" "}
+                            {a.currency === "USD"
+                              ? formatMoneyUSD(a.currentBalance)
+                              : formatMoneyVES(a.currentBalance)}
+                            ]
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Tipo de Depósito */}
+                    <div>
+                      <label className="block text-[11px] text-neutral-600 dark:text-neutral-400 mb-1 font-medium">
+                        Tipo de Depósito:
+                      </label>
+                      <select
+                        value={draft.depositType}
+                        onChange={(e) => {
+                          const val = e.target.value as any;
+                          const isUsd = val === "CASH_USD" || val === "ZELLE";
+                          setDepositDrafts((prev) =>
+                            prev.map((d) =>
+                              d.id === draft.id
+                                ? {
+                                    ...d,
+                                    depositType: val,
+                                    currency: isUsd ? "USD" : d.currency,
+                                  }
+                                : d,
+                            ),
+                          );
+                        }}
+                        className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
+                      >
+                        <option value="CASH_USD">
+                          Efectivo Divisas (USD)
+                        </option>
+                        <option value="CASH_VES">
+                          Efectivo Bolívares (VES)
+                        </option>
+                        <option value="POS_BATCH">
+                          Lote Punto de Venta (POS)
+                        </option>
+                        <option value="PAGO_MOVIL">Pago Móvil</option>
+                        <option value="ZELLE">Zelle (USD)</option>
+                        <option value="TRANSFER">
+                          Transferencia Bancaria
+                        </option>
+                        <option value="OTHER">Otro Depósito</option>
+                      </select>
+                    </div>
+
+                    {/* Monto y Moneda */}
+                    <div>
+                      <label className="block text-[11px] text-neutral-600 dark:text-neutral-400 mb-1 font-medium">
+                        Monto ({draft.currency}):
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={draft.amount || ""}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setDepositDrafts((prev) =>
+                            prev.map((d) =>
+                              d.id === draft.id ? { ...d, amount: val } : d,
+                            ),
+                          );
+                        }}
+                        className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs font-mono font-bold bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
+                        placeholder="0.00"
+                      />
+                    </div>
+
+                    {/* Nro de Referencia */}
+                    <div>
+                      <label className="block text-[11px] text-neutral-600 dark:text-neutral-400 mb-1 font-medium">
+                        Nro. de Referencia / Comprobante:
+                      </label>
+                      <input
+                        type="text"
+                        value={draft.referenceNumber}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setDepositDrafts((prev) =>
+                            prev.map((d) =>
+                              d.id === draft.id
+                                ? { ...d, referenceNumber: val }
+                                : d,
+                            ),
+                          );
+                        }}
+                        className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
+                        placeholder="Ej: DEP-89201 o LOTE-449"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[10px] text-neutral-500 dark:text-neutral-400 mb-0.5">
+                        Fecha de Depósito:
+                      </label>
+                      <input
+                        type="date"
+                        value={draft.depositDate}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setDepositDrafts((prev) =>
+                            prev.map((d) =>
+                              d.id === draft.id
+                                ? { ...d, depositDate: val }
+                                : d,
+                            ),
+                          );
+                        }}
+                        className="w-full h-7 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-neutral-500 dark:text-neutral-400 mb-0.5">
+                        Concepto / Notas:
+                      </label>
+                      <input
+                        type="text"
+                        value={draft.notes}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setDepositDrafts((prev) =>
+                            prev.map((d) =>
+                              d.id === draft.id ? { ...d, notes: val } : d,
+                            ),
+                          );
+                        }}
+                        className="w-full h-7 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100"
+                        placeholder="Notas adicionales..."
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
+        )}
+      </Modal>
+
+      {/* MODAL 3: Lista de Alertas / Notificaciones de Auditoría */}
+      <Modal
+        isOpen={showNotificationsModal}
+        onClose={() => setShowNotificationsModal(false)}
+        title={`Alertas de Discrepancia en Arqueos (${notifications.length})`}
+        size="2xl"
+        footer={
+          <Button
+            size="sm"
+            onClick={() => setShowNotificationsModal(false)}
+          >
+            Entendido
+          </Button>
+        }
+      >
+        <div className="space-y-3 text-xs">
+          {notifications.length === 0 ? (
+            <p className="text-center text-neutral-400 dark:text-neutral-500 py-8">
+              No hay alertas de discrepancia pendientes.
+            </p>
+          ) : (
+            notifications.map((notif) => (
+              <div
+                key={notif.id}
+                className="p-3.5 rounded-lg border border-red-200 dark:border-red-900/60 bg-red-50/50 dark:bg-red-950/30 space-y-2"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-red-950 dark:text-red-200">
+                    {notif.title}
+                  </span>
+                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono">
+                    {new Date(notif.createdAt).toLocaleString("es-VE")}
+                  </span>
+                </div>
+                <p className="text-neutral-700 dark:text-neutral-300 leading-relaxed text-[11px]">
+                  {notif.message}
+                </p>
+                <div className="text-[11px] text-neutral-500 dark:text-neutral-400 font-mono">
+                  Cajero responsable:{" "}
+                  <span className="font-sans font-semibold text-neutral-800 dark:text-neutral-200">
+                    {notif.cashierName}
+                  </span>
+                </div>
+
+                {resolvingNotificationId === notif.id ? (
+                  <div className="pt-2 space-y-2 border-t border-red-200 dark:border-red-900/60">
+                    <textarea
+                      rows={2}
+                      value={notificationResolutionNotes}
+                      onChange={(e) =>
+                        setNotificationResolutionNotes(e.target.value)
+                      }
+                      placeholder="Ingrese justificación de resolución (ej. verificado con supervisor)..."
+                      className="w-full p-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100"
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setResolvingNotificationId(null);
+                          setNotificationResolutionNotes("");
+                        }}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={submitting}
+                        onClick={() => handleResolveNotification(notif.id)}
+                      >
+                        Confirmar Resolución
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="pt-1 flex justify-end">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setResolvingNotificationId(notif.id);
+                        setNotificationResolutionNotes("");
+                      }}
+                      className="border-neutral-300 dark:border-neutral-700"
+                    >
+                      Resolver Alerta
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
         </div>
-      )}
+      </Modal>
 
       {/* Modal Visor de PDF */}
       {pdfModal.isOpen && pdfModal.endpoint && (

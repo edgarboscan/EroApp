@@ -396,3 +396,95 @@ reportsRouter.get('/sales-book', authenticate, authorize('taxes', 'read'), async
 
   return c.json({ success: true, data });
 });
+
+// GET /api/reports/restaurant-tips - Reporte de Propinas de Restaurante por Mesero / Usuario
+reportsRouter.get('/restaurant-tips', authenticate, authorize('reports', 'export_pdf'), async (c) => {
+  const user = c.get('user');
+  const startDate = c.req.query('startDate');
+  const endDate = c.req.query('endDate');
+  const branchId = c.req.query('branchId');
+  const waiterId = c.req.query('waiterId');
+  const waiterName = c.req.query('waiterName');
+  const onlyWithTips = c.req.query('onlyWithTips') !== 'false';
+  const format = c.req.query('format') || c.req.query('export') || 'json';
+
+  try {
+    const data = await ReportsService.getRestaurantTipsReport(user.companyId, {
+      branchId,
+      waiterId,
+      waiterName,
+      startDate,
+      endDate,
+      onlyWithTips,
+    });
+
+    if (format === 'pdf') {
+      const [company, userName, branchName] = await Promise.all([
+        ReportsService.getCompanyPdfInfo(user.companyId),
+        ReportsService.getUserFullName(user.sub),
+        ReportsService.getBranchName(branchId),
+      ]);
+
+      const buffer = ReportsPdfEngine.generateRestaurantTipsReportPDF(data, company, userName, {
+        startDate,
+        endDate,
+        branchName,
+        waiterName,
+      });
+
+      c.header('Content-Type', 'application/pdf');
+      c.header('Content-Disposition', `inline; filename="reporte_propinas_${startDate || 'inicio'}_${endDate || 'fin'}.pdf"`);
+      return c.body(new Uint8Array(buffer));
+    }
+
+    if (format === 'csv') {
+      const flatRows = data.orders.map((o) => ({
+        'N° Comanda': o.orderNumber,
+        'Mesero / Generador': o.waiterName,
+        'Mesa': `${o.tableNumber} (${o.tableName})`,
+        'Salón / Área': o.zone,
+        'Cliente': o.customerName,
+        'Fecha Cierre': o.closedAt ? new Date(o.closedAt).toLocaleString('es-VE') : '',
+        'Consumo ($)': o.subtotalUSD.toFixed(2),
+        'Consumo (Bs)': o.subtotalVES.toFixed(2),
+        'Propina ($)': o.tipUSD.toFixed(2),
+        'Propina (Bs)': o.tipVES.toFixed(2),
+        '% Propina': `${o.tipPercent}%`,
+        'Factura POS': o.posInvoiceNumber || (o.isInvoiced ? 'Facturada' : 'Pendiente'),
+        'Estado': o.isInvoiced ? 'FACTURADA' : 'PENDIENTE',
+        'Cerrado Por': o.closedByUserName || '',
+      }));
+      const csv = ReportsService.exportToCSV(flatRows);
+      c.header('Content-Type', 'text/csv');
+      c.header('Content-Disposition', 'attachment; filename="reporte_propinas.csv"');
+      return c.text(csv);
+    }
+
+    if (format === 'excel') {
+      const flatRows = data.orders.map((o) => ({
+        'N° Comanda': o.orderNumber,
+        'Mesero / Generador': o.waiterName,
+        'Mesa': `${o.tableNumber} (${o.tableName})`,
+        'Salón / Área': o.zone,
+        'Cliente': o.customerName,
+        'Fecha Cierre': o.closedAt ? new Date(o.closedAt).toLocaleString('es-VE') : '',
+        'Consumo ($)': o.subtotalUSD,
+        'Consumo (Bs)': o.subtotalVES,
+        'Propina ($)': o.tipUSD,
+        'Propina (Bs)': o.tipVES,
+        '% Propina': o.tipPercent,
+        'Factura POS': o.posInvoiceNumber || (o.isInvoiced ? 'Facturada' : 'Pendiente'),
+        'Estado': o.isInvoiced ? 'FACTURADA' : 'PENDIENTE',
+        'Cerrado Por': o.closedByUserName || '',
+      }));
+      const buffer = ReportsService.exportToExcel(flatRows, 'Propinas');
+      c.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      c.header('Content-Disposition', 'attachment; filename="reporte_propinas.xlsx"');
+      return c.body(new Uint8Array(buffer));
+    }
+
+    return c.json({ success: true, data });
+  } catch (error: any) {
+    return c.json({ success: false, error: { message: error.message } }, 500);
+  }
+});

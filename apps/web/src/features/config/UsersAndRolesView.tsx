@@ -23,8 +23,8 @@ import {
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { useAuthStore, isSuperAdminRole } from "../../stores/authStore";
+import { Modal } from "../../components/ui/Modal";
 import { showDestructiveConfirm } from "../../lib/sweetalert";
-import { useEscapeKey } from "../../components/ui/Modal";
 
 export interface BranchWithWarehouses {
   id: string;
@@ -546,14 +546,6 @@ export const UsersAndRolesView: React.FC = () => {
   const [roleSelectedPerms, setRoleSelectedPerms] = useState<string[]>([]);
   const [submittingRole, setSubmittingRole] = useState(false);
   const [permSearchQuery, setPermSearchQuery] = useState("");
-
-  useEscapeKey(
-    () => {
-      if (isRoleModalOpen) setIsRoleModalOpen(false);
-      else if (isModalOpen) setIsModalOpen(false);
-    },
-    Boolean(isRoleModalOpen || isModalOpen),
-  );
 
   const canManageRoles =
     isSuperAdminRole(user?.role) || hasPermission("config", "write");
@@ -1416,41 +1408,37 @@ export const UsersAndRolesView: React.FC = () => {
       )}
 
       {/* MODAL CREAR / EDITAR USUARIO */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-neutral-900 rounded-lg max-w-lg w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 dark:border-neutral-800 my-auto text-neutral-900 dark:text-neutral-100">
-            {/* Header (Pinned) */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between shrink-0 bg-white dark:bg-neutral-900">
-              <div className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-sky-600 dark:text-sky-400" />
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
-                    {editingUser
-                      ? `Editar Usuario: ${editingUser.username}`
-                      : "Registrar Nuevo Usuario"}
-                  </h3>
-                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                    Gestión de credenciales, roles y accesos
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                title="Cerrar modal (Esc)"
-                className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form
-              id="userForm"
-              onSubmit={handleSubmitUser}
-              className="flex-1 flex flex-col overflow-hidden"
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={editingUser ? `Editar Usuario: ${editingUser.username}` : "Registrar Nuevo Usuario"}
+        subtitle="Gestión de credenciales, roles y accesos"
+        size="xl"
+        footer={
+          <div className="flex items-center justify-end gap-2 w-full">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsModalOpen(false)}
+              disabled={submitting}
             >
-              {/* Body (Scrollable) */}
-              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
+              Cancelar
+            </Button>
+            <Button type="submit" size="sm" disabled={submitting} form="userForm">
+              {submitting
+                ? "Guardando..."
+                : editingUser
+                  ? "Guardar Cambios"
+                  : "Crear Usuario"}
+            </Button>
+          </div>
+        }
+      >
+        <form
+          id="userForm"
+          onSubmit={handleSubmitUser}
+          className="space-y-4 text-xs"
+        >
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
@@ -1819,71 +1807,59 @@ export const UsersAndRolesView: React.FC = () => {
                     <span>Usuario Activo en el Sistema</span>
                   </label>
                 </div>
-              </div>
 
-              {/* Footer (Pinned) */}
-              <div className="px-5 py-3.5 border-t border-neutral-200 dark:border-neutral-800 flex justify-end gap-2 shrink-0 bg-white dark:bg-neutral-900">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsModalOpen(false)}
-                  disabled={submitting}
-                  className="border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
-                >
-                  Cancelar
-                </Button>
-                <Button type="submit" size="sm" disabled={submitting}>
-                  {submitting
-                    ? "Guardando..."
-                    : editingUser
-                      ? "Guardar Cambios"
-                      : "Crear Usuario"}
-                </Button>
-              </div>
             </form>
-          </div>
-        </div>
-      )}
+      </Modal>
 
       {/* MODAL CREAR / EDITAR ROL Y MATRIZ DE PERMISOS */}
-      {isRoleModalOpen && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-neutral-900 rounded-lg max-w-3xl w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 dark:border-neutral-800 my-auto text-neutral-900 dark:text-neutral-100">
-            {/* Header Modal (Pinned) */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between shrink-0 bg-white dark:bg-neutral-900">
-              <div className="flex items-center gap-2">
-                <Shield className="w-5 h-5 text-sky-600 dark:text-sky-400" />
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
-                    {editingRole
-                      ? editingRole.isSystem
-                        ? `Consultar / Configurar Rol: ${editingRole.name}`
-                        : `Editar Rol: ${editingRole.name}`
-                      : "Crear Nuevo Rol del Sistema"}
-                  </h3>
-                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                    Defina los privilegios de acceso y acciones autorizadas por
-                    módulo
-                  </p>
-                </div>
-              </div>
-              <button
+      <Modal
+        isOpen={isRoleModalOpen}
+        onClose={() => setIsRoleModalOpen(false)}
+        title={
+          editingRole
+            ? editingRole.isSystem
+              ? `Consultar / Configurar Rol: ${editingRole.name}`
+              : `Editar Rol: ${editingRole.name}`
+            : "Crear Nuevo Rol del Sistema"
+        }
+        subtitle="Defina los privilegios de acceso y acciones autorizadas por módulo"
+        size="3xl"
+        footer={
+          <div className="flex justify-between items-center w-full">
+            <span className="text-xs text-neutral-500 dark:text-neutral-400">
+              {roleSelectedPerms.length} privilegios seleccionados
+            </span>
+            <div className="flex gap-2">
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 onClick={() => setIsRoleModalOpen(false)}
-                title="Cerrar modal (Esc)"
-                className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer"
+                disabled={submittingRole}
               >
-                <X className="w-5 h-5" />
-              </button>
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={submittingRole}
+                form="roleForm"
+              >
+                {submittingRole
+                  ? "Guardando..."
+                  : editingRole
+                    ? "Guardar Cambios"
+                    : "Crear Rol"}
+              </Button>
             </div>
-
-            {/* Formulario */}
-            <form
-              onSubmit={handleSubmitRole}
-              className="flex-1 flex flex-col overflow-hidden"
-            >
-              <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+          </div>
+        }
+      >
+        <form
+          id="roleForm"
+          onSubmit={handleSubmitRole}
+          className="space-y-4 text-xs"
+        >
                 {/* Datos básicos del Rol */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
@@ -2069,38 +2045,8 @@ export const UsersAndRolesView: React.FC = () => {
                     },
                   )}
                 </div>
-              </div>
-
-              {/* Footer Modal (Pinned) */}
-              <div className="px-5 py-3.5 border-t border-neutral-200 dark:border-neutral-800 flex justify-between items-center shrink-0 bg-white dark:bg-neutral-900">
-                <span className="text-xs text-neutral-500 dark:text-neutral-400 ">
-                  {roleSelectedPerms.length} privilegios seleccionados
-                </span>
-
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsRoleModalOpen(false)}
-                    disabled={submittingRole}
-                    className="border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
-                  >
-                    Cancelar
-                  </Button>
-                  <Button type="submit" size="sm" disabled={submittingRole}>
-                    {submittingRole
-                      ? "Guardando..."
-                      : editingRole
-                        ? "Guardar Cambios"
-                        : "Crear Rol"}
-                  </Button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+        </form>
+      </Modal>
     </div>
   );
 };

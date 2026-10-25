@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, X, Receipt, Check, AlertCircle, Calendar } from 'lucide-react';
-import { useEscapeKey } from '../ui/Modal';
+import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { formatMoneyUSD } from '@ero/shared';
@@ -58,7 +58,6 @@ export const InvoiceSearchModal: React.FC<InvoiceSearchModalProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  useEscapeKey(onClose, isOpen);
 
   // Enfocar automáticamente el input de búsqueda al abrir
   useEffect(() => {
@@ -92,29 +91,26 @@ export const InvoiceSearchModal: React.FC<InvoiceSearchModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-      <div className="relative w-full max-w-4xl max-h-[92vh] bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 shadow-2xl flex flex-col overflow-hidden z-10 my-auto">
-        {/* Header fijo */}
-        <div className="px-5 py-3.5 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between shrink-0 bg-white dark:bg-neutral-900">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="p-1.5 bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 rounded-lg shrink-0">
-              <Receipt className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
-            </div>
-            <div className="truncate">
-              <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">{title}</h3>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate">{subtitle}</p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 p-1.5 rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-neutral-400 cursor-pointer"
-            title="Cerrar modal (Esc)"
-          >
-            <X className="w-5 h-5" />
-          </button>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={title}
+      subtitle={subtitle}
+      icon={<Receipt className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />}
+      maxWidth="max-w-4xl"
+      className="max-h-[92vh]"
+      contentClassName="p-0 flex flex-col flex-1 overflow-hidden"
+      footer={
+        <div className="flex items-center justify-between w-full text-xs text-neutral-500 dark:text-neutral-400">
+          <span className="text-[11px]">
+            Haz clic en cualquier documento o pulsa <kbd className="px-1 py-0.5 bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded text-[10px] font-mono text-neutral-700 dark:text-neutral-300">Esc</kbd> para salir
+          </span>
+          <Button variant="outline" size="sm" onClick={onClose}>
+            Cerrar
+          </Button>
         </div>
+      }
+    >
 
         {/* Barra de búsqueda interactiva */}
         <div className="p-3 sm:px-5 bg-neutral-50 dark:bg-neutral-850 border-b border-neutral-200 dark:border-neutral-800 shrink-0 flex items-center gap-3">
@@ -237,16 +233,6 @@ export const InvoiceSearchModal: React.FC<InvoiceSearchModalProps> = ({
           )}
         </div>
 
-        {/* Footer fijo */}
-        <div className="px-5 py-3.5 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-850 flex items-center justify-between gap-2 shrink-0">
-          <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
-            Haz clic en cualquier documento o pulsa <kbd className="px-1 py-0.5 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded text-[10px] font-mono text-neutral-700 dark:text-neutral-300">Esc</kbd> para salir
-          </span>
-          <Button variant="outline" size="sm" onClick={onClose}>
-            Cerrar
-          </Button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 };

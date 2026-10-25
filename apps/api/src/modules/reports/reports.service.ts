@@ -1,4 +1,5 @@
 import { query } from '../../db';
+import { RestaurantService } from '../restaurant/restaurant.service';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
@@ -600,6 +601,23 @@ export class ReportsService {
       totalSalesVES: Number(r.total_sales_ves),
       averageTicketUSD: Number(r.average_ticket_usd),
     }));
+  }
+
+  /**
+   * Reporte de Propinas de Restaurante por Mesero / Usuario
+   */
+  static async getRestaurantTipsReport(
+    companyId: string,
+    filters?: {
+      branchId?: string;
+      waiterId?: string;
+      waiterName?: string;
+      startDate?: string;
+      endDate?: string;
+      onlyWithTips?: boolean;
+    }
+  ) {
+    return await RestaurantService.getRestaurantTipsReport(companyId, filters);
   }
 
   /**

@@ -1,19 +1,35 @@
 import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 
+export type ModalSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl' | 'full';
+
 export interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: React.ReactNode;
   subtitle?: React.ReactNode;
+  description?: React.ReactNode;
   icon?: React.ReactNode;
   children: React.ReactNode;
   footer?: React.ReactNode;
   maxWidth?: string;
+  size?: ModalSize;
   headerActions?: React.ReactNode;
   contentClassName?: string;
   className?: string;
 }
+
+const sizeClasses: Record<ModalSize, string> = {
+  sm: 'max-w-sm',
+  md: 'max-w-md',
+  lg: 'max-w-lg',
+  xl: 'max-w-xl',
+  '2xl': 'max-w-2xl',
+  '3xl': 'max-w-3xl',
+  '4xl': 'max-w-4xl',
+  '5xl': 'max-w-5xl',
+  full: 'max-w-7xl',
+};
 
 /**
  * Hook para permitir cerrar cualquier modal con la tecla Escape
@@ -40,14 +56,17 @@ export const Modal: React.FC<ModalProps> = ({
   onClose,
   title,
   subtitle,
+  description,
   icon,
   children,
   footer,
-  maxWidth = 'max-w-xl',
+  maxWidth,
+  size = 'xl',
   headerActions,
   contentClassName = '',
   className = '',
 }) => {
+  const resolvedMaxWidth = maxWidth || sizeClasses[size] || 'max-w-xl';
   useEscapeKey(onClose, isOpen);
 
   useEffect(() => {
@@ -77,7 +96,7 @@ export const Modal: React.FC<ModalProps> = ({
       />
 
       <div
-        className={`relative w-full ${maxWidth} max-h-[92vh] bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 shadow-2xl flex flex-col overflow-hidden z-10 my-auto text-neutral-900 dark:text-neutral-100 ${className}`}
+        className={`relative w-full ${resolvedMaxWidth} max-h-[92vh] bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 shadow-2xl flex flex-col overflow-hidden z-10 my-auto text-neutral-900 dark:text-neutral-100 ${className}`}
       >
         {/* Header Fijo (Pinned) */}
         <div className="px-5 py-3.5 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between shrink-0 bg-white dark:bg-neutral-900">
@@ -85,7 +104,7 @@ export const Modal: React.FC<ModalProps> = ({
             {icon && <div className="text-sky-600 dark:text-sky-400 shrink-0">{icon}</div>}
             <div className="min-w-0">
               <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100 truncate">{title}</h3>
-              {subtitle && <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">{subtitle}</p>}
+              {(subtitle || description) && <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">{subtitle || description}</p>}
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -109,7 +128,7 @@ export const Modal: React.FC<ModalProps> = ({
 
         {/* Footer Fijo (Pinned) */}
         {footer && (
-          <div className="px-5 py-3.5 border-t shrink-0 bg-white dark:bg-neutral-900 flex items-center justify-end gap-3 shrink-0">
+          <div className="px-5 py-3.5 border-t border-neutral-200 dark:border-neutral-800 shrink-0 bg-white dark:bg-neutral-900 flex items-center justify-end gap-3">
             {footer}
           </div>
         )}

@@ -270,3 +270,65 @@ export const RestaurantTableClosureSchema = z.object({
 });
 export type RestaurantTableClosure = z.infer<typeof RestaurantTableClosureSchema>;
 
+// ==========================================
+// REPORTE DE PROPINAS POR MESERO / USUARIO
+// ==========================================
+export const RestaurantTipItemSchema = z.object({
+  closureId: z.string(),
+  orderId: z.string(),
+  orderNumber: z.string(),
+  tableNumber: z.string(),
+  tableName: z.string(),
+  zone: z.string(),
+  waiterId: z.string().nullable().optional(),
+  waiterName: z.string(),
+  closedByUserId: z.string().nullable().optional(),
+  closedByUserName: z.string().nullable().optional(),
+  customerName: z.string(),
+  openedAt: z.string(),
+  closedAt: z.string(),
+  durationMinutes: z.number().default(0),
+  subtotalUSD: z.number().default(0),
+  subtotalVES: z.number().default(0),
+  tipUSD: z.number().default(0),
+  tipVES: z.number().default(0),
+  tipPercent: z.number().default(0),
+  totalUSD: z.number().default(0),
+  totalVES: z.number().default(0),
+  exchangeRate: z.number().default(1),
+  isInvoiced: z.boolean().default(false),
+  posInvoiceId: z.string().nullable().optional(),
+  posInvoiceNumber: z.string().nullable().optional(),
+  invoiceStatus: z.string().nullable().optional(),
+  branchName: z.string().optional(),
+});
+export type RestaurantTipItem = z.infer<typeof RestaurantTipItemSchema>;
+
+export const WaiterTipsSummarySchema = z.object({
+  waiterId: z.string().nullable().optional(),
+  waiterName: z.string(),
+  ordersCount: z.number().default(0),
+  ordersWithTipCount: z.number().default(0),
+  totalSalesUSD: z.number().default(0),
+  totalTipsUSD: z.number().default(0),
+  totalTipsVES: z.number().default(0),
+  averageTipUSD: z.number().default(0),
+  averageTipPercent: z.number().default(0),
+});
+export type WaiterTipsSummary = z.infer<typeof WaiterTipsSummarySchema>;
+
+export const RestaurantTipsReportSchema = z.object({
+  summary: z.object({
+    totalTipsUSD: z.number().default(0),
+    totalTipsVES: z.number().default(0),
+    totalSalesUSD: z.number().default(0),
+    totalSalesVES: z.number().default(0),
+    ordersCount: z.number().default(0),
+    ordersWithTipCount: z.number().default(0),
+    averageTipUSD: z.number().default(0),
+    averageTipPercent: z.number().default(0),
+  }),
+  byWaiter: z.array(WaiterTipsSummarySchema),
+  orders: z.array(RestaurantTipItemSchema),
+});
+export type RestaurantTipsReport = z.infer<typeof RestaurantTipsReportSchema>;

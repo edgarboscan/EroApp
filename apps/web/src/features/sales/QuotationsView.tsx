@@ -3,7 +3,7 @@ import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
 import { DataTable, Column } from "../../components/ui/DataTable";
-import { useEscapeKey } from "../../components/ui/Modal";
+import { Modal } from "../../components/ui/Modal";
 import { useExchangeRateStore } from "../../stores/exchangeRateStore";
 import {
   FileText,
@@ -302,24 +302,7 @@ export const QuotationsView: React.FC = () => {
     title: "",
   });
 
-  useEscapeKey(
-    () => {
-      if (showCustomerSearch) setShowCustomerSearch(false);
-      else if (productSearchRowIdx !== null) setProductSearchRowIdx(null);
-      else if (isAddingFromSearch) setIsAddingFromSearch(false);
-      else if (viewingQuotation) setViewingQuotation(null);
-      else if (invoicingQuotation) setInvoicingQuotation(null);
-      else if (isCreateOpen) setIsCreateOpen(false);
-    },
-    Boolean(
-      showCustomerSearch ||
-      productSearchRowIdx !== null ||
-      isAddingFromSearch ||
-      viewingQuotation ||
-      invoicingQuotation ||
-      isCreateOpen,
-    ),
-  );
+
 
   // Formulario Nueva Cotización
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
@@ -1254,7 +1237,7 @@ export const QuotationsView: React.FC = () => {
       accessorKey: "customerName",
       cell: (item) => (
         <div>
-          <p className="text-xs font-medium text-neutral-900">
+          <p className="text-xs font-medium text-neutral-500">
             {item.customerName}
           </p>
           <span className="font-mono text-[10px] text-neutral-500">
@@ -1278,7 +1261,7 @@ export const QuotationsView: React.FC = () => {
       accessorKey: "totalAmount",
       cell: (item) => (
         <div className="text-right">
-          <p className="text-xs font-semibold text-neutral-900 font-mono">
+          <p className="text-xs font-semibold text-neutral-500 font-mono">
             {formatMoneyUSD(item.totalAmount)}
           </p>
           <p className="text-[10px] text-neutral-500 font-mono">
@@ -1347,10 +1330,10 @@ export const QuotationsView: React.FC = () => {
       {/* Encabezado */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-neutral-900 tracking-tight">
+          <h1 className="text-xl font-bold text-neutral-500 dark:text-neutral-100 tracking-tight">
             Cotizaciones & Presupuestos
           </h1>
-          <p className="text-xs text-neutral-500 mt-1">
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
             Propuestas comerciales y presupuestos para clientes con conversión a
             facturas y notas de entrega
           </p>
@@ -1366,16 +1349,16 @@ export const QuotationsView: React.FC = () => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-        <Card className="p-4 rounded-lg border border-neutral-200 bg-white">
+        <Card className="p-4 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-neutral-500">
+            <span className="text-xs font-medium text-neutral-400">
               Cotizaciones Activas
             </span>
             <div className="w-7 h-7 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
               <FileText className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-neutral-900 mt-2">
+          <p className="text-2xl font-bold text-neutral-500 mt-2">
             {activeQuotationsCount}
           </p>
           <p className="text-[10px] text-neutral-400 mt-0.5">
@@ -1383,7 +1366,7 @@ export const QuotationsView: React.FC = () => {
           </p>
         </Card>
 
-        <Card className="p-4 rounded-lg border border-neutral-200 bg-white">
+        <Card className="p-4 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-neutral-500">
               Monto Total Cotizado
@@ -1392,7 +1375,7 @@ export const QuotationsView: React.FC = () => {
               <DollarSign className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-neutral-900 mt-2 font-mono">
+          <p className="text-2xl font-bold text-neutral-500 mt-2 font-mono">
             {formatMoneyUSD(totalQuotedAmount)}
           </p>
           <p className="text-[10px] text-neutral-400 mt-0.5">
@@ -1400,7 +1383,7 @@ export const QuotationsView: React.FC = () => {
           </p>
         </Card>
 
-        <Card className="p-4 rounded-lg border border-neutral-200 bg-white">
+        <Card className="p-4 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-neutral-500">
               Aprobadas para Facturar
@@ -1417,7 +1400,7 @@ export const QuotationsView: React.FC = () => {
           </p>
         </Card>
 
-        <Card className="p-4 rounded-lg border border-neutral-200 bg-white">
+        <Card className="p-4 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-neutral-500">
               Cotizaciones Facturadas
@@ -1436,7 +1419,7 @@ export const QuotationsView: React.FC = () => {
           </p>
         </Card>
 
-        <Card className="p-4 rounded-lg border border-neutral-200 bg-white">
+        <Card className="p-4 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-neutral-500">
               Monto Total Facturado
@@ -1478,23 +1461,23 @@ export const QuotationsView: React.FC = () => {
 
         {/* Filtros de Fecha */}
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          <div className="flex items-center gap-1.5 bg-neutral-50 px-2.5 py-1.5 rounded-lg border border-neutral-300">
+          <div className="flex items-center gap-1.5  px-2.5 py-1.5  p-4 rounded-lg ">
             <Calendar className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
             <span className="text-[11px] text-neutral-500 font-medium">Desde:</span>
             <input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="bg-transparent border-0 text-xs text-neutral-800 p-0 focus:ring-0 focus:outline-none"
+              className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
             />
           </div>
-          <div className="flex items-center gap-1.5 bg-neutral-50 px-2.5 py-1.5 rounded-lg border border-neutral-300">
+          <div className="flex items-center gap-1.5  px-2.5 py-1.5  p-4 rounded-lg ">
             <span className="text-[11px] text-neutral-500 font-medium">Hasta:</span>
             <input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="bg-transparent border-0 text-xs text-neutral-800 p-0 focus:ring-0 focus:outline-none"
+              className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
             />
           </div>
           {(startDate || endDate) && (
@@ -1506,7 +1489,7 @@ export const QuotationsView: React.FC = () => {
                 setStartDate("");
                 setEndDate("");
               }}
-              className="text-xs py-1 px-2.5 rounded-lg text-neutral-600 hover:text-neutral-900 flex items-center gap-1"
+              className="text-xs py-1 px-2.5 rounded-lg text-neutral-600 hover:text-neutral-500 flex items-center gap-1"
               title="Limpiar filtros de fecha"
             >
               <X className="w-3.5 h-3.5" />
@@ -1527,39 +1510,40 @@ export const QuotationsView: React.FC = () => {
       </Card>
 
       {/* Modal Nueva Cotización */}
-      {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/60 backdrop-blur-xs p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg border border-neutral-200 w-full max-w-4xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden my-auto">
-            {/* Header (Pinned) */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
-              <div>
-                <h3 className="text-sm font-bold text-neutral-900">
-                  Nueva Cotización / Presupuesto
-                </h3>
-                <p className="text-[11px] text-neutral-500 mt-0.5">
-                  Propuesta comercial con precios de lista y cálculo tributario
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsCreateOpen(false)}
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
-                title="Cerrar modal (Esc)"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form
-              id="createQuotationForm"
-              onSubmit={handleCreateQuotation}
-              className="flex-1 flex flex-col overflow-hidden"
+      <Modal
+        isOpen={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+        title="Nueva Cotización / Presupuesto"
+        subtitle="Propuesta comercial con precios de lista y cálculo tributario"
+        size="4xl"
+        footer={
+          <div className="flex items-center justify-end gap-2 w-full">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsCreateOpen(false)}
             >
-              {/* Body (Scrollable) */}
-              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              form="createQuotationForm"
+            >
+              Emitir Cotización
+            </Button>
+          </div>
+        }
+      >
+        <form
+          id="createQuotationForm"
+          onSubmit={handleCreateQuotation}
+          className="space-y-4 text-xs"
+        >
                 <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-neutral-700 mb-1">
+                    <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-400 mb-1">
                       Cliente Solicitante *
                     </label>
                     <div className="flex items-center gap-1.5">
@@ -1575,7 +1559,7 @@ export const QuotationsView: React.FC = () => {
                           }
                           setSelectedCustomerId(e.target.value);
                         }}
-                        className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-3 py-2 text-neutral-800"
+                        className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                       >
                         {availableCustomers.length === 0 ? (
                           <option value="">No hay clientes registrados</option>
@@ -1595,14 +1579,13 @@ export const QuotationsView: React.FC = () => {
                         title="Buscar cliente en modal"
                         className="px-2.5 py-2 shrink-0 flex items-center gap-1 text-xs"
                       >
-                        <Search className="w-3.5 h-3.5 text-neutral-500" />
-                        {/* <span>Buscar</span> */}
+                        <Search className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
                       </Button>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-neutral-700 mb-1">
+                    <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-400 mb-1">
                       Válida Hasta *
                     </label>
                     <input
@@ -1610,12 +1593,12 @@ export const QuotationsView: React.FC = () => {
                       required
                       value={validUntilDate}
                       onChange={(e) => setValidUntilDate(e.target.value)}
-                      className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-3 py-2 text-neutral-800"
+                      className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-neutral-700 mb-1">
+                    <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-400 mb-1">
                       Tasa Oficial BCV
                     </label>
                     <input
@@ -1623,7 +1606,7 @@ export const QuotationsView: React.FC = () => {
                       step="0.01"
                       value={formatExchangeRate(exchangeRate, 2)}
                       onChange={(e) => setExchangeRate(Number(e.target.value))}
-                      className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-3 py-2 text-neutral-800 text-right"
+                      className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 text-right focus:outline-none focus:ring-2 focus:ring-sky-500"
                     />
                   </div>
                 </div>
@@ -1631,7 +1614,7 @@ export const QuotationsView: React.FC = () => {
                 {/* Detalle de Productos Cotizados */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-semibold text-neutral-900 uppercase tracking-wider">
+                    <h4 className="text-xs font-semibold text-neutral-500 dark:text-neutral-100 uppercase tracking-wider">
                       Productos Cotizados ({quotationItems.length})
                     </h4>
                     <div className="flex items-center gap-2">
@@ -1642,7 +1625,7 @@ export const QuotationsView: React.FC = () => {
                         onClick={() => setIsAddingFromSearch(true)}
                         className="text-xs rounded-lg py-1 px-2.5 flex items-center gap-1.5"
                       >
-                        <Search className="w-3.5 h-3.5 text-neutral-500" />
+                        <Search className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
                         <span>Buscar en Catálogo</span>
                       </Button>
                       <Button
@@ -1658,9 +1641,9 @@ export const QuotationsView: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="overflow-x-auto border border-neutral-200 rounded-lg">
+                  <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-700 rounded-lg">
                     <table className="w-full text-left text-xs">
-                      <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-600 font-medium">
+                      <thead className="bg-neutral-50 dark:bg-neutral-800/60 border-b border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 font-medium">
                         <tr>
                           <th className="py-2.5 px-3">Producto</th>
                           <th className="py-2.5 px-3 w-24">Cantidad</th>
@@ -1673,9 +1656,9 @@ export const QuotationsView: React.FC = () => {
                           <th className="py-2.5 px-3 w-12"></th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-neutral-100">
+                      <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
                         {quotationItems.map((item, idx) => (
-                          <tr key={idx} className="hover:bg-neutral-50/50">
+                          <tr key={idx} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/40">
                             <td className="py-2 px-3">
                               <div className="flex items-center gap-1.5">
                                 <select
@@ -1687,7 +1670,7 @@ export const QuotationsView: React.FC = () => {
                                       e.target.value,
                                     )
                                   }
-                                  className="flex-1 text-xs bg-white border border-neutral-300 rounded-lg px-2.5 py-1.5 text-neutral-800 min-w-[140px]"
+                                  className="flex-1 text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-2.5 py-1.5 text-neutral-800 dark:text-neutral-200 min-w-[140px] focus:outline-none focus:ring-2 focus:ring-sky-500"
                                 >
                                   {availableProducts.length === 0 ? (
                                     <option value="">Sin productos</option>
@@ -1707,7 +1690,7 @@ export const QuotationsView: React.FC = () => {
                                   title="Buscar producto en modal"
                                   className="p-1.5 shrink-0"
                                 >
-                                  <Search className="w-3.5 h-3.5" />
+                                  <Search className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
                                 </Button>
                               </div>
                             </td>
@@ -1724,7 +1707,7 @@ export const QuotationsView: React.FC = () => {
                                     e.target.value,
                                   )
                                 }
-                                className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-2.5 py-1.5 text-neutral-800"
+                                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-2.5 py-1.5 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                               />
                             </td>
                             <td className="py-2 px-3">
@@ -1740,7 +1723,7 @@ export const QuotationsView: React.FC = () => {
                                     e.target.value,
                                   )
                                 }
-                                className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-2.5 py-1.5 text-neutral-800"
+                                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-2.5 py-1.5 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                               />
                             </td>
                             <td className="py-2 px-3">
@@ -1753,7 +1736,7 @@ export const QuotationsView: React.FC = () => {
                                     e.target.value,
                                   )
                                 }
-                                className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-2 py-1.5 text-neutral-800"
+                                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-2 py-1.5 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                               >
                                 <option value="0">0%</option>
                                 <option value="8">8%</option>
@@ -1773,10 +1756,10 @@ export const QuotationsView: React.FC = () => {
                                     e.target.value,
                                   )
                                 }
-                                className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-2 py-1.5 text-neutral-800"
+                                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-2 py-1.5 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                               />
                             </td>
-                            <td className="py-2 px-3 text-right font-medium text-neutral-900 font-mono">
+                            <td className="py-2 px-3 text-right font-medium text-neutral-500 dark:text-neutral-100 font-mono">
                               {formatMoneyUSD(item.subtotal)}
                             </td>
                             <td className="py-2 px-3 text-center">
@@ -1798,7 +1781,7 @@ export const QuotationsView: React.FC = () => {
                 {/* Totales y Observaciones */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start pt-2">
                   <div>
-                    <label className="block text-xs font-medium text-neutral-700 mb-1">
+                    <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-400 mb-1">
                       Condiciones Comerciales y Observaciones
                     </label>
                     <textarea
@@ -1806,108 +1789,100 @@ export const QuotationsView: React.FC = () => {
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
                       placeholder="Validez de la oferta, tiempos de entrega, forma de pago acordada..."
-                      className="w-full text-xs bg-white border border-neutral-300 rounded-lg p-2.5 text-neutral-800"
+                      className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg p-2.5 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                     />
                   </div>
 
-                  <div className="bg-neutral-50 rounded-lg p-4 border border-neutral-200 space-y-2">
-                    <div className="flex justify-between text-xs text-neutral-600">
+                  <div className="bg-neutral-50 dark:bg-neutral-800/50 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700 space-y-2">
+                    <div className="flex justify-between text-xs text-neutral-600 dark:text-neutral-400">
                       <span>Subtotal Base Imponible:</span>
-                      <span className="font-semibold font-mono">
+                      <span className="font-semibold font-mono text-neutral-500 dark:text-neutral-100">
                         {formatMoneyUSD(subtotalSum)}
                       </span>
                     </div>
-                    <div className="flex justify-between text-xs text-neutral-600">
+                    <div className="flex justify-between text-xs text-neutral-600 dark:text-neutral-400">
                       <span>IVA Estimado:</span>
-                      <span className="font-semibold font-mono">
+                      <span className="font-semibold font-mono text-neutral-500 dark:text-neutral-100">
                         {formatMoneyUSD(taxSum)}
                       </span>
                     </div>
-                    <div className="pt-2 border-t border-neutral-200 flex justify-between items-baseline">
-                      <span className="text-sm font-bold text-neutral-900">
+                    <div className="pt-2 border-t border-neutral-200 dark:border-neutral-700 flex justify-between items-baseline">
+                      <span className="text-sm font-bold text-neutral-500 dark:text-neutral-100">
                         Total Presupuesto (USD):
                       </span>
-                      <span className="text-base font-bold text-sky-700 font-mono">
+                      <span className="text-base font-bold text-sky-700 dark:text-sky-400 font-mono">
                         {formatMoneyUSD(totalUSD)}
                       </span>
                     </div>
-                    <div className="flex justify-between text-[11px] text-neutral-500">
+                    <div className="flex justify-between text-[11px] text-neutral-500 dark:text-neutral-400">
                       <span>Equivalente en Bolívares (BCV):</span>
-                      <span className="font-medium font-mono">
+                      <span className="font-medium font-mono text-neutral-800 dark:text-neutral-200">
                         {formatMoneyVES(totalVES)}
                       </span>
                     </div>
                   </div>
                 </div>
-              </div>
-
-              {/* Footer (Pinned) */}
-              <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsCreateOpen(false)}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  type="submit"
-                  size="sm"
-                  className="bg-sky-600 hover:bg-sky-700 text-white font-medium text-xs rounded-lg py-2 px-4 shadow-sm"
-                >
-                  Emitir Cotización
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+        </form>
+      </Modal>
 
       {/* Modal Facturar Cotización */}
-      {invoicingQuotation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/60 backdrop-blur-xs p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg border border-neutral-200 w-full max-w-3xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden my-auto">
-            {/* Header (Pinned) */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 bg-sky-50 text-sky-700 rounded-lg border border-sky-200">
-                  <Receipt className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-900">
-                    Facturar Cotización Directa
-                  </h3>
-                  <p className="text-[11px] text-neutral-500">
-                    Genera la factura oficial de venta con rebaja inmediata de stock
-                  </p>
-                </div>
-              </div>
-              <button
+      <Modal
+        isOpen={Boolean(invoicingQuotation)}
+        onClose={() => setInvoicingQuotation(null)}
+        title="Facturar Cotización Directa"
+        subtitle="Genera la factura oficial de venta con rebaja inmediata de stock"
+        size="3xl"
+        footer={
+          invoicingQuotation && (
+            <div className="flex items-center justify-end gap-2 w-full">
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 onClick={() => setInvoicingQuotation(null)}
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
-                title="Cerrar modal (Esc)"
               >
-                <X className="w-5 h-5" />
-              </button>
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                form="invoiceQuotationForm"
+                disabled={
+                  loadingInvoiceConfig ||
+                  loadingVerification ||
+                  Boolean(verificationResult?.hasStockIssues) ||
+                  (isCredit && customerCreditInfo !== null && !customerCreditInfo.creditEnabled) ||
+                  (isCredit && isCreditExceeded && enforceCreditLimit && !requireApprovalCreditExceeded)
+                }
+                className={
+                  verificationResult?.hasStockIssues
+                    ? "bg-neutral-400 cursor-not-allowed hover:bg-neutral-400 text-white"
+                    : "bg-sky-600 hover:bg-sky-700 text-white"
+                }
+              >
+                {verificationResult?.hasStockIssues
+                  ? "Bloqueado (Stock Insuficiente)"
+                  : "Emitir Factura y Rebajar Stock"}
+              </Button>
             </div>
-
-            <form
-              id="invoiceQuotationForm"
-              onSubmit={handleInvoiceQuotation}
-              className="flex-1 flex flex-col overflow-hidden"
-            >
-              {/* Body (Scrollable) */}
-              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
+          )
+        }
+      >
+        {invoicingQuotation && (
+          <form
+            id="invoiceQuotationForm"
+            onSubmit={handleInvoiceQuotation}
+            className="space-y-4 text-xs"
+          >
                 {/* Resumen de Cotización */}
-                <div className="bg-neutral-50 p-3 rounded-lg border border-neutral-200 text-xs">
+                <div className="b
+bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 text-xs">
                   <div className="flex justify-between items-start">
                     <div>
-                      <p className="font-semibold text-neutral-900">
+                      <p className="font-semibold text-neutral-400">
                         {invoicingQuotation.customerName}
                       </p>
-                      <p className="text-neutral-500 font-mono text-[11px]">
+                      <p className="text-neutral-400 font-mono text-[11px]">
                         {invoicingQuotation.customerDoc}
                       </p>
                     </div>
@@ -1916,12 +1891,12 @@ export const QuotationsView: React.FC = () => {
                     </Badge>
                   </div>
                   <div className="mt-2 pt-2 border-t border-neutral-200 flex justify-between items-center">
-                    <span className="text-neutral-600">Total a Facturar:</span>
+                    <span className="text-neutral-400">Total a Facturar:</span>
                     <div className="text-right">
-                      <span className="text-sm font-bold text-neutral-900 font-mono">
+                      <span className="text-sm font-bold text-neutral-100 font-mono">
                         {formatMoneyUSD(invoicingQuotation.totalAmount)}
                       </span>
-                      <span className="text-[11px] text-neutral-500 block font-mono">
+                      <span className="text-[11px] text-neutral-400 block font-mono">
                         {formatMoneyVES(
                           invoicingQuotation.totalAmount * invoicingQuotation.exchangeRate
                         )}
@@ -1940,7 +1915,7 @@ export const QuotationsView: React.FC = () => {
                   <>
                     {/* Depósito de Despacho (Reserva de Stock) */}
                     <div>
-                      <label className="block text-xs font-medium text-neutral-700 mb-1">
+                      <label className="block text-xs font-medium text-neutral-400 mb-1">
                         Depósito de Despacho (Reserva de Stock) <span className="text-red-500">*</span>
                       </label>
                       <select
@@ -1953,7 +1928,7 @@ export const QuotationsView: React.FC = () => {
                             fetchInvoiceVerification(invoicingQuotation.id, wh);
                           }
                         }}
-                        className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-3 py-2 text-neutral-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                       >
                         <option value="">Seleccione un depósito...</option>
                         {warehouses.map((w) => (
@@ -1965,14 +1940,14 @@ export const QuotationsView: React.FC = () => {
                     </div>
 
                     {/* Verificación de Precios & Existencias en Depósito */}
-                    <div className="bg-neutral-50 rounded-lg p-3.5 border border-neutral-200 space-y-3">
+                    <div className="bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 space-y-3">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-neutral-200/80 pb-2">
                         <div>
-                          <h4 className="text-xs font-bold text-neutral-900 flex items-center gap-1.5">
-                            <FileCheck className="w-4 h-4 text-sky-600" />
+                          <h4 className="text-xs font-bold text-neutral-400 flex items-center gap-1.5">
+                            <FileCheck className="w-4 h-4 text-sky-300" />
                             <span>Verificación de Precios & Existencias</span>
                           </h4>
-                          <p className="text-[11px] text-neutral-500">
+                          <p className="text-[11px] text-neutral-400">
                             Disponibilidad en almacén y comparación con precios de catálogo vigentes
                           </p>
                         </div>
@@ -2082,7 +2057,7 @@ export const QuotationsView: React.FC = () => {
                           {/* Tabla Resumen de Ítems */}
                           <div className="overflow-x-auto border border-neutral-200 rounded-lg bg-white">
                             <table className="w-full text-left text-xs">
-                              <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-600 font-medium">
+                              <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase text-[10px] tracking-wider border-b border-neutral-200 dark:border-neutral-700">
                                 <tr>
                                   <th className="py-2 px-2.5">Producto</th>
                                   <th className="py-2 px-2 text-right">Cant.</th>
@@ -2101,7 +2076,7 @@ export const QuotationsView: React.FC = () => {
                                     }`}
                                   >
                                     <td className="py-2 px-2.5">
-                                      <p className="font-medium text-neutral-900 leading-tight">
+                                      <p className="font-medium text-neutral-500 leading-tight">
                                         {item.productName}
                                       </p>
                                       <span className="font-mono text-[10px] text-neutral-400">
@@ -2164,13 +2139,13 @@ export const QuotationsView: React.FC = () => {
 
                     {/* Modo de Facturación Administrativa */}
                     <div>
-                      <label className="block text-xs font-medium text-neutral-700 mb-1">
+                      <label className="block text-xs font-medium text-neutral-400 mb-1">
                         Tipo / Modo de Facturación
                       </label>
                       <select
                         value={salesInvoiceMode}
                         onChange={(e) => setSalesInvoiceMode(e.target.value as any)}
-                        className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-3 py-2 text-neutral-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                       >
                         <option value="free_form">
                           Factura Fiscal Forma Libre / Talonario (Requiere Nº Control SENIAT)
@@ -2182,7 +2157,7 @@ export const QuotationsView: React.FC = () => {
                           No Fiscal / Nota Interna (Sin Nº Control SENIAT)
                         </option>
                       </select>
-                      <p className="text-[11px] text-neutral-500 mt-1">
+                      <p className="text-[11px] text-neutral-400 mt-1">
                         {salesInvoiceMode === "free_form" &&
                           "Modo Forma Libre: requiere número de control pre-impreso autorizado por el SENIAT."}
                         {salesInvoiceMode === "fiscal_printer" &&
@@ -2194,7 +2169,7 @@ export const QuotationsView: React.FC = () => {
 
                     {/* Nº Factura de Venta */}
                     <div>
-                      <label className="block text-xs font-medium text-neutral-700 mb-1">
+                      <label className="block text-xs font-medium text-neutral-400 mb-1">
                         Nº Factura de Venta <span className="text-red-500">*</span>
                       </label>
                       <input
@@ -2203,9 +2178,9 @@ export const QuotationsView: React.FC = () => {
                         placeholder="Ej. FACT-2026-00001"
                         value={invoiceNumber}
                         onChange={(e) => setInvoiceNumber(e.target.value)}
-                        className="w-full text-xs font-mono bg-white border border-neutral-300 rounded-lg px-3 py-2 text-neutral-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                       />
-                      <p className="text-[11px] text-neutral-500 mt-0.5">
+                      <p className="text-[11px] text-neutral-400 mt-0.5">
                         Autogenerado por el correlativo de ventas. Puede modificarse si usa talonario físico.
                       </p>
                     </div>
@@ -2222,9 +2197,9 @@ export const QuotationsView: React.FC = () => {
                           placeholder="Ej. 00-009482"
                           value={controlNumber}
                           onChange={(e) => setControlNumber(e.target.value)}
-                          className="w-full text-xs font-mono bg-white border border-neutral-300 rounded-lg px-3 py-2 text-neutral-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                          className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                         />
-                        <p className="text-[11px] text-neutral-500 mt-0.5">
+                        <p className="text-[11px] text-neutral-400 mt-0.5">
                           Obligatorio según normativa SENIAT para facturas en forma libre pre-impresas.
                         </p>
                       </div>
@@ -2232,7 +2207,7 @@ export const QuotationsView: React.FC = () => {
 
                     {salesInvoiceMode === "fiscal_printer" && (
                       <div className="bg-sky-50/60 p-2.5 rounded-lg border border-sky-200/80 flex items-center gap-2 text-sky-800 text-xs">
-                        <Printer className="w-4 h-4 text-sky-600 shrink-0" />
+                        <Printer className="w-4 h-4 text-sky-300 shrink-0" />
                         <span>
                           Nº de Control emitido y gestionado automáticamente por la impresora fiscal.
                         </span>
@@ -2251,7 +2226,7 @@ export const QuotationsView: React.FC = () => {
                         />
                         <label
                           htmlFor="creditToggle"
-                          className="text-xs text-neutral-800 font-medium cursor-pointer"
+                          className="text-xs text-neutral-400 font-medium cursor-pointer"
                         >
                           Venta a Crédito (Registrar obligación pendiente en CxC)
                         </label>
@@ -2259,14 +2234,14 @@ export const QuotationsView: React.FC = () => {
 
                       {/* Cobro de Contado (cuando isCredit es false) */}
                       {!isCredit && (
-                        <div className="mt-3 p-3.5 bg-neutral-50 rounded-lg border border-neutral-200 space-y-3">
+                        <div className="mt-3 p-3.5 bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800  space-y-3">
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-neutral-200/80 pb-2.5">
                             <div>
-                              <span className="text-xs font-bold text-neutral-900 flex items-center gap-1.5">
+                              <span className="text-xs font-bold text-neutral-500 flex items-center gap-1.5">
                                 <DollarSign className="w-4 h-4 text-emerald-600" />
-                                Métodos de Pago & Liquidación de Contado
+                                <p className="text-[11px] text-neutral-400 mt-0.5">Métodos de Pago & Liquidación de Contado</p>
                               </span>
-                              <p className="text-[11px] text-neutral-500 mt-0.5">
+                              <p className="text-[11px] text-neutral-400 mt-0.5">
                                 Puede fraccionar el cobro en múltiples medios (efectivo, divisas, transferencias, pago móvil)
                               </p>
                             </div>
@@ -2295,31 +2270,31 @@ export const QuotationsView: React.FC = () => {
                           </div>
 
                           {/* Resumen de Liquidación */}
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-2.5 bg-white rounded-lg border border-neutral-200 text-xs">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-2.5 bg-sky-50/60 dark:bg-sky-950/30  rounded-lg border border-sky-200 dark:border-sky-800 text-xs">
                             <div>
-                              <span className="text-[10px] text-neutral-500 font-medium block">
+                              <span className="text-[10px] text-neutral-400 font-medium block">
                                 Total a Facturar:
                               </span>
-                              <span className="font-mono font-bold text-neutral-900">
+                              <span className="font-mono font-bold text-neutral-400">
                                 {formatMoneyUSD(totalAmountToInvoice)}
                               </span>
-                              <span className="text-[10px] text-neutral-500 block font-mono">
+                              <span className="text-[10px] text-neutral-400 block font-mono">
                                 ≈ {formatMoneyVES(targetInvoiceVES)}
                               </span>
                             </div>
                             <div>
-                              <span className="text-[10px] text-neutral-500 font-medium block">
+                              <span className="text-[10px] text-neutral-400 font-medium block">
                                 Total Distribuido:
                               </span>
-                              <span className="font-mono font-bold text-emerald-700">
+                              <span className="font-mono font-bold text-emerald-400">
                                 {formatMoneyUSD(totalPaidUSD)}
                               </span>
-                              <span className="text-[10px] text-neutral-500 block font-mono">
+                              <span className="text-[10px] text-neutral-400 block font-mono">
                                 ≈ {formatMoneyVES(totalPaidVES)}
                               </span>
                             </div>
                             <div>
-                              <span className="text-[10px] text-neutral-500 font-medium block">
+                              <span className="text-[10px] text-neutral-400 font-medium block">
                                 Estado de Cobertura:
                               </span>
                               {Math.abs(pendingBalanceUSD) <= 0.05 ? (
@@ -2346,10 +2321,10 @@ export const QuotationsView: React.FC = () => {
                               return (
                                 <div
                                   key={line.id}
-                                  className="p-3 bg-white rounded-lg border border-neutral-200 shadow-xs space-y-2.5"
+                                  className="p-3 bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 shadow-xs space-y-2.5"
                                 >
                                   <div className="flex items-center justify-between border-b border-neutral-100 pb-1.5">
-                                    <span className="text-[11px] font-semibold text-neutral-700 flex items-center gap-1.5">
+                                    <span className="text-[11px] font-semibold text-neutral-400 flex items-center gap-1.5">
                                       <span className="w-4 h-4 rounded-full bg-sky-100 text-sky-800 text-[10px] font-bold flex items-center justify-center">
                                         {idx + 1}
                                       </span>
@@ -2370,7 +2345,7 @@ export const QuotationsView: React.FC = () => {
                                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                                     {/* Método */}
                                     <div>
-                                      <label className="block text-[11px] font-medium text-neutral-600 mb-1">
+                                      <label className="block text-[11px] font-medium text-neutral-400 mb-1">
                                         Método <span className="text-red-500">*</span>
                                       </label>
                                       <select
@@ -2378,7 +2353,7 @@ export const QuotationsView: React.FC = () => {
                                         onChange={(e) =>
                                           handlePaymentLineChange(line.id, "method", e.target.value)
                                         }
-                                        className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-2.5 py-1.5 text-neutral-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                                        className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                                       >
                                         <option value="CASH_USD">Efectivo Dólares (USD)</option>
                                         <option value="CASH_VES">Efectivo Bolívares (VES)</option>
@@ -2393,7 +2368,7 @@ export const QuotationsView: React.FC = () => {
 
                                     {/* Monto USD */}
                                     <div>
-                                      <label className="block text-[11px] font-medium text-neutral-600 mb-1">
+                                      <label className="block text-[11px] font-medium text-neutral-400 mb-1">
                                         Monto USD <span className="text-red-500">*</span>
                                       </label>
                                       <div className="relative">
@@ -2407,14 +2382,14 @@ export const QuotationsView: React.FC = () => {
                                           onChange={(e) =>
                                             handlePaymentLineChange(line.id, "amountUSD", e.target.value)
                                           }
-                                          className="w-full text-xs font-mono bg-white border border-neutral-300 rounded-lg pl-6 pr-2.5 py-1.5 text-neutral-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                                          className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                                         />
                                       </div>
                                     </div>
 
                                     {/* Monto VES */}
                                     <div>
-                                      <label className="block text-[11px] font-medium text-neutral-600 mb-1">
+                                      <label className="block text-[11px] font-medium text-neutral-400 mb-1">
                                         Equivalente VES
                                       </label>
                                       <div className="relative">
@@ -2427,14 +2402,14 @@ export const QuotationsView: React.FC = () => {
                                           onChange={(e) =>
                                             handlePaymentLineChange(line.id, "amountVES", e.target.value)
                                           }
-                                          className="w-full text-xs font-mono bg-white border border-neutral-300 rounded-lg pl-7 pr-2.5 py-1.5 text-neutral-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                                          className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                                         />
                                       </div>
                                     </div>
 
                                     {/* Cuenta Bancaria */}
                                     <div>
-                                      <label className="block text-[11px] font-medium text-neutral-600 mb-1">
+                                      <label className="block text-[11px] font-medium text-neutral-400 mb-1">
                                         Cuenta Receptora <span className="text-red-500">*</span>
                                       </label>
                                       <select
@@ -2443,7 +2418,7 @@ export const QuotationsView: React.FC = () => {
                                         onChange={(e) =>
                                           handlePaymentLineChange(line.id, "bankAccountId", e.target.value)
                                         }
-                                        className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-2 py-1.5 text-neutral-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                                        className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                                       >
                                         {bankAccounts.length === 0 ? (
                                           <option value="">Sin cuentas en Tesorería</option>
@@ -2463,7 +2438,7 @@ export const QuotationsView: React.FC = () => {
 
                                   {/* Fila Referencia */}
                                   <div>
-                                    <label className="block text-[11px] font-medium text-neutral-600 mb-1">
+                                    <label className="block text-[11px] font-medium text-neutral-400 mb-1">
                                       Nº Referencia / Comprobante{" "}
                                       {isElectronic && (
                                         <span className="text-red-500 font-semibold">* (Requerido para conciliación)</span>
@@ -2476,7 +2451,7 @@ export const QuotationsView: React.FC = () => {
                                       onChange={(e) =>
                                         handlePaymentLineChange(line.id, "referenceNumber", e.target.value)
                                       }
-                                      className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-2.5 py-1.5 text-neutral-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                                      className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                                     />
                                   </div>
                                 </div>
@@ -2484,7 +2459,7 @@ export const QuotationsView: React.FC = () => {
                             })}
                           </div>
 
-                          <p className="text-[10px] text-neutral-500">
+                          <p className="text-[10px] text-sky-200">
                             Cada medio generará un movimiento de depósito y actualizará el saldo de la cuenta respectiva en Tesorería.
                           </p>
                         </div>
@@ -2520,13 +2495,13 @@ export const QuotationsView: React.FC = () => {
                           )}
 
                           {/* Información de Crédito del Cliente */}
-                          <div className="bg-neutral-50 p-2.5 rounded-lg border border-neutral-200 space-y-1.5 text-[11px]">
+                          <div className="bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800  space-y-1.5 text-[11px]">
                             <div className="flex justify-between">
-                              <span className="text-neutral-500">Crédito Habilitado:</span>
+                              <span className="text-neutral-400">Crédito Habilitado:</span>
                               <span
                                 className={`font-semibold ${
                                   customerCreditInfo?.creditEnabled
-                                    ? "text-emerald-700"
+                                    ? "text-emerald-300"
                                     : "text-red-600"
                                 }`}
                               >
@@ -2534,24 +2509,24 @@ export const QuotationsView: React.FC = () => {
                               </span>
                             </div>
                             <div className="flex justify-between">
-                              <span className="text-neutral-500">Límite de Crédito:</span>
-                              <span className="font-mono font-medium text-neutral-800">
+                              <span className="text-neutral-400">Límite de Crédito:</span>
+                              <span className="font-mono font-medium text-neutral-400">
                                 {formatMoneyUSD(currentCreditLimit)}
                               </span>
                             </div>
                             <div className="flex justify-between">
-                              <span className="text-neutral-500">Deuda Actual CxC:</span>
-                              <span className="font-mono font-medium text-amber-700">
+                              <span className="text-neutral-400">Deuda Actual CxC:</span>
+                              <span className="font-mono font-medium text-amber-300">
                                 {formatMoneyUSD(currentCustomerDebt)}
                               </span>
                             </div>
                             <div className="flex justify-between pt-1 border-t border-neutral-200">
-                              <span className="text-neutral-700 font-medium">Crédito Disponible:</span>
+                              <span className="text-neutral-400 font-medium">Crédito Disponible:</span>
                               <span
                                 className={`font-mono font-bold ${
                                   availableCredit >= totalAmountToInvoice
-                                    ? "text-emerald-700"
-                                    : "text-red-600"
+                                    ? "text-emerald-300"
+                                    : "text-red-300"
                                 }`}
                               >
                                 {formatMoneyUSD(availableCredit)}
@@ -2562,7 +2537,7 @@ export const QuotationsView: React.FC = () => {
                           {/* Fecha de Vencimiento Calculada */}
                           <div>
                             <div className="flex items-center justify-between mb-1">
-                              <label className="text-xs font-medium text-neutral-700">
+                              <label className="text-xs font-medium text-neutral-400">
                                 Fecha de Vencimiento <span className="text-red-500">*</span>
                               </label>
                               <span className="text-[10px] text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded-lg font-medium border border-sky-200">
@@ -2574,7 +2549,7 @@ export const QuotationsView: React.FC = () => {
                               required
                               value={dueDate}
                               onChange={(e) => setDueDate(e.target.value)}
-                              className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-3 py-2 text-neutral-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                              className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                             />
                             <p className="text-[11px] text-neutral-500 mt-0.5">
                               Calculada automáticamente a partir del plazo comercial establecido para el cliente.
@@ -2609,7 +2584,7 @@ export const QuotationsView: React.FC = () => {
                                           onChange={(e) => setAdminAuthorized(e.target.checked)}
                                           className="rounded-lg text-sky-600 focus:ring-sky-500 mt-0.5"
                                         />
-                                        <span className="text-xs font-semibold text-neutral-900">
+                                        <span className="text-xs font-semibold text-neutral-500">
                                           Autorizo este sobregiro con mis credenciales de Administrador ({user?.fullName || "Administrador"})
                                         </span>
                                       </label>
@@ -2626,7 +2601,7 @@ export const QuotationsView: React.FC = () => {
                                   ) : (
                                     /* Usuario regular requiere credenciales de supervisor */
                                     <div className="space-y-2.5">
-                                      <div className="flex items-center gap-1.5 text-xs font-semibold text-neutral-900">
+                                      <div className="flex items-center gap-1.5 text-xs font-semibold text-neutral-500">
                                         <Lock className="w-3.5 h-3.5 text-amber-700" />
                                         <span>Autorización de Supervisor / Administrador</span>
                                       </div>
@@ -2683,85 +2658,59 @@ export const QuotationsView: React.FC = () => {
                     </div>
                   </>
                 )}
-              </div>
 
-              {/* Footer (Pinned) */}
-              <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setInvoicingQuotation(null)}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={
-                    loadingInvoiceConfig ||
-                    loadingVerification ||
-                    Boolean(verificationResult?.hasStockIssues) ||
-                    (isCredit && customerCreditInfo !== null && !customerCreditInfo.creditEnabled) ||
-                    (isCredit && isCreditExceeded && enforceCreditLimit && !requireApprovalCreditExceeded)
-                  }
-                  className={`text-white font-medium text-xs rounded-lg py-2 px-4 shadow-sm ${
-                    verificationResult?.hasStockIssues
-                      ? "bg-neutral-400 cursor-not-allowed hover:bg-neutral-400"
-                      : "bg-sky-600 hover:bg-sky-700"
-                  }`}
-                >
-                  {verificationResult?.hasStockIssues
-                    ? "Bloqueado (Stock Insuficiente)"
-                    : "Emitir Factura y Rebajar Stock"}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+          </form>
+        )}
+      </Modal>
 
       {/* Modal Ver Detalle */}
-      {viewingQuotation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/60 backdrop-blur-xs p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg border border-neutral-200 w-full max-w-3xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden my-auto">
-            {/* Header (Pinned) */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 bg-sky-50 text-sky-700 rounded-lg border border-sky-200">
-                  <FileText className="w-4 h-4" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-neutral-900">
-                      Cotización {viewingQuotation.quotationNumber}
-                    </h3>
-                    {renderStatusBadge(viewingQuotation.status)}
-                  </div>
-                  <p className="text-[11px] text-neutral-500">
-                    Sucursal: {viewingQuotation.branchName || "Principal"} | Creado por: {viewingQuotation.createdByUserName || "Usuario"}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setViewingQuotation(null)}
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
-                title="Cerrar modal (Esc)"
+      <Modal
+        isOpen={Boolean(viewingQuotation)}
+        onClose={() => setViewingQuotation(null)}
+        title={viewingQuotation ? `Cotización ${viewingQuotation.quotationNumber}` : "Detalle de Cotización"}
+        subtitle={
+          viewingQuotation
+            ? `Sucursal: ${viewingQuotation.branchName || "Principal"} | Creado por: ${viewingQuotation.createdByUserName || "Usuario"}`
+            : undefined
+        }
+        size="3xl"
+        footer={
+          viewingQuotation && (
+            <div className="flex items-center justify-end gap-2 w-full">
+              <Button
+                size="sm"
+                onClick={() => {
+                  setPdfModal({
+                    isOpen: true,
+                    endpoint: `/api/sales/quotations/${viewingQuotation.id}/pdf`,
+                    title: `Cotización Comercial ${viewingQuotation.quotationNumber}`,
+                    filename: `cotizacion_${viewingQuotation.quotationNumber}.pdf`,
+                  });
+                }}
               >
-                <X className="w-5 h-5" />
-              </button>
+                <FileText className="w-4 h-4 mr-1.5" />
+                Descargar / Ver PDF
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setViewingQuotation(null)}
+              >
+                Cerrar
+              </Button>
             </div>
-
-            {/* Body (Scrollable) */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
+          )
+        }
+      >
+        {viewingQuotation && (
+          <div className="space-y-4 text-xs">
               {/* Información del Cliente y Fechas */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-neutral-50 p-3 rounded-lg border border-neutral-200">
                 <div>
                   <span className="text-[10px] text-neutral-500 uppercase font-semibold block">
                     Cliente Receptor
                   </span>
-                  <p className="font-semibold text-neutral-900 mt-0.5">
+                  <p className="font-semibold text-neutral-500 mt-0.5">
                     {viewingQuotation.customerName}
                   </p>
                   <p className="font-mono text-neutral-600">
@@ -2803,7 +2752,7 @@ export const QuotationsView: React.FC = () => {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                     <div>
                       <span className="text-[10px] text-neutral-500 block">Nº Factura:</span>
-                      <span className="font-mono font-bold text-neutral-900">
+                      <span className="font-mono font-bold text-neutral-500">
                         {viewingQuotation.invoice?.invoiceNumber || viewingQuotation.invoiceNumber || "N/A"}
                       </span>
                     </div>
@@ -2873,13 +2822,13 @@ export const QuotationsView: React.FC = () => {
                             <tbody className="divide-y divide-neutral-100">
                               {viewingQuotation.invoice.payments.map((p) => (
                                 <tr key={p.id} className="hover:bg-neutral-50/50">
-                                  <td className="py-2 px-2.5 font-medium text-neutral-900">
+                                  <td className="py-2 px-2.5 font-medium text-neutral-500">
                                     <span className="inline-flex items-center gap-1.5">
                                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                                       {getPaymentMethodLabel(p.method)}
                                     </span>
                                   </td>
-                                  <td className="py-2 px-2.5 text-right font-mono font-bold text-neutral-900">
+                                  <td className="py-2 px-2.5 text-right font-mono font-bold text-neutral-500">
                                     {formatMoneyUSD(p.amountUSD)}
                                   </td>
                                   <td className="py-2 px-2.5 text-right font-mono text-neutral-600">
@@ -2915,7 +2864,7 @@ export const QuotationsView: React.FC = () => {
               {viewingQuotation.items && viewingQuotation.items.length > 0 && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-neutral-900">
+                    <span className="text-xs font-bold text-neutral-500">
                       Productos Cotizados ({viewingQuotation.items.length})
                     </span>
                   </div>
@@ -2934,7 +2883,7 @@ export const QuotationsView: React.FC = () => {
                         {viewingQuotation.items.map((it) => (
                           <tr key={it.id} className="hover:bg-neutral-50/50">
                             <td className="py-2 px-3">
-                              <p className="font-semibold text-neutral-900">{it.productName}</p>
+                              <p className="font-semibold text-neutral-500">{it.productName}</p>
                               <span className="text-[10px] font-mono text-neutral-500">
                                 SKU: {it.productSku}
                               </span>
@@ -2953,7 +2902,7 @@ export const QuotationsView: React.FC = () => {
                             <td className="py-2 px-2 text-right font-mono text-neutral-500 text-[11px]">
                               {it.taxRate}%
                             </td>
-                            <td className="py-2 px-3 text-right font-mono font-bold text-neutral-900">
+                            <td className="py-2 px-3 text-right font-mono font-bold text-neutral-500">
                               {formatMoneyUSD(it.total)}
                             </td>
                           </tr>
@@ -3001,7 +2950,7 @@ export const QuotationsView: React.FC = () => {
                     <span>IVA:</span>
                     <span className="font-mono">{formatMoneyUSD(viewingQuotation.taxAmount)}</span>
                   </div>
-                  <div className="flex justify-between sm:justify-end gap-4 text-base font-bold text-neutral-900 border-t border-neutral-200 pt-1">
+                  <div className="flex justify-between sm:justify-end gap-4 text-base font-bold text-neutral-500 border-t border-neutral-200 pt-1">
                     <span>Total USD:</span>
                     <span className="font-mono">{formatMoneyUSD(viewingQuotation.totalAmount)}</span>
                   </div>
@@ -3011,34 +2960,8 @@ export const QuotationsView: React.FC = () => {
                 </div>
               </div>
             </div>
-
-            {/* Footer (Pinned) */}
-            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
-              <Button
-                size="sm"
-                onClick={() => {
-                  setPdfModal({
-                    isOpen: true,
-                    endpoint: `/api/sales/quotations/${viewingQuotation.id}/pdf`,
-                    title: `Cotización Comercial ${viewingQuotation.quotationNumber}`,
-                    filename: `cotizacion_${viewingQuotation.quotationNumber}.pdf`,
-                  });
-                }}
-              >
-                <FileText className="w-4 h-4 mr-1.5" />
-                Descargar / Ver PDF
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setViewingQuotation(null)}
-              >
-                Cerrar
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* Modal Buscador de Clientes */}
       <CustomerSearchModal

@@ -3,7 +3,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { DataTable, Column } from '../../components/ui/DataTable';
-import { useEscapeKey } from '../../components/ui/Modal';
+import { Modal } from '../../components/ui/Modal';
 import {
   Truck,
   ArrowRightLeft,
@@ -77,11 +77,6 @@ export const InventoryTransfersView: React.FC = () => {
     title: '',
   });
 
-  useEscapeKey(() => {
-    if (showProductSearch) setShowProductSearch(false);
-    else if (showReceiveModal) setShowReceiveModal(false);
-    else if (showCreateModal) setShowCreateModal(false);
-  }, Boolean(showProductSearch || showReceiveModal || showCreateModal));
 
   // Form State: Nuevo Traslado
   const [originWarehouseId, setOriginWarehouseId] = useState('');
@@ -527,250 +522,214 @@ export const InventoryTransfersView: React.FC = () => {
       </Card>
 
       {/* Modal: Crear Traslado */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
-            {/* Header (Pinned) */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
-              <div className="flex items-center gap-2">
-                <Truck className="w-5 h-5 text-sky-600" />
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-900">Despacho de Traslado entre Depósitos</h3>
-                  <p className="text-[11px] text-neutral-500">Registre la transferencia de mercancía entre depósitos</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowCreateModal(false)}
-                title="Cerrar modal (Esc)"
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
+      <Modal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        title="Despacho de Traslado entre Depósitos"
+        description="Registre la transferencia de mercancía entre depósitos"
+        size="2xl"
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowCreateModal(false)}>
+              Cancelar
+            </Button>
+            <Button size="sm" disabled={submitting || items.length === 0} onClick={handleCreateTransfer}>
+              <Truck className="w-4 h-4 mr-1.5" />
+              Despachar Mercancía en Tránsito
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4 text-xs">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Depósito Origen (Despacha)</label>
+              <select
+                value={originWarehouseId}
+                onChange={(e) => setOriginWarehouseId(e.target.value)}
+                className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
               >
-                <X className="w-5 h-5" />
-              </button>
+                {warehouses.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            {/* Body (Scrollable) */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-neutral-700 mb-1">Depósito Origen (Despacha)</label>
-                  <select
-                    value={originWarehouseId}
-                    onChange={(e) => setOriginWarehouseId(e.target.value)}
-                    className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs bg-white"
-                  >
-                    {warehouses.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+            <div>
+              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Depósito Destino (Recibe)</label>
+              <select
+                value={destWarehouseId}
+                onChange={(e) => setDestWarehouseId(e.target.value)}
+                className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+              >
+                {warehouses.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
 
-                <div>
-                  <label className="block font-semibold text-neutral-700 mb-1">Depósito Destino (Recibe)</label>
-                  <select
-                    value={destWarehouseId}
-                    onChange={(e) => setDestWarehouseId(e.target.value)}
-                    className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs bg-white"
+          <div>
+            <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Observaciones / Guía de Envío</label>
+            <input
+              type="text"
+              value={transferNotes}
+              onChange={(e) => setTransferNotes(e.target.value)}
+              placeholder="Ej: Despacho en pickup de la empresa, chofer Carlos Mendoza"
+              className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400"
+            />
+          </div>
+
+          {/* Agregar Producto */}
+          <div className="p-3 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg border border-neutral-200 dark:border-neutral-700 space-y-2">
+            <span className="font-semibold text-neutral-800 dark:text-neutral-200 block">Agregar Producto a Trasladar:</span>
+            <div className="grid grid-cols-12 gap-2 items-end">
+              <div className="col-span-6">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] text-neutral-500 dark:text-neutral-400 block">Producto</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowProductSearch(true)}
+                    className="text-[11px] text-sky-600 dark:text-sky-400 hover:text-sky-700 font-medium flex items-center gap-1 cursor-pointer"
                   >
-                    {warehouses.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.name}
+                    <Search className="w-3 h-3" />
+                    <span>Buscar en catálogo</span>
+                  </button>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <select
+                    value={newProductId}
+                    onChange={(e) => setNewProductId(e.target.value)}
+                    className="flex-1 h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+                  >
+                    {catalog.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.sku} - {p.name}
                       </option>
                     ))}
                   </select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowProductSearch(true)}
+                    title="Buscar producto en modal"
+                    className="h-8 px-2 shrink-0 flex items-center justify-center"
+                  >
+                    <Search className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
+                  </Button>
                 </div>
               </div>
 
-              <div>
-                <label className="block font-semibold text-neutral-700 mb-1">Observaciones / Guía de Envío</label>
+              <div className="col-span-3">
+                <label className="text-[11px] text-neutral-500 dark:text-neutral-400 block mb-1">Cantidad</label>
                 <input
-                  type="text"
-                  value={transferNotes}
-                  onChange={(e) => setTransferNotes(e.target.value)}
-                  placeholder="Ej: Despacho en pickup de la empresa, chofer Carlos Mendoza"
-                  className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs"
+                  type="number"
+                  min="1"
+                  value={newQuantity}
+                  onChange={(e) => setNewQuantity(parseFloat(e.target.value) || 1)}
+                  className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs font-mono font-bold bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
                 />
               </div>
 
-              {/* Agregar Producto */}
-              <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 space-y-2">
-                <span className="font-semibold text-neutral-800 block">Agregar Producto a Trasladar:</span>
-                <div className="grid grid-cols-12 gap-2 items-end">
-                  <div className="col-span-6">
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-[11px] text-neutral-500 block">Producto</label>
-                      <button
-                        type="button"
-                        onClick={() => setShowProductSearch(true)}
-                        className="text-[11px] text-sky-600 hover:text-sky-700 font-medium flex items-center gap-1 cursor-pointer"
-                      >
-                        <Search className="w-3 h-3" />
-                        <span>Buscar en catálogo</span>
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <select
-                        value={newProductId}
-                        onChange={(e) => setNewProductId(e.target.value)}
-                        className="flex-1 h-8 px-2 border border-neutral-300 rounded-lg text-xs bg-white"
-                      >
-                        {catalog.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.sku} - {p.name}
-                          </option>
-                        ))}
-                      </select>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowProductSearch(true)}
-                        title="Buscar producto en modal"
-                        className="h-8 px-2 shrink-0 flex items-center justify-center"
-                      >
-                        <Search className="w-3.5 h-3.5 text-neutral-500" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="col-span-3">
-                    <label className="text-[11px] text-neutral-500 block mb-1">Cantidad</label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={newQuantity}
-                      onChange={(e) => setNewQuantity(parseFloat(e.target.value) || 1)}
-                      className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs font-mono font-bold"
-                    />
-                  </div>
-
-                  <div className="col-span-3">
-                    <Button size="sm" variant="outline" onClick={handleAddItem} className="w-full h-8">
-                      <Plus className="w-3.5 h-3.5 mr-1" />
-                      Añadir
-                    </Button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Lista de Items */}
-              <div className="space-y-2">
-                <span className="font-semibold text-neutral-800 block">
-                  Productos en la Guía de Traslado ({items.length}):
-                </span>
-                <div className="divide-y divide-neutral-200 border border-neutral-200 rounded-lg overflow-hidden max-h-48 overflow-y-auto">
-                  {items.map((it, idx) => (
-                    <div key={idx} className="p-2.5 bg-white flex items-center justify-between text-xs">
-                      <div>
-                        <div className="font-semibold text-neutral-900">{it.productName}</div>
-                        <div className="text-[11px] text-neutral-500 font-mono">{it.sku}</div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono font-bold text-xs text-sky-700">
-                          {it.quantity} unidades
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveItem(idx)}
-                          className="text-neutral-400 hover:text-red-500 p-1"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              <div className="col-span-3">
+                <Button size="sm" variant="outline" onClick={handleAddItem} className="w-full h-8">
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  Añadir
+                </Button>
               </div>
             </div>
+          </div>
 
-            {/* Footer (Pinned) */}
-            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
-              <Button variant="outline" size="sm" onClick={() => setShowCreateModal(false)}>
-                Cancelar
-              </Button>
-              <Button size="sm" disabled={submitting || items.length === 0} onClick={handleCreateTransfer}>
-                <Truck className="w-4 h-4 mr-1.5" />
-                Despachar Mercancía en Tránsito
-              </Button>
+          {/* Lista de Items */}
+          <div className="space-y-2">
+            <span className="font-semibold text-neutral-800 dark:text-neutral-200 block">
+              Productos en la Guía de Traslado ({items.length}):
+            </span>
+            <div className="divide-y divide-neutral-200 dark:divide-neutral-700 border border-neutral-200 dark:border-neutral-700 rounded-lg overflow-hidden max-h-48 overflow-y-auto">
+              {items.map((it, idx) => (
+                <div key={idx} className="p-2.5 bg-white dark:bg-neutral-800/80 flex items-center justify-between text-xs">
+                  <div>
+                    <div className="font-semibold text-neutral-900 dark:text-neutral-100">{it.productName}</div>
+                    <div className="text-[11px] text-neutral-500 dark:text-neutral-400 font-mono">{it.sku}</div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono font-bold text-xs text-sky-700 dark:text-sky-400">
+                      {it.quantity} unidades
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveItem(idx)}
+                      className="text-neutral-400 hover:text-red-500 p-1"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
-      )}
+      </Modal>
 
       {/* Modal: Recepcionar Traslado */}
-      {showReceiveModal && selectedTransfer && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg max-w-md w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
-            {/* Header (Pinned) */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-900">
-                    Recepcionar Traslado {selectedTransfer.transfer_number}
-                  </h3>
-                  <p className="text-[11px] text-neutral-500">Confirmación de ingreso al depósito destino</p>
-                </div>
+      <Modal
+        isOpen={showReceiveModal && !!selectedTransfer}
+        onClose={() => setShowReceiveModal(false)}
+        title={selectedTransfer ? `Recepcionar Traslado ${selectedTransfer.transfer_number}` : 'Recepcionar Traslado'}
+        description="Confirmación de ingreso al depósito destino"
+        size="md"
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowReceiveModal(false)}>
+              Cancelar
+            </Button>
+            <Button size="sm" disabled={submitting} onClick={handleReceiveTransfer}>
+              <Check className="w-4 h-4 mr-1.5" />
+              Confirmar Recepción en Almacén
+            </Button>
+          </div>
+        }
+      >
+        {selectedTransfer && (
+          <div className="space-y-4 text-xs">
+            <p className="text-neutral-600 dark:text-neutral-400">
+              Al confirmar la recepción, la mercancía se acreditará automáticamente en el stock del depósito destino (
+              <strong className="text-neutral-900 dark:text-neutral-200">{selectedTransfer.destination_warehouse_name}</strong>) y quedará registrada en el Kardex.
+            </p>
+
+            <div className="bg-neutral-50 dark:bg-neutral-800/50 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700 space-y-1 font-mono text-[11px]">
+              <div className="flex justify-between">
+                <span className="text-neutral-500 dark:text-neutral-400">Origen:</span>
+                <span className="font-semibold text-neutral-800 dark:text-neutral-200">{selectedTransfer.origin_warehouse_name}</span>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowReceiveModal(false)}
-                title="Cerrar modal (Esc)"
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Body (Scrollable) */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
-              <p className="text-neutral-600">
-                Al confirmar la recepción, la mercancía se acreditará automáticamente en el stock del depósito destino (
-                <strong>{selectedTransfer.destination_warehouse_name}</strong>) y quedará registrada en el Kardex.
-              </p>
-
-              <div className="bg-neutral-50 p-3 rounded-lg border border-neutral-200 space-y-1 font-mono text-[11px]">
-                <div className="flex justify-between">
-                  <span>Origen:</span>
-                  <span className="font-semibold text-neutral-800">{selectedTransfer.origin_warehouse_name}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Despachado por:</span>
-                  <span>{selectedTransfer.shipped_by_name}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Total Items:</span>
-                  <span>{selectedTransfer.total_items} producto(s)</span>
-                </div>
+              <div className="flex justify-between">
+                <span className="text-neutral-500 dark:text-neutral-400">Despachado por:</span>
+                <span className="text-neutral-800 dark:text-neutral-200">{selectedTransfer.shipped_by_name}</span>
               </div>
-
-              <div>
-                <label className="block font-semibold text-neutral-700 mb-1">Notas de Recepción / Conforme</label>
-                <input
-                  type="text"
-                  value={receiveNotes}
-                  onChange={(e) => setReceiveNotes(e.target.value)}
-                  placeholder="Ej: Mercancía verificada y en perfecto estado"
-                  className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs"
-                />
+              <div className="flex justify-between">
+                <span className="text-neutral-500 dark:text-neutral-400">Total Items:</span>
+                <span className="text-neutral-800 dark:text-neutral-200">{selectedTransfer.total_items} producto(s)</span>
               </div>
             </div>
 
-            {/* Footer (Pinned) */}
-            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
-              <Button variant="outline" size="sm" onClick={() => setShowReceiveModal(false)}>
-                Cancelar
-              </Button>
-              <Button size="sm" disabled={submitting} onClick={handleReceiveTransfer}>
-                <Check className="w-4 h-4 mr-1.5" />
-                Confirmar Recepción en Almacén
-              </Button>
+            <div>
+              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Notas de Recepción / Conforme</label>
+              <input
+                type="text"
+                value={receiveNotes}
+                onChange={(e) => setReceiveNotes(e.target.value)}
+                placeholder="Ej: Mercancía verificada y en perfecto estado"
+                className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400"
+              />
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* Modal Buscador de Productos */}
       <ProductSearchModal

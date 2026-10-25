@@ -417,6 +417,31 @@ restaurantRouter.get('/closures/:id', authenticate, async (c) => {
   }
 });
 
+// GET /api/restaurant/tips-report - Reporte de Propinas por Mesero / Usuario que generó comanda
+restaurantRouter.get('/tips-report', authenticate, async (c) => {
+  const user = c.get('user');
+  const branchId = c.req.header('x-branch-id') || user.branchId || 'b1111111-1111-1111-1111-111111111111';
+  const waiterId = c.req.query('waiter_id') || c.req.query('waiterId');
+  const waiterName = c.req.query('waiter_name') || c.req.query('waiterName');
+  const startDate = c.req.query('start_date') || c.req.query('startDate');
+  const endDate = c.req.query('end_date') || c.req.query('endDate');
+  const onlyWithTips = c.req.query('only_with_tips') !== 'false' && c.req.query('onlyWithTips') !== 'false';
+
+  try {
+    const report = await RestaurantService.getRestaurantTipsReport(user.companyId, {
+      branchId,
+      waiterId,
+      waiterName,
+      startDate,
+      endDate,
+      onlyWithTips,
+    });
+    return c.json({ success: true, data: report });
+  } catch (error: any) {
+    return c.json({ success: false, error: { message: error.message } }, 500);
+  }
+});
+
 // ==========================================
 // INTEGRACIÓN CON MÓDULO POS (FACTURACIÓN)
 // ==========================================

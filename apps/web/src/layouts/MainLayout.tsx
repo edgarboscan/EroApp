@@ -52,7 +52,7 @@ import {
 import { useExchangeRateStore } from "../stores/exchangeRateStore";
 import { useThemeStore } from "../stores/themeStore";
 import { BcvRateAutoSyncModal } from "../components/BcvRateAutoSyncModal";
-import { useEscapeKey } from "../components/ui/Modal";
+import { Modal } from "../components/ui/Modal";
 import { Button } from "../components/ui/Button";
 import { toast } from "sonner";
 import { formatExchangeRate, formatMoneyVES } from "@ero/shared";
@@ -172,8 +172,6 @@ export const MainLayout: React.FC = () => {
   const [formSource, setFormSource] = useState(source);
   const [formNotes, setFormNotes] = useState("");
   const [isUpdatingRate, setIsUpdatingRate] = useState(false);
-
-  useEscapeKey(() => setShowRateModal(false), showRateModal);
 
   useEffect(() => {
     fetchRate();
@@ -1003,272 +1001,251 @@ export const MainLayout: React.FC = () => {
       </div>
 
       {/* Modal para Modificar / Ver Historial de Tasa Oficial BCV */}
-      {showRateModal && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="relative w-full max-w-lg max-h-[92vh] bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 shadow-2xl flex flex-col overflow-hidden z-10 my-auto">
-            {/* Header del Modal */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between shrink-0 bg-white dark:bg-neutral-900">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="p-1.5 bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 rounded-lg shrink-0">
-                  <Coins className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
-                </div>
-                <div className="truncate">
-                  <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">
-                    Gestión de Tasa de Cambio Oficial (BCV)
-                  </h3>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                    Historial y ajuste de la tasa de referencia en bolívares
-                  </p>
-                </div>
-              </div>
+      <Modal
+        isOpen={showRateModal}
+        onClose={() => setShowRateModal(false)}
+        title="Gestión de Tasa de Cambio Oficial (BCV)"
+        subtitle="Historial y ajuste de la tasa de referencia en bolívares"
+        size="lg"
+      >
+        <div className="flex flex-col -m-4 sm:-m-5">
+          {/* Selector de Pestañas */}
+          <div className="flex border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/40 px-5 text-xs font-medium shrink-0">
+            {canEditRate && (
               <button
                 type="button"
-                onClick={() => setShowRateModal(false)}
-                className="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 p-1.5 rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-neutral-400 cursor-pointer"
-                title="Cerrar modal (Esc)"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Selector de Pestañas */}
-            <div className="flex border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/40 px-5 text-xs font-medium shrink-0">
-              {canEditRate && (
-                <button
-                  type="button"
-                  onClick={() => setActiveRateTab("update")}
-                  className={`py-2.5 px-3 border-b-2 transition-colors cursor-pointer ${
-                    activeRateTab === "update"
-                      ? "border-neutral-900 dark:border-neutral-100 text-neutral-900 dark:text-neutral-100 font-semibold"
-                      : "border-transparent text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200"
-                  }`}
-                >
-                  Actualizar Tasa
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveRateTab("history");
-                  fetchHistory();
-                }}
+                onClick={() => setActiveRateTab("update")}
                 className={`py-2.5 px-3 border-b-2 transition-colors cursor-pointer ${
-                  activeRateTab === "history"
+                  activeRateTab === "update"
                     ? "border-neutral-900 dark:border-neutral-100 text-neutral-900 dark:text-neutral-100 font-semibold"
                     : "border-transparent text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200"
                 }`}
               >
-                Historial de Cambios ({history.length})
+                Actualizar Tasa
               </button>
-            </div>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveRateTab("history");
+                fetchHistory();
+              }}
+              className={`py-2.5 px-3 border-b-2 transition-colors cursor-pointer ${
+                activeRateTab === "history"
+                  ? "border-neutral-900 dark:border-neutral-100 text-neutral-900 dark:text-neutral-100 font-semibold"
+                  : "border-transparent text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200"
+              }`}
+            >
+              Historial de Cambios ({history.length})
+            </button>
+          </div>
 
-            {activeRateTab === "update" && canEditRate ? (
-              <form
-                onSubmit={handleSaveRate}
-                className="flex-1 flex flex-col overflow-hidden"
-              >
-                <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
-                  {/* Sincronización Directa BCV */}
-                  <div className="flex items-center justify-between p-3 bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200 dark:border-neutral-800 rounded-lg">
-                    <div>
-                      <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 block">
-                        Sincronización Oficial BCV
-                      </span>
-                      <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                        Consultar portal oficial en tiempo real
-                      </span>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={async () => {
-                        const data = await checkBcvLiveRate();
-                        if (data) {
-                          setFormRate(data.bcvRate.toString());
-                          setFormSource(data.source);
-                          setFormNotes(
-                            `Sincronizado desde portal oficial del BCV (${data.bcvFormattedDate || data.bcvEffectiveDate})`,
-                          );
-                          toast.success(
-                            `Tasa obtenida del BCV: Bs. ${formatExchangeRate(data.bcvRate, 4)}`,
-                          );
-                        } else {
-                          toast.error(
-                            "No se pudo obtener la tasa del BCV en este momento",
-                          );
-                        }
-                      }}
-                      disabled={isBcvChecking}
-                    >
-                      <RefreshCw
-                        className={`w-3.5 h-3.5 mr-1.5 ${isBcvChecking ? "animate-spin" : ""}`}
-                      />
-                      {isBcvChecking ? "Consultando..." : "Obtener del BCV"}
-                    </Button>
-                  </div>
-
+          {activeRateTab === "update" && canEditRate ? (
+            <form
+              onSubmit={handleSaveRate}
+              className="flex-1 flex flex-col overflow-hidden"
+            >
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
+                {/* Sincronización Directa BCV */}
+                <div className="flex items-center justify-between p-3 bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200 dark:border-neutral-800 rounded-lg">
                   <div>
-                    <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
-                      Tasa de Cambio Oficial (Bs. por 1 USD) *
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-neutral-400 dark:text-neutral-500 font-mono">
-                        Bs.
-                      </span>
-                      <input
-                        type="number"
-                        step="0.0001"
-                        required
-                        value={formRate}
-                        onChange={(e) => setFormRate(e.target.value)}
-                        placeholder="ej: 36.8500"
-                        className="w-full pl-9 pr-3 py-2 text-sm font-mono font-bold bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 rounded-lg focus-visible:ring-2 focus-visible:ring-neutral-400"
-                      />
-                    </div>
-                    <p className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-1">
-                      Esta tasa se guardará en base de datos con fecha efectiva
-                      y se aplicará a todas las operaciones actuales.
-                    </p>
+                    <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 block">
+                      Sincronización Oficial BCV
+                    </span>
+                    <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                      Consultar portal oficial en tiempo real
+                    </span>
                   </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      const data = await checkBcvLiveRate();
+                      if (data) {
+                        setFormRate(data.bcvRate.toString());
+                        setFormSource(data.source);
+                        setFormNotes(
+                          `Sincronizado desde portal oficial del BCV (${data.bcvFormattedDate || data.bcvEffectiveDate})`,
+                        );
+                        toast.success(
+                          `Tasa obtenida del BCV: Bs. ${formatExchangeRate(data.bcvRate, 4)}`,
+                        );
+                      } else {
+                        toast.error(
+                          "No se pudo obtener la tasa del BCV en este momento",
+                        );
+                      }
+                    }}
+                    disabled={isBcvChecking}
+                  >
+                    <RefreshCw
+                      className={`w-3.5 h-3.5 mr-1.5 ${isBcvChecking ? "animate-spin" : ""}`}
+                    />
+                    {isBcvChecking ? "Consultando..." : "Obtener del BCV"}
+                  </Button>
+                </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
-                      Fuente de Referencia Oficial *
-                    </label>
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                    Tasa de Cambio Oficial (Bs. por 1 USD) *
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-neutral-400 dark:text-neutral-500 font-mono">
+                      Bs.
+                    </span>
                     <input
-                      type="text"
+                      type="number"
+                      step="0.0001"
                       required
-                      value={formSource}
-                      onChange={(e) => setFormSource(e.target.value)}
-                      placeholder="ej: Banco Central de Venezuela (BCV)"
-                      className="w-full px-3 py-2 text-xs bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 rounded-lg focus-visible:ring-2 focus-visible:ring-neutral-400"
+                      value={formRate}
+                      onChange={(e) => setFormRate(e.target.value)}
+                      placeholder="ej: 36.8500"
+                      className="w-full pl-9 pr-3 py-2 text-sm font-mono font-bold bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 rounded-lg focus-visible:ring-2 focus-visible:ring-neutral-400"
                     />
                   </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
-                      Notas / Justificación del Ajuste (Opcional)
-                    </label>
-                    <input
-                      type="text"
-                      value={formNotes}
-                      onChange={(e) => setFormNotes(e.target.value)}
-                      placeholder="ej: Cierre oficial publicado por el BCV al término de la jornada"
-                      className="w-full px-3 py-2 text-xs bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 rounded-lg focus-visible:ring-2 focus-visible:ring-neutral-400"
-                    />
-                  </div>
-
-                  <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-lg p-3 text-xs text-amber-800 dark:text-amber-300 space-y-1">
-                    <span className="font-semibold block">
-                      Aviso de Auditoría:
-                    </span>
-                    <p className="text-[11px] leading-relaxed">
-                      El cambio de tasa quedará auditado en base de datos con su
-                      usuario ({user?.fullName || user?.username}) y fecha/hora
-                      exacta.
-                    </p>
-                  </div>
+                  <p className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-1">
+                    Esta tasa se guardará en base de datos con fecha efectiva
+                    y se aplicará a todas las operaciones actuales.
+                  </p>
                 </div>
 
-                {/* Pinned Footer */}
-                <div className="px-5 py-3.5 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 flex items-center justify-end gap-2 shrink-0">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowRateModal(false)}
-                    disabled={isUpdatingRate}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button type="submit" size="sm" disabled={isUpdatingRate}>
-                    {isUpdatingRate
-                      ? "Guardando en BD..."
-                      : "Guardar y Aplicar Tasa"}
-                  </Button>
-                </div>
-              </form>
-            ) : (
-              <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
-                      Registro Histórico de Tasas en Base de Datos:
-                    </span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => fetchHistory()}
-                    >
-                      <RefreshCw className="w-3.5 h-3.5 mr-1" />
-                      Refrescar
-                    </Button>
-                  </div>
-
-                  {isHistoryLoading ? (
-                    <div className="py-8 text-center text-xs text-neutral-400">
-                      Cargando historial de base de datos...
-                    </div>
-                  ) : history.length === 0 ? (
-                    <div className="py-8 text-center text-xs text-neutral-400 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-lg">
-                      No se encontraron registros de tasas previas en base de
-                      datos.
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-800 rounded-lg">
-                      <table className="w-full text-xs text-left">
-                        <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 text-[10px] uppercase font-semibold">
-                          <tr>
-                            <th className="py-2 px-3">Fecha</th>
-                            <th className="py-2 px-3 text-right">Tasa (Bs.)</th>
-                            <th className="py-2 px-3">Fuente</th>
-                            <th className="py-2 px-3">Usuario</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                          {history.map((h, i) => (
-                            <tr
-                              key={h.id || i}
-                              className="hover:bg-neutral-50/60 dark:hover:bg-neutral-800/50"
-                            >
-                              <td className="py-2 px-3 font-mono text-[11px] text-neutral-700 dark:text-neutral-300">
-                                {h.effectiveDate}
-                              </td>
-                              <td className="py-2 px-3 text-right font-mono font-bold text-neutral-900 dark:text-neutral-100">
-                                Bs. {formatExchangeRate(h.rate, 4)}
-                              </td>
-                              <td className="py-2 px-3 text-neutral-600 dark:text-neutral-400 text-[11px] truncate max-w-[120px]">
-                                {h.source}
-                              </td>
-                              <td className="py-2 px-3 text-neutral-500 dark:text-neutral-400 text-[11px] truncate max-w-[120px]">
-                                {h.updatedBy}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                    Fuente de Referencia Oficial *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formSource}
+                    onChange={(e) => setFormSource(e.target.value)}
+                    placeholder="ej: Banco Central de Venezuela (BCV)"
+                    className="w-full px-3 py-2 text-xs bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 rounded-lg focus-visible:ring-2 focus-visible:ring-neutral-400"
+                  />
                 </div>
 
-                {/* Pinned Footer */}
-                <div className="px-5 py-3.5 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 flex items-center justify-end gap-2 shrink-0">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowRateModal(false)}
-                  >
-                    Cerrar
-                  </Button>
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                    Notas / Justificación del Ajuste (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={formNotes}
+                    onChange={(e) => setFormNotes(e.target.value)}
+                    placeholder="ej: Cierre oficial publicado por el BCV al término de la jornada"
+                    className="w-full px-3 py-2 text-xs bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 rounded-lg focus-visible:ring-2 focus-visible:ring-neutral-400"
+                  />
+                </div>
+
+                <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-lg p-3 text-xs text-amber-800 dark:text-amber-300 space-y-1">
+                  <span className="font-semibold block">
+                    Aviso de Auditoría:
+                  </span>
+                  <p className="text-[11px] leading-relaxed">
+                    El cambio de tasa quedará auditado en base de datos con su
+                    usuario ({user?.fullName || user?.username}) y fecha/hora
+                    exacta.
+                  </p>
                 </div>
               </div>
-            )}
-          </div>
+
+              {/* Pinned Footer */}
+              <div className="px-5 py-3.5 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 flex items-center justify-end gap-2 shrink-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowRateModal(false)}
+                  disabled={isUpdatingRate}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" size="sm" disabled={isUpdatingRate}>
+                  {isUpdatingRate
+                    ? "Guardando en BD..."
+                    : "Guardar y Aplicar Tasa"}
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                    Registro Histórico de Tasas en Base de Datos:
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => fetchHistory()}
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 mr-1" />
+                    Refrescar
+                  </Button>
+                </div>
+
+                {isHistoryLoading ? (
+                  <div className="py-8 text-center text-xs text-neutral-400">
+                    Cargando historial de base de datos...
+                  </div>
+                ) : history.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-neutral-400 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-lg">
+                    No se encontraron registros de tasas previas en base de
+                    datos.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-800 rounded-lg">
+                    <table className="w-full text-xs text-left">
+                      <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 text-[10px] uppercase font-semibold">
+                        <tr>
+                          <th className="py-2 px-3">Fecha</th>
+                          <th className="py-2 px-3 text-right">Tasa (Bs.)</th>
+                          <th className="py-2 px-3">Fuente</th>
+                          <th className="py-2 px-3">Usuario</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                        {history.map((h, i) => (
+                          <tr
+                            key={h.id || i}
+                            className="hover:bg-neutral-50/60 dark:hover:bg-neutral-800/50"
+                          >
+                            <td className="py-2 px-3 font-mono text-[11px] text-neutral-700 dark:text-neutral-300">
+                              {h.effectiveDate}
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono font-bold text-neutral-900 dark:text-neutral-100">
+                              Bs. {formatExchangeRate(h.rate, 4)}
+                            </td>
+                            <td className="py-2 px-3 text-neutral-600 dark:text-neutral-400 text-[11px] truncate max-w-[120px]">
+                              {h.source}
+                            </td>
+                            <td className="py-2 px-3 text-neutral-500 dark:text-neutral-400 text-[11px] truncate max-w-[120px]">
+                              {h.updatedBy}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Pinned Footer */}
+              <div className="px-5 py-3.5 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 flex items-center justify-end gap-2 shrink-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowRateModal(false)}
+                >
+                  Cerrar
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </Modal>
 
       {/* Modal de Pregunta Automática para Sincronizar Tasa BCV */}
       <BcvRateAutoSyncModal

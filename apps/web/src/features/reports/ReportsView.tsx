@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
-import { useEscapeKey } from '../../components/ui/Modal';
+import { PdfViewerModal } from '../../components/ui/PdfViewerModal';
 import {
   FileText,
   Download,
@@ -27,6 +27,7 @@ import {
   ExternalLink,
   X,
   FileDown,
+  Coins,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/authStore';
@@ -42,7 +43,8 @@ type ReportTab =
   | 'cash_shifts'
   | 'sales_by_product'
   | 'sales_by_cashier'
-  | 'sales_book';
+  | 'sales_book'
+  | 'restaurant_tips';
 
 export const ReportsView: React.FC = () => {
   const { token, activeBranchId } = useAuthStore();
@@ -69,17 +71,16 @@ export const ReportsView: React.FC = () => {
   const [productData, setProductData] = useState<any[]>([]);
   const [cashierData, setCashierData] = useState<any[]>([]);
   const [salesBookData, setSalesBookData] = useState<any[]>([]);
+  const [restaurantTipsData, setRestaurantTipsData] = useState<any>(null);
+  const [selectedWaiter, setSelectedWaiter] = useState<string>('all');
+  const [tipsViewMode, setTipsViewMode] = useState<'summary' | 'detailed'>('summary');
 
-  // Estados para el visor de PDF interactivo
+  // Estado para el visor de PDF interactivo
   const [isPdfModalOpen, setIsPdfModalOpen] = useState<boolean>(false);
-  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
-  const [pdfTitle, setPdfTitle] = useState<string>('');
-  const [loadingPdf, setLoadingPdf] = useState<boolean>(false);
-  const iframeRef = React.useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
     loadActiveReport();
-  }, [activeTab, startDate, endDate, selectedMethod, activeBranchId]);
+  }, [activeTab, startDate, endDate, selectedMethod, selectedWaiter, activeBranchId]);
 
   const loadActiveReport = async () => {
     setLoading(true);
@@ -124,6 +125,14 @@ export const ReportsView: React.FC = () => {
           const json = await res.json();
           if (json.success && Array.isArray(json.data)) setSalesBookData(json.data);
         }
+      } else if (activeTab === 'restaurant_tips') {
+        const waiterParam = selectedWaiter !== 'all' ? `&waiterName=${encodeURIComponent(selectedWaiter)}` : '';
+        const url = `/api/reports/restaurant-tips?startDate=${startDate}&endDate=${endDate}${branchParam}${waiterParam}`;
+        const res = await fetch(url, { headers });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && json.data) setRestaurantTipsData(json.data);
+        }
       }
     } catch {
       toast.error('Error al consultar datos del reporte');
@@ -150,6 +159,9 @@ export const ReportsView: React.FC = () => {
       } else if (activeTab === 'sales_book') {
         const period = startDate.slice(0, 7);
         endpoint = `/api/reports/sales-book?period=${period}&export=${format}`;
+      } else if (activeTab === 'restaurant_tips') {
+        const waiterParam = selectedWaiter !== 'all' ? `&waiterName=${encodeURIComponent(selectedWaiter)}` : '';
+        endpoint = `/api/reports/restaurant-tips?startDate=${startDate}&endDate=${endDate}${branchParam}${waiterParam}&export=${format}`;
       }
 
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
@@ -189,6 +201,9 @@ export const ReportsView: React.FC = () => {
     } else if (activeTab === 'sales_book') {
       const period = startDate.slice(0, 7);
       endpoint = `/api/reports/sales-book?period=${period}&format=pdf`;
+    } else if (activeTab === 'restaurant_tips') {
+      const waiterParam = selectedWaiter !== 'all' ? `&waiterName=${encodeURIComponent(selectedWaiter)}` : '';
+      endpoint = `/api/reports/restaurant-tips?startDate=${startDate}&endDate=${endDate}${branchParam}${waiterParam}&format=pdf`;
     }
     return endpoint;
   };
@@ -205,78 +220,20 @@ export const ReportsView: React.FC = () => {
         return 'Reporte_Desempeno_Cajeros';
       case 'sales_book':
         return `Libro_Ventas_SENIAT_${startDate.slice(0, 7)}`;
+      case 'restaurant_tips':
+        return 'Reporte_Propinas_Restaurante';
       default:
         return 'Reporte_ERP';
     }
   };
 
-  const handleOpenPdfViewer = async () => {
-    setLoadingPdf(true);
+  const handleOpenPdfViewer = () => {
     setIsPdfModalOpen(true);
-    if (pdfBlobUrl) {
-      URL.revokeObjectURL(pdfBlobUrl);
-      setPdfBlobUrl(null);
-    }
-    try {
-      const endpoint = getPdfEndpoint();
-      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const res = await fetch(endpoint, { headers });
-      if (!res.ok) throw new Error('Error al generar el documento PDF');
-      const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      setPdfBlobUrl(blobUrl);
-      setPdfTitle(getReportName().replace(/_/g, ' '));
-    } catch {
-      toast.error('No se pudo cargar la vista previa del PDF');
-      setIsPdfModalOpen(false);
-    } finally {
-      setLoadingPdf(false);
-    }
   };
 
-  const handleDownloadPdf = async () => {
-    setExporting(true);
-    try {
-      const endpoint = getPdfEndpoint();
-      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const res = await fetch(endpoint, { headers });
-      if (!res.ok) throw new Error('Error al descargar PDF');
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${getReportName()}_${startDate}_a_${endDate}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-      toast.success('Documento PDF generado y descargado exitosamente');
-    } catch {
-      toast.error('No se pudo descargar el archivo PDF');
-    } finally {
-      setExporting(false);
-    }
+  const handleDownloadPdf = () => {
+    window.open(getPdfEndpoint(), '_blank');
   };
-
-  const handleClosePdfModal = () => {
-    setIsPdfModalOpen(false);
-    if (pdfBlobUrl) {
-      URL.revokeObjectURL(pdfBlobUrl);
-      setPdfBlobUrl(null);
-    }
-  };
-
-  const handlePrintPdf = () => {
-    if (iframeRef.current?.contentWindow) {
-      iframeRef.current.contentWindow.focus();
-      iframeRef.current.contentWindow.print();
-    } else if (pdfBlobUrl) {
-      const win = window.open(pdfBlobUrl, '_blank');
-      win?.print();
-    }
-  };
-
-  useEscapeKey(handleClosePdfModal, isPdfModalOpen);
 
   // Filtrado de búsqueda en memoria para tablas
   const filteredSalesInvoices = (salesData?.invoices || []).filter((inv: any) => {
@@ -322,14 +279,10 @@ export const ReportsView: React.FC = () => {
             variant="primary"
             size="sm"
             onClick={handleOpenPdfViewer}
-            disabled={loadingPdf || loading}
+            disabled={loading}
             className="bg-sky-600 hover:bg-sky-700 text-white font-medium"
           >
-            {loadingPdf ? (
-              <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-            ) : (
-              <Eye className="w-3.5 h-3.5 mr-1.5" />
-            )}
+            <Eye className="w-3.5 h-3.5 mr-1.5" />
             Ver PDF
           </Button>
 
@@ -337,9 +290,9 @@ export const ReportsView: React.FC = () => {
             variant="outline"
             size="sm"
             onClick={handleDownloadPdf}
-            disabled={exporting || loading}
+            disabled={loading}
           >
-            <FileDown className="w-3.5 h-3.5 mr-1.5 text-neutral-600" />
+            <FileDown className="w-3.5 h-3.5 mr-1.5 text-neutral-600 dark:text-neutral-400" />
             Descargar PDF
           </Button>
 
@@ -373,6 +326,7 @@ export const ReportsView: React.FC = () => {
           { id: 'sales_by_product', label: 'Ventas por Producto', icon: Package },
           { id: 'sales_by_cashier', label: 'Desempeño por Cajero', icon: User },
           { id: 'sales_book', label: 'Libro de Ventas Fiscal (SENIAT)', icon: FileText },
+          { id: 'restaurant_tips', label: 'Propinas Restaurante (Por Mesero)', icon: Coins },
         ].map((tab) => {
           const Icon = tab.icon;
           return (
@@ -438,6 +392,53 @@ export const ReportsView: React.FC = () => {
                 <option value="BIOPAGO">Biopago BDV</option>
                 <option value="CASHEA">Cashea</option>
               </select>
+            </div>
+          )}
+
+          {activeTab === 'restaurant_tips' && (
+            <div className="flex items-center gap-1.5">
+              <User className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
+              <span className="font-medium text-neutral-700 dark:text-neutral-300">Mesero:</span>
+              <select
+                value={selectedWaiter}
+                onChange={(e) => setSelectedWaiter(e.target.value)}
+                className="h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-xs"
+              >
+                <option value="all">Todos los Meseros</option>
+                {(restaurantTipsData?.byWaiter || []).map((w: any) => (
+                  <option key={w.waiterName} value={w.waiterName}>
+                    {w.waiterName} ({w.ordersCount})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {activeTab === 'restaurant_tips' && (
+            <div className="flex items-center gap-2 pl-2 border-l border-neutral-300 dark:border-neutral-700">
+              <span className="font-medium text-neutral-700 dark:text-neutral-300">Vista:</span>
+              <button
+                type="button"
+                onClick={() => setTipsViewMode('summary')}
+                className={`px-2 py-1 rounded text-[11px] font-semibold cursor-pointer ${
+                  tipsViewMode === 'summary'
+                    ? 'bg-sky-600 text-white'
+                    : 'bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700'
+                }`}
+              >
+                Por Mesero
+              </button>
+              <button
+                type="button"
+                onClick={() => setTipsViewMode('detailed')}
+                className={`px-2 py-1 rounded text-[11px] font-semibold cursor-pointer ${
+                  tipsViewMode === 'detailed'
+                    ? 'bg-sky-600 text-white'
+                    : 'bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700'
+                }`}
+              >
+                Detalle Comandas
+              </button>
             </div>
           )}
 
@@ -1111,129 +1112,247 @@ export const ReportsView: React.FC = () => {
               </div>
             </Card>
           )}
+
+          {/* TAB 6: REPORTE DE PROPINAS DE RESTAURANTE */}
+          {activeTab === 'restaurant_tips' && restaurantTipsData && (
+            <div className="space-y-6">
+              {/* KPIs de Propinas */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-amber-200 dark:border-amber-900/60">
+                  <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium block">
+                    Total Propinas ($)
+                  </span>
+                  <span className="text-xl font-bold font-mono text-amber-600 dark:text-amber-400 block mt-0.5">
+                    {formatMoneyUSD(restaurantTipsData.summary?.totalTipsUSD || 0)}
+                  </span>
+                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono">
+                    {formatMoneyVES(restaurantTipsData.summary?.totalTipsVES || 0)}
+                  </span>
+                </div>
+
+                <div className="p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                  <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium block">
+                    Comandas con Propina
+                  </span>
+                  <span className="text-xl font-bold font-mono text-neutral-900 dark:text-neutral-100 block mt-0.5">
+                    {formatNumber(restaurantTipsData.summary?.totalOrdersWithTip || 0)}
+                  </span>
+                  <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                    de {restaurantTipsData.summary?.totalOrders || 0} comandas cerradas
+                  </span>
+                </div>
+
+                <div className="p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                  <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium block">
+                    Consumo Total Comandas
+                  </span>
+                  <span className="text-xl font-bold font-mono text-neutral-900 dark:text-neutral-100 block mt-0.5">
+                    {formatMoneyUSD(restaurantTipsData.summary?.totalConsumptionUSD || 0)}
+                  </span>
+                  <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                    Ventas de salón registradas
+                  </span>
+                </div>
+
+                <div className="p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                  <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium block">
+                    Meseros Activos
+                  </span>
+                  <span className="text-xl font-bold font-mono text-indigo-600 dark:text-indigo-400 block mt-0.5">
+                    {(restaurantTipsData.byWaiter || []).length}
+                  </span>
+                  <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                    Usuarios con propinas
+                  </span>
+                </div>
+              </div>
+
+              {/* Vista: Resumen por Mesero */}
+              {tipsViewMode === 'summary' && (
+                <Card className="overflow-hidden border border-neutral-200 dark:border-neutral-800">
+                  <div className="p-3 bg-neutral-50 dark:bg-neutral-800/80 border-b border-neutral-200 dark:border-neutral-700 flex items-center justify-between">
+                    <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
+                      Consolidado de Propinas por Mesero / Usuario
+                    </span>
+                    <span className="text-[11px] text-neutral-500">
+                      {restaurantTipsData.byWaiter?.length || 0} meseros en período
+                    </span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-left">
+                      <thead className="bg-neutral-100/70 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase text-[10px] tracking-wider font-semibold border-b border-neutral-200 dark:border-neutral-700">
+                        <tr>
+                          <th className="py-2.5 px-3">#</th>
+                          <th className="py-2.5 px-3">Mesero / Usuario Comanda</th>
+                          <th className="py-2.5 px-3 text-center">Comandas</th>
+                          <th className="py-2.5 px-3 text-right">Consumo Generado ($)</th>
+                          <th className="py-2.5 px-3 text-right">Total Propinas ($)</th>
+                          <th className="py-2.5 px-3 text-right">Total Propinas (Bs)</th>
+                          <th className="py-2.5 px-3 text-right">Promedio / Comanda</th>
+                          <th className="py-2.5 px-3 text-right">% del Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                        {(restaurantTipsData.byWaiter || []).length > 0 ? (
+                          (restaurantTipsData.byWaiter || [])
+                            .filter((w: any) =>
+                              searchTerm
+                                ? w.waiterName?.toLowerCase().includes(searchTerm.toLowerCase())
+                                : true
+                            )
+                            .map((w: any, idx: number) => {
+                              const grandTotal = Number(restaurantTipsData.summary?.totalTipsUSD || 0);
+                              const pct = grandTotal > 0 ? ((w.totalTipsUSD / grandTotal) * 100).toFixed(1) : '0.0';
+                              return (
+                                <tr key={w.waiterName || idx} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/50">
+                                  <td className="py-2.5 px-3 font-mono text-neutral-500 dark:text-neutral-400">{idx + 1}</td>
+                                  <td className="py-2.5 px-3 font-semibold text-neutral-900 dark:text-neutral-100 flex items-center gap-1.5">
+                                    <User className="w-3.5 h-3.5 text-neutral-400" />
+                                    <span>{w.waiterName}</span>
+                                  </td>
+                                  <td className="py-2.5 px-3 text-center font-mono font-medium">{w.ordersCount}</td>
+                                  <td className="py-2.5 px-3 text-right font-mono text-neutral-700 dark:text-neutral-300">
+                                    {formatMoneyUSD(w.totalConsumptionUSD || 0)}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-600 dark:text-amber-400">
+                                    {formatMoneyUSD(w.totalTipsUSD || 0)}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-right font-mono text-neutral-600 dark:text-neutral-400">
+                                    {formatMoneyVES(w.totalTipsVES || 0)}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-right font-mono text-neutral-600 dark:text-neutral-400">
+                                    {formatMoneyUSD(w.averageTipUSD || 0)}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-right font-mono">
+                                    <Badge variant="neutral" className="text-[10px] font-bold">
+                                      {pct}%
+                                    </Badge>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                        ) : (
+                          <tr>
+                            <td colSpan={8} className="py-8 text-center text-neutral-400 dark:text-neutral-500">
+                              No hay propinas registradas para el período seleccionado
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              )}
+
+              {/* Vista: Detalle por Comanda */}
+              {tipsViewMode === 'detailed' && (
+                <Card className="overflow-hidden border border-neutral-200 dark:border-neutral-800">
+                  <div className="p-3 bg-neutral-50 dark:bg-neutral-800/80 border-b border-neutral-200 dark:border-neutral-700 flex items-center justify-between">
+                    <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
+                      Detalle de Comandas con Propinas
+                    </span>
+                    <span className="text-[11px] text-neutral-500">
+                      {restaurantTipsData.orders?.length || 0} comandas listadas
+                    </span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-left">
+                      <thead className="bg-neutral-100/70 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase text-[10px] tracking-wider font-semibold border-b border-neutral-200 dark:border-neutral-700">
+                        <tr>
+                          <th className="py-2.5 px-3">Fecha</th>
+                          <th className="py-2.5 px-3">Comanda</th>
+                          <th className="py-2.5 px-3">Mesa / Zona</th>
+                          <th className="py-2.5 px-3">Mesero / Creador</th>
+                          <th className="py-2.5 px-3">Factura POS</th>
+                          <th className="py-2.5 px-3 text-right">Consumo Mesa ($)</th>
+                          <th className="py-2.5 px-3 text-right">Propina ($)</th>
+                          <th className="py-2.5 px-3 text-right">Propina (Bs)</th>
+                          <th className="py-2.5 px-3 text-center">Estado Factura</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                        {(restaurantTipsData.orders || []).length > 0 ? (
+                          (restaurantTipsData.orders || [])
+                            .filter((ord: any) => {
+                              if (!searchTerm.trim()) return true;
+                              const q = searchTerm.toLowerCase();
+                              return (
+                                ord.orderNumber?.toLowerCase().includes(q) ||
+                                ord.tableName?.toLowerCase().includes(q) ||
+                                ord.waiterName?.toLowerCase().includes(q) ||
+                                ord.posInvoiceNumber?.toLowerCase().includes(q) ||
+                                ord.closedByUserName?.toLowerCase().includes(q)
+                              );
+                            })
+                            .map((ord: any) => (
+                              <tr key={ord.closureId || ord.orderId} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/50">
+                                <td className="py-2.5 px-3 font-mono text-neutral-600 dark:text-neutral-400">
+                                  {ord.closedAt ? new Date(ord.closedAt).toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' }) : '-'}
+                                </td>
+                                <td className="py-2.5 px-3 font-mono font-bold text-neutral-900 dark:text-neutral-100">
+                                  {ord.orderNumber}
+                                </td>
+                                <td className="py-2.5 px-3 text-neutral-700 dark:text-neutral-300">
+                                  {ord.tableName} {ord.zone ? `(${ord.zone})` : ''}
+                                </td>
+                                <td className="py-2.5 px-3 font-semibold text-neutral-900 dark:text-neutral-100">
+                                  {ord.waiterName}
+                                </td>
+                                <td className="py-2.5 px-3 font-mono text-neutral-600 dark:text-neutral-400">
+                                  {ord.posInvoiceNumber || <span className="text-neutral-400 italic">No facturada</span>}
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-mono text-neutral-700 dark:text-neutral-300">
+                                  {formatMoneyUSD(ord.consumptionUSD || 0)}
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-600 dark:text-amber-400">
+                                  {formatMoneyUSD(ord.tipUSD || 0)}
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-mono text-neutral-600 dark:text-neutral-400">
+                                  {formatMoneyVES(ord.tipVES || 0)}
+                                </td>
+                                <td className="py-2.5 px-3 text-center">
+                                  {ord.isInvoiced ? (
+                                    <Badge variant="success" className="text-[10px]">
+                                      Facturado POS
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="warning" className="text-[10px]">
+                                      Cerrada Sin Factura
+                                    </Badge>
+                                  )}
+                                </td>
+                              </tr>
+                            ))
+                        ) : (
+                          <tr>
+                            <td colSpan={9} className="py-8 text-center text-neutral-400 dark:text-neutral-500">
+                              No se encontraron comandas con propina para el filtro aplicado
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              )}
+            </div>
+          )}
         </>
       )}
 
       {/* Modal Visor de Reporte en PDF */}
-      {isPdfModalOpen && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="relative w-full max-w-6xl max-h-[92vh] bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 shadow-2xl flex flex-col overflow-hidden z-10 my-auto">
-            {/* Header del Modal */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between shrink-0 bg-white dark:bg-neutral-900">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="p-1.5 bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 rounded-lg shrink-0">
-                  <FileText className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
-                </div>
-                <div className="truncate">
-                  <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">
-                    {pdfTitle || 'Vista Previa del Reporte PDF'}
-                  </h3>
-                  <div className="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
-                    <span>
-                      Orientación:{' '}
-                      <strong className="text-neutral-700 dark:text-neutral-300 font-medium">
-                        {activeTab === 'sales_book' || (activeTab === 'sales' && isDetailed) || (activeTab === 'cash_shifts' && isDetailed)
-                          ? 'Horizontal (Landscape)'
-                          : 'Vertical (Portrait)'}
-                      </strong>
-                    </span>
-                    <span>•</span>
-                    <span>Cumplimiento Fiscal SENIAT</span>
-                  </div>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleClosePdfModal}
-                className="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 p-1.5 rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-neutral-400 cursor-pointer"
-                title="Cerrar modal (Esc)"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Contenedor del Visor */}
-            <div className="flex-1 bg-neutral-100 dark:bg-neutral-950 p-2 sm:p-4 overflow-hidden relative min-h-[400px]">
-              {loadingPdf ? (
-                <div className="h-full w-full flex flex-col items-center justify-center gap-3 bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 p-6">
-                  <Loader2 className="w-8 h-8 text-neutral-600 dark:text-neutral-400 animate-spin" />
-                  <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">
-                    Generando reporte PDF con diseño ejecutivo...
-                  </p>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400 max-w-sm text-center">
-                    Preparando encabezados fiscales, numeración de páginas, tarjetas de resumen y formato{' '}
-                    {activeTab === 'sales_book' || (activeTab === 'sales' && isDetailed) || (activeTab === 'cash_shifts' && isDetailed)
-                      ? 'horizontal (landscape)'
-                      : 'vertical (portrait)'}.
-                  </p>
-                </div>
-              ) : pdfBlobUrl ? (
-                <iframe
-                  ref={iframeRef}
-                  src={pdfBlobUrl}
-                  className="w-full h-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white shadow-xs"
-                  title="Visor PDF de Reportes"
-                />
-              ) : (
-                <div className="h-full w-full flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-500">
-                  <p className="text-sm">No se ha podido cargar el documento</p>
-                </div>
-              )}
-            </div>
-
-            {/* Pinned Footer */}
-            <div className="px-5 py-3.5 border-t shrink-0 bg-white dark:bg-neutral-900 flex items-center justify-between gap-2 shrink-0">
-              <div className="flex items-center gap-2">
-                {pdfBlobUrl && (
-                  <a
-                    href={pdfBlobUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors focus-visible:ring-2 focus-visible:ring-neutral-400"
-                    title="Abrir en pestaña nueva"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5 mr-1.5 text-neutral-500 dark:text-neutral-400" />
-                    Abrir pestaña
-                  </a>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handlePrintPdf}
-                  disabled={!pdfBlobUrl}
-                  title="Imprimir documento"
-                >
-                  <Printer className="w-3.5 h-3.5 mr-1.5" />
-                  Imprimir
-                </Button>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleDownloadPdf}
-                  disabled={!pdfBlobUrl}
-                  title="Descargar archivo PDF"
-                >
-                  <FileDown className="w-3.5 h-3.5 mr-1.5" />
-                  Descargar
-                </Button>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleClosePdfModal}
-                >
-                  Cerrar
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <PdfViewerModal
+        isOpen={isPdfModalOpen}
+        onClose={() => setIsPdfModalOpen(false)}
+        title={getReportName().replace(/_/g, ' ')}
+        subtitle={`Orientación: ${
+          activeTab === 'sales_book' || (activeTab === 'sales' && isDetailed) || (activeTab === 'cash_shifts' && isDetailed)
+            ? 'Horizontal (Landscape)'
+            : 'Vertical (Portrait)'
+        } • Cumplimiento Fiscal SENIAT`}
+        endpoint={getPdfEndpoint()}
+        filename={`${getReportName()}_${startDate}_a_${endDate}.pdf`}
+      />
     </div>
   );
 };

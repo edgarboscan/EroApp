@@ -11,6 +11,9 @@ import type {
   OpenOrderInput,
   CloseTableOrderInput,
   PreparationStation,
+  RestaurantTipsReport,
+  RestaurantTipItem,
+  WaiterTipsSummary,
 } from '@ero/shared';
 
 export class RestaurantService {
@@ -1201,6 +1204,206 @@ export class RestaurantService {
     };
   }
 
+  /**
+   * REPORTE DE PROPINAS POR MESERO / USUARIO QUE GENERÓ LA COMANDA
+   */
+  static async getRestaurantTipsReport(
+    companyId: string,
+    filters?: {
+      branchId?: string;
+      waiterId?: string;
+      waiterName?: string;
+      startDate?: string;
+      endDate?: string;
+      onlyWithTips?: boolean;
+    }
+  ): Promise<RestaurantTipsReport> {
+    let sql = `
+      SELECT 
+        c.id as closure_id,
+        c.order_id,
+        c.order_number,
+        c.table_number,
+        c.table_name,
+        c.zone,
+        COALESCE(NULLIF(TRIM(c.waiter_name), ''), NULLIF(TRIM(o.waiter_name), ''), u.full_name, 'Sin asignar') as waiter_name,
+        COALESCE(c.waiter_id, o.waiter_id) as waiter_id,
+        c.closed_by_user_id,
+        c.closed_by_user_name,
+        COALESCE(o.customer_name, 'Consumidor Final') as customer_name,
+        c.opened_at,
+        c.closed_at,
+        c.duration_minutes,
+        c.subtotal_usd,
+        c.subtotal_ves,
+        c.tip_usd,
+        c.tip_ves,
+        c.total_usd,
+        c.total_ves,
+        c.exchange_rate,
+        COALESCE(o.is_invoiced, 0) as is_invoiced,
+        o.pos_invoice_id,
+        si.invoice_number as pos_invoice_number,
+        si.status as invoice_status,
+        b.name as branch_name
+      FROM restaurant_table_closures c
+      INNER JOIN restaurant_orders o ON c.order_id = o.id
+      LEFT JOIN users u ON COALESCE(c.waiter_id, o.waiter_id) = u.id
+      LEFT JOIN sales_invoices si ON o.pos_invoice_id = si.id
+      LEFT JOIN branches b ON c.branch_id = b.id
+      WHERE c.company_id = ?
+    `;
+    const params: any[] = [companyId];
+
+    if (filters?.branchId && filters.branchId !== 'ALL' && filters.branchId !== 'all') {
+      sql += ` AND c.branch_id = ?`;
+      params.push(filters.branchId);
+    }
+
+    if (filters?.waiterId && filters.waiterId !== 'ALL' && filters.waiterId !== 'all') {
+      sql += ` AND (COALESCE(c.waiter_id, o.waiter_id) = ? OR c.waiter_name = ?)`;
+      params.push(filters.waiterId, filters.waiterId);
+    } else if (filters?.waiterName && filters.waiterName !== 'ALL' && filters.waiterName !== 'all') {
+      sql += ` AND (c.waiter_name LIKE ? OR o.waiter_name LIKE ?)`;
+      params.push(`%${filters.waiterName}%`, `%${filters.waiterName}%`);
+    }
+
+    if (filters?.startDate) {
+      sql += ` AND DATE(c.closed_at) >= ?`;
+      params.push(filters.startDate);
+    }
+
+    if (filters?.endDate) {
+      sql += ` AND DATE(c.closed_at) <= ?`;
+      params.push(filters.endDate);
+    }
+
+    if (filters?.onlyWithTips !== false) {
+      sql += ` AND c.tip_usd > 0`;
+    }
+
+    sql += ` ORDER BY c.closed_at DESC`;
+
+    const rows = await query<any>(sql, params);
+
+    let totalTipsUSD = 0;
+    let totalTipsVES = 0;
+    let totalSalesUSD = 0;
+    let totalSalesVES = 0;
+    let ordersWithTipCount = 0;
+
+    const waiterMap = new Map<string, {
+      waiterId?: string | null;
+      waiterName: string;
+      ordersCount: number;
+      ordersWithTipCount: number;
+      totalSalesUSD: number;
+      totalTipsUSD: number;
+      totalTipsVES: number;
+    }>();
+
+    const orders: RestaurantTipItem[] = rows.map((r) => {
+      const tipUSD = Number(r.tip_usd || 0);
+      const tipVES = Number(r.tip_ves || 0);
+      const subtotalUSD = Number(r.subtotal_usd || 0);
+      const subtotalVES = Number(r.subtotal_ves || 0);
+      const totalUSD = Number(r.total_usd || 0);
+      const totalVES = Number(r.total_ves || 0);
+      const exchangeRate = Number(r.exchange_rate || 1);
+      const tipPercent = subtotalUSD > 0 ? Number(((tipUSD / subtotalUSD) * 100).toFixed(2)) : 0;
+      const waiterName = r.waiter_name || 'Sin asignar';
+      const waiterId = r.waiter_id || null;
+
+      totalTipsUSD += tipUSD;
+      totalTipsVES += tipVES;
+      totalSalesUSD += subtotalUSD;
+      totalSalesVES += subtotalVES;
+      if (tipUSD > 0) ordersWithTipCount++;
+
+      // Agrupación acumulada por mesero
+      const existing = waiterMap.get(waiterName) || {
+        waiterId,
+        waiterName,
+        ordersCount: 0,
+        ordersWithTipCount: 0,
+        totalSalesUSD: 0,
+        totalTipsUSD: 0,
+        totalTipsVES: 0,
+      };
+
+      existing.ordersCount++;
+      if (tipUSD > 0) existing.ordersWithTipCount++;
+      existing.totalSalesUSD = Number((existing.totalSalesUSD + subtotalUSD).toFixed(2));
+      existing.totalTipsUSD = Number((existing.totalTipsUSD + tipUSD).toFixed(2));
+      existing.totalTipsVES = Number((existing.totalTipsVES + tipVES).toFixed(2));
+      waiterMap.set(waiterName, existing);
+
+      return {
+        closureId: r.closure_id,
+        orderId: r.order_id,
+        orderNumber: r.order_number,
+        tableNumber: r.table_number,
+        tableName: r.table_name,
+        zone: r.zone,
+        waiterId,
+        waiterName,
+        closedByUserId: r.closed_by_user_id || null,
+        closedByUserName: r.closed_by_user_name || null,
+        customerName: r.customer_name || 'Consumidor Final',
+        openedAt: r.opened_at ? new Date(r.opened_at).toISOString() : new Date().toISOString(),
+        closedAt: r.closed_at ? new Date(r.closed_at).toISOString() : new Date().toISOString(),
+        durationMinutes: Number(r.duration_minutes || 0),
+        subtotalUSD,
+        subtotalVES,
+        tipUSD,
+        tipVES,
+        tipPercent,
+        totalUSD,
+        totalVES,
+        exchangeRate,
+        isInvoiced: Boolean(r.is_invoiced),
+        posInvoiceId: r.pos_invoice_id || null,
+        posInvoiceNumber: r.pos_invoice_number || null,
+        invoiceStatus: r.invoice_status || null,
+        branchName: r.branch_name || undefined,
+      };
+    });
+
+    const byWaiter: WaiterTipsSummary[] = Array.from(waiterMap.values()).map((w) => {
+      const avgTipUSD = w.ordersWithTipCount > 0 ? Number((w.totalTipsUSD / w.ordersWithTipCount).toFixed(2)) : 0;
+      const avgTipPercent = w.totalSalesUSD > 0 ? Number(((w.totalTipsUSD / w.totalSalesUSD) * 100).toFixed(2)) : 0;
+      return {
+        waiterId: w.waiterId,
+        waiterName: w.waiterName,
+        ordersCount: w.ordersCount,
+        ordersWithTipCount: w.ordersWithTipCount,
+        totalSalesUSD: w.totalSalesUSD,
+        totalTipsUSD: w.totalTipsUSD,
+        totalTipsVES: w.totalTipsVES,
+        averageTipUSD: avgTipUSD,
+        averageTipPercent: avgTipPercent,
+      };
+    }).sort((a, b) => b.totalTipsUSD - a.totalTipsUSD);
+
+    const averageTipUSD = ordersWithTipCount > 0 ? Number((totalTipsUSD / ordersWithTipCount).toFixed(2)) : 0;
+    const averageTipPercent = totalSalesUSD > 0 ? Number(((totalTipsUSD / totalSalesUSD) * 100).toFixed(2)) : 0;
+
+    return {
+      summary: {
+        totalTipsUSD: Number(totalTipsUSD.toFixed(2)),
+        totalTipsVES: Number(totalTipsVES.toFixed(2)),
+        totalSalesUSD: Number(totalSalesUSD.toFixed(2)),
+        totalSalesVES: Number(totalSalesVES.toFixed(2)),
+        ordersCount: orders.length,
+        ordersWithTipCount,
+        averageTipUSD,
+        averageTipPercent,
+      },
+      byWaiter,
+      orders,
+    };
+  }
+
   // ==========================================
   // COMANDAS CERRADAS PARA IMPORTAR EN POS
   // ==========================================
@@ -1211,10 +1414,21 @@ export class RestaurantService {
         o.id, o.order_number, o.table_id, o.waiter_id, o.waiter_name,
         o.customer_id, o.customer_name, o.total_usd, o.total_ves, o.exchange_rate,
         o.notes, o.created_at, o.updated_at as closed_at,
-        t.table_number, t.name as table_name, t.zone
+        t.table_number, t.name as table_name, t.zone,
+        COALESCE(tc.tip_usd, 0) as tip_usd,
+        COALESCE(tc.tip_ves, 0) as tip_ves
        FROM restaurant_orders o
        LEFT JOIN restaurant_tables t ON o.table_id = t.id
-       WHERE o.company_id = ? AND o.branch_id = ? AND o.status = 'PAID' AND o.is_invoiced = 0
+       LEFT JOIN (
+         SELECT order_id, MAX(tip_usd) as tip_usd, MAX(tip_ves) as tip_ves
+         FROM restaurant_table_closures
+         GROUP BY order_id
+       ) tc ON tc.order_id = o.id
+       WHERE o.company_id = ? 
+         AND o.branch_id = ? 
+         AND o.status = 'PAID' 
+         AND (o.is_invoiced = 0 OR o.is_invoiced IS NULL)
+         AND o.pos_invoice_id IS NULL
        ORDER BY o.updated_at DESC LIMIT 50`,
       [companyId, branchId]
     );
@@ -1244,6 +1458,8 @@ export class RestaurantService {
       ...o,
       total_usd: Number(o.total_usd),
       total_ves: Number(o.total_ves),
+      tip_usd: Number(o.tip_usd || 0),
+      tip_ves: Number(o.tip_ves || 0),
       exchange_rate: Number(o.exchange_rate),
       items: items
         .filter((it: any) => it.order_id === o.id)

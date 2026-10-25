@@ -79,13 +79,30 @@ purchasesRouter.post(
   '/orders',
   authenticate,
   authorize('purchases', 'create'),
-  zValidator('json', createPurchaseOrderSchema),
+  zValidator('json', createPurchaseOrderSchema, (result, c) => {
+    if (!result.success) {
+      const issues = result.error.issues || [];
+      const errorMsg = issues.map((i: any) => `${i.path.join('.')}: ${i.message}`).join(', ') || 'Datos de orden de compra inválidos';
+      return c.json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: errorMsg,
+          issues: result.error.issues,
+        },
+      }, 400);
+    }
+  }),
   async (c) => {
     const user = c.get('user');
     const body = c.req.valid('json');
+    const branchId = body.branchId || user.branchId;
 
     try {
-      const result = await PurchasesService.createOrder(user.companyId, user.sub, body);
+      const result = await PurchasesService.createOrder(user.companyId, user.sub, {
+        ...body,
+        branchId,
+      });
       return c.json({ success: true, data: result }, 201);
     } catch (error: any) {
       return c.json({ success: false, error: { code: 'ORDER_CREATION_FAILED', message: error.message } }, 400);
@@ -183,13 +200,30 @@ purchasesRouter.post(
   '/receipts',
   authenticate,
   authorize('purchases', 'create'),
-  zValidator('json', createGoodsReceiptSchema),
+  zValidator('json', createGoodsReceiptSchema, (result, c) => {
+    if (!result.success) {
+      const issues = result.error.issues || [];
+      const errorMsg = issues.map((i: any) => `${i.path.join('.')}: ${i.message}`).join(', ') || 'Datos de recepción de mercancía inválidos';
+      return c.json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: errorMsg,
+          issues: result.error.issues,
+        },
+      }, 400);
+    }
+  }),
   async (c) => {
     const user = c.get('user');
     const body = c.req.valid('json');
+    const branchId = body.branchId || user.branchId;
 
     try {
-      const result = await PurchasesService.createReceipt(user.companyId, user.sub, body);
+      const result = await PurchasesService.createReceipt(user.companyId, user.sub, {
+        ...body,
+        branchId,
+      });
       return c.json({ success: true, data: result }, 201);
     } catch (error: any) {
       return c.json({ success: false, error: { code: 'RECEIPT_CREATION_FAILED', message: error.message } }, 400);
@@ -201,7 +235,20 @@ purchasesRouter.post(
   '/receipts/to-invoice',
   authenticate,
   authorize('purchases', 'create'),
-  zValidator('json', convertReceiptToInvoiceSchema),
+  zValidator('json', convertReceiptToInvoiceSchema, (result, c) => {
+    if (!result.success) {
+      const issues = result.error.issues || [];
+      const errorMsg = issues.map((i: any) => `${i.path.join('.')}: ${i.message}`).join(', ') || 'Datos para convertir a factura inválidos';
+      return c.json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: errorMsg,
+          issues: result.error.issues,
+        },
+      }, 400);
+    }
+  }),
   async (c) => {
     const user = c.get('user');
     const body = c.req.valid('json');

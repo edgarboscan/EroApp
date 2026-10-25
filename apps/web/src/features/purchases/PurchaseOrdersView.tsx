@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
 import { DataTable, Column } from "../../components/ui/DataTable";
-import { useEscapeKey } from "../../components/ui/Modal";
+import { Modal } from "../../components/ui/Modal";
 import { useExchangeRateStore } from "../../stores/exchangeRateStore";
 import {
   FileText,
@@ -21,6 +22,7 @@ import {
   AlertCircle,
   Ban,
   Search,
+  PackageCheck,
 } from "lucide-react";
 import {
   SupplierSearchModal,
@@ -76,6 +78,7 @@ interface NewOrderItem {
 }
 
 export const PurchaseOrdersView: React.FC = () => {
+  const navigate = useNavigate();
   const rate = useExchangeRateStore((s) => s.rate);
   const { activeBranchId, token, user } = useAuthStore();
   const [orders, setOrders] = useState<PurchaseOrderRecord[]>([]);
@@ -117,23 +120,6 @@ export const PurchaseOrdersView: React.FC = () => {
     title: "",
   });
 
-  useEscapeKey(
-    () => {
-      if (showSupplierSearch) setShowSupplierSearch(false);
-      else if (productSearchRowIdx !== null) setProductSearchRowIdx(null);
-      else if (isAddingFromSearch) setIsAddingFromSearch(false);
-      else if (viewingOrder) setViewingOrder(null);
-      else if (isCreateOpen) setIsCreateOpen(false);
-    },
-    Boolean(
-      showSupplierSearch ||
-      productSearchRowIdx !== null ||
-      isAddingFromSearch ||
-      viewingOrder ||
-      isCreateOpen,
-    ),
-  );
-
   // Formulario Nueva Orden
   const [selectedSupplierId, setSelectedSupplierId] = useState("");
   const [expectedDate, setExpectedDate] = useState("");
@@ -141,6 +127,7 @@ export const PurchaseOrdersView: React.FC = () => {
   const [exchangeRate, setExchangeRate] = useState(rate);
   const [orderNotes, setOrderNotes] = useState("");
   const [orderItems, setOrderItems] = useState<NewOrderItem[]>([]);
+  const [autoConfirmOnCreate, setAutoConfirmOnCreate] = useState(true);
 
   useEffect(() => {
     const fetchCatalogs = async () => {
@@ -223,6 +210,23 @@ export const PurchaseOrdersView: React.FC = () => {
   const orderTotalUSD = orderSubtotal + orderTax;
   const orderTotalVES = orderTotalUSD * exchangeRate;
 
+  const resetCreateForm = () => {
+    setSelectedSupplierId(availableSuppliers.length > 0 ? availableSuppliers[0].id : "");
+    setExpectedDate("");
+    setCurrency("USD");
+    setExchangeRate(rate);
+    setOrderNotes("");
+    setOrderItems([]);
+    setAutoConfirmOnCreate(true);
+    setProductSearchRowIdx(null);
+    setIsAddingFromSearch(false);
+  };
+
+  const handleCloseCreateModal = () => {
+    setIsCreateOpen(false);
+    resetCreateForm();
+  };
+
   const handleAddItem = () => {
     if (availableProducts.length === 0) {
       toast.error("No hay productos disponibles en el catálogo de inventario");
@@ -247,7 +251,7 @@ export const PurchaseOrdersView: React.FC = () => {
   };
 
   const handleAddItemWithProduct = (prod: any) => {
-    const cost = Number(prod.defaultCost ?? prod.costPrice ?? 0);
+    const cost = Number(prod.defaultCost ?? prod.costPrice ?? prod.cost ?? 0);
     const taxRate = Number(prod.taxRate ?? 16.0);
     const sub = Number((10 * cost).toFixed(2));
     const tax = Number((sub * (taxRate / 100)).toFixed(2));
@@ -282,6 +286,8 @@ export const PurchaseOrdersView: React.FC = () => {
         current.sku = p.sku;
         current.unitCost = p.defaultCost;
         current.taxRate = p.taxRate;
+      } else {
+        current.productId = val;
       }
     } else if (field === "quantityOrdered") {
       current.quantityOrdered = Number(val);
@@ -312,6 +318,14 @@ export const PurchaseOrdersView: React.FC = () => {
       return;
     }
 
+    const invalidItem = orderItems.find(
+      (i) => !i.productId || Number(i.quantityOrdered) <= 0 || Number(i.unitCost) < 0
+    );
+    if (invalidItem) {
+      toast.error("Todos los productos deben tener cantidad mayor a 0 y costo válido");
+      return;
+    }
+
     const supplier = availableSuppliers.find(
       (s) => s.id === selectedSupplierId,
     );
@@ -333,18 +347,18 @@ export const PurchaseOrdersView: React.FC = () => {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
-          branchId: activeBranchId || undefined,
+          branchId: activeBranchId || user?.branchId || undefined,
           supplierId: selectedSupplierId,
           orderDate: new Date().toISOString(),
           expectedDeliveryDate: expectedDate || undefined,
           currency,
-          exchangeRate,
+          exchangeRate: Number(exchangeRate) || 1,
           notes: orderNotes || undefined,
           items: orderItems.map((i) => ({
             productId: i.productId,
-            quantityOrdered: i.quantityOrdered,
-            unitCost: i.unitCost,
-            taxRate: i.taxRate,
+            quantityOrdered: Number(i.quantityOrdered),
+            unitCost: Number(i.unitCost),
+            taxRate: Number(i.taxRate) || 0,
             notes: i.notes || undefined,
           })),
         }),
@@ -352,9 +366,25 @@ export const PurchaseOrdersView: React.FC = () => {
 
       const json = await res.json();
       if (res.ok && json.success) {
-        toast.success(`Orden ${json.data.orderNumber} creada exitosamente`);
-        setIsCreateOpen(false);
-        setOrderItems([]);
+        if (autoConfirmOnCreate && json.data?.id) {
+          try {
+            await fetch(`/api/purchases/orders/${json.data.id}/confirm`, {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+            });
+            toast.success(
+              `Orden ${json.data.orderNumber} creada y confirmada exitosamente`
+            );
+          } catch {
+            toast.success(`Orden ${json.data.orderNumber} creada exitosamente`);
+          }
+        } else {
+          toast.success(`Orden ${json.data.orderNumber} creada exitosamente`);
+        }
+        handleCloseCreateModal();
         fetchOrders();
 
         // Abrir inmediatamente la visualización y descarga en PDF
@@ -367,7 +397,14 @@ export const PurchaseOrdersView: React.FC = () => {
           });
         }
       } else {
-        throw new Error(json.error?.message || "Error al crear orden");
+        const errorMsg =
+          json.error?.message ||
+          (Array.isArray(json.error?.issues)
+            ? json.error.issues.map((it: any) => `${it.path.join('.')}: ${it.message}`).join(', ')
+            : undefined) ||
+          json.message ||
+          "Error al crear orden de compra";
+        throw new Error(errorMsg);
       }
     } catch (err: any) {
       toast.error(err.message || "Error al emitir orden de compra");
@@ -384,10 +421,27 @@ export const PurchaseOrdersView: React.FC = () => {
     });
     if (!confirmed) return;
 
-    setOrders(
-      orders.map((o) => (o.id === orderId ? { ...o, status: "CONFIRMED" } : o)),
-    );
-    toast.success("Orden de compra confirmada y emitida al proveedor");
+    try {
+      const res = await fetch(`/api/purchases/orders/${orderId}/confirm`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      const json = await res.json();
+      if (res.ok && json.success) {
+        toast.success("Orden de compra confirmada y emitida al proveedor");
+        fetchOrders();
+      } else {
+        throw new Error(
+          json.error?.message || json.message || "Error al confirmar orden"
+        );
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Error al confirmar orden de compra");
+    }
   };
 
   const handleCancelOrder = async (orderId: string) => {
@@ -398,10 +452,27 @@ export const PurchaseOrdersView: React.FC = () => {
     );
     if (!confirmed) return;
 
-    setOrders(
-      orders.map((o) => (o.id === orderId ? { ...o, status: "CANCELLED" } : o)),
-    );
-    toast.info("Orden de compra cancelada");
+    try {
+      const res = await fetch(`/api/purchases/orders/${orderId}/cancel`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      const json = await res.json();
+      if (res.ok && json.success) {
+        toast.info("Orden de compra cancelada");
+        fetchOrders();
+      } else {
+        throw new Error(
+          json.error?.message || json.message || "Error al cancelar orden"
+        );
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Error al cancelar orden de compra");
+    }
   };
 
   // Filtrado de órdenes
@@ -472,7 +543,7 @@ export const PurchaseOrdersView: React.FC = () => {
       header: "Fecha Emisión",
       accessorKey: "orderDate",
       cell: (item) => (
-        <div className="text-xs text-neutral-700">
+        <div className="text-xs text-neutral-400 ">
           <p>{new Date(item.orderDate).toLocaleDateString("es-VE")}</p>
           {item.expectedDeliveryDate && (
             <p className="text-[10px] text-neutral-500">
@@ -487,7 +558,7 @@ export const PurchaseOrdersView: React.FC = () => {
       accessorKey: "supplierName",
       cell: (item) => (
         <div>
-          <p className="text-xs font-medium text-neutral-900">
+          <p className="text-xs font-medium text-neutral-400 ">
             {item.supplierName}
           </p>
           <span className="font-mono text-[10px] text-neutral-500">
@@ -500,7 +571,7 @@ export const PurchaseOrdersView: React.FC = () => {
       header: "Sucursal",
       accessorKey: "branchName",
       cell: (item) => (
-        <div className="flex items-center gap-1.5 text-xs text-neutral-600">
+        <div className="flex items-center gap-1.5 text-xs text-neutral-400 ">
           <Building2 className="w-3.5 h-3.5 text-neutral-400" />
           <span>{item.branchName}</span>
         </div>
@@ -510,7 +581,7 @@ export const PurchaseOrdersView: React.FC = () => {
       header: "Ítems",
       accessorKey: "itemsCount",
       cell: (item) => (
-        <span className="text-xs font-medium text-neutral-700">
+        <span className="text-xs font-medium text-neutral-400 ">
           {item.itemsCount} productos
         </span>
       ),
@@ -520,7 +591,7 @@ export const PurchaseOrdersView: React.FC = () => {
       accessorKey: "totalAmount",
       cell: (item) => (
         <div className="text-right">
-          <p className="text-xs font-semibold text-neutral-900">
+          <p className="text-xs font-semibold text-neutral-400 ">
             {formatMoneyUSD(item.totalAmount)}
           </p>
           <p className="text-[10px] text-neutral-500">
@@ -569,6 +640,15 @@ export const PurchaseOrdersView: React.FC = () => {
               <Check className="w-4 h-4" />
             </button>
           )}
+          {(item.status === "CONFIRMED" || item.status === "PARTIALLY_RECEIVED") && (
+            <button
+              onClick={() => navigate(`/purchases/receipts?orderId=${item.id}`)}
+              className="p-1 text-emerald-600 hover:text-emerald-700 rounded-lg hover:bg-emerald-50"
+              title="Recibir en Almacén (Verificar cantidades)"
+            >
+              <PackageCheck className="w-4 h-4" />
+            </button>
+          )}
           {item.status !== "RECEIVED" && item.status !== "CANCELLED" && (
             <button
               onClick={() => handleCancelOrder(item.id)}
@@ -588,7 +668,7 @@ export const PurchaseOrdersView: React.FC = () => {
       {/* Encabezado y Acción Principal */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-neutral-900 tracking-tight">
+          <h1 className="text-xl font-bold text-neutral-400  tracking-tight">
             Órdenes de Compra
           </h1>
           <p className="text-xs text-neutral-500 mt-1">
@@ -597,7 +677,10 @@ export const PurchaseOrdersView: React.FC = () => {
           </p>
         </div>
         <Button
-          onClick={() => setIsCreateOpen(true)}
+          onClick={() => {
+            resetCreateForm();
+            setIsCreateOpen(true);
+          }}
           className="flex items-center gap-2 bg-sky-600 hover:bg-sky-700 text-white font-medium text-xs rounded-lg py-2 px-3 shadow-sm"
         >
           <Plus className="w-4 h-4" />
@@ -607,7 +690,7 @@ export const PurchaseOrdersView: React.FC = () => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="p-4 rounded-lg border border-neutral-200 bg-white">
+        <Card className="p-3 border-l-4 border-l-neutral-500  bg-neutral-50 dark:bg-neutral-800 text-neutral-400  dark:text-neutral-400 rounded-lg border border-neutral-200 dark:border-neutral-800">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-neutral-500">
               Órdenes Activas
@@ -616,7 +699,7 @@ export const PurchaseOrdersView: React.FC = () => {
               <FileText className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-neutral-900 mt-2">
+          <p className="text-2xl font-bold text-neutral-400  mt-2">
             {totalActiveOrders}
           </p>
           <p className="text-[10px] text-neutral-400 mt-0.5">
@@ -624,7 +707,7 @@ export const PurchaseOrdersView: React.FC = () => {
           </p>
         </Card>
 
-        <Card className="p-4 rounded-lg border border-neutral-200 bg-white">
+        <Card className="p-4 border-l-4 border-l-emerald-600  bg-neutral-50 dark:bg-neutral-800 text-neutral-400  dark:text-neutral-400 rounded-lg border border-emerald-200 dark:border-emerald-600">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-neutral-500">
               Monto Comprometido
@@ -641,7 +724,7 @@ export const PurchaseOrdersView: React.FC = () => {
           </p>
         </Card>
 
-        <Card className="p-4 rounded-lg border border-neutral-200 bg-white">
+        <Card className="p-4 border-l-4 border-l-amber-600  bg-neutral-50 dark:bg-neutral-800 text-neutral-400  dark:text-neutral-400 rounded-lg border border-amber-200 dark:border-amber-600">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-neutral-500">
               Pendientes por Recibir
@@ -675,7 +758,7 @@ export const PurchaseOrdersView: React.FC = () => {
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
               statusFilter === st
                 ? "bg-neutral-900 text-white"
-                : "text-neutral-600 hover:bg-neutral-100"
+                : "text-neutral-400  hover:bg-neutral-100"
             }`}
           >
             {st === "ALL" && "Todas"}
@@ -699,397 +782,316 @@ export const PurchaseOrdersView: React.FC = () => {
       </Card>
 
       {/* Modal Nueva Orden de Compra */}
-      {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/60 backdrop-blur-xs p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg border border-neutral-200 w-full max-w-4xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden my-auto">
-            {/* Header (Pinned) */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
-              <div>
-                <h3 className="text-sm font-bold text-neutral-900">
-                  Nueva Orden de Compra
-                </h3>
-                <p className="text-[11px] text-neutral-500 mt-0.5">
-                  Emisión formal de pedido de mercancía hacia proveedor
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsCreateOpen(false)}
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
-                title="Cerrar modal (Esc)"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form
-              id="createPurchaseOrderForm"
-              onSubmit={handleCreateOrder}
-              className="flex-1 flex flex-col overflow-hidden"
+      <Modal
+        isOpen={isCreateOpen}
+        onClose={handleCloseCreateModal}
+        title="Nueva Orden de Compra"
+        subtitle="Emisión formal de pedido de mercancía hacia proveedor"
+        size="4xl"
+        footer={
+          <div className="flex items-center justify-end gap-2 w-full">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleCloseCreateModal}
             >
-              {/* Body (Scrollable) */}
-              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
-                {/* Cabecera Proveedor y Fechas */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-neutral-700 mb-1">
-                      Proveedor Destinatario *
-                    </label>
-                    <div className="flex items-center gap-1.5">
-                      <select
-                        value={selectedSupplierId}
-                        onChange={(e) => setSelectedSupplierId(e.target.value)}
-                        className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-3 py-2 text-neutral-800 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                      >
-                        {availableSuppliers.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name} ({s.rif})
-                          </option>
-                        ))}
-                      </select>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowSupplierSearch(true)}
-                        title="Buscar proveedor en catálogo"
-                        className="px-2.5 py-2 shrink-0 flex items-center gap-1 text-xs"
-                      >
-                        <Search className="w-3.5 h-3.5 text-neutral-500" />
-                        {/* <span>Buscar</span> */}
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-neutral-700 mb-1">
-                      Fecha Estimada de Entrega
-                    </label>
-                    <input
-                      type="date"
-                      value={expectedDate}
-                      onChange={(e) => setExpectedDate(e.target.value)}
-                      className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-3 py-2 text-neutral-800 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-neutral-700 mb-1">
-                      Tasa Oficial BCV (USD / VES)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formatExchangeRate(exchangeRate, 2)}
-                      onChange={(e) => setExchangeRate(Number(e.target.value))}
-                      className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-3 py-2 text-neutral-800 focus:outline-none focus:ring-1 focus:ring-sky-500 text-right"
-                    />
-                  </div>
-                </div>
-
-                {/* Detalle de Productos */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-semibold text-neutral-900 uppercase tracking-wider">
-                      Líneas de la Orden ({orderItems.length})
-                    </h4>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setIsAddingFromSearch(true)}
-                        className="text-xs rounded-lg py-1 px-2.5 flex items-center gap-1.5"
-                      >
-                        <Search className="w-3.5 h-3.5 text-neutral-500" />
-                        <span>Buscar en Catálogo</span>
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={handleAddItem}
-                        className="text-xs rounded-lg py-1 px-2.5 flex items-center gap-1.5"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Agregar Fila</span>
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="overflow-x-auto border border-neutral-200 rounded-lg">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-600 font-medium">
-                        <tr>
-                          <th className="py-2.5 px-3">Producto</th>
-                          <th className="py-2.5 px-3 w-28">Cantidad</th>
-                          <th className="py-2.5 px-3 w-32">Costo Unit. ($)</th>
-                          <th className="py-2.5 px-3 w-24">IVA (%)</th>
-                          <th className="py-2.5 px-3 w-32 text-right">
-                            Subtotal ($)
-                          </th>
-                          <th className="py-2.5 px-3 w-12"></th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-neutral-100">
-                        {orderItems.map((item, idx) => (
-                          <tr key={idx} className="hover:bg-neutral-50/50">
-                            <td className="py-2 px-3">
-                              <div className="flex items-center gap-1.5">
-                                <select
-                                  value={item.productId}
-                                  onChange={(e) =>
-                                    handleItemChange(
-                                      idx,
-                                      "productId",
-                                      e.target.value,
-                                    )
-                                  }
-                                  className="flex-1 text-xs bg-white border border-neutral-300 rounded-lg px-2.5 py-1.5 text-neutral-800"
-                                >
-                                  {availableProducts.map((p) => (
-                                    <option key={p.id} value={p.id}>
-                                      {p.sku} - {p.name}
-                                    </option>
-                                  ))}
-                                </select>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => setProductSearchRowIdx(idx)}
-                                  title="Buscar producto"
-                                  className="p-1.5 shrink-0"
-                                >
-                                  <Search className="w-3.5 h-3.5 text-neutral-500" />
-                                </Button>
-                              </div>
-                            </td>
-                            <td className="py-2 px-3">
-                              <input
-                                type="number"
-                                min="1"
-                                step="1"
-                                value={item.quantityOrdered}
-                                onChange={(e) =>
-                                  handleItemChange(
-                                    idx,
-                                    "quantityOrdered",
-                                    e.target.value,
-                                  )
-                                }
-                                className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-2.5 py-1.5 text-neutral-800"
-                              />
-                            </td>
-                            <td className="py-2 px-3">
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={item.unitCost}
-                                onChange={(e) =>
-                                  handleItemChange(
-                                    idx,
-                                    "unitCost",
-                                    e.target.value,
-                                  )
-                                }
-                                className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-2.5 py-1.5 text-neutral-800"
-                              />
-                            </td>
-                            <td className="py-2 px-3">
-                              <select
-                                value={item.taxRate}
-                                onChange={(e) =>
-                                  handleItemChange(
-                                    idx,
-                                    "taxRate",
-                                    e.target.value,
-                                  )
-                                }
-                                className="w-full text-xs bg-white border border-neutral-300 rounded-lg px-2 py-1.5 text-neutral-800"
-                              >
-                                <option value="0">0% Exento</option>
-                                <option value="8">8% Reducido</option>
-                                <option value="16">16% General</option>
-                              </select>
-                            </td>
-                            <td className="py-2 px-3 text-right font-medium text-neutral-900">
-                              {formatMoneyUSD(item.subtotal)}
-                            </td>
-                            <td className="py-2 px-3 text-center">
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveItem(idx)}
-                                className="text-neutral-400 hover:text-red-500 p-1"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Notas y Resumen de Totales */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start pt-2">
-                  <div>
-                    <label className="block text-xs font-medium text-neutral-700 mb-1">
-                      Instrucciones / Observaciones
-                    </label>
-                    <textarea
-                      rows={3}
-                      value={orderNotes}
-                      onChange={(e) => setOrderNotes(e.target.value)}
-                      placeholder="Instrucciones especiales de despacho, contacto o términos comerciales..."
-                      className="w-full text-xs bg-white border border-neutral-300 rounded-lg p-2.5 text-neutral-800 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                    />
-                  </div>
-
-                  <div className="bg-neutral-50 rounded-lg p-4 border border-neutral-200 space-y-2">
-                    <div className="flex justify-between text-xs text-neutral-600">
-                      <span>Subtotal Base Imponible:</span>
-                      <span className="font-semibold">
-                        {formatMoneyUSD(orderSubtotal)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-xs text-neutral-600">
-                      <span>IVA Estimado:</span>
-                      <span className="font-semibold">
-                        {formatMoneyUSD(orderTax)}
-                      </span>
-                    </div>
-                    <div className="pt-2 border-t border-neutral-200 flex justify-between items-baseline">
-                      <span className="text-sm font-bold text-neutral-900">
-                        Total Orden (USD):
-                      </span>
-                      <span className="text-base font-bold text-sky-700">
-                        {formatMoneyUSD(orderTotalUSD)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-[11px] text-neutral-500">
-                      <span>Equivalente en Bolívares (BCV):</span>
-                      <span className="font-medium">
-                        {formatMoneyVES(orderTotalVES)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Footer (Pinned) */}
-              <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              form="createPurchaseOrderForm"
+              className="bg-sky-600 hover:bg-sky-700 text-white font-medium text-xs"
+            >
+              Emitir Orden de Compra
+            </Button>
+          </div>
+        }
+      >
+        <form
+          id="createPurchaseOrderForm"
+          onSubmit={handleCreateOrder}
+          className="space-y-4 text-xs"
+        >
+          {/* Cabecera Proveedor y Fechas */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-neutral-400  mb-1">
+                Proveedor Destinatario *
+              </label>
+              <div className="flex items-center gap-1.5">
+                <select
+                  value={selectedSupplierId}
+                  onChange={(e) => setSelectedSupplierId(e.target.value)}
+                  className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                >
+                  {availableSuppliers.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.rif})
+                    </option>
+                  ))}
+                </select>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setIsCreateOpen(false)}
+                  onClick={() => setShowSupplierSearch(true)}
+                  title="Buscar proveedor en catálogo"
+                  className="px-2.5 py-2 shrink-0 flex items-center gap-1 text-xs"
                 >
-                  Cancelar
+                  <Search className="w-3.5 h-3.5 text-neutral-500" />
+                  {/* <span>Buscar</span> */}
+                </Button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-neutral-400  mb-1">
+                Fecha Estimada de Entrega
+              </label>
+              <input
+                type="date"
+                value={expectedDate}
+                onChange={(e) => setExpectedDate(e.target.value)}
+                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-neutral-400  mb-1">
+                Tasa Oficial BCV (USD / VES)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                value={formatExchangeRate(exchangeRate, 2)}
+                onChange={(e) => setExchangeRate(Number(e.target.value))}
+                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500 text-right"
+              />
+            </div>
+          </div>
+
+          {/* Detalle de Productos */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-semibold text-neutral-400  uppercase tracking-wider">
+                Líneas de la Orden ({orderItems.length})
+              </h4>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsAddingFromSearch(true)}
+                  className="text-xs rounded-lg py-1 px-2.5 flex items-center gap-1.5"
+                >
+                  <Search className="w-3.5 h-3.5 text-neutral-500" />
+                  <span>Buscar en Catálogo</span>
                 </Button>
                 <Button
-                  type="submit"
-                  size="sm"
-                  className="bg-sky-600 hover:bg-sky-700 text-white font-medium text-xs rounded-lg py-2 px-4 shadow-sm"
+                  type="button"
+                  variant="outline"
+                  onClick={handleAddItem}
+                  className="text-xs rounded-lg py-1 px-2.5 flex items-center gap-1.5"
                 >
-                  Emitir Orden de Compra
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Agregar Fila</span>
                 </Button>
               </div>
-            </form>
+            </div>
+
+            <div className="overflow-x-auto border border-neutral-200 rounded-lg">
+              <table className="w-full text-left text-sm border-collapse">
+                <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-400  dark:text-neutral-400 uppercase  tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
+                  <tr>
+                    <th className="py-2.5 px-3">Producto</th>
+                    <th className="py-2.5 px-3 w-28">Cantidad</th>
+                    <th className="py-2.5 px-3 w-32">Costo Unit. ($)</th>
+                    <th className="py-2.5 px-3 w-24">IVA (%)</th>
+                    <th className="py-2.5 px-3 w-32 text-right">
+                      Subtotal ($)
+                    </th>
+                    <th className="py-2.5 px-3 w-12"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                  {orderItems.map((item, idx) => (
+                    <tr key={idx} className="border-b border-neutral-100 dark:border-neutral-800">
+                      <td className="py-2 px-3">
+                        <div className="flex items-center gap-1.5">
+                          <select
+                            value={item.productId}
+                            onChange={(e) =>
+                              handleItemChange(idx, "productId", e.target.value)
+                            }
+                            className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                          >
+                            <option value="" disabled>
+                              -- Seleccione producto --
+                            </option>
+                            {item.productId && !availableProducts.some((p) => p.id === item.productId) && (
+                              <option value={item.productId}>
+                                {item.sku ? `${item.sku} - ` : ""}{item.productName || "Producto Seleccionado"}
+                              </option>
+                            )}
+                            {availableProducts.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.sku} - {p.name}
+                              </option>
+                            ))}
+                          </select>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setProductSearchRowIdx(idx)}
+                            title="Buscar producto"
+                            className="p-1.5 shrink-0"
+                          >
+                            <Search className="w-3.5 h-3.5 text-neutral-500" />
+                          </Button>
+                        </div>
+                      </td>
+                      <td className="py-2 px-3">
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={item.quantityOrdered}
+                          onChange={(e) =>
+                            handleItemChange(
+                              idx,
+                              "quantityOrdered",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        />
+                      </td>
+                      <td className="py-2 px-3">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={item.unitCost}
+                          onChange={(e) =>
+                            handleItemChange(idx, "unitCost", e.target.value)
+                          }
+                          className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        />
+                      </td>
+                      <td className="py-2 px-3">
+                        <select
+                          value={item.taxRate}
+                          onChange={(e) =>
+                            handleItemChange(idx, "taxRate", e.target.value)
+                          }
+                          className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        >
+                          <option value="0">0% Exento</option>
+                          <option value="8">8% Reducido</option>
+                          <option value="16">16% General</option>
+                        </select>
+                      </td>
+                      <td className="py-2 px-3 text-right font-medium text-neutral-400 ">
+                        {formatMoneyUSD(item.subtotal)}
+                      </td>
+                      <td className="py-2 px-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItem(idx)}
+                          className="text-neutral-400 hover:text-red-500 p-1"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+
+          {/* Notas y Resumen de Totales */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start pt-2">
+            <div>
+              <label className="block text-xs font-medium text-neutral-400  mb-1">
+                Instrucciones / Observaciones
+              </label>
+              <textarea
+                rows={3}
+                value={orderNotes}
+                onChange={(e) => setOrderNotes(e.target.value)}
+                placeholder="Instrucciones especiales de despacho, contacto o términos comerciales..."
+                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              />
+              <div className="mt-2.5 flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="autoConfirmOrderToggle"
+                  checked={autoConfirmOnCreate}
+                  onChange={(e) => setAutoConfirmOnCreate(e.target.checked)}
+                  className="rounded text-sky-600 focus:ring-sky-500"
+                />
+                <label
+                  htmlFor="autoConfirmOrderToggle"
+                  className="text-xs font-medium text-neutral-700 dark:text-neutral-300 cursor-pointer"
+                >
+                  Confirmar y emitir inmediatamente al proveedor (lista para recepción)
+                </label>
+              </div>
+            </div>
+
+            <div className="bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800  space-y-2">
+              <div className="flex justify-between text-xs text-neutral-400 ">
+                <span>Subtotal Base Imponible:</span>
+                <span className="font-semibold">
+                  {formatMoneyUSD(orderSubtotal)}
+                </span>
+              </div>
+              <div className="flex justify-between text-xs text-neutral-400 ">
+                <span>IVA Estimado:</span>
+                <span className="font-semibold">
+                  {formatMoneyUSD(orderTax)}
+                </span>
+              </div>
+              <div className="pt-2 border-t border-neutral-200 flex justify-between items-baseline">
+                <span className="text-sm font-bold text-neutral-400 ">
+                  Total Orden (USD):
+                </span>
+                <span className="text-base font-bold text-sky-700">
+                  {formatMoneyUSD(orderTotalUSD)}
+                </span>
+              </div>
+              <div className="flex justify-between text-[11px] text-neutral-500">
+                <span>Equivalente en Bolívares (BCV):</span>
+                <span className="font-medium">
+                  {formatMoneyVES(orderTotalVES)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </form>
+      </Modal>
 
       {/* Modal Ver Detalle de Orden */}
-      {viewingOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/60 backdrop-blur-xs p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg border border-neutral-200 w-full max-w-2xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden my-auto">
-            {/* Header (Pinned) */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-bold text-neutral-900">
-                    Orden {viewingOrder.orderNumber}
-                  </h3>
-                  {renderStatusBadge(viewingOrder.status)}
-                </div>
-                <p className="text-[11px] text-neutral-500 mt-0.5">
-                  Emitida el{" "}
-                  {new Date(viewingOrder.orderDate).toLocaleDateString("es-VE")}{" "}
-                  por {viewingOrder.createdByUserName}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setViewingOrder(null)}
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
-                title="Cerrar modal (Esc)"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Body (Scrollable) */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-4 bg-neutral-50 p-3 rounded-lg border border-neutral-200">
-                <div>
-                  <span className="text-[10px] text-neutral-500 uppercase font-semibold">
-                    Proveedor
-                  </span>
-                  <p className="font-semibold text-neutral-900">
-                    {viewingOrder.supplierName}
-                  </p>
-                  <p className="font-mono text-neutral-500">
-                    {viewingOrder.supplierRif}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-[10px] text-neutral-500 uppercase font-semibold">
-                    Destino
-                  </span>
-                  <p className="font-semibold text-neutral-900">
-                    {viewingOrder.branchName}
-                  </p>
-                  {viewingOrder.expectedDeliveryDate && (
-                    <p className="text-neutral-500">
-                      Fecha entrega estimada:{" "}
-                      {viewingOrder.expectedDeliveryDate}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {viewingOrder.notes && (
-                <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200">
-                  <span className="text-[10px] text-neutral-500 uppercase font-semibold">
-                    Observaciones
-                  </span>
-                  <p className="text-neutral-700 mt-0.5">
-                    {viewingOrder.notes}
-                  </p>
-                </div>
-              )}
-
-              <div className="border-t border-neutral-200 pt-3 flex justify-between items-center">
-                <span className="text-xs text-neutral-500">
-                  Tasa de cambio:{" "}
-                  {formatExchangeRate(viewingOrder.exchangeRate)}/USD
-                </span>
-                <div className="text-right">
-                  <p className="text-lg font-bold text-neutral-900">
-                    Total: {formatMoneyUSD(viewingOrder.totalAmount)}
-                  </p>
-                  <p className="text-xs text-neutral-500">
-                    {formatMoneyVES(
-                      viewingOrder.totalAmount * viewingOrder.exchangeRate,
-                    )}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Footer (Pinned) */}
-            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
+      <Modal
+        isOpen={Boolean(viewingOrder)}
+        onClose={() => setViewingOrder(null)}
+        title={
+          viewingOrder
+            ? `Orden ${viewingOrder.orderNumber}`
+            : "Detalle de Orden"
+        }
+        subtitle={
+          viewingOrder
+            ? `Emitida el ${new Date(viewingOrder.orderDate).toLocaleDateString("es-VE")} por ${viewingOrder.createdByUserName}`
+            : undefined
+        }
+        size="2xl"
+        footer={
+          viewingOrder && (
+            <div className="flex items-center justify-end gap-2 w-full">
               <Button
                 size="sm"
                 onClick={() => {
@@ -1104,6 +1106,34 @@ export const PurchaseOrdersView: React.FC = () => {
                 <FileText className="w-4 h-4 mr-1.5" />
                 Descargar / Ver PDF
               </Button>
+              {viewingOrder.status === "DRAFT" && (
+                <Button
+                  size="sm"
+                  onClick={async () => {
+                    const id = viewingOrder.id;
+                    await handleConfirmOrder(id);
+                    setViewingOrder(null);
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs flex items-center gap-1.5"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Confirmar Orden</span>
+                </Button>
+              )}
+              {(viewingOrder.status === "CONFIRMED" || viewingOrder.status === "PARTIALLY_RECEIVED") && (
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    const id = viewingOrder.id;
+                    setViewingOrder(null);
+                    navigate(`/purchases/receipts?orderId=${id}`);
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs flex items-center gap-1.5"
+                >
+                  <PackageCheck className="w-3.5 h-3.5" />
+                  <span>Recibir en Almacén</span>
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -1112,9 +1142,66 @@ export const PurchaseOrdersView: React.FC = () => {
                 Cerrar
               </Button>
             </div>
+          )
+        }
+      >
+        {viewingOrder && (
+          <div className="space-y-4 text-xs">
+            <div className="grid grid-cols-2 gap-4 bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 ">
+              <div>
+                <span className="text-[10px] text-neutral-500 uppercase font-semibold">
+                  Proveedor
+                </span>
+                <p className="font-semibold text-neutral-400 ">
+                  {viewingOrder.supplierName}
+                </p>
+                <p className="font-mono text-neutral-500">
+                  {viewingOrder.supplierRif}
+                </p>
+              </div>
+              <div>
+                <span className="text-[10px] text-neutral-500 uppercase font-semibold">
+                  Destino
+                </span>
+                <p className="font-semibold text-neutral-400 ">
+                  {viewingOrder.branchName}
+                </p>
+                {viewingOrder.expectedDeliveryDate && (
+                  <p className="text-neutral-500">
+                    Fecha entrega estimada: {viewingOrder.expectedDeliveryDate}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {viewingOrder.notes && (
+              <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200">
+                <span className="text-[10px] text-neutral-500 uppercase font-semibold">
+                  Observaciones
+                </span>
+                <p className="text-neutral-400  mt-0.5">{viewingOrder.notes}</p>
+              </div>
+            )}
+
+            <div className="border-t border-neutral-200 pt-3 flex justify-between items-center">
+              <span className="text-xs text-neutral-500">
+                Tasa de cambio: {formatExchangeRate(viewingOrder.exchangeRate)}
+                /USD
+              </span>
+              <div className="text-right">
+                <p className="text-lg font-bold text-neutral-400 ">
+                  Total: {formatMoneyUSD(viewingOrder.totalAmount)}
+                </p>
+                <p className="text-xs text-neutral-500">
+                  {formatMoneyVES(
+                    viewingOrder.totalAmount * viewingOrder.exchangeRate,
+                  )}
+                </p>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* Modal Buscador de Proveedores */}
       <SupplierSearchModal
@@ -1135,7 +1222,26 @@ export const PurchaseOrdersView: React.FC = () => {
           if (isAddingFromSearch) {
             handleAddItemWithProduct(prod);
           } else if (productSearchRowIdx !== null) {
-            handleItemChange(productSearchRowIdx, "productId", prod.id);
+            const cost = Number(prod.defaultCost ?? prod.cost ?? prod.costPrice ?? 0);
+            const tax = Number(prod.taxRate ?? 16.0);
+            const updated = [...orderItems];
+            if (updated[productSearchRowIdx]) {
+              const current = updated[productSearchRowIdx];
+              const unitCost = cost > 0 ? cost : current.unitCost;
+              const sub = Number((current.quantityOrdered * unitCost).toFixed(2));
+              const taxAmount = Number((sub * (tax / 100)).toFixed(2));
+              updated[productSearchRowIdx] = {
+                ...current,
+                productId: prod.id,
+                productName: prod.name,
+                sku: prod.sku,
+                unitCost,
+                taxRate: tax,
+                subtotal: sub,
+                total: Number((sub + taxAmount).toFixed(2)),
+              };
+              setOrderItems(updated);
+            }
           }
         }}
         products={availableProducts}

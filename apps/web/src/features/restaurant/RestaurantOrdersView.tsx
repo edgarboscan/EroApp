@@ -22,12 +22,15 @@ import {
   UserPlus,
   AlertCircle,
   Store,
+  Receipt,
+  Coins,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/authStore';
 import { useExchangeRateStore } from '../../stores/exchangeRateStore';
 import { TableManagementModal } from './TableManagementModal';
 import { TableClosuresModal } from './TableClosuresModal';
+import { RestaurantTipsReportModal } from './RestaurantTipsReportModal';
 import type {
   RestaurantTable,
   RestaurantOrder,
@@ -108,11 +111,11 @@ export const RestaurantOrdersView: React.FC = () => {
   const [showOpenTableModal, setShowOpenTableModal] = useState<boolean>(false);
   const [showAddCustomerModal, setShowAddCustomerModal] = useState<boolean>(false);
   const [showProductDetailModal, setShowProductDetailModal] = useState<boolean>(false);
-  const [showPaymentModal, setShowPaymentModal] = useState<boolean>(false);
   const [showAdHocProductModal, setShowAdHocProductModal] = useState<boolean>(false);
   const [showItemNotesModal, setShowItemNotesModal] = useState<boolean>(false);
   const [showTableManagementModal, setShowTableManagementModal] = useState<boolean>(false);
   const [showTableClosuresModal, setShowTableClosuresModal] = useState<boolean>(false);
+  const [showTipsReportModal, setShowTipsReportModal] = useState<boolean>(false);
   const [showCloseOrderPromptModal, setShowCloseOrderPromptModal] = useState<boolean>(false);
 
   // Estados para abrir mesa y búsqueda / creación de cliente
@@ -149,20 +152,6 @@ export const RestaurantOrdersView: React.FC = () => {
   const [editingItem, setEditingItem] = useState<RestaurantOrderItem | null>(null);
   const [itemNoteText, setItemNoteText] = useState<string>('');
   const [saveAsPreset, setSaveAsPreset] = useState<boolean>(false);
-
-  // Estado para pagos
-  const [paymentCustomerId, setPaymentCustomerId] = useState<string | null>(null); // null = toda la mesa
-  const [paymentMethodName, setPaymentMethodName] = useState<string>('Efectivo Divisas ($)');
-  const [customMethodInput, setCustomMethodInput] = useState<string>('');
-  const [paymentCurrency, setPaymentCurrency] = useState<'USD' | 'VES'>('USD');
-  const [paymentAmount, setPaymentAmount] = useState<string>('');
-  const [paymentReference, setPaymentReference] = useState<string>('');
-  const [paymentNotes, setPaymentNotes] = useState<string>('');
-  const [orderPaymentNotes, setOrderPaymentNotes] = useState<string>('');
-  const [isCreditPayment, setIsCreditPayment] = useState<boolean>(false);
-  const [selectedErpCustomerId, setSelectedErpCustomerId] = useState<string>('');
-  const [creditDueDate, setCreditDueDate] = useState<string>('');
-
   // Estado para vista en modal de detalle (por cliente vs por mesa)
   const [detailViewMode, setDetailViewMode] = useState<'BY_CUSTOMER' | 'BY_TABLE'>('BY_CUSTOMER');
 
@@ -596,60 +585,10 @@ export const RestaurantOrdersView: React.FC = () => {
     }
   };
 
-  // Registrar pago
-  const handleRegisterPayment = async () => {
-    if (!activeOrder) return;
-    const amountNum = parseFloat(paymentAmount);
-    if (!amountNum || amountNum <= 0) {
-      showNotification('Ingrese un monto válido', 'error');
-      return;
-    }
-
-    const finalMethodName =
-      paymentMethodName === 'OTRO_PERSONALIZADO'
-        ? customMethodInput.trim() || 'Forma de Pago Personalizada'
-        : paymentMethodName;
-
-    try {
-      const res = await fetch(`/api/restaurant/orders/${activeOrder.id}/payments`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({
-          order_customer_id: paymentCustomerId,
-          payment_method_name: finalMethodName,
-          currency: paymentCurrency,
-          amount: amountNum,
-          reference: paymentReference,
-          is_credit: isCreditPayment,
-          customer_id: isCreditPayment ? selectedErpCustomerId : null,
-          due_date: isCreditPayment ? creditDueDate : null,
-          notes: paymentNotes,
-          order_notes: orderPaymentNotes,
-        }),
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        showNotification('Pago registrado con éxito');
-        setPaymentAmount('');
-        setPaymentReference('');
-        setPaymentNotes('');
-        setIsCreditPayment(false);
-        setSelectedErpCustomerId('');
-        await fetchActiveOrder(selectedTable!.id);
-        fetchTables();
-      } else {
-        showNotification(data.error?.message || 'Error al procesar el pago', 'error');
-      }
-    } catch {
-      showNotification('Error de conexión al procesar el pago', 'error');
-    }
-  };
-
-  // Iniciar modal de confirmación y auditoría de cierre
+  // Iniciar modal de confirmación y auditoría de cierre de comanda
   const handlePromptCloseOrder = () => {
     setClosureTipUsd('0');
-    setClosureNotes(orderPaymentNotes || '');
+    setClosureNotes('');
     setShowCloseOrderPromptModal(true);
   };
 
@@ -663,7 +602,7 @@ export const RestaurantOrdersView: React.FC = () => {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify({
-          notes: closureNotes || orderPaymentNotes || 'Cierre de comanda y mesa',
+          notes: closureNotes.trim() || 'Cierre de comanda y mesa',
           tip_usd: tipUsd,
           tip_ves: tipVes,
           closed_by_user_id: user?.id,
@@ -672,9 +611,8 @@ export const RestaurantOrdersView: React.FC = () => {
       });
       const data = await res.json();
       if (data.success) {
-        showNotification('Mesa cerrada y registro de cierre generado exitosamente');
+        showNotification('Comanda cerrada y mesa liberada con éxito. Lista para facturar en POS.');
         setShowCloseOrderPromptModal(false);
-        setShowPaymentModal(false);
         setSelectedTable(null);
         setActiveOrder(null);
         setClosureTipUsd('0');
@@ -733,17 +671,6 @@ export const RestaurantOrdersView: React.FC = () => {
     if (!selectedCustomerId) return activeOrder.items;
     return activeOrder.items.filter((i) => i.order_customer_id === selectedCustomerId);
   }, [activeOrder, selectedCustomerId]);
-
-  // Total pendiente de la mesa
-  const tablePaymentsTotal = useMemo(() => {
-    if (!activeOrder?.payments) return 0;
-    return activeOrder.payments.reduce((sum, p) => sum + p.amount_usd, 0);
-  }, [activeOrder]);
-
-  const tablePendingBalance = useMemo(() => {
-    if (!activeOrder) return 0;
-    return Math.max(0, Number((activeOrder.total_usd - tablePaymentsTotal).toFixed(2)));
-  }, [activeOrder, tablePaymentsTotal]);
 
   return (
     <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
@@ -820,6 +747,17 @@ export const RestaurantOrdersView: React.FC = () => {
           >
             <Clock className="w-4 h-4 text-emerald-400" />
             <span>Historial de Cierres</span>
+          </button>
+
+          {/* Botón Reporte de Propinas */}
+          <button
+            type="button"
+            onClick={() => setShowTipsReportModal(true)}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg focus-visible:ring-2 focus-visible:ring-slate-500 transition-colors"
+            title="Reporte de propinas por mesero y comanda"
+          >
+            <Coins className="w-4 h-4 text-amber-400" />
+            <span>Propinas</span>
           </button>
 
           <a
@@ -1006,11 +944,12 @@ export const RestaurantOrdersView: React.FC = () => {
 
                 <button
                   type="button"
-                  onClick={() => setShowPaymentModal(true)}
+                  onClick={handlePromptCloseOrder}
                   className="px-3.5 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-emerald-500 shadow-xs"
+                  title="Cerrar comanda y fijar propina para posterior facturación en POS"
                 >
-                  <CreditCard className="w-4 h-4" />
-                  <span>Cobrar / Cierre</span>
+                  <Receipt className="w-4 h-4" />
+                  <span>Cerrar Comanda</span>
                 </button>
 
                 {/* Botón cerrar modal */}
@@ -1205,20 +1144,6 @@ export const RestaurantOrdersView: React.FC = () => {
                       </span>
                     </div>
                   </div>
-
-                  {tablePaymentsTotal > 0 && (
-                    <div className="flex items-center justify-between text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                      <span>Abonado / Pagado:</span>
-                      <span>${tablePaymentsTotal.toFixed(2)}</span>
-                    </div>
-                  )}
-
-                  {tablePendingBalance > 0 && tablePaymentsTotal > 0 && (
-                    <div className="flex items-center justify-between text-xs text-amber-600 dark:text-amber-400 font-bold">
-                      <span>Saldo Pendiente:</span>
-                      <span>${tablePendingBalance.toFixed(2)}</span>
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -2000,339 +1925,15 @@ export const RestaurantOrdersView: React.FC = () => {
         </div>
       )}
 
-      {/* ======================================================== */}
-      {/* MODAL 6: FORMAS DE PAGO & SEPARACIÓN DE CUENTAS / CIERRE */}
-      {/* ======================================================== */}
-      {showPaymentModal && activeOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white dark:bg-gray-800 w-full max-w-2xl rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-5 flex flex-col max-h-[90vh]">
-            <div className="flex items-center justify-between pb-3 border-b border-gray-200 dark:border-gray-700">
-              <div>
-                <h2 className="text-base font-bold flex items-center gap-2">
-                  <CreditCard className="w-5 h-5 text-emerald-600" />
-                  <span>Cobro y Formas de Pago - Mesa {activeOrder.table_number}</span>
-                </h2>
-                <p className="text-xs text-gray-500">Separación de cuenta y crédito comercial (CxC)</p>
-              </div>
-
-              <button onClick={() => setShowPaymentModal(false)} className="text-gray-400 hover:text-gray-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto py-3 space-y-4">
-              {/* Resumen de Cuentas por Persona */}
-              <div className="bg-gray-50 dark:bg-gray-850 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">
-                  División de Cuenta (Split Bill)
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {activeOrder.customers?.map((cust) => {
-                    const custPayments =
-                      activeOrder.payments?.filter((p) => p.order_customer_id === cust.id) || [];
-                    const paid = custPayments.reduce((s, p) => s + p.amount_usd, 0);
-                    const remaining = Math.max(0, Number(((cust.total_usd || 0) - paid).toFixed(2)));
-
-                    return (
-                      <div
-                        key={cust.id}
-                        className={`p-2.5 rounded-lg border text-xs flex flex-col justify-between ${
-                          paymentCustomerId === cust.id
-                            ? 'border-indigo-600 bg-indigo-50/40 dark:bg-indigo-950/20'
-                            : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold">{cust.customer_name}</span>
-                          <span
-                            className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${
-                              remaining === 0
-                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60'
-                                : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60'
-                            }`}
-                          >
-                            {remaining === 0 ? 'Saldado' : 'Pendiente'}
-                          </span>
-                        </div>
-                        <div className="mt-2 flex items-center justify-between text-gray-500">
-                          <span>Total: ${(cust.total_usd || 0).toFixed(2)}</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setPaymentCustomerId(cust.id);
-                              setPaymentAmount(remaining > 0 ? remaining.toString() : '');
-                            }}
-                            className="text-indigo-600 dark:text-indigo-400 font-bold hover:underline"
-                          >
-                            Cobrar (${remaining.toFixed(2)})
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Formulario de Registro de Pago */}
-              <div className="border border-gray-200 dark:border-gray-700 p-3.5 rounded-lg space-y-3">
-                <h3 className="text-xs font-bold flex items-center gap-1.5 text-gray-700 dark:text-gray-300">
-                  <DollarSign className="w-4 h-4 text-emerald-600" />
-                  <span>Registrar Pago</span>
-                </h3>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold mb-1">Abonar a:</label>
-                    <select
-                      value={paymentCustomerId || ''}
-                      onChange={(e) => {
-                        const val = e.target.value || null;
-                        setPaymentCustomerId(val);
-                        if (!val) {
-                          setPaymentAmount(tablePendingBalance.toString());
-                        }
-                      }}
-                      className="w-full px-3 py-2 text-xs bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg"
-                    >
-                      <option value="">Cuenta Completa (Toda la Mesa)</option>
-                      {activeOrder.customers?.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.customer_name} (Total: ${c.total_usd.toFixed(2)})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold mb-1">Forma de Pago:</label>
-                    <select
-                      value={paymentMethodName}
-                      onChange={(e) => setPaymentMethodName(e.target.value)}
-                      className="w-full px-3 py-2 text-xs bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg"
-                    >
-                      <option value="Efectivo Divisas ($)">Efectivo Divisas ($)</option>
-                      <option value="Efectivo Bolívares (Bs)">Efectivo Bolívares (Bs)</option>
-                      <option value="Pago Móvil Interbancario (Bs)">Pago Móvil Interbancario (Bs)</option>
-                      <option value="Punto de Venta / Débito (Bs)">Punto de Venta / Débito (Bs)</option>
-                      <option value="Transferencia Bancaria (Bs)">Transferencia Bancaria (Bs)</option>
-                      <option value="Zelle / Divisas ($)">Zelle / Divisas ($)</option>
-                      <option value="OTRO_PERSONALIZADO">+ Nueva Forma de Pago Personalizada</option>
-                    </select>
-                  </div>
-                </div>
-
-                {paymentMethodName === 'OTRO_PERSONALIZADO' && (
-                  <div>
-                    <label className="block text-xs font-semibold mb-1">Nombre de la Nueva Forma de Pago</label>
-                    <input
-                      type="text"
-                      value={customMethodInput}
-                      onChange={(e) => setCustomMethodInput(e.target.value)}
-                      placeholder="Ej: Cupón de Descuento, Criptomoneda, etc."
-                      className="w-full px-3 py-2 text-xs bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg"
-                    />
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold mb-1">Moneda</label>
-                    <div className="flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden">
-                      <button
-                        type="button"
-                        onClick={() => setPaymentCurrency('USD')}
-                        className={`flex-1 py-1.5 text-xs font-bold ${
-                          paymentCurrency === 'USD'
-                            ? 'bg-indigo-600 text-white'
-                            : 'bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                        }`}
-                      >
-                        USD ($)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPaymentCurrency('VES')}
-                        className={`flex-1 py-1.5 text-xs font-bold ${
-                          paymentCurrency === 'VES'
-                            ? 'bg-indigo-600 text-white'
-                            : 'bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                        }`}
-                      >
-                        VES (Bs)
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold mb-1">Monto a Pagar</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={paymentAmount}
-                      onChange={(e) => setPaymentAmount(e.target.value)}
-                      placeholder="0.00"
-                      className="w-full px-3 py-2 text-xs bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg font-bold"
-                    />
-                  </div>
-                </div>
-
-                {/* Crédito Comercial / CxC */}
-                <div className="pt-2 border-t border-gray-200/60 dark:border-gray-700/60">
-                  <div className="flex items-center gap-2 mb-2">
-                    <input
-                      type="checkbox"
-                      id="isCredit"
-                      checked={isCreditPayment}
-                      onChange={(e) => setIsCreditPayment(e.target.checked)}
-                      className="w-4 h-4 text-indigo-600 rounded-lg"
-                    />
-                    <label htmlFor="isCredit" className="text-xs font-bold text-gray-800 dark:text-gray-200">
-                      Cargar a Crédito / Cuenta por Cobrar (CxC)
-                    </label>
-                  </div>
-
-                  {isCreditPayment && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-2.5 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                      <div>
-                        <label className="block text-xs font-semibold mb-1">Cliente ERP (CxC):</label>
-                        <select
-                          value={selectedErpCustomerId}
-                          onChange={(e) => setSelectedErpCustomerId(e.target.value)}
-                          className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg"
-                        >
-                          <option value="">Seleccione Cliente...</option>
-                          {erpCustomers.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name} ({c.doc_number})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-semibold mb-1">Fecha de Vencimiento:</label>
-                        <input
-                          type="date"
-                          value={creditDueDate}
-                          onChange={(e) => setCreditDueDate(e.target.value)}
-                          className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Observaciones de pago */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold mb-1">Referencia / Banco</label>
-                    <input
-                      type="text"
-                      value={paymentReference}
-                      onChange={(e) => setPaymentReference(e.target.value)}
-                      placeholder="N° referencia o banco"
-                      className="w-full px-3 py-1.5 text-xs bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold mb-1">Observación del Pago</label>
-                    <input
-                      type="text"
-                      value={paymentNotes}
-                      onChange={(e) => setPaymentNotes(e.target.value)}
-                      placeholder="Ej: Billete $20 vuelto $5..."
-                      className="w-full px-3 py-1.5 text-xs bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleRegisterPayment}
-                  className="w-full py-2.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg focus-visible:ring-2 focus-visible:ring-indigo-500"
-                >
-                  Registrar Pago de ${paymentAmount || '0.00'}
-                </button>
-              </div>
-
-              {/* Historial de Pagos de la comanda */}
-              {activeOrder.payments && activeOrder.payments.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-                    Pagos Registrados en esta Mesa
-                  </h4>
-                  <div className="space-y-1.5">
-                    {activeOrder.payments.map((p) => (
-                      <div
-                        key={p.id}
-                        className="p-2 bg-gray-50 dark:bg-gray-850 border border-gray-200 dark:border-gray-700 rounded-lg text-xs flex items-center justify-between"
-                      >
-                        <div>
-                          <span className="font-semibold">{p.payment_method_name}</span>
-                          <span className="text-gray-400 ml-2">
-                            {p.customer_name ? `(${p.customer_name})` : '(Mesa)'}
-                          </span>
-                          {p.reference && <span className="text-gray-500 ml-2">Ref: {p.reference}</span>}
-                          {p.is_credit && (
-                            <span className="text-amber-600 dark:text-amber-400 font-bold ml-2">
-                              [Crédito CxC]
-                            </span>
-                          )}
-                        </div>
-                        <span className="font-bold text-emerald-600">${p.amount_usd.toFixed(2)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Pie con Cierre de Mesa */}
-            <div className="pt-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
-              <div>
-                <span className="text-xs text-gray-500">Pendiente: </span>
-                <strong
-                  className={`text-sm ${
-                    tablePendingBalance === 0
-                      ? 'text-emerald-600'
-                      : 'text-amber-600 dark:text-amber-400'
-                  }`}
-                >
-                  ${tablePendingBalance.toFixed(2)} USD
-                </strong>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowPaymentModal(false)}
-                  className="px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg"
-                >
-                  Cerrar Ventana
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handlePromptCloseOrder}
-                  className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg focus-visible:ring-2 focus-visible:ring-emerald-500 transition-colors"
-                >
-                  Cerrar Mesa & Liberar
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Confirmación y Auditoría de Cierre de Mesa */}
+      {/* Modal de Cierre de Comanda y Fijación de Propina */}
       {showCloseOrderPromptModal && selectedTable && activeOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg max-w-md w-full p-5 space-y-4 shadow-xl">
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg max-w-lg w-full p-5 space-y-4 shadow-xl">
             <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 pb-3">
               <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
-                <CheckCircle className="w-5 h-5" />
-                <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">
-                  Cierre de Mesa #{selectedTable.table_number}
+                <Receipt className="w-5 h-5" />
+                <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">
+                  Cierre de Comanda - Mesa #{selectedTable.table_number}
                 </h3>
               </div>
               <button
@@ -2345,38 +1946,33 @@ export const RestaurantOrdersView: React.FC = () => {
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
-              <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg border border-gray-200 dark:border-gray-700 space-y-1">
+            <div className="space-y-3.5 text-xs">
+              {/* Resumen de consumo */}
+              <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg border border-gray-200 dark:border-gray-700 space-y-1.5">
                 <div className="flex justify-between">
                   <span className="text-gray-500 dark:text-gray-400">Mesa:</span>
-                  <span className="font-semibold">{selectedTable.name} ({selectedTable.zone})</span>
+                  <span className="font-semibold text-gray-800 dark:text-gray-200">{selectedTable.name} ({selectedTable.zone})</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500 dark:text-gray-400">Mozo:</span>
-                  <span className="font-semibold">{activeOrder.waiter_name}</span>
+                  <span className="text-gray-500 dark:text-gray-400">Mozo responsable:</span>
+                  <span className="font-semibold text-gray-800 dark:text-gray-200">{activeOrder.waiter_name || 'Sin asignar'}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500 dark:text-gray-400">Comensales:</span>
-                  <span className="font-semibold">{activeOrder.customers?.length || 1} personas</span>
+                  <span className="text-gray-500 dark:text-gray-400">Comensales registrados:</span>
+                  <span className="font-semibold text-gray-800 dark:text-gray-200">{activeOrder.customers?.length || 1} personas</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500 dark:text-gray-400">Total Consumo:</span>
-                  <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                <div className="flex justify-between pt-1 border-t border-gray-200 dark:border-gray-700">
+                  <span className="text-gray-500 dark:text-gray-400">Subtotal Consumo Mesa:</span>
+                  <span className="font-bold text-indigo-600 dark:text-indigo-400 text-sm">
                     ${activeOrder.total_usd.toFixed(2)} USD ({(activeOrder.total_usd * rate).toFixed(2)} Bs)
                   </span>
                 </div>
-                {tablePendingBalance > 0 && (
-                  <div className="flex justify-between text-amber-600 dark:text-amber-400 font-semibold pt-1 border-t border-gray-200 dark:border-gray-700">
-                    <span>Saldo no cobrado:</span>
-                    <span>${tablePendingBalance.toFixed(2)} USD</span>
-                  </div>
-                )}
               </div>
 
-              {/* Input de Propina */}
+              {/* Fijación de Propina del Servicio */}
               <div>
                 <label className="block font-semibold mb-1 text-gray-700 dark:text-gray-300">
-                  Propina Voluntaria (USD $)
+                  Propina Voluntaria del Servicio (USD $)
                 </label>
                 <div className="flex gap-2 mb-2">
                   {[0, 5, 10, 15].map((pct) => {
@@ -2410,13 +2006,43 @@ export const RestaurantOrdersView: React.FC = () => {
                       className="w-full pl-7 pr-3 py-2 text-xs bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg font-bold focus-visible:ring-2 focus-visible:ring-indigo-500"
                     />
                   </div>
-                  <div className="text-right text-xs text-gray-500">
+                  <div className="text-right text-xs text-gray-500 min-w-28">
                     <span>Equiv: </span>
-                    <span className="font-semibold text-gray-800 dark:text-gray-200">
+                    <span className="font-semibold text-gray-800 dark:text-gray-200 font-mono">
                       {((Number(closureTipUsd) || 0) * rate).toFixed(2)} Bs
                     </span>
                   </div>
                 </div>
+              </div>
+
+              {/* Total Final a Facturar */}
+              <div className="p-3 bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-lg">
+                <div className="flex justify-between items-center text-xs">
+                  <div>
+                    <span className="font-semibold text-emerald-900 dark:text-emerald-200 block">
+                      Total a Transferir al POS:
+                    </span>
+                    <span className="text-[11px] text-emerald-700 dark:text-emerald-400">
+                      Consumo: ${activeOrder.total_usd.toFixed(2)} + Propina: ${Number(closureTipUsd || 0).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-mono font-bold text-base text-emerald-600 dark:text-emerald-400 block">
+                      ${(activeOrder.total_usd + Number(closureTipUsd || 0)).toFixed(2)} USD
+                    </span>
+                    <span className="font-mono text-[11px] text-neutral-500 dark:text-neutral-400">
+                      Bs. {((activeOrder.total_usd + Number(closureTipUsd || 0)) * rate).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Aviso explicativo POS */}
+              <div className="flex items-start gap-2 p-2.5 rounded-lg bg-sky-50/60 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 text-[11px] text-sky-800 dark:text-sky-300">
+                <AlertCircle className="w-4 h-4 shrink-0 text-sky-600 dark:text-sky-400 mt-0.5" />
+                <span>
+                  Las formas de pago (efectivo, débito, tarjeta, pago móvil, etc.) se procesarán en la caja POS cuando el cajero importe esta comanda para emitir la factura.
+                </span>
               </div>
 
               {/* Observaciones / Notas de Cierre */}
@@ -2427,7 +2053,7 @@ export const RestaurantOrdersView: React.FC = () => {
                 <textarea
                   value={closureNotes}
                   onChange={(e) => setClosureNotes(e.target.value)}
-                  placeholder="Comentarios adicionales sobre el servicio, comanda o pagos..."
+                  placeholder="Comentarios adicionales sobre el servicio o la comanda..."
                   rows={2}
                   className="w-full px-3 py-2 text-xs bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg resize-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                 />
@@ -2468,6 +2094,14 @@ export const RestaurantOrdersView: React.FC = () => {
       <TableClosuresModal
         isOpen={showTableClosuresModal}
         onClose={() => setShowTableClosuresModal(false)}
+        token={token}
+        activeBranchId={activeBranchId}
+      />
+
+      {/* Modal Reporte de Propinas por Mesero / Comanda */}
+      <RestaurantTipsReportModal
+        isOpen={showTipsReportModal}
+        onClose={() => setShowTipsReportModal(false)}
         token={token}
         activeBranchId={activeBranchId}
       />

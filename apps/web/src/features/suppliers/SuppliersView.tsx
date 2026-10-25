@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../../stores/authStore';
-import { Card } from '../../components/ui/Card';
-import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
-import { Badge } from '../../components/ui/Badge';
-import { toast } from 'sonner';
-import { formatMoneyUSD } from '../../utils/formatters';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuthStore } from "../../stores/authStore";
+import { Card } from "../../components/ui/Card";
+import { Button } from "../../components/ui/Button";
+import { Input } from "../../components/ui/Input";
+import { Badge } from "../../components/ui/Badge";
+import { toast } from "sonner";
+import { formatMoneyUSD } from "../../utils/formatters";
 import {
   Truck,
   Search,
@@ -19,8 +19,8 @@ import {
   Receipt,
   DollarSign,
   Clock,
-} from 'lucide-react';
-import { useEscapeKey } from '../../components/ui/Modal';
+} from "lucide-react";
+import { Modal } from "../../components/ui/Modal";
 
 interface Supplier {
   id: string;
@@ -44,33 +44,34 @@ export const SuppliersView: React.FC = () => {
   const { token, hasPermission } = useAuthStore();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
-
-  useEscapeKey(() => setIsModalOpen(false), isModalOpen);
 
   // Form state
   const [formData, setFormData] = useState({
-    rif: '',
-    name: '',
-    fiscalAddress: '',
-    phone: '',
-    email: '',
+    rif: "",
+    name: "",
+    fiscalAddress: "",
+    phone: "",
+    email: "",
     isPersonNatural: false,
     isResident: true,
-    islrConceptCode: 'SERV_IND',
+    islrConceptCode: "SERV_IND",
     creditLimit: 0,
     paymentTermsDays: 15,
   });
 
-  const canCreate = hasPermission('suppliers', 'create');
+  const canCreate = hasPermission("suppliers", "create");
 
   const fetchSuppliers = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/suppliers?q=${encodeURIComponent(search)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(
+        `/api/suppliers?q=${encodeURIComponent(search)}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
       if (res.ok) {
         const json = await res.json();
         setSuppliers(json.data || []);
@@ -94,42 +95,42 @@ export const SuppliersView: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.rif || !formData.name) {
-      toast.error('El RIF y la Razón Social son campos requeridos');
+      toast.error("El RIF y la Razón Social son campos requeridos");
       return;
     }
 
     try {
-      const res = await fetch('/api/suppliers', {
-        method: 'POST',
+      const res = await fetch("/api/suppliers", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(formData),
       });
 
       if (res.ok) {
-        toast.success('Proveedor registrado correctamente');
+        toast.success("Proveedor registrado correctamente");
         setIsModalOpen(false);
         setFormData({
-          rif: '',
-          name: '',
-          fiscalAddress: '',
-          phone: '',
-          email: '',
+          rif: "",
+          name: "",
+          fiscalAddress: "",
+          phone: "",
+          email: "",
           isPersonNatural: false,
           isResident: true,
-          islrConceptCode: 'SERV_IND',
+          islrConceptCode: "SERV_IND",
           creditLimit: 0,
           paymentTermsDays: 15,
         });
         fetchSuppliers();
       } else {
         const err = await res.json();
-        toast.error(err.error?.message || 'Error al guardar el proveedor');
+        toast.error(err.error?.message || "Error al guardar el proveedor");
       }
     } catch (err: any) {
-      toast.error(err.message || 'Error de conexión al guardar el proveedor');
+      toast.error(err.message || "Error de conexión al guardar el proveedor");
     }
   };
 
@@ -141,19 +142,20 @@ export const SuppliersView: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-xl font-bold text-neutral-900 tracking-tight flex items-center gap-2">
+          <h1 className="text-xl font-bold text-neutral-400  tracking-tight flex items-center gap-2">
             <Truck className="w-5 h-5 text-sky-600" />
             Directorio de Proveedores
           </h1>
           <p className="text-sm text-neutral-500">
-            Administración de acreedores comerciales, términos de pago y retenciones ISLR/IVA
+            Administración de acreedores comerciales, términos de pago y
+            retenciones ISLR/IVA
           </p>
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate('/payables')}
+            onClick={() => navigate("/payables")}
             className="flex-1 sm:flex-none"
           >
             <Clock className="w-4 h-4 mr-1 text-neutral-600" />
@@ -174,13 +176,15 @@ export const SuppliersView: React.FC = () => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-4 border-neutral-200">
+        <Card className="p-4 border-l-4 border-l-neutral-500  bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-neutral-200 dark:border-neutral-800">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
                 Total Proveedores
               </p>
-              <p className="text-2xl font-bold text-neutral-900 mt-1">{suppliers.length}</p>
+              <p className="text-2xl font-bold text-neutral-400  mt-1">
+                {suppliers.length}
+              </p>
             </div>
             <div className="p-2 bg-neutral-100 rounded-lg text-neutral-600">
               <Building2 className="w-5 h-5" />
@@ -188,13 +192,15 @@ export const SuppliersView: React.FC = () => {
           </div>
         </Card>
 
-        <Card className="p-4 border-neutral-200">
+        <Card className="p-4 border-l-4 border-l-amber-600  bg-neutral-50 dark:bg-neutral-800 text-neutral-400  dark:text-neutral-400 rounded-lg border border-amber-200 dark:border-amber-600">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
                 Con Saldo Pendiente
               </p>
-              <p className="text-2xl font-bold text-amber-700 mt-1">{withDebtCount}</p>
+              <p className="text-2xl font-bold text-amber-700 mt-1">
+                {withDebtCount}
+              </p>
             </div>
             <div className="p-2 bg-amber-50 rounded-lg text-amber-600">
               <Receipt className="w-5 h-5" />
@@ -202,7 +208,7 @@ export const SuppliersView: React.FC = () => {
           </div>
         </Card>
 
-        <Card className="p-4 border-neutral-200">
+        <Card className="p-4 border-l-4 border-l-red-600  bg-neutral-50 dark:bg-neutral-800 text-neutral-400  dark:text-neutral-400 rounded-lg border border-red-200 dark:border-red-600">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
@@ -218,7 +224,7 @@ export const SuppliersView: React.FC = () => {
           </div>
         </Card>
 
-        <Card className="p-4 border-neutral-200">
+        <Card className="p-4 border-l-4 border-l-sky-600  bg-neutral-50 dark:bg-neutral-800 text-neutral-400  dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-600">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
@@ -227,9 +233,10 @@ export const SuppliersView: React.FC = () => {
               <p className="text-2xl font-bold text-sky-700 mt-1">
                 {suppliers.length > 0
                   ? Math.round(
-                      suppliers.reduce((a, b) => a + b.paymentTermsDays, 0) / suppliers.length
+                      suppliers.reduce((a, b) => a + b.paymentTermsDays, 0) /
+                        suppliers.length,
                     )
-                  : 0}{' '}
+                  : 0}{" "}
                 días
               </p>
             </div>
@@ -256,8 +263,8 @@ export const SuppliersView: React.FC = () => {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-neutral-600">
-            <thead className="bg-neutral-50 border-b border-neutral-200 text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+          <table className="w-full text-left text-sm border-collapse">
+            <thead className="bbg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase  tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
               <tr>
                 <th className="py-3 px-4">RIF / Proveedor</th>
                 <th className="py-3 px-4">Contacto</th>
@@ -268,11 +275,13 @@ export const SuppliersView: React.FC = () => {
                 <th className="py-3 px-4 text-right">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-100">
+            <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
               {loading ? (
                 // Skeletons to avoid layout shift
                 Array.from({ length: 4 }).map((_, i) => (
-                  <tr key={i} className="animate-pulse">
+                  <tr
+                    key={i}
+                    className="border-b border-neutral-100 dark:border-neutral-800  animate-pulse">
                     <td className="py-4 px-4">
                       <div className="h-4 bg-neutral-200 rounded w-36 mb-1.5" />
                       <div className="h-3 bg-neutral-100 rounded w-20" />
@@ -299,24 +308,37 @@ export const SuppliersView: React.FC = () => {
                 ))
               ) : suppliers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12 text-neutral-400">
+                  <td
+                    colSpan={7}
+                    className="text-center py-12 text-neutral-400"
+                  >
                     <Truck className="w-8 h-8 mx-auto mb-2 opacity-50 text-neutral-400" />
-                    <p className="font-medium text-neutral-700">No se encontraron proveedores</p>
+                    <p className="font-medium text-neutral-400 ">
+                      No se encontraron proveedores
+                    </p>
                     <p className="text-xs text-neutral-500 mt-1">
-                      Intenta con otro término de búsqueda o agrega un nuevo proveedor.
+                      Intenta con otro término de búsqueda o agrega un nuevo
+                      proveedor.
                     </p>
                   </td>
                 </tr>
               ) : (
                 suppliers.map((sup) => (
-                  <tr key={sup.id} className="hover:bg-neutral-50 transition-colors">
+                  <tr
+                    key={sup.id}
+                    className="hover:bg-neutral-800 transition-colors"
+                  >
                     <td className="py-3 px-4">
-                      <div className="font-semibold text-neutral-900">{sup.name}</div>
-                      <div className="text-xs text-neutral-500 font-mono mt-0.5">{sup.rif}</div>
+                      <div className="font-semibold text-neutral-400 ">
+                        {sup.name}
+                      </div>
+                      <div className="text-xs text-neutral-500 font-mono mt-0.5">
+                        {sup.rif}
+                      </div>
                     </td>
                     <td className="py-3 px-4 text-xs">
                       {sup.phone && (
-                        <div className="flex items-center gap-1 text-neutral-700">
+                        <div className="flex items-center gap-1 text-neutral-400 ">
                           <Phone className="w-3.5 h-3.5 text-neutral-400" />
                           {sup.phone}
                         </div>
@@ -331,18 +353,22 @@ export const SuppliersView: React.FC = () => {
                     <td className="py-3 px-4">
                       <div className="flex flex-wrap gap-1">
                         <Badge variant="neutral">
-                          {sup.isPersonNatural ? 'Natural' : 'Jurídica'}
+                          {sup.isPersonNatural ? "Natural" : "Jurídica"}
                         </Badge>
-                        <Badge variant={sup.isResident ? 'success' : 'warning'}>
-                          {sup.isResident ? 'Domiciliado' : 'No Dom.'}
+                        <Badge variant={sup.isResident ? "success" : "warning"}>
+                          {sup.isResident ? "Domiciliado" : "No Dom."}
                         </Badge>
                       </div>
                     </td>
                     <td className="py-3 px-4 text-center font-medium">
                       {sup.paymentTermsDays > 0 ? (
-                        <span className="text-neutral-700">{sup.paymentTermsDays} d</span>
+                        <span className="text-neutral-400 ">
+                          {sup.paymentTermsDays} d
+                        </span>
                       ) : (
-                        <span className="text-neutral-400 text-xs">Contado</span>
+                        <span className="text-neutral-400 text-xs">
+                          Contado
+                        </span>
                       )}
                     </td>
                     <td className="py-3 px-4 text-right">
@@ -358,7 +384,9 @@ export const SuppliersView: React.FC = () => {
                     </td>
                     <td className="py-3 px-4 text-center">
                       {sup.pendingPayablesCount > 0 ? (
-                        <Badge variant="warning">{sup.pendingPayablesCount} pend.</Badge>
+                        <Badge variant="warning">
+                          {sup.pendingPayablesCount} pend.
+                        </Badge>
                       ) : (
                         <span className="text-neutral-400 text-xs">-</span>
                       )}
@@ -368,7 +396,9 @@ export const SuppliersView: React.FC = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => navigate(`/suppliers/${sup.id}/statement`)}
+                          onClick={() =>
+                            navigate(`/suppliers/${sup.id}/statement`)
+                          }
                           className="h-8 text-xs"
                         >
                           <FileSpreadsheet className="w-3.5 h-3.5 mr-1 text-neutral-500" />
@@ -385,133 +415,134 @@ export const SuppliersView: React.FC = () => {
       </Card>
 
       {/* Modal: Registrar Proveedor */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg max-w-lg w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
-            {/* Header (Pinned) */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
-              <div className="flex items-center gap-2">
-                <Truck className="w-5 h-5 text-sky-600" />
-                <div>
-                  <h2 className="text-base font-bold text-neutral-900">Registrar Nuevo Proveedor</h2>
-                  <p className="text-[11px] text-neutral-500">Gestión de compras, datos fiscales SENIAT y retenciones</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                title="Cerrar modal (Esc)"
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form id="supplierForm" onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden">
-              {/* Body (Scrollable) */}
-              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Input
-                    label="RIF (Fiscal SENIAT)"
-                    placeholder="J-12345678-9"
-                    value={formData.rif}
-                    onChange={(e) => setFormData({ ...formData, rif: e.target.value })}
-                    required
-                  />
-                  <Input
-                    label="Teléfono de Contacto"
-                    placeholder="+58 212 999 8877"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  />
-                </div>
-
-                <Input
-                  label="Nombre o Razón Social"
-                  placeholder="Nombre legal completo"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                />
-
-                <Input
-                  label="Correo Electrónico"
-                  type="email"
-                  placeholder="pagos@empresa.com"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                />
-
-                <Input
-                  label="Dirección Fiscal"
-                  placeholder="Zona industrial, calle, edificio..."
-                  value={formData.fiscalAddress}
-                  onChange={(e) => setFormData({ ...formData, fiscalAddress: e.target.value })}
-                />
-
-                <div className="grid grid-cols-2 gap-3 p-3 bg-neutral-50 rounded-lg border border-neutral-200">
-                  <label className="flex items-center gap-2 text-xs font-medium text-neutral-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.isPersonNatural}
-                      onChange={(e) =>
-                        setFormData({ ...formData, isPersonNatural: e.target.checked })
-                      }
-                      className="w-4 h-4 text-sky-600 rounded"
-                    />
-                    Persona Natural
-                  </label>
-                  <label className="flex items-center gap-2 text-xs font-medium text-neutral-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.isResident}
-                      onChange={(e) =>
-                        setFormData({ ...formData, isResident: e.target.checked })
-                      }
-                      className="w-4 h-4 text-sky-600 rounded"
-                    />
-                    Domiciliado en Venezuela
-                  </label>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <Input
-                    label="Límite de Crédito ($ USD)"
-                    type="number"
-                    value={formData.creditLimit}
-                    onChange={(e) =>
-                      setFormData({ ...formData, creditLimit: Number(e.target.value) })
-                    }
-                  />
-                  <Input
-                    label="Plazo de Pago (Días)"
-                    type="number"
-                    value={formData.paymentTermsDays}
-                    onChange={(e) =>
-                      setFormData({ ...formData, paymentTermsDays: Number(e.target.value) })
-                    }
-                  />
-                </div>
-              </div>
-
-              {/* Footer (Pinned) */}
-              <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                >
-                  Cancelar
-                </Button>
-                <Button size="sm" type="submit">
-                  Guardar Proveedor
-                </Button>
-              </div>
-            </form>
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title="Registrar Nuevo Proveedor"
+        subtitle="Gestión de compras, datos fiscales SENIAT y retenciones"
+        size="lg"
+        footer={
+          <div className="flex items-center justify-end gap-2 w-full">
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              onClick={() => setIsModalOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button size="sm" type="submit" form="supplierForm">
+              Guardar Proveedor
+            </Button>
           </div>
-        </div>
-      )}
+        }
+      >
+        <form
+          id="supplierForm"
+          onSubmit={handleSubmit}
+          className="space-y-4 text-xs"
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input
+              label="RIF (Fiscal SENIAT)"
+              placeholder="J-12345678-9"
+              value={formData.rif}
+              onChange={(e) =>
+                setFormData({ ...formData, rif: e.target.value })
+              }
+              required
+            />
+            <Input
+              label="Teléfono de Contacto"
+              placeholder="+58 212 999 8877"
+              value={formData.phone}
+              onChange={(e) =>
+                setFormData({ ...formData, phone: e.target.value })
+              }
+            />
+          </div>
+
+          <Input
+            label="Nombre o Razón Social"
+            placeholder="Nombre legal completo"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            required
+          />
+
+          <Input
+            label="Correo Electrónico"
+            type="email"
+            placeholder="pagos@empresa.com"
+            value={formData.email}
+            onChange={(e) =>
+              setFormData({ ...formData, email: e.target.value })
+            }
+          />
+
+          <Input
+            label="Dirección Fiscal"
+            placeholder="Zona industrial, calle, edificio..."
+            value={formData.fiscalAddress}
+            onChange={(e) =>
+              setFormData({ ...formData, fiscalAddress: e.target.value })
+            }
+          />
+
+          <div className="grid grid-cols-2 gap-3 p-3 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg border border-neutral-200 dark:border-neutral-700">
+            <label className="flex items-center gap-2 text-xs font-medium text-neutral-400  dark:text-neutral-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.isPersonNatural}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    isPersonNatural: e.target.checked,
+                  })
+                }
+                className="w-4 h-4 text-sky-600 rounded accent-sky-600"
+              />
+              Persona Natural
+            </label>
+            <label className="flex items-center gap-2 text-xs font-medium text-neutral-400  dark:text-neutral-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.isResident}
+                onChange={(e) =>
+                  setFormData({ ...formData, isResident: e.target.checked })
+                }
+                className="w-4 h-4 text-sky-600 rounded accent-sky-600"
+              />
+              Domiciliado en Venezuela
+            </label>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Límite de Crédito ($ USD)"
+              type="number"
+              value={formData.creditLimit}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  creditLimit: Number(e.target.value),
+                })
+              }
+            />
+            <Input
+              label="Plazo de Pago (Días)"
+              type="number"
+              value={formData.paymentTermsDays}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  paymentTermsDays: Number(e.target.value),
+                })
+              }
+            />
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };

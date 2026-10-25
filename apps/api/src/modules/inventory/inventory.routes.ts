@@ -216,7 +216,7 @@ inventoryRouter.get('/locations/search', authenticate, authorize('inventory', 'r
 // Rutas de Catálogo de Productos y Kardex
 // ==========================================
 
-inventoryRouter.get('/products', authenticate, authorize(['inventory.read', 'pos.read', 'sales.read']), async (c) => {
+inventoryRouter.get('/products', authenticate, authorize(['inventory.read', 'pos.read', 'sales.read', 'purchases.read', 'purchases.create']), async (c) => {
   const user = c.get('user');
   const departmentId = c.req.query('departmentId');
   const groupId = c.req.query('groupId');

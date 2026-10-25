@@ -318,7 +318,7 @@ export const CollectionsView: React.FC = () => {
           Volver a CxC
         </Button>
         <div>
-          <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">Registro de Cobranza</h1>
+          <h1 className="text-xl font-bold text-neutral-400  dark:text-neutral-100">Registro de Cobranza</h1>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
             Abono o liquidación de cuentas por cobrar comerciales
           </p>
@@ -346,7 +346,7 @@ export const CollectionsView: React.FC = () => {
               <select
                 value={selectedReceivableId}
                 onChange={(e) => setSelectedReceivableId(e.target.value)}
-                className="flex-1 h-11 px-3 text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500"
+                className="flex-1 h-11 px-3 text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-400  dark:text-neutral-100 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500"
               >
                 {receivables.map((r) => {
                   const typeLabel = r.documentType === 'DEBIT_NOTE' ? '[ND]' : '[FAC]';
@@ -406,10 +406,10 @@ export const CollectionsView: React.FC = () => {
 
           {/* Resumen de la Factura Seleccionada */}
           {selectedReceivable && (
-            <div className="p-4 bg-neutral-50 dark:bg-neutral-850 rounded-lg border border-neutral-200 dark:border-neutral-800 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="p-4 bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800  grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               <div>
                 <span className="text-neutral-500 dark:text-neutral-400 block">Cliente:</span>
-                <span className="font-semibold text-neutral-900 dark:text-neutral-100 block truncate">
+                <span className="font-semibold text-neutral-400  dark:text-neutral-100 block truncate">
                   {selectedReceivable.customerName}
                 </span>
                 <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono">
@@ -420,7 +420,7 @@ export const CollectionsView: React.FC = () => {
                 <span className="text-neutral-500 dark:text-neutral-400 block">
                   {selectedReceivable.documentType === 'DEBIT_NOTE' ? 'Tipo Documento:' : 'Monto Original:'}
                 </span>
-                <span className="font-semibold text-neutral-900 dark:text-neutral-100 block font-mono">
+                <span className="font-semibold text-neutral-400  dark:text-neutral-100 block font-mono">
                   {selectedReceivable.documentType === 'DEBIT_NOTE' ? 'Nota de Débito' : formatMoneyUSD(selectedReceivable.amountTotal)}
                 </span>
               </div>
@@ -470,11 +470,11 @@ export const CollectionsView: React.FC = () => {
                     className={`p-3 rounded-lg border text-left cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${
                       paymentMethodCode === m.code
                         ? 'border-sky-600 bg-sky-50/50 dark:bg-sky-950/40 ring-2 ring-sky-500'
-                        : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-850 hover:border-neutral-300 dark:hover:border-neutral-700'
+                        : 'border-neutral-200 dark:border-neutral-800 bg-sky dark:bg-emerald-950/50 hover:border-neutral-300 dark:hover:border-neutral-700'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-1">
-                      <span className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 truncate">
+                      <span className="text-xs font-semibold text-neutral-400  dark:text-neutral-100 truncate">
                         {m.name}
                       </span>
                       <span
@@ -505,7 +505,7 @@ export const CollectionsView: React.FC = () => {
 
           {/* Cuenta Bancaria de Destino (Tesorería) */}
           {paymentMethodCode !== 'NOTA_CREDITO' && (
-            <div className="p-3.5 bg-neutral-50 dark:bg-neutral-850 rounded-lg border border-neutral-200 dark:border-neutral-800 space-y-2">
+            <div className="p-3.5 bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 space-y-2">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                 <label className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
                   <Building2 className="w-4 h-4 text-sky-600 dark:text-sky-400" />
@@ -524,7 +524,7 @@ export const CollectionsView: React.FC = () => {
                 value={selectedBankAccountId}
                 onChange={(e) => setSelectedBankAccountId(e.target.value)}
                 required={selectedMethod?.requiresBankAccount}
-                className={`w-full h-10 px-3 text-xs bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 border rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500 ${
+                className={`w-full h-10 px-3 text-xs bg-white dark:bg-neutral-800 text-neutral-400  dark:text-neutral-100 border rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500 ${
                   selectedMethod?.requiresBankAccount && !selectedBankAccountId
                     ? 'border-rose-400 ring-1 ring-rose-200 dark:ring-rose-900'
                     : 'border-neutral-300 dark:border-neutral-700'
@@ -571,7 +571,7 @@ export const CollectionsView: React.FC = () => {
               <div className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 font-mono">
                 {selectedMethod?.currency === 'VES' ? (
                   <span>
-                    Equivalente en Bolívares: <strong className="text-neutral-900 dark:text-neutral-100">{formatMoneyVES(amountVES)}</strong> (Tasa: {formatExchangeRate(exchangeRateBCV, 2)})
+                    Equivalente en Bolívares: <strong className="text-neutral-400  dark:text-neutral-100">{formatMoneyVES(amountVES)}</strong> (Tasa: {formatExchangeRate(exchangeRateBCV, 2)})
                   </span>
                 ) : (
                   <span>
@@ -617,7 +617,7 @@ export const CollectionsView: React.FC = () => {
                       }
                     }}
                     required
-                    className="w-full h-10 px-3 text-xs bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 border border-neutral-300 dark:border-neutral-700 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500"
+                    className="w-full h-10 px-3 text-xs bg-white dark:bg-neutral-800 text-neutral-400  dark:text-neutral-100 border border-neutral-300 dark:border-neutral-700 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500"
                   >
                     <option value="">-- Seleccione la Nota de Crédito --</option>
                     {availableCredits.map((c) => (

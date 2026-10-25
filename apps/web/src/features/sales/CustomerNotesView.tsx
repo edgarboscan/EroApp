@@ -5,6 +5,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { CustomerSearchModal } from '../../components/search/CustomerSearchModal';
+import { Modal } from '../../components/ui/Modal';
 import { PdfViewerModal } from '../../components/ui/PdfViewerModal';
 import { toast } from 'sonner';
 import {
@@ -664,10 +665,10 @@ export const CustomerNotesView: React.FC = () => {
       {/* Encabezado Principal */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-neutral-900">
+          <h1 className="text-xl font-bold text-neutral-500  dark:text-neutral-100 tracking-tight">
             Notas de Crédito & Notas de Débito
           </h1>
-          <p className="text-xs text-neutral-500 mt-0.5">
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
             Emisión fiscal, ajustes comerciales, devoluciones a stock y compensación de cuentas por cobrar
           </p>
         </div>
@@ -682,12 +683,12 @@ export const CustomerNotesView: React.FC = () => {
 
       {/* Tarjetas KPI Resumen */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-4 bg-white border-l-4 border-l-emerald-500">
+        <Card className="p-4 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-emerald-800">Notas de Crédito (Total)</span>
             <TrendingDown className="w-4 h-4 text-emerald-600" />
           </div>
-          <div className="text-xl font-bold text-neutral-900 mt-2">
+          <div className="text-xl font-bold text-neutral-500  mt-2">
             {formatMoneyUSD(totalCreditNotesUSD)}
           </div>
           <span className="text-[11px] text-neutral-400 mt-1 block">
@@ -695,7 +696,7 @@ export const CustomerNotesView: React.FC = () => {
           </span>
         </Card>
 
-        <Card className="p-4 bg-white border-l-4 border-l-teal-500">
+        <Card className="p-4 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-teal-800">Saldo a Favor Disponible</span>
             <RotateCcw className="w-4 h-4 text-teal-600" />
@@ -708,12 +709,12 @@ export const CustomerNotesView: React.FC = () => {
           </span>
         </Card>
 
-        <Card className="p-4 bg-white border-l-4 border-l-blue-500">
+        <Card className="p-4 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-blue-800">Notas de Débito (Total)</span>
             <TrendingUp className="w-4 h-4 text-blue-600" />
           </div>
-          <div className="text-xl font-bold text-neutral-900 mt-2">
+          <div className="text-xl font-bold text-neutral-500  mt-2">
             {formatMoneyUSD(totalDebitNotesUSD)}
           </div>
           <span className="text-[11px] text-neutral-400 mt-1 block">
@@ -721,12 +722,12 @@ export const CustomerNotesView: React.FC = () => {
           </span>
         </Card>
 
-        <Card className="p-4 bg-white border-l-4 border-l-neutral-500">
+        <Card className="p-4 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-neutral-700">Documentos Emitidos</span>
+            <span className="text-xs font-semibold text-neutral-400 ">Documentos Emitidos</span>
             <Receipt className="w-4 h-4 text-neutral-600" />
           </div>
-          <div className="text-xl font-bold text-neutral-900 mt-2">{notes.length}</div>
+          <div className="text-xl font-bold text-neutral-500  mt-2">{notes.length}</div>
           <span className="text-[11px] text-neutral-400 mt-1 block">
             En sucursal activa
           </span>
@@ -734,16 +735,16 @@ export const CustomerNotesView: React.FC = () => {
       </div>
 
       {/* Pestañas y Filtros */}
-      <div className="bg-white border border-neutral-200 rounded-lg p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+      <div className="bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
         {/* Pestañas */}
-        <div className="flex items-center gap-1 bg-neutral-100 p-1 rounded-lg">
+        <div className="flex bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 items-center gap-1 p-1 rounded-lg">
           <button
             type="button"
             onClick={() => setActiveTab('ALL')}
             className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
               activeTab === 'ALL'
-                ? 'bg-white text-neutral-900 shadow-sm'
-                : 'text-neutral-600 hover:text-neutral-900'
+                ? 'bg-white text-neutral-500  shadow-sm'
+                : 'text-neutral-600 hover:text-neutral-500 '
             }`}
           >
             Todas ({notes.length})
@@ -754,7 +755,7 @@ export const CustomerNotesView: React.FC = () => {
             className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
               activeTab === 'CREDIT'
                 ? 'bg-emerald-600 text-white shadow-sm'
-                : 'text-neutral-600 hover:text-neutral-900'
+                : 'text-neutral-600 hover:text-neutral-500 '
             }`}
           >
             Crédito ({notes.filter((n) => n.type === 'CREDIT').length})
@@ -765,7 +766,7 @@ export const CustomerNotesView: React.FC = () => {
             className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
               activeTab === 'DEBIT'
                 ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-neutral-600 hover:text-neutral-900'
+                : 'text-neutral-600 hover:text-neutral-500 '
             }`}
           >
             Débito ({notes.filter((n) => n.type === 'DEBIT').length})
@@ -775,20 +776,20 @@ export const CustomerNotesView: React.FC = () => {
         {/* Buscador y Estado */}
         <div className="flex flex-col sm:flex-row items-center gap-3">
           <div className="relative w-full sm:w-64">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-neutral-400" />
+            {/* <Search className="w-4 h-4 absolute left-3 top-2.5 text-neutral-400" /> */}
             <input
               type="text"
               placeholder="Buscar cliente, número..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-9 pl-9 pr-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500"
+              className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400  dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
             />
           </div>
 
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full sm:w-auto h-9 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500"
+            className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400  dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
           >
             <option value="ALL">Todos los Estados</option>
             <option value="ACTIVE">Activa / Con Saldo</option>
@@ -799,7 +800,7 @@ export const CustomerNotesView: React.FC = () => {
       </div>
 
       {/* Tabla de Documentos */}
-      <div className="bg-white border border-neutral-200 rounded-lg overflow-hidden">
+      <div className="border border-neutral-200 rounded-lg overflow-hidden">
         {isLoading ? (
           <div className="p-8 space-y-4">
             {Array.from({ length: 5 }).map((_, idx) => (
@@ -809,7 +810,7 @@ export const CustomerNotesView: React.FC = () => {
         ) : filteredNotes.length === 0 ? (
           <div className="p-12 text-center">
             <Receipt className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
-            <h3 className="text-sm font-semibold text-neutral-800">
+            <h3 className="text-sm font-semibold text-neutral-400 ">
               No se encontraron Notas de Crédito o Débito
             </h3>
             <p className="text-xs text-neutral-500 mt-1 max-w-sm mx-auto">
@@ -818,8 +819,8 @@ export const CustomerNotesView: React.FC = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-neutral-600">
-              <thead className="bg-neutral-50 text-[11px] font-semibold text-neutral-700 uppercase tracking-wider border-b border-neutral-200">
+            <table className="w-full text-left text-sm border-collapse">
+              <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
                 <tr>
                   <th className="py-3 px-4">Tipo</th>
                   <th className="py-3 px-4">Nº Nota / Control</th>
@@ -833,13 +834,13 @@ export const CustomerNotesView: React.FC = () => {
                   <th className="py-3 px-4 text-center">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-200">
+              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
                 {filteredNotes.map((note) => {
                   const isCredit = note.type === 'CREDIT';
                   return (
-                    <tr key={note.id} className="hover:bg-neutral-50/80 transition-colors">
+                    <tr key={note.id} className="border-b border-neutral-100 dark:border-neutral-800">
                       {/* Tipo */}
-                      <td className="py-3 px-4 whitespace-nowrap">
+                      <td className="py-3 px-4 whitespace-nowrap ">
                         {isCredit ? (
                           <Badge variant="success">Nota Crédito</Badge>
                         ) : (
@@ -848,7 +849,7 @@ export const CustomerNotesView: React.FC = () => {
                       </td>
 
                       {/* Nº Documento */}
-                      <td className="py-3 px-4 font-mono font-bold text-neutral-900 whitespace-nowrap">
+                      <td className="py-3 px-4 font-mono font-bold text-neutral-500  whitespace-nowrap">
                         {note.noteNumber}
                         {note.controlNumber && (
                           <div className="text-[10px] text-neutral-400 font-normal">
@@ -864,14 +865,14 @@ export const CustomerNotesView: React.FC = () => {
 
                       {/* Cliente */}
                       <td className="py-3 px-4">
-                        <div className="font-semibold text-neutral-900">{note.customerName}</div>
+                        <div className="font-semibold text-neutral-500 ">{note.customerName}</div>
                         <div className="text-[10px] text-neutral-400 font-mono">{note.customerDoc}</div>
                       </td>
 
                       {/* Factura Afectada */}
                       <td className="py-3 px-4 whitespace-nowrap">
                         {note.affectedInvoiceNumber ? (
-                          <span className="font-mono text-neutral-700 bg-neutral-100 px-2 py-0.5 rounded-lg text-[11px]">
+                          <span className="font-mono text-neutral-400  bg-neutral-100 px-2 py-0.5 rounded-lg text-[11px]">
                             {note.affectedInvoiceNumber}
                           </span>
                         ) : (
@@ -881,11 +882,11 @@ export const CustomerNotesView: React.FC = () => {
 
                       {/* Motivo */}
                       <td className="py-3 px-4 max-w-xs truncate" title={note.reasonDescription}>
-                        <span className="text-neutral-800">{note.reasonDescription}</span>
+                        <span className="text-neutral-400 ">{note.reasonDescription}</span>
                       </td>
 
                       {/* Total */}
-                      <td className="py-3 px-4 text-right font-bold text-neutral-900 whitespace-nowrap">
+                      <td className="py-3 px-4 text-right font-bold text-neutral-500  whitespace-nowrap">
                         {formatMoneyUSD(note.totalAmount)}
                         <div className="text-[10px] text-neutral-400 font-mono">
                           Bs. {(note.totalAmount * note.exchangeRate).toFixed(2)}
@@ -980,33 +981,37 @@ export const CustomerNotesView: React.FC = () => {
       {/* ========================================================================= */}
       {/* MODAL: CREAR NOTA DE CRÉDITO O DÉBITO */}
       {/* ========================================================================= */}
-      {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden">
-            {/* Cabecera */}
-            <div className="px-6 py-4 border-b border-neutral-200 flex items-center justify-between bg-neutral-50">
-              <div>
-                <h2 className="text-base font-bold text-neutral-900">
-                  Emitir {formType === 'CREDIT' ? 'Nota de Crédito' : 'Nota de Débito'}
-                </h2>
-                <p className="text-xs text-neutral-500 mt-0.5">
-                  Ajuste fiscal, devolución de mercancía o recargo comercial a cliente
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsCreateModalOpen(false)}
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Formulario */}
-            <form onSubmit={handleCreateNote} className="flex-1 overflow-y-auto p-6 space-y-5">
+      <Modal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        title={`Emitir ${formType === 'CREDIT' ? 'Nota de Crédito' : 'Nota de Débito'}`}
+        subtitle="Ajuste fiscal, devolución de mercancía o recargo comercial a cliente"
+        size="4xl"
+        footer={
+          <div className="flex justify-end gap-3 w-full">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsCreateModalOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={isSubmitting}
+              form="createNoteForm"
+            >
+              {isSubmitting ? 'Emitiendo...' : `Emitir ${formType === 'CREDIT' ? 'Nota de Crédito' : 'Nota de Débito'}`}
+            </Button>
+          </div>
+        }
+      >
+        <form id="createNoteForm" onSubmit={handleCreateNote} className="space-y-5 text-xs">
               {/* Selector de Tipo */}
-              <div className="flex gap-4 p-3 bg-neutral-100 rounded-lg">
-                <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-neutral-800">
+              <div className="flex gap-4 p-3 bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800">
+                <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-neutral-400">
                   <input
                     type="radio"
                     name="noteType"
@@ -1019,7 +1024,7 @@ export const CustomerNotesView: React.FC = () => {
                   />
                   Nota de Crédito (Disminuye deuda / Devolución / Descuento)
                 </label>
-                <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-neutral-800">
+                <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-neutral-400">
                   <input
                     type="radio"
                     name="noteType"
@@ -1038,7 +1043,7 @@ export const CustomerNotesView: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Cliente */}
                 <div>
-                  <label className="text-xs font-semibold text-neutral-700 block mb-1">
+                  <label className="text-xs font-semibold text-neutral-400 block mb-1">
                     Cliente *
                   </label>
                   <div className="flex items-center gap-2">
@@ -1048,7 +1053,7 @@ export const CustomerNotesView: React.FC = () => {
                       placeholder="Seleccionar cliente..."
                       value={formCustomerName ? `${formCustomerName} (${formCustomerDoc})` : ''}
                       onClick={() => setShowCustomerSearch(true)}
-                      className="w-full h-9 px-3 text-xs bg-neutral-50 border border-neutral-300 rounded-lg cursor-pointer"
+                      className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400  dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                     />
                     <Button
                       type="button"
@@ -1064,7 +1069,7 @@ export const CustomerNotesView: React.FC = () => {
                 {/* Factura Afectada */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-semibold text-neutral-700">
+                    <label className="text-xs font-semibold text-neutral-400 ">
                       Factura Afectada (Opcional)
                     </label>
                     {selectedInvoiceId && (
@@ -1081,7 +1086,7 @@ export const CustomerNotesView: React.FC = () => {
                     value={selectedInvoiceId}
                     onChange={(e) => setSelectedInvoiceId(e.target.value)}
                     disabled={!formCustomerId}
-                    className="w-full h-9 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500 disabled:bg-neutral-100"
+                    className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400  dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   >
                     <option value="">Sin vincular a factura específica (General)</option>
                     {customerInvoices.map((inv) => (
@@ -1098,13 +1103,13 @@ export const CustomerNotesView: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Tipo de Motivo */}
                 <div>
-                  <label className="text-xs font-semibold text-neutral-700 block mb-1">
+                  <label className="text-xs font-semibold text-neutral-400  block mb-1">
                     Motivo Legal *
                   </label>
                   <select
                     value={formReasonType}
                     onChange={(e) => setFormReasonType(e.target.value as CustomerNoteReasonType)}
-                    className="w-full h-9 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500"
+                    className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400  dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   >
                     {formType === 'CREDIT' ? (
                       <>
@@ -1127,7 +1132,7 @@ export const CustomerNotesView: React.FC = () => {
 
                 {/* Número de Control SENIAT */}
                 <div>
-                  <label className="text-xs font-semibold text-neutral-700 block mb-1">
+                  <label className="text-xs font-semibold text-neutral-400  block mb-1">
                     Nº Control SENIAT (Opcional)
                   </label>
                   <input
@@ -1135,20 +1140,20 @@ export const CustomerNotesView: React.FC = () => {
                     placeholder="Ej. 00-001234"
                     value={formControlNumber}
                     onChange={(e) => setFormControlNumber(e.target.value)}
-                    className="w-full h-9 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500"
+                    className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400  dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   />
                 </div>
 
                 {/* Almacén o Fecha Vencimiento */}
                 {formType === 'CREDIT' ? (
                   <div>
-                    <label className="text-xs font-semibold text-neutral-700 block mb-1">
+                    <label className="text-xs font-semibold text-neutral-400  block mb-1">
                       Almacén para Reingreso
                     </label>
                     <select
                       value={formWarehouseId}
                       onChange={(e) => setFormWarehouseId(e.target.value)}
-                      className="w-full h-9 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500"
+                      className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400  dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                     >
                       {warehouses.map((w) => (
                         <option key={w.id} value={w.id}>
@@ -1159,14 +1164,14 @@ export const CustomerNotesView: React.FC = () => {
                   </div>
                 ) : (
                   <div>
-                    <label className="text-xs font-semibold text-neutral-700 block mb-1">
+                    <label className="text-xs font-semibold text-neutral-400  block mb-1">
                       Fecha Vencimiento en CxC
                     </label>
                     <input
                       type="date"
                       value={formDueDate}
                       onChange={(e) => setFormDueDate(e.target.value)}
-                      className="w-full h-9 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500"
+                      className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400  dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                     />
                   </div>
                 )}
@@ -1174,7 +1179,7 @@ export const CustomerNotesView: React.FC = () => {
 
               {/* Justificación detallada */}
               <div>
-                <label className="text-xs font-semibold text-neutral-700 block mb-1">
+                <label className="text-xs font-semibold text-neutral-400  block mb-1">
                   Explicación o Concepto de la Nota *
                 </label>
                 <textarea
@@ -1182,14 +1187,14 @@ export const CustomerNotesView: React.FC = () => {
                   placeholder="Detalle el motivo comercial o técnico del ajuste..."
                   value={formReasonDescription}
                   onChange={(e) => setFormReasonDescription(e.target.value)}
-                  className="w-full p-2.5 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500"
+                  className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400  dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
               </div>
 
               {/* Renglones / Ítems */}
-              <div className="border border-neutral-200 rounded-lg p-3 bg-neutral-50/50">
+              <div className="bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xs font-bold text-neutral-800">
+                  <h3 className="text-xs font-bold text-neutral-400">
                     Renglones y Conceptos de la Nota
                   </h3>
                   <Button type="button" variant="outline" size="sm" onClick={handleAddItem}>
@@ -1204,7 +1209,7 @@ export const CustomerNotesView: React.FC = () => {
                     return (
                       <div
                         key={idx}
-                        className="grid grid-cols-12 gap-2 items-center bg-white p-2 border border-neutral-200 rounded-lg text-xs"
+                        className="grid grid-cols-12 gap-2 items-center  rounded-lg text-xs"
                       >
                         {/* Descripción */}
                         <div className="col-span-12 sm:col-span-5">
@@ -1213,7 +1218,7 @@ export const CustomerNotesView: React.FC = () => {
                             placeholder="Descripción o concepto del ítem..."
                             value={it.description}
                             onChange={(e) => handleUpdateItem(idx, 'description', e.target.value)}
-                            className="w-full h-8 px-2 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500"
+                            className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400  dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                           />
                           {it.availableQuantity !== undefined && it.availableQuantity <= 0 && (
                             <span className="text-[10px] text-red-600 font-semibold block mt-0.5">
@@ -1232,7 +1237,7 @@ export const CustomerNotesView: React.FC = () => {
                             placeholder="Cant."
                             value={it.quantity || ''}
                             onChange={(e) => handleUpdateItem(idx, 'quantity', parseFloat(e.target.value) || 0)}
-                            className={`w-full h-8 px-2 text-xs border rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500 text-right ${
+                            className={`w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400  dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500 text-right ${
                               it.availableQuantity !== undefined && it.quantity > it.availableQuantity
                                 ? 'border-red-500 bg-red-50 text-red-700 font-bold'
                                 : 'bg-white border-neutral-300'
@@ -1261,7 +1266,7 @@ export const CustomerNotesView: React.FC = () => {
                             placeholder="Precio $"
                             value={it.unitPrice || ''}
                             onChange={(e) => handleUpdateItem(idx, 'unitPrice', parseFloat(e.target.value) || 0)}
-                            className="w-full h-8 px-2 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500 text-right"
+                            className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400  dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500 text-right"
                           />
                         </div>
 
@@ -1282,7 +1287,7 @@ export const CustomerNotesView: React.FC = () => {
                         <div className="col-span-2 sm:col-span-2 flex items-center justify-between gap-1">
                           {formType === 'CREDIT' ? (
                             <label
-                              className="flex items-center gap-1 text-[10px] text-neutral-600 cursor-pointer"
+                              className="flex items-center gap-1 text-[10px] text-neutral-400 cursor-pointer"
                               title="Reingresar al inventario"
                             >
                               <input
@@ -1294,7 +1299,7 @@ export const CustomerNotesView: React.FC = () => {
                               Stock
                             </label>
                           ) : (
-                            <span className="font-mono font-bold text-neutral-700">
+                            <span className="font-mono font-bold text-neutral-400 ">
                               ${rowSubtotal.toFixed(2)}
                             </span>
                           )}
@@ -1331,7 +1336,7 @@ export const CustomerNotesView: React.FC = () => {
               )}
 
               {/* Resumen de Totales e Impuestos */}
-              <div className="bg-neutral-50 p-4 border border-neutral-200 rounded-lg flex flex-col sm:flex-row justify-between items-center gap-4 text-xs">
+              <div className=" p-4 bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs">
                 <div className="space-y-1">
                   <div>Base Exenta: <strong>{formatMoneyUSD(formCalculations.baseExempt)}</strong></div>
                   <div>Base Imponible: <strong>{formatMoneyUSD(formCalculations.baseTaxable)}</strong></div>
@@ -1340,7 +1345,7 @@ export const CustomerNotesView: React.FC = () => {
 
                 <div className="text-right">
                   <div className="text-sm font-semibold text-neutral-600">Total de la Nota</div>
-                  <div className="text-2xl font-bold text-neutral-900">
+                  <div className="text-2xl font-bold text-neutral-500 ">
                     {formatMoneyUSD(formCalculations.totalUSD)}
                   </div>
                   <div className="text-xs text-neutral-500 font-mono">
@@ -1349,65 +1354,49 @@ export const CustomerNotesView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Botones */}
-              <div className="flex justify-end gap-3 pt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsCreateModalOpen(false)}
-                >
-                  Cancelar
-                </Button>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? 'Emitiendo...' : `Emitir ${formType === 'CREDIT' ? 'Nota de Crédito' : 'Nota de Débito'}`}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+        </form>
+      </Modal>
 
       {/* ========================================================================= */}
       {/* MODAL: VER DETALLE OFICIAL E IMPRESIÓN */}
       {/* ========================================================================= */}
-      {isDetailModalOpen && selectedNote && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
-            <div className="px-6 py-4 border-b border-neutral-200 flex items-center justify-between bg-neutral-50 print:hidden">
-              <div className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-neutral-700" />
-                <h2 className="text-base font-bold text-neutral-900">
-                  Comprobante Oficial — {selectedNote.noteNumber}
-                </h2>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleOpenPdf(selectedNote)}
-                  className="print:hidden"
-                >
-                  <Printer className="w-4 h-4 mr-1.5" />
-                  Visualizar / Imprimir PDF
-                </Button>
-                <button
-                  type="button"
-                  onClick={() => setIsDetailModalOpen(false)}
-                  className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg"
-                >
-                  ✕
-                </button>
-              </div>
+      <Modal
+        isOpen={Boolean(isDetailModalOpen && selectedNote)}
+        onClose={() => setIsDetailModalOpen(false)}
+        title={selectedNote ? `Comprobante Oficial — ${selectedNote.noteNumber}` : 'Comprobante Oficial'}
+        subtitle={selectedNote ? `Cliente: ${selectedNote.customerName} (${selectedNote.customerDoc})` : undefined}
+        size="3xl"
+        footer={
+          selectedNote && (
+            <div className="flex items-center justify-between w-full">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleOpenPdf(selectedNote)}
+              >
+                <Printer className="w-4 h-4 mr-1.5" />
+                Visualizar / Imprimir PDF
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsDetailModalOpen(false)}
+              >
+                Cerrar
+              </Button>
             </div>
-
-            <div className="flex-1 overflow-y-auto p-6 space-y-6 text-xs text-neutral-700">
+          )
+        }
+      >
+        {selectedNote && (
+          <div className="space-y-6 text-xs text-neutral-400  dark:text-neutral-300">
               {/* Encabezado Documento */}
               <div className="border-b border-neutral-200 pb-4 flex justify-between items-start">
                 <div>
-                  <h3 className="text-base font-bold text-neutral-900">
+                  <h3 className="text-base font-bold text-neutral-500 ">
                     {selectedNote.type === 'CREDIT' ? 'NOTA DE CRÉDITO' : 'NOTA DE DÉBITO'}
                   </h3>
-                  <div className="text-sm font-mono font-bold text-neutral-800 mt-0.5">
+                  <div className="text-sm font-mono font-bold text-neutral-400  mt-0.5">
                     Nº {selectedNote.noteNumber}
                   </div>
                   {selectedNote.controlNumber && (
@@ -1430,14 +1419,14 @@ export const CustomerNotesView: React.FC = () => {
               </div>
 
               {/* Datos Cliente y Factura Afectada */}
-              <div className="grid grid-cols-2 gap-4 bg-neutral-50 p-4 rounded-lg">
+              <div className="grid grid-cols-2 gap-4 bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800">
                 <div>
-                  <span className="font-bold text-neutral-800 block mb-1">CLIENTE:</span>
+                  <span className="font-bold text-neutral-400  block mb-1">CLIENTE:</span>
                   <div>{selectedNote.customerName}</div>
-                  <div className="font-mono text-neutral-600">{selectedNote.customerDoc}</div>
+                  <div className="font-mono text-neutral-400">{selectedNote.customerDoc}</div>
                 </div>
                 <div>
-                  <span className="font-bold text-neutral-800 block mb-1">DOCUMENTO MODIFICADO:</span>
+                  <span className="font-bold text-neutral-400  block mb-1">DOCUMENTO MODIFICADO:</span>
                   {selectedNote.affectedInvoiceNumber ? (
                     <div>Factura Nº {selectedNote.affectedInvoiceNumber}</div>
                   ) : (
@@ -1451,10 +1440,10 @@ export const CustomerNotesView: React.FC = () => {
 
               {/* Renglones */}
               <div>
-                <h4 className="font-bold text-neutral-800 mb-2">DETALLE DE RENGLONES</h4>
+                <h4 className="font-bold text-neutral-400  mb-2">DETALLE DE RENGLONES</h4>
                 <div className="border border-neutral-200 rounded-lg overflow-hidden">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-neutral-100 text-neutral-700 font-semibold border-b border-neutral-200">
+                  <table className="w-full text-left text-sm border-collapse">
+                    <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase  tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
                       <tr>
                         <th className="py-2 px-3">Descripción</th>
                         <th className="py-2 px-3 text-right">Cant.</th>
@@ -1463,10 +1452,10 @@ export const CustomerNotesView: React.FC = () => {
                         <th className="py-2 px-3 text-right">Total</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-neutral-200">
+                    <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
                       {selectedNote.items && selectedNote.items.length > 0 ? (
                         selectedNote.items.map((it) => (
-                          <tr key={it.id}>
+                          <tr key={it.id} className="hover:bg-neutral-50/60 dark:hover:bg-neutral-800/60 transition-colors">
                             <td className="py-2 px-3">
                               {it.description}
                               {it.returnToInventory && (
@@ -1497,7 +1486,7 @@ export const CustomerNotesView: React.FC = () => {
 
               {/* Totales */}
               <div className="flex justify-end">
-                <div className="w-64 space-y-1.5 border border-neutral-200 p-3 rounded-lg bg-neutral-50">
+                <div className="w-64 space-y-1.5 bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 ">
                   <div className="flex justify-between">
                     <span>Base Exenta:</span>
                     <strong>{formatMoneyUSD(selectedNote.baseExemptAmount)}</strong>
@@ -1510,7 +1499,7 @@ export const CustomerNotesView: React.FC = () => {
                     <span>IVA:</span>
                     <strong>{formatMoneyUSD(selectedNote.taxAmount)}</strong>
                   </div>
-                  <div className="flex justify-between border-t border-neutral-200 pt-1.5 text-sm font-bold text-neutral-900">
+                  <div className="flex justify-between border-t border-neutral-200 pt-1.5 text-sm font-bold text-neutral-500 ">
                     <span>TOTAL:</span>
                     <span>{formatMoneyUSD(selectedNote.totalAmount)}</span>
                   </div>
@@ -1523,12 +1512,12 @@ export const CustomerNotesView: React.FC = () => {
               {/* Historial de Aplicaciones a CxC */}
               {selectedNote.applications && selectedNote.applications.length > 0 && (
                 <div className="border-t border-neutral-200 pt-4">
-                  <h4 className="font-bold text-neutral-800 mb-2">
+                  <h4 className="font-bold text-neutral-400  mb-2">
                     HISTORIAL DE COMPENSACIONES / APLICACIONES A CUENTAS POR COBRAR
                   </h4>
                   <div className="border border-neutral-200 rounded-lg overflow-hidden">
                     <table className="w-full text-left text-xs">
-                      <thead className="bg-neutral-100 text-neutral-700 font-semibold border-b border-neutral-200">
+                      <thead className="bg-neutral-100 text-neutral-400  font-semibold border-b border-neutral-200">
                         <tr>
                           <th className="py-2 px-3">Fecha</th>
                           <th className="py-2 px-3">Factura Compensada</th>
@@ -1558,45 +1547,54 @@ export const CustomerNotesView: React.FC = () => {
                   </div>
                 </div>
               )}
-            </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* ========================================================================= */}
       {/* MODAL: APLICAR NOTA DE CRÉDITO A CUENTAS POR COBRAR */}
       {/* ========================================================================= */}
-      {isApplyModalOpen && selectedNote && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-neutral-200 pb-3">
-              <div>
-                <h3 className="text-base font-bold text-neutral-900">
-                  Compensar Deuda con Nota de Crédito
-                </h3>
-                <p className="text-xs text-neutral-500 mt-0.5">
-                  Aplicar saldo a favor de {selectedNote.noteNumber} a facturas pendientes
-                </p>
-              </div>
-              <button
+      <Modal
+        isOpen={Boolean(isApplyModalOpen && selectedNote)}
+        onClose={() => setIsApplyModalOpen(false)}
+        title="Compensar Deuda con Nota de Crédito"
+        subtitle={selectedNote ? `Aplicar saldo a favor de ${selectedNote.noteNumber} a facturas pendientes` : undefined}
+        size="lg"
+        footer={
+          selectedNote && (
+            <div className="flex justify-end gap-3 w-full">
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 onClick={() => setIsApplyModalOpen(false)}
-                className="text-neutral-400 hover:text-neutral-600"
               >
-                ✕
-              </button>
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                form="applyNoteForm"
+                disabled={isApplying || applyReceivables.length === 0 || applyAmount <= 0}
+              >
+                {isApplying ? 'Aplicando...' : 'Confirmar Compensación'}
+              </Button>
             </div>
-
-            <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-lg text-xs text-emerald-900">
+          )
+        }
+      >
+        {selectedNote && (
+          <div className="space-y-4 text-xs">
+            <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 p-3 rounded-lg text-xs text-emerald-900 dark:text-emerald-200">
               Saldo Disponible en la Nota de Crédito:{' '}
-              <strong className="text-emerald-800 text-sm">
+              <strong className="text-emerald-800 dark:text-emerald-300 text-sm">
                 {formatMoneyUSD(selectedNote.amountBalance)}
               </strong>
             </div>
 
-            <form onSubmit={handleExecuteApply} className="space-y-4">
+            <form id="applyNoteForm" onSubmit={handleExecuteApply} className="space-y-4">
               <div>
-                <label className="text-xs font-semibold text-neutral-700 block mb-1">
+                <label className="text-xs font-semibold text-neutral-400  block mb-1">
                   Cuenta por Cobrar a Abonar / Saldar *
                 </label>
                 {applyReceivables.length === 0 ? (
@@ -1614,7 +1612,7 @@ export const CustomerNotesView: React.FC = () => {
                         setApplyAmount(Number(max.toFixed(2)));
                       }
                     }}
-                    className="w-full h-9 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500"
+                    className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   >
                     {applyReceivables.map((r) => (
                       <option key={r.id} value={r.id}>
@@ -1628,7 +1626,7 @@ export const CustomerNotesView: React.FC = () => {
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-semibold text-neutral-700">Monto a Aplicar ($) *</label>
+                  <label className="text-xs font-semibold text-neutral-400 ">Monto a Aplicar ($) *</label>
                   <button
                     type="button"
                     onClick={() => {
@@ -1650,12 +1648,12 @@ export const CustomerNotesView: React.FC = () => {
                   max={selectedNote.amountBalance}
                   value={applyAmount || ''}
                   onChange={(e) => setApplyAmount(parseFloat(e.target.value) || 0)}
-                  className="w-full h-9 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:ring-2 focus-visible:ring-sky-500 font-bold"
+                  className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-neutral-700 block mb-1">
+                <label className="text-xs font-semibold text-neutral-400  block mb-1">
                   Observaciones
                 </label>
                 <input
@@ -1663,59 +1661,66 @@ export const CustomerNotesView: React.FC = () => {
                   placeholder="Detalle o nota interna..."
                   value={applyNotes}
                   onChange={(e) => setApplyNotes(e.target.value)}
-                  className="w-full h-9 px-3 text-xs bg-white border border-neutral-300 rounded-lg"
+                  className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsApplyModalOpen(false)}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={isApplying || applyReceivables.length === 0 || applyAmount <= 0}
-                >
-                  {isApplying ? 'Aplicando...' : 'Confirmar Compensación'}
-                </Button>
-              </div>
             </form>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* ========================================================================= */}
       {/* MODAL: ANULACIÓN DE NOTA */}
       {/* ========================================================================= */}
-      {isAnnulModalOpen && selectedNote && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 space-y-4">
-            <div className="flex items-center gap-3 text-red-600">
-              <AlertCircle className="w-6 h-6" />
-              <h3 className="text-base font-bold text-neutral-900">
-                Anular {selectedNote.type === 'CREDIT' ? 'Nota de Crédito' : 'Nota de Débito'}
-              </h3>
+      <Modal
+        isOpen={Boolean(isAnnulModalOpen && selectedNote)}
+        onClose={() => setIsAnnulModalOpen(false)}
+        title={selectedNote ? `Anular ${selectedNote.type === 'CREDIT' ? 'Nota de Crédito' : 'Nota de Débito'}` : 'Anular Documento'}
+        subtitle={selectedNote ? `Documento: ${selectedNote.noteNumber} | Monto: ${formatMoneyUSD(selectedNote.totalAmount)}` : undefined}
+        size="md"
+        footer={
+          selectedNote && (
+            <div className="flex justify-end gap-3 w-full">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsAnnulModalOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                variant="danger"
+                size="sm"
+                form="annulNoteForm"
+                disabled={isAnnulling || !annulReason.trim()}
+              >
+                {isAnnulling ? 'Anulando...' : 'Confirmar Anulación'}
+              </Button>
             </div>
-
-            <p className="text-xs text-neutral-600">
+          )
+        }
+      >
+        {selectedNote && (
+          <div className="space-y-4 text-xs">
+            <p className="text-xs text-neutral-600 dark:text-neutral-400">
               ¿Está seguro de que desea anular el documento{' '}
-              <strong className="text-neutral-900">{selectedNote.noteNumber}</strong> por un monto de{' '}
+              <strong className="text-neutral-500  dark:text-neutral-100">{selectedNote.noteNumber}</strong> por un monto de{' '}
               <strong>{formatMoneyUSD(selectedNote.totalAmount)}</strong>?
             </p>
 
             {selectedNote.type === 'CREDIT' && (
-              <p className="text-xs text-amber-700 bg-amber-50 p-2.5 rounded-lg border border-amber-200">
+              <p className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 p-2.5 rounded-lg border border-amber-200 dark:border-amber-800">
                 Si esta nota reingresó mercancía a inventario, la existencia será revertida
                 automáticamente.
               </p>
             )}
 
-            <form onSubmit={handleExecuteAnnul} className="space-y-4">
+            <form id="annulNoteForm" onSubmit={handleExecuteAnnul} className="space-y-4">
               <div>
-                <label className="text-xs font-semibold text-neutral-700 block mb-1">
+                <label className="text-xs font-semibold text-neutral-400  block mb-1">
                   Motivo de Anulación *
                 </label>
                 <textarea
@@ -1724,30 +1729,14 @@ export const CustomerNotesView: React.FC = () => {
                   placeholder="Explique la causa de anulación..."
                   value={annulReason}
                   onChange={(e) => setAnnulReason(e.target.value)}
-                  className="w-full p-2.5 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:ring-2 focus-visible:ring-red-500"
+                  className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsAnnulModalOpen(false)}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  type="submit"
-                  variant="danger"
-                  disabled={isAnnulling || !annulReason.trim()}
-                >
-                  {isAnnulling ? 'Anulando...' : 'Confirmar Anulación'}
-                </Button>
-              </div>
             </form>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* Modal de Búsqueda de Clientes con Bloqueo */}
       <CustomerSearchModal

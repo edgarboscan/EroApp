@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Card } from '../../components/ui/Card';
+import { Modal } from '../../components/ui/Modal';
 import {
   Trash2,
   Plus,
@@ -284,6 +285,25 @@ export const POSRegister: React.FC = () => {
         total,
       };
     });
+
+    const tipUsd = Number(restaurantOrder.tip_usd || 0);
+    if (tipUsd > 0) {
+      const tipCatalogProduct = products.find((p) => p.sku === 'PROPINA');
+      newCartItems.push({
+        productId: tipCatalogProduct ? tipCatalogProduct.id : `rest-tip-${restaurantOrder.id}`,
+        sku: 'PROPINA',
+        name: `Propina del Servicio (${restaurantOrder.table_name || 'Mesa ' + restaurantOrder.table_number})`,
+        quantity: 1,
+        unitPrice: tipUsd,
+        taxRatePercent: 0,
+        grossAmount: tipUsd,
+        discountPercent: 0,
+        discountAmount: 0,
+        subtotal: tipUsd,
+        taxAmount: 0,
+        total: tipUsd,
+      });
+    }
 
     setCart(newCartItems);
     setImportedRestaurantOrderId(restaurantOrder.id);
@@ -1590,6 +1610,7 @@ export const POSRegister: React.FC = () => {
         igtfTotalAmount: totalIGTFUSD,
         discountTotalAmount,
         finalTotalAmount: finalTotalUSD,
+        restaurantOrderId: importedRestaurantOrderId || null,
       };
 
       const res = await fetch('/api/pos/sales', {
@@ -1682,12 +1703,12 @@ export const POSRegister: React.FC = () => {
   if (loadingShift) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-12rem)] p-6 space-y-4">
-        <div className="w-10 h-10 rounded-lg bg-neutral-100 flex items-center justify-center animate-pulse">
-          <Loader2 className="w-5 h-5 text-neutral-400 animate-spin" />
+        <div className="w-10 h-10 rounded-lg bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center animate-pulse">
+          <Loader2 className="w-5 h-5 text-neutral-400 dark:text-neutral-500 animate-spin" />
         </div>
         <div className="text-center space-y-1">
-          <p className="text-sm font-semibold text-neutral-700">Verificando turno de caja...</p>
-          <p className="text-xs text-neutral-400">Consultando estado de caja en la sucursal actual</p>
+          <p className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Verificando turno de caja...</p>
+          <p className="text-xs text-neutral-400 dark:text-neutral-500">Consultando estado de caja en la sucursal actual</p>
         </div>
       </div>
     );
@@ -1696,16 +1717,16 @@ export const POSRegister: React.FC = () => {
   if (!activeShift) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-12rem)] p-4 sm:p-6">
-        <div className="max-w-md w-full bg-white border border-neutral-200 rounded-lg p-6 sm:p-8 text-center space-y-5 shadow-xs">
-          <div className="w-12 h-12 mx-auto rounded-lg bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center">
-            <Lock className="w-5 h-5 text-amber-700" />
+        <div className="max-w-md w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-6 sm:p-8 text-center space-y-5 shadow-xs">
+          <div className="w-12 h-12 mx-auto rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 flex items-center justify-center">
+            <Lock className="w-5 h-5 text-amber-700 dark:text-amber-400" />
           </div>
 
           <div className="space-y-1.5">
-            <h2 className="text-base font-bold text-neutral-900">
+            <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
               Turno de Caja Requerido
             </h2>
-            <p className="text-xs text-neutral-500 leading-relaxed">
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
               No tienes un turno de caja abierto en esta sucursal. Para registrar ventas, cobrar productos y emitir comprobantes en el Punto de Venta, es necesario realizar la apertura de turno.
             </p>
           </div>
@@ -1726,7 +1747,7 @@ export const POSRegister: React.FC = () => {
               type="button"
               variant="outline"
               onClick={() => navigate('/pos/cierre')}
-              className="w-full sm:w-auto px-4 py-2.5 text-xs text-neutral-700 cursor-pointer"
+              className="w-full sm:w-auto px-4 py-2.5 text-xs text-neutral-700 dark:text-neutral-300 cursor-pointer"
             >
               Gestión de Cajas
             </Button>
@@ -1734,131 +1755,115 @@ export const POSRegister: React.FC = () => {
         </div>
 
         {/* Modal: Apertura de Turno de Caja */}
-        {showOpenShiftModal && (
-          <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-            <div className="bg-white rounded-lg max-w-md w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
-              {/* Header */}
-              <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
-                <div className="flex items-center gap-2">
-                  <Unlock className="w-5 h-5 text-sky-600" />
-                  <h3 className="text-sm font-bold text-neutral-900">Apertura de Turno de Caja</h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowOpenShiftModal(false)}
-                  className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 cursor-pointer"
-                  title="Cerrar modal (Esc)"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Body */}
-              <form onSubmit={handleOpenShiftSubmit} className="flex-1 flex flex-col overflow-hidden">
-                <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 text-xs">
-                  <div>
-                    <label className="block font-semibold text-neutral-700 mb-1">
-                      Caja Registradora *
-                    </label>
-                    {loadingRegisters ? (
-                      <div className="h-9 px-3 border border-neutral-200 rounded-lg bg-neutral-50 flex items-center text-xs text-neutral-400">
-                        Cargando cajas disponibles...
-                      </div>
-                    ) : (
-                      <select
-                        value={openRegisterId}
-                        onChange={(e) => setOpenRegisterId(e.target.value)}
-                        className="w-full h-9 px-3 border border-neutral-300 rounded-lg text-xs bg-white"
-                        required
-                      >
-                        <option value="">Seleccione una caja...</option>
-                        {availableRegisters.map((r) => {
-                          const isRegFiscal =
-                            r.invoiceMode === 'fiscal_printer' ||
-                            Boolean(r.fiscalPrinterSerial && r.fiscalPrinterSerial.trim());
-                          return (
-                            <option key={r.id} value={r.id} disabled={r.hasActiveShift}>
-                              {r.code} - {r.name} ({isRegFiscal ? 'Fiscal' : 'No Fiscal'}) [Almacén: {r.warehouseName || 'Principal'}] {r.hasActiveShift ? `(Ocupada por ${r.activeCashierName || 'otro cajero'})` : '(Disponible)'}
-                            </option>
-                          );
-                        })}
-                      </select>
-                    )}
-                    {openRegisterId && (
-                      <p className="text-[11px] text-neutral-500 mt-1">
-                        Almacén de descarga de stock: <strong>{availableRegisters.find((r) => r.id === openRegisterId)?.warehouseName || 'Almacén Principal'}</strong>
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block font-semibold text-neutral-700 mb-1">
-                        Fondo Inicial USD ($)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={openInitialUSD}
-                        onChange={(e) => setOpenInitialUSD(e.target.value)}
-                        className="w-full h-9 px-3 border border-neutral-300 rounded-lg text-xs font-mono"
-                        placeholder="0.00"
-                      />
-                    </div>
-                    <div>
-                      <label className="block font-semibold text-neutral-700 mb-1">
-                        Fondo Inicial VES (Bs)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={openInitialVES}
-                        onChange={(e) => setOpenInitialVES(e.target.value)}
-                        className="w-full h-9 px-3 border border-neutral-300 rounded-lg text-xs font-mono"
-                        placeholder="0.00"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-neutral-700 mb-1">
-                      Observaciones / Notas
-                    </label>
-                    <input
-                      type="text"
-                      value={openNotes}
-                      onChange={(e) => setOpenNotes(e.target.value)}
-                      className="w-full h-9 px-3 border border-neutral-300 rounded-lg text-xs"
-                      placeholder="Ej: Turno de la mañana, cambio inicial en caja"
-                    />
-                  </div>
-                </div>
-
-                {/* Footer */}
-                <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowOpenShiftModal(false)}
-                    disabled={isOpeningShift}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    type="submit"
-                    size="sm"
-                    disabled={isOpeningShift || !openRegisterId}
-                  >
-                    {isOpeningShift ? 'Abriendo Turno...' : 'Abrir Turno'}
-                  </Button>
-                </div>
-              </form>
+        <Modal
+          isOpen={showOpenShiftModal}
+          onClose={() => setShowOpenShiftModal(false)}
+          title="Apertura de Turno de Caja"
+          icon={<Unlock className="w-5 h-5 text-sky-600 dark:text-sky-400" />}
+          size="md"
+          footer={
+            <div className="flex items-center justify-end gap-2 w-full">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowOpenShiftModal(false)}
+                disabled={isOpeningShift}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleOpenShiftSubmit as any}
+                disabled={isOpeningShift || !openRegisterId}
+              >
+                {isOpeningShift ? 'Abriendo Turno...' : 'Abrir Turno'}
+              </Button>
             </div>
-          </div>
-        )}
+          }
+        >
+          <form onSubmit={handleOpenShiftSubmit} className="space-y-3.5 text-xs">
+            <div>
+              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                Caja Registradora *
+              </label>
+              {loadingRegisters ? (
+                <div className="h-9 px-3 border border-neutral-200 dark:border-neutral-800 rounded-lg bg-neutral-50 dark:bg-neutral-800/50 flex items-center text-xs text-neutral-400 dark:text-neutral-500">
+                  Cargando cajas disponibles...
+                </div>
+              ) : (
+                <select
+                  value={openRegisterId}
+                  onChange={(e) => setOpenRegisterId(e.target.value)}
+                  className="w-full h-9 px-3 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  required
+                >
+                  <option value="">Seleccione una caja...</option>
+                  {availableRegisters.map((r) => {
+                    const isRegFiscal =
+                      r.invoiceMode === 'fiscal_printer' ||
+                      Boolean(r.fiscalPrinterSerial && r.fiscalPrinterSerial.trim());
+                    return (
+                      <option key={r.id} value={r.id} disabled={r.hasActiveShift}>
+                        {r.code} - {r.name} ({isRegFiscal ? 'Fiscal' : 'No Fiscal'}) [Almacén: {r.warehouseName || 'Principal'}] {r.hasActiveShift ? `(Ocupada por ${r.activeCashierName || 'otro cajero'})` : '(Disponible)'}
+                      </option>
+                    );
+                  })}
+                </select>
+              )}
+              {openRegisterId && (
+                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
+                  Almacén de descarga de stock: <strong className="text-neutral-800 dark:text-neutral-200">{availableRegisters.find((r) => r.id === openRegisterId)?.warehouseName || 'Almacén Principal'}</strong>
+                </p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                  Fondo Inicial USD ($)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={openInitialUSD}
+                  onChange={(e) => setOpenInitialUSD(e.target.value)}
+                  className="w-full h-9 px-3 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs font-mono bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                  Fondo Inicial VES (Bs)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={openInitialVES}
+                  onChange={(e) => setOpenInitialVES(e.target.value)}
+                  className="w-full h-9 px-3 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs font-mono bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                Observaciones / Notas
+              </label>
+              <input
+                type="text"
+                value={openNotes}
+                onChange={(e) => setOpenNotes(e.target.value)}
+                className="w-full h-9 px-3 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                placeholder="Ej: Turno de la mañana, cambio inicial en caja"
+              />
+            </div>
+          </form>
+        </Modal>
       </div>
     );
   }
@@ -1869,23 +1874,23 @@ export const POSRegister: React.FC = () => {
       <div className="flex-1 flex flex-col gap-4 overflow-hidden">
         {/* Banner de Caja Activa y Modalidad Fiscal */}
         {activeShift && (
-          <div className="bg-white border border- -200 rounded-lg p-2.5 flex items-center justify-between text-xs shadow-xs">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-2.5 flex items-center justify-between text-xs shadow-xs">
             <div className="flex items-center gap-2">
-              <span className="font-bold text-neutral-900">
+              <span className="font-bold text-neutral-900 dark:text-neutral-100">
                 {activeShift.cashRegisterCode || 'CAJA-01'}
               </span>
-              <span className="text-neutral-300">•</span>
-              <span className="text-neutral-600 font-medium">
+              <span className="text-neutral-300 dark:text-neutral-700">•</span>
+              <span className="text-neutral-600 dark:text-neutral-400 font-medium">
                 {activeShift.cashRegisterName || 'Punto de Venta'}
               </span>
-              <span className="text-neutral-300">•</span>
-              <span className="text-neutral-500">
-                Cajero: <strong className="text-neutral-700">{activeShift.cashierName || user?.fullName}</strong>
+              <span className="text-neutral-300 dark:text-neutral-700">•</span>
+              <span className="text-neutral-500 dark:text-neutral-400">
+                Cajero: <strong className="text-neutral-700 dark:text-neutral-200">{activeShift.cashierName || user?.fullName}</strong>
               </span>
-              <span className="text-neutral-300">•</span>
-              <span className="text-neutral-500 flex items-center gap-1 font-medium">
-                <Warehouse className="w-3.5 h-3.5 text-neutral-400" />
-                Almacén: <strong className="text-neutral-700">{activeShift.warehouseName || 'Almacén Principal'}</strong>
+              <span className="text-neutral-300 dark:text-neutral-700">•</span>
+              <span className="text-neutral-500 dark:text-neutral-400 flex items-center gap-1 font-medium">
+                <Warehouse className="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500" />
+                Almacén: <strong className="text-neutral-700 dark:text-neutral-200">{activeShift.warehouseName || 'Almacén Principal'}</strong>
               </span>
             </div>
             <div>
@@ -1906,7 +1911,7 @@ export const POSRegister: React.FC = () => {
 
         {/* Barra de Búsqueda Rápida / Código de Barras */}
         <div className="relative">
-          <Search className="w-4 h-4 absolute left-3 top-3.5 text-neutral-400" />
+          <Search className="w-4 h-4 absolute left-3 top-3.5 text-neutral-400 dark:text-neutral-500" />
           <input
             type="text"
             value={searchTerm}
@@ -1918,34 +1923,34 @@ export const POSRegister: React.FC = () => {
               }
             }}
             placeholder="Escanear código de barras o buscar producto/presentación (Enter para añadir)..."
-            className="w-full h-11 pl-10 pr-10 text-xs bg-white border border-neutral-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium"
+            className="w-full h-11 pl-10 pr-10 text-xs bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500 text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 font-medium"
           />
-          <Barcode className="w-5 h-5 absolute right-3 top-3 text-neutral-400" />
+          <Barcode className="w-5 h-5 absolute right-3 top-3 text-neutral-400 dark:text-neutral-500" />
         </div>
 
         {/* Contenedor del Catálogo: Toolbar + Grid o Lista Densa */}
-        <div className="flex-1 bg-white border border-neutral-200 rounded-lg p-3 sm:p-4 overflow-hidden flex flex-col shadow-sm">
+        <div className="flex-1 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-3 sm:p-4 overflow-hidden flex flex-col shadow-sm">
           {/* Toolbar del Catálogo */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-neutral-200 shrink-0">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-neutral-200 dark:border-neutral-800 shrink-0">
             <div className="flex items-center gap-2">
-              <h2 className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">
+              <h2 className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
                 Catálogo de Productos ({filteredProducts.length})
               </h2>
-              <span className="text-[11px] text-neutral-400 font-mono hidden sm:inline">
+              <span className="text-[11px] text-neutral-400 dark:text-neutral-500 font-mono hidden sm:inline">
                 • Tasa BCV: Bs. {formatExchangeRate(exchangeRateBCV, 2)}
               </span>
             </div>
 
             <div className="flex items-center gap-1.5">
               {/* Selector de Modo de Vista: Cuadrícula Compacta vs Lista Densa */}
-              <div className="flex items-center bg-neutral-100 p-0.5 rounded-lg border border-neutral-200">
+              <div className="flex items-center bg-neutral-100 dark:bg-neutral-800 p-0.5 rounded-lg border border-neutral-200 dark:border-neutral-700">
                 <button
                   type="button"
                   onClick={() => setCatalogViewMode('grid')}
                   className={`p-1.5 rounded-md transition-colors cursor-pointer ${
                     catalogViewMode === 'grid'
-                      ? 'bg-white text-sky-700 shadow-xs'
-                      : 'text-neutral-500 hover:text-neutral-800'
+                      ? 'bg-white dark:bg-neutral-700 text-sky-700 dark:text-sky-300 shadow-xs'
+                      : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200'
                   }`}
                   title="Vista Cuadrícula Compacta"
                 >
@@ -1956,8 +1961,8 @@ export const POSRegister: React.FC = () => {
                   onClick={() => setCatalogViewMode('list')}
                   className={`p-1.5 rounded-md transition-colors cursor-pointer ${
                     catalogViewMode === 'list'
-                      ? 'bg-white text-sky-700 shadow-xs'
-                      : 'text-neutral-500 hover:text-neutral-800'
+                      ? 'bg-white dark:bg-neutral-700 text-sky-700 dark:text-sky-300 shadow-xs'
+                      : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200'
                   }`}
                   title="Vista Lista / Tabla Densa"
                 >
@@ -1972,10 +1977,10 @@ export const POSRegister: React.FC = () => {
                   variant="outline"
                   size="sm"
                   onClick={() => setIsOptionsDropdownOpen((prev) => !prev)}
-                  className="h-8 px-2 text-xs text-neutral-700 border-neutral-300 hover:bg-neutral-50"
+                  className="h-8 px-2 text-xs text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800"
                   title="Configurar información visible del producto"
                 >
-                  <SlidersHorizontal className="w-3.5 h-3.5 mr-1 text-neutral-500" />
+                  <SlidersHorizontal className="w-3.5 h-3.5 mr-1 text-neutral-500 dark:text-neutral-400" />
                   <span>Columnas e Info</span>
                 </Button>
 
@@ -1985,77 +1990,77 @@ export const POSRegister: React.FC = () => {
                   variant="outline"
                   size="sm"
                   onClick={() => setIsImportRestaurantModalOpen(true)}
-                  className="h-8 px-2.5 text-xs text-sky-700 bg-sky-50 border-sky-300 hover:bg-sky-100 flex items-center gap-1.5 cursor-pointer ml-1"
+                  className="h-8 px-2.5 text-xs text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 border-sky-300 dark:border-sky-800 hover:bg-sky-100 dark:hover:bg-sky-900/50 flex items-center gap-1.5 cursor-pointer ml-1"
                   title="Importar comanda cerrada de restaurante para facturación fiscal"
                 >
-                  <Utensils className="w-3.5 h-3.5 text-sky-600" />
+                  <Utensils className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
                   <span>Importar Comanda</span>
                 </Button>
 
                 {isOptionsDropdownOpen && (
-                  <div className="absolute right-0 top-9 z-30 w-56 bg-white border border-neutral-200 rounded-lg shadow-lg p-2.5 text-xs space-y-2">
-                    <div className="font-semibold text-neutral-800 pb-1 border-b border-neutral-100 flex items-center justify-between">
+                  <div className="absolute right-0 top-9 z-30 w-56 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-lg p-2.5 text-xs space-y-2">
+                    <div className="font-semibold text-neutral-800 dark:text-neutral-200 pb-1 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between">
                       <span>Mostrar en Producto:</span>
                       <button
                         type="button"
                         onClick={() => setIsOptionsDropdownOpen(false)}
-                        className="text-neutral-400 hover:text-neutral-600 cursor-pointer"
+                        className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 cursor-pointer"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                    <label className="flex items-center gap-2 cursor-pointer text-neutral-700 hover:text-neutral-900">
+                    <label className="flex items-center gap-2 cursor-pointer text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100">
                       <input
                         type="checkbox"
                         checked={catalogOptions.showSku}
                         onChange={(e) =>
                           setCatalogOptions((o) => ({ ...o, showSku: e.target.checked }))
                         }
-                        className="rounded border-neutral-300 text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
+                        className="rounded border-neutral-300 dark:border-neutral-700 text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
                       />
                       <span>Código de Producto (SKU)</span>
                     </label>
-                    <label className="flex items-center gap-2 cursor-pointer text-neutral-700 hover:text-neutral-900">
+                    <label className="flex items-center gap-2 cursor-pointer text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100">
                       <input
                         type="checkbox"
                         checked={catalogOptions.showBarcode}
                         onChange={(e) =>
                           setCatalogOptions((o) => ({ ...o, showBarcode: e.target.checked }))
                         }
-                        className="rounded border-neutral-300 text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
+                        className="rounded border-neutral-300 dark:border-neutral-700 text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
                       />
                       <span>Código de Barras</span>
                     </label>
-                    <label className="flex items-center gap-2 cursor-pointer text-neutral-700 hover:text-neutral-900">
+                    <label className="flex items-center gap-2 cursor-pointer text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100">
                       <input
                         type="checkbox"
                         checked={catalogOptions.showPrice}
                         onChange={(e) =>
                           setCatalogOptions((o) => ({ ...o, showPrice: e.target.checked }))
                         }
-                        className="rounded border-neutral-300 text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
+                        className="rounded border-neutral-300 dark:border-neutral-700 text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
                       />
                       <span>Precio (USD / Bs.)</span>
                     </label>
-                    <label className="flex items-center gap-2 cursor-pointer text-neutral-700 hover:text-neutral-900">
+                    <label className="flex items-center gap-2 cursor-pointer text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100">
                       <input
                         type="checkbox"
                         checked={catalogOptions.showStock}
                         onChange={(e) =>
                           setCatalogOptions((o) => ({ ...o, showStock: e.target.checked }))
                         }
-                        className="rounded border-neutral-300 text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
+                        className="rounded border-neutral-300 dark:border-neutral-700 text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
                       />
                       <span>Stock Actual</span>
                     </label>
-                    <label className="flex items-center gap-2 cursor-pointer text-neutral-700 hover:text-neutral-900">
+                    <label className="flex items-center gap-2 cursor-pointer text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100">
                       <input
                         type="checkbox"
                         checked={catalogOptions.showDescription}
                         onChange={(e) =>
                           setCatalogOptions((o) => ({ ...o, showDescription: e.target.checked }))
                         }
-                        className="rounded border-neutral-300 text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
+                        className="rounded border-neutral-300 dark:border-neutral-700 text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
                       />
                       <span>Descripción del Producto</span>
                     </label>
@@ -2068,8 +2073,8 @@ export const POSRegister: React.FC = () => {
           {/* Área de Visualización: Grid Compacto o Lista Densa */}
           <div className="flex-1 overflow-y-auto pt-3">
             {filteredProducts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-neutral-400 py-12">
-                <Search className="w-8 h-8 mb-2 stroke-1 text-neutral-300" />
+              <div className="flex flex-col items-center justify-center h-full text-neutral-400 dark:text-neutral-500 py-12">
+                <Search className="w-8 h-8 mb-2 stroke-1 text-neutral-300 dark:text-neutral-600" />
                 <p className="text-xs">No se encontraron productos coincidentes</p>
               </div>
             ) : catalogViewMode === 'grid' ? (
@@ -2084,18 +2089,18 @@ export const POSRegister: React.FC = () => {
                     <div
                       key={p.id}
                       onClick={() => handleSelectProduct(p)}
-                      className="flex flex-col text-left p-2.5 rounded-lg border border-neutral-200 hover:border-sky-500 hover:bg-sky-50/20 transition-all cursor-pointer group bg-white shadow-xs"
+                      className="flex flex-col text-left p-2.5 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:border-sky-500 dark:hover:border-sky-500 hover:bg-sky-50/20 dark:hover:bg-neutral-800/60 transition-all cursor-pointer group bg-white dark:bg-neutral-800/50 shadow-xs"
                     >
                       {/* Cabecera de la tarjeta: SKU, Barra, Stock */}
                       <div className="flex items-center justify-between w-full text-[10px] gap-1">
                         <div className="flex items-center gap-1.5 truncate">
                           {catalogOptions.showSku && (
-                            <span className="font-mono text-neutral-400 group-hover:text-sky-600 truncate">
+                            <span className="font-mono text-neutral-400 dark:text-neutral-500 group-hover:text-sky-600 dark:group-hover:text-sky-400 truncate">
                               {p.sku}
                             </span>
                           )}
                           {catalogOptions.showBarcode && p.barcode && (
-                            <span className="font-mono text-neutral-400 truncate flex items-center gap-0.5" title={`Código de barras: ${p.barcode}`}>
+                            <span className="font-mono text-neutral-400 dark:text-neutral-500 truncate flex items-center gap-0.5" title={`Código de barras: ${p.barcode}`}>
                               <Barcode className="w-3 h-3 shrink-0" />
                               <span className="truncate">{p.barcode}</span>
                             </span>
@@ -2104,15 +2109,15 @@ export const POSRegister: React.FC = () => {
 
                         {catalogOptions.showStock && (
                           p.tracksInventory === false ? (
-                            <span className="shrink-0 text-[9px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                            <span className="shrink-0 text-[9px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
                               Sin control
                             </span>
                           ) : hasNoStock ? (
-                            <span className="shrink-0 text-[9px] font-semibold text-amber-700 bg-amber-50 px-1 py-0.2 rounded border border-amber-200">
+                            <span className="shrink-0 text-[9px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1 py-0.2 rounded border border-amber-200 dark:border-amber-800">
                               Sin stock ({p.stock ?? 0})
                             </span>
                           ) : (
-                            <span className="shrink-0 text-[9px] font-mono text-neutral-500 bg-neutral-100 px-1 py-0.2 rounded">
+                            <span className="shrink-0 text-[9px] font-mono text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-700/60 px-1 py-0.2 rounded">
                               Stock: {p.stock}
                             </span>
                           )
@@ -2120,25 +2125,25 @@ export const POSRegister: React.FC = () => {
                       </div>
 
                       {/* Nombre del producto */}
-                      <span className="text-xs font-semibold text-neutral-800 mt-1 line-clamp-2 leading-tight">
+                      <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 mt-1 line-clamp-2 leading-tight">
                         {p.name}
                       </span>
 
                       {/* Descripción opcional */}
                       {catalogOptions.showDescription && p.description && (
-                        <p className="text-[10px] text-neutral-500 line-clamp-1 mt-0.5 italic">
+                        <p className="text-[10px] text-neutral-500 dark:text-neutral-400 line-clamp-1 mt-0.5 italic">
                           {p.description}
                         </p>
                       )}
 
                       {/* Precio y Presentaciones */}
-                      <div className="mt-auto pt-2 flex items-baseline justify-between gap-1 border-t border-neutral-100/70">
+                      <div className="mt-auto pt-2 flex items-baseline justify-between gap-1 border-t border-neutral-100/70 dark:border-neutral-800">
                         {catalogOptions.showPrice ? (
                           <div>
-                            <div className="text-xs font-bold text-neutral-900">
+                            <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100 font-mono">
                               {formatMoneyUSD(p.priceUSD)}
                             </div>
-                            <div className="text-[9px] font-mono text-neutral-400">
+                            <div className="text-[9px] font-mono text-neutral-400 dark:text-neutral-500">
                               {formatMoneyVES(priceVES)}
                             </div>
                           </div>
@@ -2153,12 +2158,12 @@ export const POSRegister: React.FC = () => {
 
                       {/* Indicador de Presentaciones */}
                       {hasPresentations && (
-                        <div className="mt-1.5 pt-1 border-t border-neutral-100 flex items-center justify-between text-[10px] text-sky-700 bg-sky-50/60 px-1.5 py-0.5 rounded">
+                        <div className="mt-1.5 pt-1 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between text-[10px] text-sky-700 dark:text-sky-300 bg-sky-50/60 dark:bg-sky-950/40 px-1.5 py-0.5 rounded border border-sky-100 dark:border-sky-900/50">
                           <span className="flex items-center gap-1 font-medium">
-                            <Package className="w-3 h-3 text-sky-600" />
+                            <Package className="w-3 h-3 text-sky-600 dark:text-sky-400" />
                             {p.presentations!.length} {p.presentations!.length === 1 ? 'presentación' : 'presentaciones'}
                           </span>
-                          <span className="text-[9px] font-bold text-sky-800">Elegir</span>
+                          <span className="text-[9px] font-bold text-sky-800 dark:text-sky-200">Elegir</span>
                         </div>
                       )}
                     </div>
@@ -2167,9 +2172,9 @@ export const POSRegister: React.FC = () => {
               </div>
             ) : (
               /* Lista / Tabla Densa de Alta Capacidad */
-              <div className="border border-neutral-200 rounded-lg overflow-x-auto">
+              <div className="border border-neutral-200 dark:border-neutral-800 rounded-lg overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
-                  <thead className="bg-neutral-100 text-neutral-600 font-semibold uppercase text-[10px] tracking-wider sticky top-0 border-b border-neutral-200 z-10">
+                  <thead className="bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 font-semibold uppercase text-[10px] tracking-wider sticky top-0 border-b border-neutral-200 dark:border-neutral-700 z-10">
                     <tr>
                       {catalogOptions.showSku && <th className="py-2 px-2.5">Código (SKU)</th>}
                       {catalogOptions.showBarcode && <th className="py-2 px-2.5">Código de Barras</th>}
@@ -2181,7 +2186,7 @@ export const POSRegister: React.FC = () => {
                       <th className="py-2 px-2 text-center w-12">Acción</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-neutral-100">
+                  <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
                     {filteredProducts.map((p) => {
                       const priceVES = p.priceUSD * exchangeRateBCV;
                       const hasNoStock = (p.stock ?? 0) <= 0;
@@ -2191,26 +2196,25 @@ export const POSRegister: React.FC = () => {
                         <tr
                           key={p.id}
                           onClick={() => handleSelectProduct(p)}
-                          className="hover:bg-sky-50/40 transition-colors cursor-pointer group"
+                          className="hover:bg-sky-50/40 dark:hover:bg-neutral-800/50 transition-colors cursor-pointer group"
                         >
                           {catalogOptions.showSku && (
-                            <td className="py-1.5 px-2.5 font-mono text-[11px] text-neutral-600 group-hover:text-sky-700 whitespace-nowrap">
+                            <td className="py-1.5 px-2.5 font-mono text-[11px] text-neutral-600 dark:text-neutral-400 group-hover:text-sky-700 dark:group-hover:text-sky-300 whitespace-nowrap">
                               {p.sku}
                             </td>
                           )}
-
                           {catalogOptions.showBarcode && (
-                            <td className="py-1.5 px-2.5 font-mono text-[11px] text-neutral-500 whitespace-nowrap">
+                            <td className="py-1.5 px-2.5 font-mono text-[11px] text-neutral-500 dark:text-neutral-400 whitespace-nowrap">
                               {p.barcode || '—'}
                             </td>
                           )}
 
                           <td className="py-1.5 px-2.5">
-                            <div className="font-semibold text-neutral-800 text-xs">
+                            <div className="font-semibold text-neutral-800 dark:text-neutral-200 text-xs">
                               {p.name}
                             </div>
                             {catalogOptions.showDescription && p.description && (
-                              <div className="text-[10px] text-neutral-400 line-clamp-1 italic">
+                              <div className="text-[10px] text-neutral-400 dark:text-neutral-500 line-clamp-1 italic">
                                 {p.description}
                               </div>
                             )}
@@ -2219,38 +2223,38 @@ export const POSRegister: React.FC = () => {
                           {catalogOptions.showStock && (
                             <td className="py-1.5 px-2 text-center font-mono text-xs whitespace-nowrap">
                               {p.tracksInventory === false ? (
-                                <span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
                                   Sin control
                                 </span>
                               ) : hasNoStock ? (
-                                <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-1 py-0.2 rounded border border-amber-200">
+                                <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1 py-0.2 rounded border border-amber-200 dark:border-amber-800">
                                   {p.stock ?? 0}
                                 </span>
                               ) : (
-                                <span className="text-neutral-700">{p.stock}</span>
+                                <span className="text-neutral-700 dark:text-neutral-300">{p.stock}</span>
                               )}
                             </td>
                           )}
 
                           {catalogOptions.showPrice && (
-                            <td className="py-1.5 px-2.5 text-right font-mono font-bold text-neutral-900 text-xs whitespace-nowrap">
+                            <td className="py-1.5 px-2.5 text-right font-mono font-bold text-neutral-900 dark:text-neutral-100 text-xs whitespace-nowrap">
                               {formatMoneyUSD(p.priceUSD)}
                             </td>
                           )}
 
                           {catalogOptions.showPrice && (
-                            <td className="py-1.5 px-2.5 text-right font-mono text-neutral-500 text-[11px] whitespace-nowrap">
+                            <td className="py-1.5 px-2.5 text-right font-mono text-neutral-500 dark:text-neutral-400 text-[11px] whitespace-nowrap">
                               {formatMoneyVES(priceVES)}
                             </td>
                           )}
 
                           <td className="py-1.5 px-2 text-center whitespace-nowrap">
                             {hasPresentations ? (
-                              <span className="text-[10px] font-medium bg-sky-50 text-sky-800 px-1.5 py-0.5 rounded border border-sky-200">
+                              <span className="text-[10px] font-medium bg-sky-50 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300 px-1.5 py-0.5 rounded border border-sky-200 dark:border-sky-800">
                                 {p.presentations!.length} pres.
                               </span>
                             ) : (
-                              <span className="text-neutral-400 text-[10px]">—</span>
+                              <span className="text-neutral-400 dark:text-neutral-600 text-[10px]">—</span>
                             )}
                           </td>
 
@@ -2278,12 +2282,12 @@ export const POSRegister: React.FC = () => {
       </div>
 
       {/* Columna Derecha: Detalle de Venta / Carrito de Alta Densidad */}
-      <div className="w-full lg:w-[460px] xl:w-[480px] flex flex-col bg-white border border-neutral-200 rounded-lg shadow-sm overflow-hidden shrink-0">
+      <div className="w-full lg:w-[460px] xl:w-[480px] flex flex-col bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-sm overflow-hidden shrink-0">
         {/* Encabezado */}
-        <div className="p-3.5 border-b border-neutral-200 flex items-center justify-between bg-neutral-50">
+        <div className="p-3.5 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between bg-neutral-50 dark:bg-neutral-800/60">
           <div className="flex items-center gap-2">
-            <ShoppingCart className="w-4 h-4 text-neutral-700" />
-            <h2 className="text-sm font-bold text-neutral-900">Detalle de la Venta</h2>
+            <ShoppingCart className="w-4 h-4 text-neutral-700 dark:text-neutral-300" />
+            <h2 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">Detalle de la Venta</h2>
           </div>
           <div className="flex items-center gap-2">
             {cart.length > 0 && (
@@ -2292,7 +2296,7 @@ export const POSRegister: React.FC = () => {
                 size="sm"
                 type="button"
                 onClick={() => setIsCartReviewModalOpen(true)}
-                className="h-7 text-[11px] px-2 text-sky-700 border-sky-300 hover:bg-sky-50"
+                className="h-7 text-[11px] px-2 text-sky-700 dark:text-sky-300 border-sky-300 dark:border-sky-800 hover:bg-sky-50 dark:hover:bg-sky-950/40"
                 title="Abrir modal de verificación detallada del carrito"
               >
                 <ListChecks className="w-3.5 h-3.5 mr-1" />
@@ -2300,7 +2304,7 @@ export const POSRegister: React.FC = () => {
               </Button>
             )}
             {activeShift && (
-              <span className="text-[11px] font-mono bg-sky-100 text-sky-800 px-2 py-0.5 rounded font-semibold">
+              <span className="text-[11px] font-mono bg-sky-100 dark:bg-sky-950/60 text-sky-800 dark:text-sky-300 border border-sky-200 dark:border-sky-800 px-2 py-0.5 rounded font-semibold">
                 {activeShift.cashRegisterCode}
               </span>
             )}
@@ -2308,20 +2312,20 @@ export const POSRegister: React.FC = () => {
         </div>
 
         {/* Sección de Cliente */}
-        <div className="p-2.5 border-b border-neutral-100 bg-neutral-50/50 space-y-2">
+        <div className="p-2.5 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/40 space-y-2">
           {/* Si hay un cliente específico asociado */}
           {selectedCustomerId ? (
-            <div className="flex items-center justify-between p-2 bg-sky-50/60 border border-sky-200 rounded-lg text-xs">
+            <div className="flex items-center justify-between p-2 bg-sky-50/60 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-lg text-xs">
               <div className="flex items-center gap-2 min-w-0">
-                <UserCheck className="w-4 h-4 text-sky-600 shrink-0" />
+                <UserCheck className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0" />
                 <div className="truncate">
-                  <div className="font-semibold text-neutral-900 truncate flex items-center gap-1.5">
+                  <div className="font-semibold text-neutral-900 dark:text-neutral-100 truncate flex items-center gap-1.5">
                     <span>{customerName}</span>
                     {isSpecialTaxpayer && (
                       <Badge variant="info">Esp.</Badge>
                     )}
                   </div>
-                  <div className="text-[11px] font-mono text-neutral-500">
+                  <div className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400">
                     {customerDocType}-{customerDocNumber} {customerPhone ? `• ${customerPhone}` : ''}
                   </div>
                 </div>
@@ -2330,7 +2334,7 @@ export const POSRegister: React.FC = () => {
                 type="button"
                 onClick={handleResetToConsumerFinal}
                 title="Cambiar a Consumidor Final"
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded hover:bg-white transition-colors cursor-pointer"
+                className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-1 rounded hover:bg-white dark:hover:bg-neutral-800 transition-colors cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
               </button>
@@ -2339,7 +2343,7 @@ export const POSRegister: React.FC = () => {
             <div className="space-y-2">
               <div className="flex items-center gap-1.5 relative">
                 <div className="relative flex-1">
-                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-neutral-500" />
                   <input
                     type="text"
                     value={customerSearchQuery}
@@ -2349,10 +2353,10 @@ export const POSRegister: React.FC = () => {
                     }}
                     onFocus={() => setShowCustomerDropdown(true)}
                     placeholder="Buscar cliente (Cédula, RIF, Nombre)..."
-                    className="w-full h-8 pl-8 pr-7 text-xs border border-neutral-300 rounded-lg bg-white"
+                    className="w-full h-8 pl-8 pr-7 text-xs border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   />
                   {isSearchingCustomer && (
-                    <Loader2 className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 animate-spin" />
+                    <Loader2 className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-neutral-500 animate-spin" />
                   )}
                 </div>
                 <Button
@@ -2363,7 +2367,7 @@ export const POSRegister: React.FC = () => {
                     setShowCustomerDropdown(false);
                     setIsNewCustomerModalOpen(true);
                   }}
-                  className="h-8 px-2 text-xs text-sky-700 border-sky-300 hover:bg-sky-50 whitespace-nowrap"
+                  className="h-8 px-2 text-xs text-sky-700 dark:text-sky-300 border-sky-300 dark:border-sky-800 hover:bg-sky-50 dark:hover:bg-sky-950/40 whitespace-nowrap"
                 >
                   <UserPlus className="w-3.5 h-3.5 mr-1" />
                   + Nuevo
@@ -2371,9 +2375,9 @@ export const POSRegister: React.FC = () => {
 
                 {/* Dropdown de Autocompletado */}
                 {showCustomerDropdown && customerSearchQuery.trim() && (
-                  <div className="absolute top-9 left-0 right-16 z-30 bg-white border border-neutral-200 rounded-lg shadow-lg max-h-48 overflow-y-auto divide-y divide-neutral-100 text-xs">
+                  <div className="absolute top-9 left-0 right-16 z-30 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-lg max-h-48 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800 text-xs">
                     {customerSearchResults.length === 0 ? (
-                      <div className="p-3 text-center text-neutral-400">
+                      <div className="p-3 text-center text-neutral-400 dark:text-neutral-500">
                         {isSearchingCustomer ? (
                           'Buscando clientes...'
                         ) : (
@@ -2387,7 +2391,7 @@ export const POSRegister: React.FC = () => {
                                 setShowCustomerDropdown(false);
                                 setIsNewCustomerModalOpen(true);
                               }}
-                              className="text-sky-600 font-semibold hover:underline mt-1 block w-full text-center cursor-pointer"
+                              className="text-sky-600 dark:text-sky-400 font-semibold hover:underline mt-1 block w-full text-center cursor-pointer"
                             >
                               + Registrar nuevo cliente
                             </button>
@@ -2412,27 +2416,27 @@ export const POSRegister: React.FC = () => {
                               }
                               handleSelectCustomer(cust);
                             }}
-                            className={`w-full text-left p-2.5 flex flex-col transition-colors border-b border-neutral-100 last:border-b-0 ${
+                            className={`w-full text-left p-2.5 flex flex-col transition-colors border-b border-neutral-100 dark:border-neutral-800 last:border-b-0 ${
                               isBlocked
-                                ? 'bg-red-50/60 hover:bg-red-50/80 cursor-not-allowed opacity-90'
-                                : 'hover:bg-sky-50/50 cursor-pointer'
+                                ? 'bg-red-50/60 dark:bg-red-950/30 hover:bg-red-50/80 dark:hover:bg-red-950/50 cursor-not-allowed opacity-90'
+                                : 'hover:bg-sky-50/50 dark:hover:bg-neutral-800/60 cursor-pointer'
                             }`}
                           >
                             <div className="flex items-center justify-between gap-2">
-                              <span className={`font-semibold ${isBlocked ? 'text-red-950' : 'text-neutral-800'}`}>
+                              <span className={`font-semibold ${isBlocked ? 'text-red-950 dark:text-red-300' : 'text-neutral-800 dark:text-neutral-200'}`}>
                                 {cust.name}
                               </span>
                               {isBlocked && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-red-100 text-red-700 border border-red-200 shrink-0">
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800 shrink-0">
                                   Bloqueado
                                 </span>
                               )}
                             </div>
-                            <span className="text-[11px] font-mono text-neutral-500 mt-0.5">
+                            <span className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400 mt-0.5">
                               {cust.docType}-{cust.docNumber} {cust.phone ? `• ${cust.phone}` : ''}
                             </span>
                             {isBlocked && blockReason && (
-                              <span className="text-[11px] text-red-600 font-medium mt-0.5">
+                              <span className="text-[11px] text-red-600 dark:text-red-400 font-medium mt-0.5">
                                 Motivo: {blockReason}
                               </span>
                             )}
@@ -2449,7 +2453,7 @@ export const POSRegister: React.FC = () => {
                 <select
                   value={customerDocType}
                   onChange={(e) => setCustomerDocType(e.target.value as any)}
-                  className="w-14 h-7 px-1 text-[11px] border border-neutral-300 rounded-lg bg-white"
+                  className="w-14 h-7 px-1 text-[11px] border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 >
                   <option value="V">V-</option>
                   <option value="E">E-</option>
@@ -2462,14 +2466,14 @@ export const POSRegister: React.FC = () => {
                   value={customerDocNumber}
                   onChange={(e) => setCustomerDocNumber(e.target.value)}
                   placeholder="Doc / RIF"
-                  className="w-24 h-7 px-2 text-[11px] border border-neutral-300 rounded-lg font-mono"
+                  className="w-24 h-7 px-2 text-[11px] border border-neutral-300 dark:border-neutral-700 rounded-lg font-mono bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 />
                 <input
                   type="text"
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
                   placeholder="Nombre cliente"
-                  className="flex-1 h-7 px-2 text-[11px] border border-neutral-300 rounded-lg"
+                  className="flex-1 h-7 px-2 text-[11px] border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 />
               </div>
             </div>
@@ -2479,15 +2483,15 @@ export const POSRegister: React.FC = () => {
         {/* Tabla de Items del Carrito de Alta Densidad */}
         <div className="flex-1 overflow-y-auto">
           {cart.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-neutral-400 py-12">
-              <ShoppingCart className="w-8 h-8 mb-2 stroke-1 text-neutral-300" />
+            <div className="flex flex-col items-center justify-center h-full text-neutral-400 dark:text-neutral-500 py-12">
+              <ShoppingCart className="w-8 h-8 mb-2 stroke-1 text-neutral-300 dark:text-neutral-600" />
               <p className="text-xs">El carrito está vacío</p>
-              <p className="text-[10px] text-neutral-400 mt-0.5">Seleccione productos del catálogo para agregarlos</p>
+              <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">Seleccione productos del catálogo para agregarlos</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
-                <thead className="bg-neutral-100 text-neutral-600 font-semibold uppercase text-[10px] tracking-wider sticky top-0 border-b border-neutral-200 z-10">
+                <thead className="bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 font-semibold uppercase text-[10px] tracking-wider sticky top-0 border-b border-neutral-200 dark:border-neutral-700 z-10">
                   <tr>
                     <th className="py-2 px-2">Descripción</th>
                     <th className="py-2 px-1 text-right">Precio</th>
@@ -2498,7 +2502,7 @@ export const POSRegister: React.FC = () => {
                     <th className="py-2 px-1 text-center w-7"></th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-neutral-100">
+                <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
                   {cart.map((item) => {
                     const prod = products.find((p) => p.id === item.productId);
                     const availableStock = prod?.stock ?? 0;
@@ -2511,31 +2515,31 @@ export const POSRegister: React.FC = () => {
                     const hasDiscount = (item.discountPercent || 0) > 0;
 
                     return (
-                      <tr key={itemKey} className="hover:bg-neutral-50/80 transition-colors">
+                      <tr key={itemKey} className="hover:bg-neutral-50/80 dark:hover:bg-neutral-800/50 transition-colors">
                         {/* Descripción */}
                         <td className="py-1.5 px-2 max-w-[125px]">
-                          <div className="font-semibold text-neutral-800 text-[11px] truncate" title={item.name}>
+                          <div className="font-semibold text-neutral-800 dark:text-neutral-200 text-[11px] truncate" title={item.name}>
                             {item.name}
                           </div>
                           <div className="flex items-center gap-1 flex-wrap mt-0.5">
                             {item.presentationName && (
-                              <span className="text-[9px] font-medium bg-emerald-50 text-emerald-700 px-1 py-0.2 rounded border border-emerald-200">
+                              <span className="text-[9px] font-medium bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 px-1 py-0.2 rounded border border-emerald-200 dark:border-emerald-800">
                                 x{item.multiplier || 1} {item.presentationName}
                               </span>
                             )}
                             {isNegative && (
-                              <span className="text-[9px] text-amber-700 bg-amber-50 px-1 py-0.2 rounded border border-amber-200">
+                              <span className="text-[9px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1 py-0.2 rounded border border-amber-200 dark:border-amber-800">
                                 Neg ({availableStock - totalCommittedUnits})
                               </span>
                             )}
                             {item.requiresAuthorization && (
                               item.isPresentationAuthorized ? (
-                                <span className="text-[9px] text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200 flex items-center gap-0.5">
-                                  <ShieldCheck className="w-2.5 h-2.5 text-emerald-600" />
+                                <span className="text-[9px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1 py-0.2 rounded border border-emerald-200 dark:border-emerald-800 flex items-center gap-0.5">
+                                  <ShieldCheck className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
                                   Aut.
                                 </span>
                               ) : (
-                                <span className="text-[9px] text-amber-700 bg-amber-50 px-1 py-0.2 rounded border border-amber-200">
+                                <span className="text-[9px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1 py-0.2 rounded border border-amber-200 dark:border-amber-800">
                                   Req. Aut.
                                 </span>
                               )
@@ -2544,7 +2548,7 @@ export const POSRegister: React.FC = () => {
                         </td>
 
                         {/* Precio */}
-                        <td className="py-1.5 px-1 text-right font-mono text-[11px] text-neutral-600 whitespace-nowrap">
+                        <td className="py-1.5 px-1 text-right font-mono text-[11px] text-neutral-600 dark:text-neutral-400 whitespace-nowrap">
                           {formatMoneyUSD(item.unitPrice)}
                         </td>
 
@@ -2554,16 +2558,16 @@ export const POSRegister: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => updateCartQty(item.productId, item.presentationId, -1)}
-                              className="w-5 h-5 rounded bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-700 cursor-pointer"
+                              className="w-5 h-5 rounded bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 flex items-center justify-center text-neutral-700 dark:text-neutral-300 cursor-pointer"
                               title="Disminuir cantidad"
                             >
                               <Minus className="w-2.5 h-2.5" />
                             </button>
-                            <span className="text-[11px] font-bold w-5 text-center font-mono">{item.quantity}</span>
+                            <span className="text-[11px] font-bold w-5 text-center font-mono text-neutral-900 dark:text-neutral-100">{item.quantity}</span>
                             <button
                               type="button"
                               onClick={() => updateCartQty(item.productId, item.presentationId, 1)}
-                              className="w-5 h-5 rounded bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-700 cursor-pointer"
+                              className="w-5 h-5 rounded bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 flex items-center justify-center text-neutral-700 dark:text-neutral-300 cursor-pointer"
                               title="Aumentar cantidad"
                             >
                               <Plus className="w-2.5 h-2.5" />
@@ -2572,7 +2576,7 @@ export const POSRegister: React.FC = () => {
                         </td>
 
                         {/* Monto Bruto */}
-                        <td className="py-1.5 px-1 text-right font-mono text-[11px] text-neutral-700 whitespace-nowrap">
+                        <td className="py-1.5 px-1 text-right font-mono text-[11px] text-neutral-700 dark:text-neutral-300 whitespace-nowrap">
                           {formatMoneyUSD(grossAmount)}
                         </td>
 
@@ -2591,8 +2595,8 @@ export const POSRegister: React.FC = () => {
                             }}
                             className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-medium border cursor-pointer transition-colors ${
                               hasDiscount
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
-                                : 'bg-neutral-50 text-neutral-400 border-neutral-200 hover:text-sky-600 hover:border-sky-300'
+                                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/50'
+                                : 'bg-neutral-50 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500 border-neutral-200 dark:border-neutral-700 hover:text-sky-600 dark:hover:text-sky-400 hover:border-sky-300 dark:hover:border-sky-700'
                             }`}
                             title="Modificar descuento para este producto"
                           >
@@ -2601,7 +2605,7 @@ export const POSRegister: React.FC = () => {
                         </td>
 
                         {/* Total del producto */}
-                        <td className="py-1.5 px-1 text-right font-mono font-bold text-[11px] text-neutral-900 whitespace-nowrap">
+                        <td className="py-1.5 px-1 text-right font-mono font-bold text-[11px] text-neutral-900 dark:text-neutral-100 whitespace-nowrap">
                           {formatMoneyUSD(item.total)}
                         </td>
 
@@ -2610,7 +2614,7 @@ export const POSRegister: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => removeFromCart(item.productId, item.presentationId)}
-                            className="text-neutral-300 hover:text-red-500 p-0.5 rounded cursor-pointer transition-colors"
+                            className="text-neutral-300 dark:text-neutral-600 hover:text-red-500 dark:hover:text-red-400 p-0.5 rounded cursor-pointer transition-colors"
                             title="Eliminar producto"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -2626,31 +2630,31 @@ export const POSRegister: React.FC = () => {
         </div>
 
         {/* Resumen Fiscal */}
-        <div className="p-3 border-t border-neutral-200 bg-neutral-50 space-y-1.5 text-xs">
+        <div className="p-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50 space-y-1.5 text-xs">
           {discountTotalAmount > 0 && (
-            <div className="flex justify-between text-emerald-700 font-medium">
+            <div className="flex justify-between text-emerald-700 dark:text-emerald-400 font-medium">
               <span>Descuento Aplicado:</span>
               <span className="font-mono">-{formatMoneyUSD(discountTotalAmount)}</span>
             </div>
           )}
-          <div className="flex justify-between text-neutral-600">
+          <div className="flex justify-between text-neutral-600 dark:text-neutral-400">
             <span>Base Exenta:</span>
-            <span className="font-mono">{formatMoneyUSD(baseExempt)}</span>
+            <span className="font-mono font-medium text-neutral-800 dark:text-neutral-200">{formatMoneyUSD(baseExempt)}</span>
           </div>
-          <div className="flex justify-between text-neutral-600">
+          <div className="flex justify-between text-neutral-600 dark:text-neutral-400">
             <span>Base Imponible (16%):</span>
-            <span className="font-mono">{formatMoneyUSD(baseTaxable)}</span>
+            <span className="font-mono font-medium text-neutral-800 dark:text-neutral-200">{formatMoneyUSD(baseTaxable)}</span>
           </div>
-          <div className="flex justify-between text-neutral-600">
+          <div className="flex justify-between text-neutral-600 dark:text-neutral-400">
             <span>IVA (16%):</span>
-            <span className="font-mono">{formatMoneyUSD(taxAmount)}</span>
+            <span className="font-mono font-medium text-neutral-800 dark:text-neutral-200">{formatMoneyUSD(taxAmount)}</span>
           </div>
 
-          <div className="border-t border-neutral-300 pt-2 flex items-baseline justify-between">
-            <span className="text-sm font-bold text-neutral-900">Total a Pagar:</span>
+          <div className="border-t border-neutral-300 dark:border-neutral-700 pt-2 flex items-baseline justify-between">
+            <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100">Total a Pagar:</span>
             <div className="text-right">
-              <div className="text-xl font-bold font-mono text-sky-700">{formatMoneyUSD(subtotalBeforeIGTF)}</div>
-              <div className="text-xs font-mono text-neutral-500">
+              <div className="text-xl font-bold font-mono text-sky-700 dark:text-sky-400">{formatMoneyUSD(subtotalBeforeIGTF)}</div>
+              <div className="text-xs font-mono text-neutral-500 dark:text-neutral-400">
                 {formatMoneyVES(subtotalBeforeIGTF * exchangeRateBCV)}
               </div>
             </div>
@@ -2663,9 +2667,9 @@ export const POSRegister: React.FC = () => {
               type="button"
               disabled={cart.length === 0}
               onClick={() => setIsCartReviewModalOpen(true)}
-              className="flex-1 h-8 text-xs text-neutral-700"
+              className="flex-1 h-8 text-xs text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700"
             >
-              <ListChecks className="w-3.5 h-3.5 mr-1 text-sky-600" />
+              <ListChecks className="w-3.5 h-3.5 mr-1 text-sky-600 dark:text-sky-400" />
               Verificar Carrito ({cart.length})
             </Button>
             <Button
@@ -2677,7 +2681,7 @@ export const POSRegister: React.FC = () => {
                 const confirmed = await showClearCartAlert();
                 if (confirmed) setCart([]);
               }}
-              className="h-8 px-2 text-neutral-400 hover:text-red-600"
+              className="h-8 px-2 text-neutral-400 hover:text-red-600 dark:hover:text-red-400 border-neutral-300 dark:border-neutral-700"
               title="Vaciar Carrito"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -2699,668 +2703,613 @@ export const POSRegister: React.FC = () => {
       </div>
 
       {/* Modal de Pago Multi-Moneda y Mixto */}
-      {isPaymentModalOpen && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg max-w-xl w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
-            {/* Header (Fijo / Pinned) */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
-              <div className="flex items-center gap-2">
-                <CreditCard className="w-5 h-5 text-sky-600" />
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-900">Cobro Multi-Moneda & Facturación Fiscal</h3>
-                  <p className="text-[11px] text-neutral-500">
-                    Tasa Oficial BCV: Bs. {formatExchangeRate(exchangeRateBCV, 2)}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsPaymentModalOpen(false)}
-                  className="text-neutral-400 hover:text-neutral-600 cursor-pointer p-1 rounded-lg hover:bg-neutral-100"
-                  title="Cerrar modal (Esc)"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+      <Modal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        title="Cobro Multi-Moneda & Facturación Fiscal"
+        subtitle={`Tasa Oficial BCV: Bs. ${formatExchangeRate(exchangeRateBCV, 2)}`}
+        icon={<CreditCard className="w-5 h-5 text-sky-600 dark:text-sky-400" />}
+        size="2xl"
+        footer={
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-neutral-500 dark:text-neutral-400">Saldo pendiente:</span>
+              <span className={`font-mono font-bold ${remainingUSD <= 0.01 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                {remainingUSD <= 0.01 ? 'Pagado Totalmente' : `${formatMoneyUSD(remainingUSD)} (${formatMoneyVES(remainingVES)})`}
+              </span>
             </div>
-
-            {/* Body (Scrollable con overflow-y-auto) */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
-              {/* Totalizador & Pendiente */}
-              <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 grid grid-cols-2 gap-3 text-xs">
-                <div>
-                  <span className="text-neutral-500 block">Total a Pagar:</span>
-                  <span className="text-base font-bold font-mono text-neutral-900">
-                    {formatMoneyUSD(finalTotalUSD)}
-                  </span>
-                  <span className="text-[10px] text-neutral-500 font-mono block">
-                    {formatMoneyVES(finalTotalVES)}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-neutral-500 block">Restante por Pagar:</span>
-                  <span className={`text-base font-bold font-mono ${remainingUSD <= 0.01 ? 'text-emerald-600' : 'text-red-600'}`}>
-                    {formatMoneyUSD(remainingUSD)}
-                  </span>
-                  <span className="text-[10px] text-neutral-500 font-mono block">
-                    {formatMoneyVES(remainingVES)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Banner de Liquidación de Diferencia por IGTF (Permite cancelar diferencia con 1-click) */}
-              {totalIGTFUSD > 0 && remainingUSD > 0.005 && (
-                <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-xs space-y-2">
-                  <div className="flex items-center justify-between font-semibold text-indigo-950">
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
-                      Diferencia IGTF (3%) por cancelar:
-                    </span>
-                    <span className="font-mono text-indigo-800 font-extrabold text-sm">
-                      {formatMoneyUSD(remainingUSD)} <span className="text-[11px] font-normal text-indigo-600">({formatMoneyVES(remainingVES)})</span>
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-indigo-800 leading-tight">
-                    Seleccione el método de pago para liquidar la diferencia remanente:
-                  </p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 pt-0.5">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      type="button"
-                      onClick={() => handleQuickPay('DEBIT_CARD', remainingUSD, false)}
-                      className="text-[11px] h-8 px-2 border-indigo-300 text-indigo-900 bg-white hover:bg-indigo-100 justify-start"
-                    >
-                      Punto Débito ({formatMoneyVES(remainingVES)})
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      type="button"
-                      onClick={() => handleQuickPay('CREDIT_CARD', remainingUSD, false)}
-                      className="text-[11px] h-8 px-2 border-indigo-300 text-indigo-900 bg-white hover:bg-indigo-100 justify-start"
-                    >
-                      Punto Crédito ({formatMoneyVES(remainingVES)})
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      type="button"
-                      onClick={() => handleQuickPay('PAGO_MOVIL', remainingUSD, false)}
-                      className="text-[11px] h-8 px-2 border-indigo-300 text-indigo-900 bg-white hover:bg-indigo-100 justify-start"
-                    >
-                      Pago Móvil ({formatMoneyVES(remainingVES)})
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      type="button"
-                      onClick={() => handleQuickPay('CASH_VES', remainingUSD, false)}
-                      className="text-[11px] h-8 px-2 border-indigo-300 text-indigo-900 bg-white hover:bg-indigo-100 justify-start"
-                    >
-                      Efectivo Bs ({formatMoneyVES(remainingVES)})
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      type="button"
-                      onClick={() => handleQuickPay('CASH_USD', remainingUSD, false)}
-                      className="text-[11px] h-8 px-2 border-indigo-300 text-indigo-900 bg-white hover:bg-indigo-100 justify-start"
-                    >
-                      Efectivo $ ({formatMoneyUSD(remainingUSD)})
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Accesos Rápidos de Cobro Total (1-click para pagar saldo completo con método predilecto) */}
-              <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 space-y-2">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                  <span className="text-[10px] uppercase font-bold text-neutral-600 tracking-wider">
-                    Cobro Rápido Total:
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] text-neutral-500 font-medium">Ref / Lote:</span>
-                    <input
-                      type="text"
-                      value={paymentRefInput}
-                      onChange={(e) => setPaymentRefInput(e.target.value)}
-                      placeholder="N° Referencia..."
-                      className="h-6 w-36 px-2 border border-neutral-300 rounded text-[11px] font-mono bg-white focus-visible:ring-1 focus-visible:ring-sky-500"
-                      title="Opcional: Si ingresa la referencia aquí, se aplicará directamente al presionar el medio."
-                    />
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => handleQuickPay('DEBIT_CARD', remainingUSD, false)}
-                    disabled={remainingUSD <= 0.01}
-                    className="px-2.5 py-1 text-xs font-semibold rounded bg-sky-100 text-sky-800 hover:bg-sky-200 transition-colors disabled:opacity-50 cursor-pointer"
-                  >
-                    Punto Débito ({formatMoneyVES(remainingVES)})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleQuickPay('CREDIT_CARD', remainingUSD, false)}
-                    disabled={remainingUSD <= 0.01}
-                    className="px-2.5 py-1 text-xs font-semibold rounded bg-indigo-100 text-indigo-800 hover:bg-indigo-200 transition-colors disabled:opacity-50 cursor-pointer"
-                  >
-                    Punto Crédito ({formatMoneyVES(remainingVES)})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleQuickPay('PAGO_MOVIL', remainingUSD, false)}
-                    disabled={remainingUSD <= 0.01}
-                    className="px-2.5 py-1 text-xs font-semibold rounded bg-amber-100 text-amber-800 hover:bg-amber-200 transition-colors disabled:opacity-50 cursor-pointer"
-                  >
-                    Pago Móvil ({formatMoneyVES(remainingVES)})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleQuickPay('CASH_USD', remainingUSD, false)}
-                    disabled={remainingUSD <= 0.01}
-                    className="px-2.5 py-1 text-xs font-semibold rounded bg-emerald-100 text-emerald-800 hover:bg-emerald-200 transition-colors disabled:opacity-50 cursor-pointer"
-                  >
-                    Efectivo $ ({formatMoneyUSD(remainingUSD)})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleQuickPay('CASH_VES', remainingUSD, false)}
-                    disabled={remainingUSD <= 0.01}
-                    className="px-2.5 py-1 text-xs font-semibold rounded bg-neutral-200 text-neutral-800 hover:bg-neutral-300 transition-colors disabled:opacity-50 cursor-pointer"
-                  >
-                    Efectivo Bs ({formatMoneyVES(remainingVES)})
-                  </button>
-                </div>
-              </div>
-
-              {/* Formulario de Agregar Pago Personalizado */}
-              <div className="space-y-3 text-xs border border-neutral-200 p-3 rounded-lg bg-neutral-50/40">
-                <span className="font-semibold text-neutral-800 block">Agregar Forma de Pago Personalizada:</span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-neutral-600 mb-1">Medio de Pago</label>
-                    <select
-                      value={currentMethod}
-                      onChange={(e) => {
-                        const m = e.target.value;
-                        setCurrentMethod(m);
-                        const conf = availablePaymentMethods.find((c) => c.code === m);
-                        if (conf && conf.currency === 'VES') {
-                          setPaymentCurrencyMode('VES');
-                        } else if (conf && conf.currency === 'USD') {
-                          setPaymentCurrencyMode('USD');
-                        }
-                      }}
-                      className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs bg-white font-medium focus-visible:ring-2 focus-visible:ring-sky-500"
-                    >
-                      {availablePaymentMethods
-                        .filter((m) => m.isActive)
-                        .map((m) => (
-                          <option key={m.code} value={m.code}>
-                            {m.name} {m.appliesIGTF ? '[+3% IGTF]' : ''}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                  <div>
-                    <div className="flex justify-between items-center mb-1">
-                      <div className="flex items-center gap-1.5">
-                        <label className="text-neutral-600">Monto</label>
-                        <button
-                          type="button"
-                          onClick={() => setPaymentCurrencyMode((prev) => (prev === 'USD' ? 'VES' : 'USD'))}
-                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-neutral-100 hover:bg-sky-100 text-sky-800 transition-colors cursor-pointer"
-                          title="Cambiar moneda de entrada"
-                        >
-                          <ArrowLeftRight className="w-2.5 h-2.5" />
-                          {paymentCurrencyMode === 'USD' ? 'USD ($)' : 'Bs (VES)'}
-                        </button>
-                      </div>
-                      <span className="text-[10px] text-neutral-400 font-mono">
-                        {paymentCurrencyMode === 'USD' ? (
-                          <>Equiv: {formatMoneyVES(((parseFormattedNumber(paymentAmountInput) || remainingUSD)) * exchangeRateBCV)}</>
-                        ) : (
-                          <>Equiv: {formatMoneyUSD(((parseFormattedNumber(paymentAmountInput) || remainingVES)) / exchangeRateBCV)}</>
-                        )}
-                      </span>
-                    </div>
-                    <input
-                      type="text"
-                      value={paymentAmountInput}
-                      onChange={(e) => setPaymentAmountInput(e.target.value)}
-                      placeholder={
-                        paymentCurrencyMode === 'USD'
-                          ? (remainingUSD > 0 ? remainingUSD.toFixed(2) : '0.00')
-                          : (remainingVES > 0 ? remainingVES.toFixed(2) : '0.00')
-                      }
-                      className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs font-mono font-bold focus-visible:ring-2 focus-visible:ring-sky-500"
-                    />
-                  </div>
-                </div>
-
-                {(() => {
-                  const showRef = isMethodRequiringReference(currentMethod);
-                  if (!showRef) return null;
-                  return (
-                    <div>
-                      <label className="block text-neutral-600 mb-1">
-                        Número de Referencia / Lote Bancario <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={paymentRefInput}
-                        onChange={(e) => setPaymentRefInput(e.target.value)}
-                        placeholder="Últimos 4 o 6 dígitos del lote o confirmación"
-                        className="w-full h-8 px-2 border border-neutral-300 rounded-lg text-xs font-mono focus-visible:ring-2 focus-visible:ring-sky-500"
-                      />
-                    </div>
-                  );
-                })()}
-
-                <div className="flex gap-2 pt-1">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    type="button"
-                    onClick={() => {
-                      const parsed = parseFormattedNumber(paymentAmountInput);
-                      const isVES = paymentCurrencyMode === 'VES';
-                      const amt = parsed > 0 ? parsed : (isVES ? remainingVES : remainingUSD);
-                      handleAddPayment(currentMethod, amt, isVES, paymentRefInput);
-                    }}
-                    disabled={remainingUSD <= 0.01 && !paymentAmountInput}
-                  >
-                    <Plus className="w-3.5 h-3.5 mr-1" />
-                    Agregar Pago
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    type="button"
-                    onClick={() => {
-                      if (paymentCurrencyMode === 'VES') {
-                        handleAddPayment(currentMethod, remainingVES, true, paymentRefInput);
-                      } else {
-                        handleAddPayment(currentMethod, remainingUSD, false, paymentRefInput);
-                      }
-                    }}
-                    disabled={remainingUSD <= 0.01}
-                    className="text-sky-700 border-sky-300 hover:bg-sky-50"
-                  >
-                    Pagar Restante Total ({formatMoneyUSD(remainingUSD)} / {formatMoneyVES(remainingVES)})
-                  </Button>
-                </div>
-              </div>
-
-              {/* Lista de Pagos Agregados */}
-              <div className="space-y-2">
-                <span className="text-xs font-semibold text-neutral-800 block">
-                  Pagos Registrados ({payments.length}):
-                </span>
-                {payments.length === 0 ? (
-                  <div className="p-3 text-center text-xs text-neutral-400 bg-neutral-50 rounded-lg border border-dashed border-neutral-200">
-                    No se han registrado pagos aún
-                  </div>
-                ) : (
-                  <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                    {payments.map((p, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-center justify-between p-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs"
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <div>
-                            <span className="font-semibold text-neutral-800">{p.methodName || p.method}</span>
-                            {p.referenceNumber ? (
-                              <span className="font-mono text-[11px] text-neutral-600 bg-neutral-200/60 px-1.5 py-0.5 rounded ml-1.5">
-                                Ref: {p.referenceNumber}
-                              </span>
-                            ) : isMethodRequiringReference(p.method) ? (
-                              <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded ml-1.5">
-                                Sin Referencia
-                              </span>
-                            ) : null}
-                            {p.appliesIGTF && (
-                              <span className="text-[10px] text-indigo-600 block">
-                                +IGTF 3%: {formatMoneyUSD(p.igtfAmountUSD)}
-                              </span>
-                            )}
-                          </div>
-                          {isMethodRequiringReference(p.method) && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setQuickRefPrompt({
-                                  isOpen: true,
-                                  method: p.method,
-                                  methodName: p.methodName || p.method,
-                                  amountUSD: p.amountUSD,
-                                  amountVES: p.amountVES,
-                                  isVES: false,
-                                  refValue: p.referenceNumber || '',
-                                  isEditingPaymentIndex: idx,
-                                });
-                              }}
-                              className="text-neutral-400 hover:text-sky-600 p-1 rounded hover:bg-neutral-200/50"
-                              title="Editar o agregar número de referencia"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold">{formatMoneyUSD(p.amountUSD)}</span>
-                          <span className="font-mono text-neutral-400 text-[10px]">({formatMoneyVES(p.amountVES)})</span>
-                          <button
-                            type="button"
-                            onClick={() => removePayment(idx)}
-                            className="text-neutral-400 hover:text-red-500 p-1 rounded hover:bg-red-50"
-                            title="Eliminar este pago"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Footer Pinned (Acciones siempre visibles sin importar scroll o altura) */}
-            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-between gap-3 shrink-0">
-              <div className="flex items-center gap-2 text-xs">
-                <span className="text-neutral-500">Saldo pendiente:</span>
-                <span className={`font-mono font-bold ${remainingUSD <= 0.01 ? 'text-emerald-700' : 'text-red-600'}`}>
-                  {remainingUSD <= 0.01 ? 'Pagado Totalmente' : `${formatMoneyUSD(remainingUSD)} (${formatMoneyVES(remainingVES)})`}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  type="button"
-                  onClick={() => setIsPaymentModalOpen(false)}
-                  title="Cancelar cobro (Esc)"
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  size="sm"
-                  type="button"
-                  disabled={isSubmitting || remainingUSD > 0.01}
-                  onClick={handleProcessSale}
-                  className="font-bold shadow-sm"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                      Procesando Venta...
-                    </>
-                  ) : (
-                    <>
-                      <Check className="w-4 h-4 mr-1.5" />
-                      Emitir Factura Fiscal SENIAT
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Prompt para Captura / Edición de Referencia de Pago */}
-      {quickRefPrompt.isOpen && (
-        <div className="fixed inset-0 bg-neutral-900/70 z-[60] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg max-w-sm w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto animate-in fade-in zoom-in-95 duration-150">
-            {/* Header (Pinned) */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
-              <div className="flex items-center gap-2">
-                <CreditCard className="w-4 h-4 text-sky-600" />
-                <h4 className="text-xs font-bold text-neutral-900">
-                  {quickRefPrompt.isEditingPaymentIndex !== undefined ? 'Editar Referencia' : 'Referencia de Pago Requerida'}
-                </h4>
-              </div>
-              <button
-                type="button"
-                onClick={() =>
-                  setQuickRefPrompt({
-                    isOpen: false,
-                    method: '',
-                    methodName: '',
-                    amountUSD: 0,
-                    amountVES: 0,
-                    isVES: false,
-                    refValue: '',
-                  })
-                }
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100"
-                title="Cerrar (Esc)"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Body (Scrollable) */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3 text-xs">
-              <div className="p-2.5 bg-sky-50 border border-sky-100 rounded-lg text-sky-900">
-                <div className="font-semibold">{quickRefPrompt.methodName}</div>
-                <div className="text-[11px] font-mono">
-                  Monto: {formatMoneyUSD(quickRefPrompt.amountUSD)} ({formatMoneyVES(quickRefPrompt.amountVES)})
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-neutral-700 font-semibold mb-1">
-                  Número de Referencia / Lote / Aprobación *
-                </label>
-                <input
-                  type="text"
-                  autoFocus
-                  value={quickRefPrompt.refValue}
-                  onChange={(e) =>
-                    setQuickRefPrompt((prev) => ({ ...prev, refValue: e.target.value }))
-                  }
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleConfirmQuickRef();
-                    }
-                  }}
-                  placeholder="Ej: 489201 ó 1234"
-                  className="w-full h-9 px-3 border border-neutral-300 rounded-lg font-mono text-sm focus-visible:ring-2 focus-visible:ring-sky-500"
-                />
-                <p className="text-[10px] text-neutral-400 mt-1">
-                  Presione Enter para confirmar o Esc para cancelar
-                </p>
-              </div>
-            </div>
-
-            {/* Footer (Pinned) */}
-            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
+            <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 type="button"
-                onClick={() =>
-                  setQuickRefPrompt({
-                    isOpen: false,
-                    method: '',
-                    methodName: '',
-                    amountUSD: 0,
-                    amountVES: 0,
-                    isVES: false,
-                    refValue: '',
-                  })
-                }
+                onClick={() => setIsPaymentModalOpen(false)}
+                title="Cancelar cobro (Esc)"
               >
                 Cancelar
               </Button>
               <Button
                 size="sm"
                 type="button"
-                onClick={handleConfirmQuickRef}
-                className="font-bold"
+                disabled={isSubmitting || remainingUSD > 0.01}
+                onClick={handleProcessSale}
+                className="font-bold shadow-sm"
               >
-                <Check className="w-3.5 h-3.5 mr-1" />
-                Confirmar
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal: Registrar Nuevo Cliente */}
-      {isNewCustomerModalOpen && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
-            {/* Header (Pinned) */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
-              <div className="flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-neutral-800" />
-                <h3 className="text-sm font-bold text-neutral-900">Registrar Nuevo Cliente</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsNewCustomerModalOpen(false)}
-                className="text-neutral-400 hover:text-neutral-600 focus-visible:ring-2 rounded p-1"
-                title="Cerrar modal (Esc)"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateCustomer} className="flex-1 flex flex-col overflow-hidden">
-              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3 text-xs">
-                {newCustomerError && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
-                    {newCustomerError}
-                  </div>
-                )}
-                <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="block font-semibold text-neutral-700 mb-1">Tipo</label>
-                  <select
-                    value={newCustomerDocType}
-                    onChange={(e) => setNewCustomerDocType(e.target.value as any)}
-                    className="w-full h-9 px-2 border border-neutral-300 rounded-lg bg-white"
-                  >
-                    <option value="V">V - Venezolano</option>
-                    <option value="E">E - Extranjero</option>
-                    <option value="J">J - Jurídico</option>
-                    <option value="G">G - Gubernamental</option>
-                    <option value="P">P - Pasaporte</option>
-                  </select>
-                </div>
-                <div className="col-span-2">
-                  <label className="block font-semibold text-neutral-700 mb-1">Cédula / RIF *</label>
-                  <input
-                    type="text"
-                    required
-                    value={newCustomerDocNumber}
-                    onChange={(e) => setNewCustomerDocNumber(e.target.value)}
-                    placeholder="Ej: 18222333 ó 30555666-0"
-                    className="w-full h-9 px-3 border border-neutral-300 rounded-lg font-mono"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-neutral-700 mb-1">Nombre o Razón Social *</label>
-                <input
-                  type="text"
-                  required
-                  value={newCustomerName}
-                  onChange={(e) => setNewCustomerName(e.target.value)}
-                  placeholder="Ej: Juan Carlos Mendoza / Inversiones ABC C.A."
-                  className="w-full h-9 px-3 border border-neutral-300 rounded-lg"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block font-semibold text-neutral-700 mb-1">Teléfono</label>
-                  <input
-                    type="text"
-                    value={newCustomerPhone}
-                    onChange={(e) => setNewCustomerPhone(e.target.value)}
-                    placeholder="Ej: 0414-1234567"
-                    className="w-full h-9 px-3 border border-neutral-300 rounded-lg font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-neutral-700 mb-1">Correo Electrónico</label>
-                  <input
-                    type="email"
-                    value={newCustomerEmail}
-                    onChange={(e) => setNewCustomerEmail(e.target.value)}
-                    placeholder="cliente@ejemplo.com"
-                    className="w-full h-9 px-3 border border-neutral-300 rounded-lg"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-neutral-700 mb-1">Dirección Fiscal</label>
-                <input
-                  type="text"
-                  value={newCustomerAddress}
-                  onChange={(e) => setNewCustomerAddress(e.target.value)}
-                  placeholder="Ej: Av. Francisco de Miranda, Caracas"
-                  className="w-full h-9 px-3 border border-neutral-300 rounded-lg"
-                />
-              </div>
-
-              <div className="pt-1">
-                <label className="flex items-center gap-2 cursor-pointer text-neutral-700">
-                  <input
-                    type="checkbox"
-                    checked={newCustomerIsSpecialTaxpayer}
-                    onChange={(e) => setNewCustomerIsSpecialTaxpayer(e.target.checked)}
-                    className="rounded border-neutral-300 text-sky-600 focus:ring-sky-500"
-                  />
-                  <span>Contribuyente Especial SENIAT (Sujeto a retención)</span>
-                </label>
-              </div>
-            </div>
-
-            {/* Footer (Pinned) */}
-            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex justify-end gap-2 shrink-0">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setIsNewCustomerModalOpen(false)}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                size="sm"
-                disabled={isCreatingCustomer}
-              >
-                {isCreatingCustomer ? (
+                {isSubmitting ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                    Guardando...
+                    Procesando Venta...
                   </>
                 ) : (
                   <>
-                    <Check className="w-3.5 h-3.5 mr-1.5" />
-                    Guardar y Asociar a Venta
+                    <Check className="w-4 h-4 mr-1.5" />
+                    Emitir Factura Fiscal SENIAT
                   </>
                 )}
               </Button>
             </div>
-          </form>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          {/* Totalizador & Pendiente */}
+          <div className="p-3 bg-neutral-50 dark:bg-neutral-800/60 rounded-lg border border-neutral-200 dark:border-neutral-800 grid grid-cols-2 gap-3 text-xs">
+            <div>
+              <span className="text-neutral-500 dark:text-neutral-400 block">Total a Pagar:</span>
+              <span className="text-base font-bold font-mono text-neutral-900 dark:text-neutral-100">
+                {formatMoneyUSD(finalTotalUSD)}
+              </span>
+              <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-mono block">
+                {formatMoneyVES(finalTotalVES)}
+              </span>
+            </div>
+            <div>
+              <span className="text-neutral-500 dark:text-neutral-400 block">Restante por Pagar:</span>
+              <span className={`text-base font-bold font-mono ${remainingUSD <= 0.01 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                {formatMoneyUSD(remainingUSD)}
+              </span>
+              <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-mono block">
+                {formatMoneyVES(remainingVES)}
+              </span>
+            </div>
+          </div>
+
+          {/* Banner de Liquidación de Diferencia por IGTF */}
+          {totalIGTFUSD > 0 && remainingUSD > 0.005 && (
+            <div className="p-3 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs space-y-2">
+              <div className="flex items-center justify-between font-semibold text-indigo-950 dark:text-indigo-200">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-indigo-600 dark:bg-indigo-400 animate-pulse" />
+                  Diferencia IGTF (3%) por cancelar:
+                </span>
+                <span className="font-mono text-indigo-800 dark:text-indigo-300 font-extrabold text-sm">
+                  {formatMoneyUSD(remainingUSD)} <span className="text-[11px] font-normal text-indigo-600 dark:text-indigo-400">({formatMoneyVES(remainingVES)})</span>
+                </span>
+              </div>
+              <p className="text-[11px] text-indigo-800 dark:text-indigo-300 leading-tight">
+                Seleccione el método de pago para liquidar la diferencia remanente:
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 pt-0.5">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  type="button"
+                  onClick={() => handleQuickPay('DEBIT_CARD', remainingUSD, false)}
+                  className="text-[11px] h-8 px-2 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200 bg-white dark:bg-neutral-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 justify-start"
+                >
+                  Punto Débito ({formatMoneyVES(remainingVES)})
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  type="button"
+                  onClick={() => handleQuickPay('CREDIT_CARD', remainingUSD, false)}
+                  className="text-[11px] h-8 px-2 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200 bg-white dark:bg-neutral-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 justify-start"
+                >
+                  Punto Crédito ({formatMoneyVES(remainingVES)})
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  type="button"
+                  onClick={() => handleQuickPay('PAGO_MOVIL', remainingUSD, false)}
+                  className="text-[11px] h-8 px-2 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200 bg-white dark:bg-neutral-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 justify-start"
+                >
+                  Pago Móvil ({formatMoneyVES(remainingVES)})
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  type="button"
+                  onClick={() => handleQuickPay('CASH_VES', remainingUSD, false)}
+                  className="text-[11px] h-8 px-2 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200 bg-white dark:bg-neutral-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 justify-start"
+                >
+                  Efectivo Bs ({formatMoneyVES(remainingVES)})
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  type="button"
+                  onClick={() => handleQuickPay('CASH_USD', remainingUSD, false)}
+                  className="text-[11px] h-8 px-2 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200 bg-white dark:bg-neutral-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 justify-start"
+                >
+                  Efectivo $ ({formatMoneyUSD(remainingUSD)})
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Accesos Rápidos de Cobro Total */}
+          <div className="p-3 bg-neutral-50 dark:bg-neutral-800/60 rounded-lg border border-neutral-200 dark:border-neutral-800 space-y-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+              <span className="text-[10px] uppercase font-bold text-neutral-600 dark:text-neutral-400 tracking-wider">
+                Cobro Rápido Total:
+              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium">Ref / Lote:</span>
+                <input
+                  type="text"
+                  value={paymentRefInput}
+                  onChange={(e) => setPaymentRefInput(e.target.value)}
+                  placeholder="N° Referencia..."
+                  className="h-6 w-36 px-2 border border-neutral-300 dark:border-neutral-700 rounded text-[11px] font-mono bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 focus-visible:ring-1 focus-visible:ring-sky-500"
+                  title="Opcional: Si ingresa la referencia aquí, se aplicará directamente al presionar el medio."
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => handleQuickPay('DEBIT_CARD', remainingUSD, false)}
+                disabled={remainingUSD <= 0.01}
+                className="px-2.5 py-1 text-xs font-semibold rounded bg-sky-100 dark:bg-sky-950/60 text-sky-800 dark:text-sky-300 hover:bg-sky-200 dark:hover:bg-sky-900/60 border border-sky-200 dark:border-sky-800 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                Punto Débito ({formatMoneyVES(remainingVES)})
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickPay('CREDIT_CARD', remainingUSD, false)}
+                disabled={remainingUSD <= 0.01}
+                className="px-2.5 py-1 text-xs font-semibold rounded bg-indigo-100 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                Punto Crédito ({formatMoneyVES(remainingVES)})
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickPay('PAGO_MOVIL', remainingUSD, false)}
+                disabled={remainingUSD <= 0.01}
+                className="px-2.5 py-1 text-xs font-semibold rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/60 border border-amber-200 dark:border-amber-800 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                Pago Móvil ({formatMoneyVES(remainingVES)})
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickPay('CASH_USD', remainingUSD, false)}
+                disabled={remainingUSD <= 0.01}
+                className="px-2.5 py-1 text-xs font-semibold rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                Efectivo $ ({formatMoneyUSD(remainingUSD)})
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickPay('CASH_VES', remainingUSD, false)}
+                disabled={remainingUSD <= 0.01}
+                className="px-2.5 py-1 text-xs font-semibold rounded bg-neutral-200 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 hover:bg-neutral-300 dark:hover:bg-neutral-700 border border-neutral-300 dark:border-neutral-700 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                Efectivo Bs ({formatMoneyVES(remainingVES)})
+              </button>
+            </div>
+          </div>
+
+          {/* Formulario de Agregar Pago Personalizado */}
+          <div className="space-y-3 text-xs border border-neutral-200 dark:border-neutral-800 p-3 rounded-lg bg-neutral-50/40 dark:bg-neutral-800/40">
+            <span className="font-semibold text-neutral-800 dark:text-neutral-200 block">Agregar Forma de Pago Personalizada:</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-neutral-600 dark:text-neutral-400 mb-1">Medio de Pago</label>
+                <select
+                  value={currentMethod}
+                  onChange={(e) => {
+                    const m = e.target.value;
+                    setCurrentMethod(m);
+                    const conf = availablePaymentMethods.find((c) => c.code === m);
+                    if (conf && conf.currency === 'VES') {
+                      setPaymentCurrencyMode('VES');
+                    } else if (conf && conf.currency === 'USD') {
+                      setPaymentCurrencyMode('USD');
+                    }
+                  }}
+                  className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 font-medium focus-visible:ring-2 focus-visible:ring-sky-500"
+                >
+                  {availablePaymentMethods
+                    .filter((m) => m.isActive)
+                    .map((m) => (
+                      <option key={m.code} value={m.code}>
+                        {m.name} {m.appliesIGTF ? '[+3% IGTF]' : ''}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-neutral-600 dark:text-neutral-400">Monto</label>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentCurrencyMode((prev) => (prev === 'USD' ? 'VES' : 'USD'))}
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-neutral-100 dark:bg-neutral-800 hover:bg-sky-100 dark:hover:bg-neutral-700 text-sky-800 dark:text-sky-300 border border-neutral-200 dark:border-neutral-700 transition-colors cursor-pointer"
+                      title="Cambiar moneda de entrada"
+                    >
+                      <ArrowLeftRight className="w-2.5 h-2.5" />
+                      {paymentCurrencyMode === 'USD' ? 'USD ($)' : 'Bs (VES)'}
+                    </button>
+                  </div>
+                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono">
+                    {paymentCurrencyMode === 'USD' ? (
+                      <>Equiv: {formatMoneyVES(((parseFormattedNumber(paymentAmountInput) || remainingUSD)) * exchangeRateBCV)}</>
+                    ) : (
+                      <>Equiv: {formatMoneyUSD(((parseFormattedNumber(paymentAmountInput) || remainingVES)) / exchangeRateBCV)}</>
+                    )}
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  value={paymentAmountInput}
+                  onChange={(e) => setPaymentAmountInput(e.target.value)}
+                  placeholder={
+                    paymentCurrencyMode === 'USD'
+                      ? (remainingUSD > 0 ? remainingUSD.toFixed(2) : '0.00')
+                      : (remainingVES > 0 ? remainingVES.toFixed(2) : '0.00')
+                  }
+                  className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs font-mono font-bold bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 focus-visible:ring-2 focus-visible:ring-sky-500"
+                />
+              </div>
+            </div>
+
+            {(() => {
+              const showRef = isMethodRequiringReference(currentMethod);
+              if (!showRef) return null;
+              return (
+                <div>
+                  <label className="block text-neutral-600 dark:text-neutral-400 mb-1">
+                    Número de Referencia / Lote Bancario <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={paymentRefInput}
+                    onChange={(e) => setPaymentRefInput(e.target.value)}
+                    placeholder="Últimos 4 o 6 dígitos del lote o confirmación"
+                    className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs font-mono bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 focus-visible:ring-2 focus-visible:ring-sky-500"
+                  />
+                </div>
+              );
+            })()}
+
+            <div className="flex gap-2 pt-1">
+              <Button
+                size="sm"
+                variant="outline"
+                type="button"
+                onClick={() => {
+                  const parsed = parseFormattedNumber(paymentAmountInput);
+                  const isVES = paymentCurrencyMode === 'VES';
+                  const amt = parsed > 0 ? parsed : (isVES ? remainingVES : remainingUSD);
+                  handleAddPayment(currentMethod, amt, isVES, paymentRefInput);
+                }}
+                disabled={remainingUSD <= 0.01 && !paymentAmountInput}
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                Agregar Pago
+              </Button>
+
+              <Button
+                size="sm"
+                variant="outline"
+                type="button"
+                onClick={() => {
+                  if (paymentCurrencyMode === 'VES') {
+                    handleAddPayment(currentMethod, remainingVES, true, paymentRefInput);
+                  } else {
+                    handleAddPayment(currentMethod, remainingUSD, false, paymentRefInput);
+                  }
+                }}
+                disabled={remainingUSD <= 0.01}
+                className="text-sky-700 dark:text-sky-300 border-sky-300 dark:border-sky-800 hover:bg-sky-50 dark:hover:bg-sky-950/40"
+              >
+                Pagar Restante Total ({formatMoneyUSD(remainingUSD)} / {formatMoneyVES(remainingVES)})
+              </Button>
+            </div>
+          </div>
+
+          {/* Lista de Pagos Agregados */}
+          <div className="space-y-2">
+            <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 block">
+              Pagos Registrados ({payments.length}):
+            </span>
+            {payments.length === 0 ? (
+              <div className="p-3 text-center text-xs text-neutral-400 dark:text-neutral-500 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg border border-dashed border-neutral-200 dark:border-neutral-700">
+                No se han registrado pagos aún
+              </div>
+            ) : (
+              <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                {payments.map((p, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between p-2 bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-800 rounded-lg text-xs"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <div>
+                        <span className="font-semibold text-neutral-800 dark:text-neutral-200">{p.methodName || p.method}</span>
+                        {p.referenceNumber ? (
+                          <span className="font-mono text-[11px] text-neutral-600 dark:text-neutral-400 bg-neutral-200/60 dark:bg-neutral-700/60 px-1.5 py-0.5 rounded ml-1.5">
+                            Ref: {p.referenceNumber}
+                          </span>
+                        ) : isMethodRequiringReference(p.method) ? (
+                          <span className="text-[10px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 px-1.5 py-0.5 rounded ml-1.5">
+                            Sin Referencia
+                          </span>
+                        ) : null}
+                        {p.appliesIGTF && (
+                          <span className="text-[10px] text-indigo-600 dark:text-indigo-400 block">
+                            +IGTF 3%: {formatMoneyUSD(p.igtfAmountUSD)}
+                          </span>
+                        )}
+                      </div>
+                      {isMethodRequiringReference(p.method) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setQuickRefPrompt({
+                              isOpen: true,
+                              method: p.method,
+                              methodName: p.methodName || p.method,
+                              amountUSD: p.amountUSD,
+                              amountVES: p.amountVES,
+                              isVES: false,
+                              refValue: p.referenceNumber || '',
+                              isEditingPaymentIndex: idx,
+                            });
+                          }}
+                          className="text-neutral-400 hover:text-sky-600 dark:hover:text-sky-400 p-1 rounded hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 cursor-pointer"
+                          title="Editar o agregar número de referencia"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100">{formatMoneyUSD(p.amountUSD)}</span>
+                      <span className="font-mono text-neutral-400 dark:text-neutral-500 text-[10px]">({formatMoneyVES(p.amountVES)})</span>
+                      <button
+                        type="button"
+                        onClick={() => removePayment(idx)}
+                        className="text-neutral-400 hover:text-red-500 dark:hover:text-red-400 p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer"
+                        title="Eliminar este pago"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-    )}
+      </Modal>
+
+      {/* Modal Prompt para Captura / Edición de Referencia de Pago */}
+      <Modal
+        isOpen={quickRefPrompt.isOpen}
+        onClose={() =>
+          setQuickRefPrompt({
+            isOpen: false,
+            method: '',
+            methodName: '',
+            amountUSD: 0,
+            amountVES: 0,
+            isVES: false,
+            refValue: '',
+          })
+        }
+        title={quickRefPrompt.isEditingPaymentIndex !== undefined ? 'Editar Referencia' : 'Referencia de Pago Requerida'}
+        icon={<CreditCard className="w-4 h-4 text-sky-600 dark:text-sky-400" />}
+        size="sm"
+        footer={
+          <div className="flex items-center justify-end gap-2 w-full">
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              onClick={() =>
+                setQuickRefPrompt({
+                  isOpen: false,
+                  method: '',
+                  methodName: '',
+                  amountUSD: 0,
+                  amountVES: 0,
+                  isVES: false,
+                  refValue: '',
+                })
+              }
+            >
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              type="button"
+              onClick={handleConfirmQuickRef}
+              className="font-bold"
+            >
+              <Check className="w-3.5 h-3.5 mr-1" />
+              Confirmar
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3 text-xs">
+          <div className="p-2.5 bg-sky-50 dark:bg-sky-950/40 border border-sky-100 dark:border-sky-800 rounded-lg text-sky-900 dark:text-sky-200">
+            <div className="font-semibold">{quickRefPrompt.methodName}</div>
+            <div className="text-[11px] font-mono text-sky-700 dark:text-sky-300">
+              Monto: {formatMoneyUSD(quickRefPrompt.amountUSD)} ({formatMoneyVES(quickRefPrompt.amountVES)})
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-neutral-700 dark:text-neutral-300 font-semibold mb-1">
+              Número de Referencia / Lote / Aprobación *
+            </label>
+            <input
+              type="text"
+              autoFocus
+              value={quickRefPrompt.refValue}
+              onChange={(e) =>
+                setQuickRefPrompt((prev) => ({ ...prev, refValue: e.target.value }))
+              }
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleConfirmQuickRef();
+                }
+              }}
+              placeholder="Ej: 489201 ó 1234"
+              className="w-full h-9 px-3 border border-neutral-300 dark:border-neutral-700 rounded-lg font-mono text-sm bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
+            />
+            <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">
+              Presione Enter para confirmar o Esc para cancelar
+            </p>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal: Registrar Nuevo Cliente */}
+      <Modal
+        isOpen={isNewCustomerModalOpen}
+        onClose={() => setIsNewCustomerModalOpen(false)}
+        title="Registrar Nuevo Cliente"
+        icon={<UserPlus className="w-5 h-5 text-neutral-800 dark:text-neutral-200" />}
+        size="md"
+      >
+        <form onSubmit={handleCreateCustomer} className="space-y-3 text-xs">
+          {newCustomerError && (
+            <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg text-xs text-red-700 dark:text-red-300">
+              {newCustomerError}
+            </div>
+          )}
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Tipo</label>
+              <select
+                value={newCustomerDocType}
+                onChange={(e) => setNewCustomerDocType(e.target.value as any)}
+                className="w-full h-9 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+              >
+                <option value="V">V - Venezolano</option>
+                <option value="E">E - Extranjero</option>
+                <option value="J">J - Jurídico</option>
+                <option value="G">G - Gubernamental</option>
+                <option value="P">P - Pasaporte</option>
+              </select>
+            </div>
+            <div className="col-span-2">
+              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Cédula / RIF *</label>
+              <input
+                type="text"
+                required
+                value={newCustomerDocNumber}
+                onChange={(e) => setNewCustomerDocNumber(e.target.value)}
+                placeholder="Ej: 18222333 ó 30555666-0"
+                className="w-full h-9 px-3 border border-neutral-300 dark:border-neutral-700 rounded-lg font-mono bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Nombre o Razón Social *</label>
+            <input
+              type="text"
+              required
+              value={newCustomerName}
+              onChange={(e) => setNewCustomerName(e.target.value)}
+              placeholder="Ej: Juan Carlos Mendoza / Inversiones ABC C.A."
+              className="w-full h-9 px-3 border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Teléfono</label>
+              <input
+                type="text"
+                value={newCustomerPhone}
+                onChange={(e) => setNewCustomerPhone(e.target.value)}
+                placeholder="Ej: 0414-1234567"
+                className="w-full h-9 px-3 border border-neutral-300 dark:border-neutral-700 rounded-lg font-mono bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Correo Electrónico</label>
+              <input
+                type="email"
+                value={newCustomerEmail}
+                onChange={(e) => setNewCustomerEmail(e.target.value)}
+                placeholder="cliente@ejemplo.com"
+                className="w-full h-9 px-3 border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Dirección Fiscal</label>
+            <input
+              type="text"
+              value={newCustomerAddress}
+              onChange={(e) => setNewCustomerAddress(e.target.value)}
+              placeholder="Ej: Av. Francisco de Miranda, Caracas"
+              className="w-full h-9 px-3 border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+            />
+          </div>
+
+          <div className="pt-1">
+            <label className="flex items-center gap-2 cursor-pointer text-neutral-700 dark:text-neutral-300">
+              <input
+                type="checkbox"
+                checked={newCustomerIsSpecialTaxpayer}
+                onChange={(e) => setNewCustomerIsSpecialTaxpayer(e.target.checked)}
+                className="rounded border-neutral-300 dark:border-neutral-700 text-sky-600 focus:ring-sky-500 bg-white dark:bg-neutral-800"
+              />
+              <span>Contribuyente Especial SENIAT (Sujeto a retención)</span>
+            </label>
+          </div>
+
+          <div className="pt-3 border-t border-neutral-200 dark:border-neutral-800 flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsNewCustomerModalOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={isCreatingCustomer}
+            >
+              {isCreatingCustomer ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                <>
+                  <Check className="w-3.5 h-3.5 mr-1.5" />
+                  Guardar y Asociar a Venta
+                </>
+              )}
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Modal de Ticket Fiscal Emitido / Ticket de Venta */}
       <FiscalInvoiceModal
@@ -3371,815 +3320,755 @@ export const POSRegister: React.FC = () => {
       />
 
       {/* Modal de Pregunta: ¿Desea imprimir un ticket de venta? (Modo No Fiscal) */}
-      {showPrintPromptModal && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg max-w-sm w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
-            {/* Header (Pinned) */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
-              <div className="flex items-center gap-2">
-                <Printer className="w-5 h-5 text-sky-600" />
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-900">
-                    ¿Imprimir Ticket de Venta?
-                  </h3>
-                  <p className="text-[11px] text-neutral-500">
-                    Venta completada en modo no fiscal
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowPrintPromptModal(false)}
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100"
-                title="Cerrar modal (Esc)"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      <Modal
+        isOpen={showPrintPromptModal}
+        onClose={() => setShowPrintPromptModal(false)}
+        title="¿Imprimir Ticket de Venta?"
+        subtitle="Venta completada en modo no fiscal"
+        icon={<Printer className="w-5 h-5 text-sky-600 dark:text-sky-400" />}
+        size="sm"
+        footer={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowPrintPromptModal(false)}
+            >
+              No Imprimir
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                setShowPrintPromptModal(false);
+                setIsInvoiceModalOpen(true);
+              }}
+            >
+              <Printer className="w-4 h-4 mr-1.5" />
+              Imprimir Ticket
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3 text-xs">
+          <div className="p-3 bg-neutral-50 dark:bg-neutral-800/60 rounded-lg border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-300 space-y-1">
+            <p>
+              La venta ha sido registrada exitosamente y el inventario fue actualizado.
+            </p>
+            <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+              ¿Desea imprimir el comprobante de entrega para el cliente o continuar con la siguiente transacción?
+            </p>
+          </div>
+        </div>
+      </Modal>
 
-            {/* Body (Scrollable) */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3 text-xs">
-              <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 text-neutral-600 space-y-1">
-                <p>
-                  La venta ha sido registrada exitosamente y el inventario fue actualizado.
-                </p>
-                <p className="text-[11px] text-neutral-500">
-                  ¿Desea imprimir el comprobante de entrega para el cliente o continuar con la siguiente transacción?
-                </p>
-              </div>
+      {/* Modal: Verificación y Auditoría del Carrito de Compras */}
+      <Modal
+        isOpen={isCartReviewModalOpen}
+        onClose={() => setIsCartReviewModalOpen(false)}
+        title="Verificación Detallada del Carrito de Compras"
+        subtitle={`${cart.length} líneas de producto • ${cart.reduce((s, i) => s + i.quantity, 0)} unidades • Tasa BCV: Bs. ${formatExchangeRate(exchangeRateBCV, 2)}`}
+        icon={<ListChecks className="w-5 h-5 text-sky-600 dark:text-sky-400" />}
+        size="4xl"
+        footer={
+          <div className="w-full flex items-center justify-between gap-2">
+            <div>
+              {cart.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  onClick={async () => {
+                    const confirmed = await showClearCartAlert();
+                    if (confirmed) {
+                      setCart([]);
+                      setIsCartReviewModalOpen(false);
+                    }
+                  }}
+                  className="text-red-600 dark:text-red-400 border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-950/40 text-xs"
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1" />
+                  Vaciar Carrito
+                </Button>
+              )}
             </div>
-
-            {/* Footer (Pinned) */}
-            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-end gap-2 shrink-0">
+            <div className="flex gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setShowPrintPromptModal(false)}
+                onClick={() => setIsCartReviewModalOpen(false)}
               >
-                No Imprimir
+                Volver a la Caja
               </Button>
               <Button
                 size="sm"
+                disabled={cart.length === 0}
                 onClick={() => {
-                  setShowPrintPromptModal(false);
-                  setIsInvoiceModalOpen(true);
+                  setIsCartReviewModalOpen(false);
+                  setPayments([]);
+                  setIsPaymentModalOpen(true);
                 }}
               >
-                <Printer className="w-4 h-4 mr-1.5" />
-                Imprimir Ticket
+                <CreditCard className="w-4 h-4 mr-1.5" />
+                Proceder al Cobro ({formatMoneyUSD(subtotalBeforeIGTF)})
               </Button>
             </div>
           </div>
-        </div>
-      )}
+        }
+      >
+        <div className="space-y-4">
+          {cart.length === 0 ? (
+            <div className="py-12 text-center text-neutral-400 dark:text-neutral-500 flex flex-col items-center">
+              <ShoppingCart className="w-10 h-10 mb-2 stroke-1 text-neutral-300 dark:text-neutral-600" />
+              <p className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">El carrito está vacío</p>
+              <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1">
+                Agregue productos desde el catálogo para visualizarlos y auditarlos aquí.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-800 rounded-lg">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 font-semibold uppercase text-[10px] tracking-wider sticky top-0 border-b border-neutral-200 dark:border-neutral-700">
+                  <tr>
+                    <th className="py-2.5 px-3">#</th>
+                    <th className="py-2.5 px-3">SKU</th>
+                    <th className="py-2.5 px-3">Producto</th>
+                    <th className="py-2.5 px-3 text-center">Cant.</th>
+                    <th className="py-2.5 px-3 text-right">P. Unit ($)</th>
+                    <th className="py-2.5 px-3 text-right">P. Unit (Bs.)</th>
+                    <th className="py-2.5 px-3 text-center">IVA</th>
+                    <th className="py-2.5 px-3 text-right">Subtotal ($)</th>
+                    <th className="py-2.5 px-3 text-right">Total ($)</th>
+                    <th className="py-2.5 px-3 text-right">Total (Bs.)</th>
+                    <th className="py-2.5 px-3 text-center">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                  {cart.map((item, idx) => {
+                    const unitPriceVES = item.unitPrice * exchangeRateBCV;
+                    const totalVES = item.total * exchangeRateBCV;
+                    const itemKey = `${item.productId}-${item.presentationId || 'base'}`;
+                    const prod = products.find((p) => p.id === item.productId);
+                    const availableStock = prod?.stock ?? 0;
+                    const totalCommittedUnits = cart
+                      .filter((i) => i.productId === item.productId)
+                      .reduce((s, i) => s + i.quantity * (i.multiplier || 1), 0);
+                    const isNegative = totalCommittedUnits > availableStock;
 
-      {/* Modal: Verificación y Auditoría del Carrito de Compras */}
-      {isCartReviewModalOpen && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
-            {/* Header (Pinned) */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
-              <div className="flex items-center gap-2">
-                <ListChecks className="w-5 h-5 text-sky-600" />
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-900">
-                    Verificación Detallada del Carrito de Compras
-                  </h3>
-                  <p className="text-[11px] text-neutral-500">
-                    {cart.length} líneas de producto • {cart.reduce((s, i) => s + i.quantity, 0)} unidades • Tasa BCV: Bs. {formatExchangeRate(exchangeRateBCV, 2)}
+                    return (
+                      <tr key={itemKey} className="hover:bg-neutral-50/70 dark:hover:bg-neutral-800/50 transition-colors">
+                        <td className="py-2 px-3 font-mono text-neutral-400 dark:text-neutral-500">{idx + 1}</td>
+                        <td className="py-2 px-3 font-mono font-medium text-neutral-700 dark:text-neutral-300">{item.sku}</td>
+                        <td className="py-2 px-3">
+                          <div className="font-semibold text-neutral-900 dark:text-neutral-100 flex items-center gap-1.5">
+                            <span>{item.name}</span>
+                            {item.presentationName && (
+                              <span className="text-[10px] font-medium bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.2 rounded border border-emerald-200 dark:border-emerald-800">
+                                x{item.multiplier || 1}
+                              </span>
+                            )}
+                          </div>
+                          {isNegative && (
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <span className="text-[10px] font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.2 rounded border border-amber-200 dark:border-amber-800">
+                                Stock neg ({availableStock - totalCommittedUnits})
+                              </span>
+                              {item.isNegativeStockAuthorized && (
+                                <span className="text-[10px] text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 px-1 py-0.2 rounded border border-emerald-200 dark:border-emerald-800 flex items-center gap-0.5 font-medium">
+                                  <ShieldCheck className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
+                                  {item.supervisorApprovedBy || 'Autorizado'}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {item.requiresAuthorization && (
+                            <div className="flex items-center gap-1 mt-0.5">
+                              {item.isPresentationAuthorized ? (
+                                <span className="text-[10px] text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.2 rounded border border-emerald-200 dark:border-emerald-800 flex items-center gap-0.5 font-medium">
+                                  <ShieldCheck className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
+                                  Pres. Autorizada ({item.supervisorApprovedBy || 'Supervisor'})
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.2 rounded border border-amber-200 dark:border-amber-800 flex items-center gap-0.5">
+                                  <ShieldCheck className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
+                                  Req. Autorización
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-2 px-3">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => updateCartQty(item.productId, item.presentationId, -1)}
+                              className="w-5 h-5 rounded bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 border border-neutral-300 dark:border-neutral-700 flex items-center justify-center text-neutral-700 dark:text-neutral-300 cursor-pointer"
+                            >
+                              <Minus className="w-3 h-3" />
+                            </button>
+                            <span className="w-7 text-center font-mono font-bold text-neutral-900 dark:text-neutral-100">{item.quantity}</span>
+                            <button
+                              type="button"
+                              onClick={() => updateCartQty(item.productId, item.presentationId, 1)}
+                              className="w-5 h-5 rounded bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 border border-neutral-300 dark:border-neutral-700 flex items-center justify-center text-neutral-700 dark:text-neutral-300 cursor-pointer"
+                            >
+                              <Plus className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </td>
+                        <td className="py-2 px-3 text-right font-mono text-neutral-800 dark:text-neutral-200">{formatMoneyUSD(item.unitPrice)}</td>
+                        <td className="py-2 px-3 text-right font-mono text-neutral-500 dark:text-neutral-400">
+                          {formatMoneyVES(unitPriceVES)}
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          <Badge variant={item.taxRatePercent === 0 ? 'neutral' : 'info'}>
+                            {item.taxRatePercent === 0 ? 'Exento' : `${item.taxRatePercent}%`}
+                          </Badge>
+                        </td>
+                        <td className="py-2 px-3 text-right font-mono text-neutral-800 dark:text-neutral-200">{formatMoneyUSD(item.subtotal)}</td>
+                        <td className="py-2 px-3 text-right font-mono font-bold text-neutral-900 dark:text-neutral-100">
+                          {formatMoneyUSD(item.total)}
+                        </td>
+                        <td className="py-2 px-3 text-right font-mono font-semibold text-sky-700 dark:text-sky-400">
+                          {formatMoneyVES(totalVES)}
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => removeFromCart(item.productId, item.presentationId)}
+                            className="text-neutral-400 hover:text-red-600 dark:hover:text-red-400 p-1 rounded cursor-pointer"
+                            title="Eliminar del carrito"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Resumen Fiscal / Totales */}
+          {cart.length > 0 && (
+            <div className="bg-neutral-50 dark:bg-neutral-800/60 p-4 rounded-lg border border-neutral-200 dark:border-neutral-800 grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+              <div>
+                <span className="text-neutral-500 dark:text-neutral-400 block">Base Exenta:</span>
+                <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100 text-sm">
+                  {formatMoneyUSD(baseExempt)}
+                </span>
+                <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono block">
+                  {formatMoneyVES(baseExempt * exchangeRateBCV)}
+                </span>
+              </div>
+              <div>
+                <span className="text-neutral-500 dark:text-neutral-400 block">Base Imponible (16%):</span>
+                <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100 text-sm">
+                  {formatMoneyUSD(baseTaxable)}
+                </span>
+                <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono block">
+                  {formatMoneyVES(baseTaxable * exchangeRateBCV)}
+                </span>
+              </div>
+              <div>
+                <span className="text-neutral-500 dark:text-neutral-400 block">IVA Acumulado:</span>
+                <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100 text-sm">
+                  {formatMoneyUSD(taxAmount)}
+                </span>
+                <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono block">
+                  {formatMoneyVES(taxAmount * exchangeRateBCV)}
+                </span>
+              </div>
+              <div className="bg-white dark:bg-neutral-900 p-2.5 rounded-lg border border-sky-200 dark:border-sky-800">
+                <span className="text-sky-800 dark:text-sky-300 font-semibold block">Total General:</span>
+                <span className="font-mono font-extrabold text-sky-700 dark:text-sky-400 text-base">
+                  {formatMoneyUSD(subtotalBeforeIGTF)}
+                </span>
+                <span className="text-xs text-sky-900 dark:text-sky-200 font-mono block font-semibold">
+                  {formatMoneyVES(subtotalBeforeIGTF * exchangeRateBCV)}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Modal de Autorización de Supervisor para Stock en Negativo */}
+      <Modal
+        isOpen={Boolean(isSupervisorModalOpen && pendingStockApproval)}
+        onClose={() => {
+          setIsSupervisorModalOpen(false);
+          setPendingStockApproval(null);
+        }}
+        title="Autorización de Supervisor Requerida"
+        subtitle={
+          pendingStockApproval?.action === 'PRESENTATION_AUTH'
+            ? 'Presentación de producto restringida para la venta'
+            : 'Venta con existencia de inventario en negativo'
+        }
+        icon={<ShieldCheck className="w-5 h-5 text-amber-600 dark:text-amber-400" />}
+        size="md"
+      >
+        {pendingStockApproval && (
+          <div className="space-y-4 text-xs">
+            {pendingStockApproval.action === 'PRESENTATION_AUTH' ? (
+              /* Tarjeta de Resumen para Presentación Restringida */
+              <div className="p-3 bg-amber-50/60 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800 space-y-2">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <span className="font-bold text-neutral-900 dark:text-neutral-100 block text-xs">
+                      {pendingStockApproval.productName}
+                    </span>
+                    <span className="font-mono text-[11px] text-neutral-500 dark:text-neutral-400">
+                      SKU: {pendingStockApproval.sku}
+                    </span>
+                  </div>
+                  <Badge variant="warning" className="text-[10px]">
+                    Req. Autorización
+                  </Badge>
+                </div>
+
+                <div className="pt-2 border-t border-amber-200/60 dark:border-amber-800/60 text-[11px] text-neutral-700 dark:text-neutral-300 space-y-1">
+                  <p>
+                    La presentación o empaque <strong>{pendingStockApproval.presentationName || 'seleccionada'}</strong> (x{pendingStockApproval.multiplier || 1}) está configurada para requerir autorización expresa de supervisor antes de ser comercializada en caja.
+                  </p>
+                  <p className="text-neutral-500 dark:text-neutral-400 text-[10px]">
+                    Por favor, solicite a un supervisor que ingrese sus credenciales para autorizar el despacho.
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsCartReviewModalOpen(false)}
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100"
-                title="Cerrar modal (Esc)"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+            ) : (
+              /* Tarjeta de Resumen de Stock */
+              <div className="p-3 bg-amber-50/60 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800 space-y-2">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <span className="font-bold text-neutral-900 dark:text-neutral-100 block text-xs">
+                      {pendingStockApproval.productName}
+                    </span>
+                    <span className="font-mono text-[11px] text-neutral-500 dark:text-neutral-400">
+                      SKU: {pendingStockApproval.sku}
+                    </span>
+                  </div>
+                  <Badge variant="warning" className="text-[10px]">
+                    Déficit: -{pendingStockApproval.deficit}
+                  </Badge>
+                </div>
 
-            {/* Body (Scrollable) */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
-              {cart.length === 0 ? (
-                <div className="py-12 text-center text-neutral-400 flex flex-col items-center">
-                  <ShoppingCart className="w-10 h-10 mb-2 stroke-1 text-neutral-300" />
-                  <p className="text-sm font-semibold">El carrito está vacío</p>
-                  <p className="text-xs text-neutral-400 mt-1">
-                    Agregue productos desde el catálogo para visualizarlos y auditarlos aquí.
-                  </p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto border border-neutral-200 rounded-lg">
-                  <table className="w-full text-xs text-left">
-                    <thead className="bg-neutral-100 text-neutral-700 font-semibold uppercase text-[10px] tracking-wider sticky top-0 border-b border-neutral-200">
-                      <tr>
-                        <th className="py-2.5 px-3">#</th>
-                        <th className="py-2.5 px-3">SKU</th>
-                        <th className="py-2.5 px-3">Producto</th>
-                        <th className="py-2.5 px-3 text-center">Cant.</th>
-                        <th className="py-2.5 px-3 text-right">P. Unit ($)</th>
-                        <th className="py-2.5 px-3 text-right">P. Unit (Bs.)</th>
-                        <th className="py-2.5 px-3 text-center">IVA</th>
-                        <th className="py-2.5 px-3 text-right">Subtotal ($)</th>
-                        <th className="py-2.5 px-3 text-right">Total ($)</th>
-                        <th className="py-2.5 px-3 text-right">Total (Bs.)</th>
-                        <th className="py-2.5 px-3 text-center">Acción</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-neutral-100">
-                      {cart.map((item, idx) => {
-                        const unitPriceVES = item.unitPrice * exchangeRateBCV;
-                        const totalVES = item.total * exchangeRateBCV;
-                        const itemKey = `${item.productId}-${item.presentationId || 'base'}`;
-                        const prod = products.find((p) => p.id === item.productId);
-                        const availableStock = prod?.stock ?? 0;
-                        const totalCommittedUnits = cart
-                          .filter((i) => i.productId === item.productId)
-                          .reduce((s, i) => s + i.quantity * (i.multiplier || 1), 0);
-                        const isNegative = totalCommittedUnits > availableStock;
-
-                        return (
-                          <tr key={itemKey} className="hover:bg-neutral-50/70 transition-colors">
-                            <td className="py-2 px-3 font-mono text-neutral-400">{idx + 1}</td>
-                            <td className="py-2 px-3 font-mono font-medium text-neutral-700">{item.sku}</td>
-                            <td className="py-2 px-3">
-                              <div className="font-semibold text-neutral-900 flex items-center gap-1.5">
-                                <span>{item.name}</span>
-                                {item.presentationName && (
-                                  <span className="text-[10px] font-medium bg-emerald-50 text-emerald-700 px-1.5 py-0.2 rounded border border-emerald-200">
-                                    x{item.multiplier || 1}
-                                  </span>
-                                )}
-                              </div>
-                              {isNegative && (
-                                <div className="flex items-center gap-1 mt-0.5">
-                                  <span className="text-[10px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
-                                    Stock neg ({availableStock - totalCommittedUnits})
-                                  </span>
-                                  {item.isNegativeStockAuthorized && (
-                                    <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200 flex items-center gap-0.5 font-medium">
-                                      <ShieldCheck className="w-2.5 h-2.5 text-emerald-600" />
-                                      {item.supervisorApprovedBy || 'Autorizado'}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                              {item.requiresAuthorization && (
-                                <div className="flex items-center gap-1 mt-0.5">
-                                  {item.isPresentationAuthorized ? (
-                                    <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 flex items-center gap-0.5 font-medium">
-                                      <ShieldCheck className="w-2.5 h-2.5 text-emerald-600" />
-                                      Pres. Autorizada ({item.supervisorApprovedBy || 'Supervisor'})
-                                    </span>
-                                  ) : (
-                                    <span className="text-[10px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200 flex items-center gap-0.5">
-                                      <ShieldCheck className="w-2.5 h-2.5 text-amber-600" />
-                                      Req. Autorización
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                            </td>
-                            <td className="py-2 px-3">
-                              <div className="flex items-center justify-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => updateCartQty(item.productId, item.presentationId, -1)}
-                                  className="w-5 h-5 rounded bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-700 cursor-pointer"
-                                >
-                                  <Minus className="w-3 h-3" />
-                                </button>
-                                <span className="w-7 text-center font-mono font-bold">{item.quantity}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => updateCartQty(item.productId, item.presentationId, 1)}
-                                  className="w-5 h-5 rounded bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-700 cursor-pointer"
-                                >
-                                  <Plus className="w-3 h-3" />
-                                </button>
-                              </div>
-                            </td>
-                            <td className="py-2 px-3 text-right font-mono">{formatMoneyUSD(item.unitPrice)}</td>
-                            <td className="py-2 px-3 text-right font-mono text-neutral-500">
-                              {formatMoneyVES(unitPriceVES)}
-                            </td>
-                            <td className="py-2 px-3 text-center">
-                              <Badge variant={item.taxRatePercent === 0 ? 'neutral' : 'info'}>
-                                {item.taxRatePercent === 0 ? 'Exento' : `${item.taxRatePercent}%`}
-                              </Badge>
-                            </td>
-                            <td className="py-2 px-3 text-right font-mono">{formatMoneyUSD(item.subtotal)}</td>
-                            <td className="py-2 px-3 text-right font-mono font-bold text-neutral-900">
-                              {formatMoneyUSD(item.total)}
-                            </td>
-                            <td className="py-2 px-3 text-right font-mono font-semibold text-sky-700">
-                              {formatMoneyVES(totalVES)}
-                            </td>
-                            <td className="py-2 px-3 text-center">
-                              <button
-                                type="button"
-                                onClick={() => removeFromCart(item.productId, item.presentationId)}
-                                className="text-neutral-400 hover:text-red-600 p-1 rounded cursor-pointer"
-                                title="Eliminar del carrito"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            {/* Resumen Fiscal / Totales */}
-            {cart.length > 0 && (
-              <div className="bg-neutral-50 p-4 rounded-lg border border-neutral-200 grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                <div>
-                  <span className="text-neutral-500 block">Base Exenta:</span>
-                  <span className="font-mono font-bold text-neutral-900 text-sm">
-                    {formatMoneyUSD(baseExempt)}
-                  </span>
-                  <span className="text-[10px] text-neutral-400 font-mono block">
-                    {formatMoneyVES(baseExempt * exchangeRateBCV)}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-neutral-500 block">Base Imponible (16%):</span>
-                  <span className="font-mono font-bold text-neutral-900 text-sm">
-                    {formatMoneyUSD(baseTaxable)}
-                  </span>
-                  <span className="text-[10px] text-neutral-400 font-mono block">
-                    {formatMoneyVES(baseTaxable * exchangeRateBCV)}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-neutral-500 block">IVA Acumulado:</span>
-                  <span className="font-mono font-bold text-neutral-900 text-sm">
-                    {formatMoneyUSD(taxAmount)}
-                  </span>
-                  <span className="text-[10px] text-neutral-400 font-mono block">
-                    {formatMoneyVES(taxAmount * exchangeRateBCV)}
-                  </span>
-                </div>
-                <div className="bg-white p-2.5 rounded-lg border border-sky-200">
-                  <span className="text-sky-800 font-semibold block">Total General:</span>
-                  <span className="font-mono font-extrabold text-sky-700 text-base">
-                    {formatMoneyUSD(subtotalBeforeIGTF)}
-                  </span>
-                  <span className="text-xs text-sky-900 font-mono block font-semibold">
-                    {formatMoneyVES(subtotalBeforeIGTF * exchangeRateBCV)}
-                  </span>
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-amber-200/60 dark:border-amber-800/60 text-[11px]">
+                  <div>
+                    <span className="text-neutral-500 dark:text-neutral-400 block">Almacén de la Caja:</span>
+                    <span className="font-semibold text-neutral-800 dark:text-neutral-200">
+                      {activeShift?.warehouseName || 'Almacén Principal'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-neutral-500 dark:text-neutral-400 block">Existencia Actual:</span>
+                    <span className={`font-mono font-bold ${pendingStockApproval.availableStock <= 0 ? 'text-red-600 dark:text-red-400' : 'text-neutral-800 dark:text-neutral-200'}`}>
+                      {pendingStockApproval.availableStock} unidades
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-neutral-500 dark:text-neutral-400 block">Cantidad a Vender:</span>
+                    <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100">
+                      {pendingStockApproval.targetQty} unidades
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-neutral-500 dark:text-neutral-400 block">Saldo Resultante:</span>
+                    <span className="font-mono font-bold text-red-600 dark:text-red-400">
+                      {pendingStockApproval.availableStock - pendingStockApproval.targetQty} unidades
+                    </span>
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Footer (Pinned) */}
-            <div className="px-5 py-3.5 border-t border-neutral-200 bg-neutral-50 flex items-center justify-between gap-2 shrink-0">
-              <div>
-                {cart.length > 0 && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    type="button"
-                    onClick={async () => {
-                      const confirmed = await showClearCartAlert();
-                      if (confirmed) {
-                        setCart([]);
-                        setIsCartReviewModalOpen(false);
-                      }
-                    }}
-                    className="text-red-600 border-red-200 hover:bg-red-50 text-xs"
-                  >
-                    <Trash2 className="w-3.5 h-3.5 mr-1" />
-                    Vaciar Carrito
-                  </Button>
-                )}
-              </div>
-              <div className="flex gap-2">
+            {/* Opción rápida si el usuario actual es Administrador o Supervisor con nivel para autorizar */}
+            {canAuthorizeOperations(user?.role, user?.permissions) ? (
+              <div className="p-3 bg-sky-50 dark:bg-sky-950/30 rounded-lg border border-sky-200 dark:border-sky-800 space-y-2">
+                <p className="text-[11px] text-sky-800 dark:text-sky-300">
+                  Su sesión actual posee rango de <strong>{user?.role || 'Administrador / Supervisor'}</strong> con nivel para autorizar operaciones. Puede autorizar esta venta inmediatamente:
+                </p>
                 <Button
+                  type="button"
+                  variant="primary"
+                  disabled={isAuthorizingSupervisor}
+                  onClick={() => handleConfirmSupervisorApproval(true)}
+                  className="w-full flex items-center justify-center gap-1.5 py-2"
+                >
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span>{isAuthorizingSupervisor ? 'Autorizando...' : 'Autorizar como Administrador / Supervisor'}</span>
+                </Button>
+                <div className="relative my-2">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-sky-200 dark:border-sky-800"></div>
+                  </div>
+                  <div className="relative flex justify-center text-[10px] uppercase text-sky-500 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/60 px-2 font-medium">
+                    O ingresar credenciales de otro supervisor
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 bg-neutral-50 dark:bg-neutral-800/60 rounded-lg border border-neutral-200 dark:border-neutral-800 flex items-start gap-2.5">
+                <ShieldCheck className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <p className="text-[11px] text-neutral-600 dark:text-neutral-300">
+                  Las autorizaciones deben ser aprobadas exclusivamente por un usuario que sea <strong>Administrador</strong> o cuente con nivel de <strong>Supervisor</strong> autorizado. Ingrese a continuación las credenciales del autorizador.
+                </p>
+              </div>
+            )}
+
+            {/* Formulario de Credenciales de Supervisor */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleConfirmSupervisorApproval(false);
+              }}
+              className="space-y-3"
+            >
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Usuario o Correo del Supervisor *
+                </label>
+                <input
+                  type="text"
+                  value={supervisorUsername}
+                  onChange={(e) => setSupervisorUsername(e.target.value)}
+                  placeholder="ej: supervisor / admin@empresa.com"
+                  className="w-full h-9 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-xs text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
+                  required={!canAuthorizeOperations(user?.role, user?.permissions)}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Contraseña del Supervisor *
+                </label>
+                <input
+                  type="password"
+                  value={supervisorPassword}
+                  onChange={(e) => setSupervisorPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full h-9 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-xs text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
+                  required={!canAuthorizeOperations(user?.role, user?.permissions)}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Motivo u Observación (Opcional)
+                </label>
+                <input
+                  type="text"
+                  value={supervisorNotes}
+                  onChange={(e) => setSupervisorNotes(e.target.value)}
+                  placeholder="ej: Mercancía física disponible pendiente por recepción"
+                  className="w-full h-9 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-xs text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
+                />
+              </div>
+
+              {supervisorAuthError && (
+                <p className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 p-2 rounded-lg border border-red-200 dark:border-red-800">
+                  {supervisorAuthError}
+                </p>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-neutral-200 dark:border-neutral-800">
+                <Button
+                  type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setIsCartReviewModalOpen(false)}
-                >
-                  Volver a la Caja
-                </Button>
-                <Button
-                  size="sm"
-                  disabled={cart.length === 0}
                   onClick={() => {
-                    setIsCartReviewModalOpen(false);
-                    setPayments([]);
-                    setIsPaymentModalOpen(true);
+                    setIsSupervisorModalOpen(false);
+                    setPendingStockApproval(null);
                   }}
                 >
-                  <CreditCard className="w-4 h-4 mr-1.5" />
-                  Proceder al Cobro ({formatMoneyUSD(subtotalBeforeIGTF)})
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  disabled={isAuthorizingSupervisor || (!supervisorUsername.trim() || !supervisorPassword)}
+                >
+                  {isAuthorizingSupervisor ? 'Validando...' : 'Autorizar Venta'}
                 </Button>
               </div>
-            </div>
+            </form>
           </div>
-        </div>
-      )}
-
-      {/* Modal de Autorización de Supervisor para Stock en Negativo */}
-      {isSupervisorModalOpen && pendingStockApproval && (
-        <div className="fixed inset-0 bg-neutral-900/60 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg max-w-md w-full shadow-2xl flex flex-col overflow-hidden border border-neutral-200 my-auto">
-            {/* Header */}
-            <div className="px-5 py-3.5 border-b border-neutral-200 flex items-center justify-between shrink-0 bg-white">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-amber-600" />
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-900">
-                    Autorización de Supervisor Requerida
-                  </h3>
-                  <p className="text-[11px] text-neutral-500">
-                    {pendingStockApproval.action === 'PRESENTATION_AUTH'
-                      ? 'Presentación de producto restringida para la venta'
-                      : 'Venta con existencia de inventario en negativo'}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSupervisorModalOpen(false);
-                  setPendingStockApproval(null);
-                }}
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100"
-                title="Cerrar modal"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Body */}
-            <div className="p-5 space-y-4 text-xs">
-              {pendingStockApproval.action === 'PRESENTATION_AUTH' ? (
-                /* Tarjeta de Resumen para Presentación Restringida */
-                <div className="p-3 bg-amber-50/60 rounded-lg border border-amber-200 space-y-2">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <span className="font-bold text-neutral-900 block text-xs">
-                        {pendingStockApproval.productName}
-                      </span>
-                      <span className="font-mono text-[11px] text-neutral-500">
-                        SKU: {pendingStockApproval.sku}
-                      </span>
-                    </div>
-                    <Badge variant="warning" className="text-[10px]">
-                      Req. Autorización
-                    </Badge>
-                  </div>
-
-                  <div className="pt-2 border-t border-amber-200/60 text-[11px] text-neutral-700 space-y-1">
-                    <p>
-                      La presentación o empaque <strong>{pendingStockApproval.presentationName || 'seleccionada'}</strong> (x{pendingStockApproval.multiplier || 1}) está configurada para requerir autorización expresa de supervisor antes de ser comercializada en caja.
-                    </p>
-                    <p className="text-neutral-500 text-[10px]">
-                      Por favor, solicite a un supervisor que ingrese sus credenciales para autorizar el despacho.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                /* Tarjeta de Resumen de Stock */
-                <div className="p-3 bg-amber-50/60 rounded-lg border border-amber-200 space-y-2">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <span className="font-bold text-neutral-900 block text-xs">
-                        {pendingStockApproval.productName}
-                      </span>
-                      <span className="font-mono text-[11px] text-neutral-500">
-                        SKU: {pendingStockApproval.sku}
-                      </span>
-                    </div>
-                    <Badge variant="warning" className="text-[10px]">
-                      Déficit: -{pendingStockApproval.deficit}
-                    </Badge>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-amber-200/60 text-[11px]">
-                    <div>
-                      <span className="text-neutral-500 block">Almacén de la Caja:</span>
-                      <span className="font-semibold text-neutral-800">
-                        {activeShift?.warehouseName || 'Almacén Principal'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-neutral-500 block">Existencia Actual:</span>
-                      <span className={`font-mono font-bold ${pendingStockApproval.availableStock <= 0 ? 'text-red-600' : 'text-neutral-800'}`}>
-                        {pendingStockApproval.availableStock} unidades
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-neutral-500 block">Cantidad a Vender:</span>
-                      <span className="font-mono font-bold text-neutral-900">
-                        {pendingStockApproval.targetQty} unidades
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-neutral-500 block">Saldo Resultante:</span>
-                      <span className="font-mono font-bold text-red-600">
-                        {pendingStockApproval.availableStock - pendingStockApproval.targetQty} unidades
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Opción rápida si el usuario actual es Administrador o Supervisor con nivel para autorizar */}
-              {canAuthorizeOperations(user?.role, user?.permissions) ? (
-                <div className="p-3 bg-sky-50 rounded-lg border border-sky-200 space-y-2">
-                  <p className="text-[11px] text-sky-800">
-                    Su sesión actual posee rango de <strong>{user?.role || 'Administrador / Supervisor'}</strong> con nivel para autorizar operaciones. Puede autorizar esta venta inmediatamente:
-                  </p>
-                  <Button
-                    type="button"
-                    variant="primary"
-                    disabled={isAuthorizingSupervisor}
-                    onClick={() => handleConfirmSupervisorApproval(true)}
-                    className="w-full flex items-center justify-center gap-1.5 py-2"
-                  >
-                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                    <span>{isAuthorizingSupervisor ? 'Autorizando...' : 'Autorizar como Administrador / Supervisor'}</span>
-                  </Button>
-                  <div className="relative my-2">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-sky-200"></div>
-                    </div>
-                    <div className="relative flex justify-center text-[10px] uppercase text-sky-500 bg-sky-50 px-2 font-medium">
-                      O ingresar credenciales de otro supervisor
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200 flex items-start gap-2.5">
-                  <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <p className="text-[11px] text-neutral-600">
-                    Las autorizaciones deben ser aprobadas exclusivamente por un usuario que sea <strong>Administrador</strong> o cuente con nivel de <strong>Supervisor</strong> autorizado. Ingrese a continuación las credenciales del autorizador.
-                  </p>
-                </div>
-              )}
-
-              {/* Formulario de Credenciales de Supervisor */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleConfirmSupervisorApproval(false);
-                }}
-                className="space-y-3"
-              >
-                <div>
-                  <label className="block text-xs font-medium text-neutral-700 mb-1">
-                    Usuario o Correo del Supervisor *
-                  </label>
-                  <input
-                    type="text"
-                    value={supervisorUsername}
-                    onChange={(e) => setSupervisorUsername(e.target.value)}
-                    placeholder="ej: supervisor / admin@empresa.com"
-                    className="w-full h-9 rounded-lg border border-neutral-300 bg-white px-3 text-xs text-neutral-900 focus-visible:ring-2 focus-visible:ring-sky-500"
-                    required={!canAuthorizeOperations(user?.role, user?.permissions)}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-neutral-700 mb-1">
-                    Contraseña del Supervisor *
-                  </label>
-                  <input
-                    type="password"
-                    value={supervisorPassword}
-                    onChange={(e) => setSupervisorPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full h-9 rounded-lg border border-neutral-300 bg-white px-3 text-xs text-neutral-900 focus-visible:ring-2 focus-visible:ring-sky-500"
-                    required={!canAuthorizeOperations(user?.role, user?.permissions)}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-neutral-700 mb-1">
-                    Motivo u Observación (Opcional)
-                  </label>
-                  <input
-                    type="text"
-                    value={supervisorNotes}
-                    onChange={(e) => setSupervisorNotes(e.target.value)}
-                    placeholder="ej: Mercancía física disponible pendiente por recepción"
-                    className="w-full h-9 rounded-lg border border-neutral-300 bg-white px-3 text-xs text-neutral-900 focus-visible:ring-2 focus-visible:ring-sky-500"
-                  />
-                </div>
-
-                {supervisorAuthError && (
-                  <p className="text-xs text-red-600 bg-red-50 p-2 rounded-lg border border-red-200">
-                    {supervisorAuthError}
-                  </p>
-                )}
-
-                <div className="flex justify-end gap-2 pt-2 border-t border-neutral-200">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setIsSupervisorModalOpen(false);
-                      setPendingStockApproval(null);
-                    }}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    size="sm"
-                    disabled={isAuthorizingSupervisor || (!supervisorUsername.trim() || !supervisorPassword)}
-                  >
-                    {isAuthorizingSupervisor ? 'Validando...' : 'Autorizar Venta'}
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* Modal de Selección de Presentaciones */}
-      {isPresentationModalOpen && selectedProductForPresentation && (
-        <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl border border-neutral-200 max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in duration-150">
-            {/* Cabecera del Modal */}
-            <div className="p-4 border-b border-neutral-200 flex items-center justify-between bg-neutral-50 shrink-0">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-sky-100 rounded-lg text-sky-700">
-                  <Package className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-900">
-                    Seleccionar Presentación
-                  </h3>
-                  <p className="text-xs text-neutral-500 font-mono">
-                    {selectedProductForPresentation.name} • SKU: {selectedProductForPresentation.sku}
-                  </p>
-                </div>
+      <Modal
+        isOpen={Boolean(isPresentationModalOpen && selectedProductForPresentation)}
+        onClose={() => {
+          setIsPresentationModalOpen(false);
+          setSelectedProductForPresentation(null);
+          setPresentationModalError(null);
+        }}
+        title="Seleccionar Presentación"
+        subtitle={selectedProductForPresentation ? `${selectedProductForPresentation.name} • SKU: ${selectedProductForPresentation.sku}` : ''}
+        icon={<Package className="w-5 h-5 text-sky-600 dark:text-sky-400" />}
+        size="lg"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setIsPresentationModalOpen(false);
+                setSelectedProductForPresentation(null);
+                setPresentationModalError(null);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={handleConfirmAddPresentation}
+              className="flex items-center gap-1.5"
+            >
+              <ShoppingCart className="w-4 h-4" />
+              <span>Agregar al Carrito</span>
+            </Button>
+          </>
+        }
+      >
+        {selectedProductForPresentation && (
+          <div className="space-y-4">
+            {/* Información base del producto */}
+            <div className="p-2.5 bg-neutral-50 dark:bg-neutral-800/60 rounded-lg border border-neutral-200 dark:border-neutral-800 flex items-center justify-between text-xs">
+              <div>
+                <span className="text-neutral-500 dark:text-neutral-400 block text-[10px] uppercase font-semibold">Precio Base (Unidad)</span>
+                <span className="font-bold text-neutral-900 dark:text-neutral-100">{formatMoneyUSD(selectedProductForPresentation.priceUSD)}</span>
+                <span className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400 ml-1.5">
+                  ({formatMoneyVES(selectedProductForPresentation.priceUSD * exchangeRateBCV)})
+                </span>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsPresentationModalOpen(false);
-                  setSelectedProductForPresentation(null);
-                  setPresentationModalError(null);
-                }}
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-200/60 transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="text-right">
+                <span className="text-neutral-500 dark:text-neutral-400 block text-[10px] uppercase font-semibold">Stock en Almacén</span>
+                <span className={`font-mono font-bold ${(selectedProductForPresentation.stock ?? 0) <= 0 ? 'text-amber-600 dark:text-amber-400' : 'text-neutral-800 dark:text-neutral-200'}`}>
+                  {selectedProductForPresentation.stock ?? 0} unidades base
+                </span>
+              </div>
             </div>
 
-            {/* Contenido / Listado de Presentaciones */}
-            <div className="p-4 space-y-4 overflow-y-auto flex-1">
-              {/* Información base del producto */}
-              <div className="p-2.5 bg-neutral-50 rounded-lg border border-neutral-200 flex items-center justify-between text-xs">
-                <div>
-                  <span className="text-neutral-500 block text-[10px] uppercase font-semibold">Precio Base (Unidad)</span>
-                  <span className="font-bold text-neutral-900">{formatMoneyUSD(selectedProductForPresentation.priceUSD)}</span>
-                  <span className="text-[11px] font-mono text-neutral-500 ml-1.5">
-                    ({formatMoneyVES(selectedProductForPresentation.priceUSD * exchangeRateBCV)})
-                  </span>
-                </div>
-                <div className="text-right">
-                  <span className="text-neutral-500 block text-[10px] uppercase font-semibold">Stock en Almacén</span>
-                  <span className={`font-mono font-bold ${(selectedProductForPresentation.stock ?? 0) <= 0 ? 'text-amber-600' : 'text-neutral-800'}`}>
-                    {selectedProductForPresentation.stock ?? 0} unidades base
-                  </span>
-                </div>
-              </div>
+            {/* Lista de presentaciones disponibles */}
+            <div>
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-2">
+                Presentaciones Disponibles ({selectedProductForPresentation.presentations?.length || 0}):
+              </label>
+              <div className="space-y-2">
+                {selectedProductForPresentation.presentations?.map((pres) => {
+                  const isSelected = selectedPresentationId === pres.id;
+                  const presPrice =
+                    pres.basePrice !== null && pres.basePrice !== undefined
+                      ? pres.basePrice
+                      : Number((selectedProductForPresentation.priceUSD * (pres.multiplier || 1)).toFixed(4));
+                  const presPriceVES = presPrice * exchangeRateBCV;
 
-              {/* Lista de presentaciones disponibles */}
-              <div>
-                <label className="block text-xs font-semibold text-neutral-700 mb-2">
-                  Presentaciones Disponibles ({selectedProductForPresentation.presentations?.length || 0}):
-                </label>
-                <div className="space-y-2">
-                  {selectedProductForPresentation.presentations?.map((pres) => {
-                    const isSelected = selectedPresentationId === pres.id;
-                    const presPrice =
-                      pres.basePrice !== null && pres.basePrice !== undefined
-                        ? pres.basePrice
-                        : Number((selectedProductForPresentation.priceUSD * (pres.multiplier || 1)).toFixed(4));
-                    const presPriceVES = presPrice * exchangeRateBCV;
-
-                    return (
-                      <div
-                        key={pres.id}
-                        onClick={() => {
-                          setSelectedPresentationId(pres.id);
-                          setPresentationModalError(null);
-                        }}
-                        className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                          isSelected
-                            ? 'border-sky-500 bg-sky-50/50 ring-1 ring-sky-500'
-                            : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50/50 bg-white'
-                        }`}
-                      >
-                        <div className="flex items-start gap-3 min-w-0">
-                          <input
-                            type="radio"
-                            name="pos-product-presentation"
-                            checked={isSelected}
-                            onChange={() => {
-                              setSelectedPresentationId(pres.id);
-                              setPresentationModalError(null);
-                            }}
-                            className="mt-1 h-4 w-4 text-sky-600 border-neutral-300 focus:ring-sky-500 cursor-pointer"
-                          />
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-xs font-bold text-neutral-900">
-                                {pres.name}
+                  return (
+                    <div
+                      key={pres.id}
+                      onClick={() => {
+                        setSelectedPresentationId(pres.id);
+                        setPresentationModalError(null);
+                      }}
+                      className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                        isSelected
+                          ? 'border-sky-500 bg-sky-50/50 dark:bg-sky-950/30 ring-1 ring-sky-500'
+                          : 'border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 hover:bg-neutral-50/50 dark:hover:bg-neutral-800/50 bg-white dark:bg-neutral-900'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3 min-w-0">
+                        <input
+                          type="radio"
+                          name="pos-product-presentation"
+                          checked={isSelected}
+                          onChange={() => {
+                            setSelectedPresentationId(pres.id);
+                            setPresentationModalError(null);
+                          }}
+                          className="mt-1 h-4 w-4 text-sky-600 border-neutral-300 dark:border-neutral-700 focus:ring-sky-500 cursor-pointer bg-white dark:bg-neutral-800"
+                        />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                              {pres.name}
+                            </span>
+                            {pres.isDefault && (
+                              <span className="text-[10px] font-semibold bg-sky-100 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300 border border-sky-300 dark:border-sky-800 px-1.5 py-0.2 rounded">
+                                Predeterminada
                               </span>
-                              {pres.isDefault && (
-                                <span className="text-[10px] font-semibold bg-sky-100 text-sky-800 border border-sky-300 px-1.5 py-0.2 rounded">
-                                  Predeterminada
-                                </span>
-                              )}
-                              {pres.requiresAuthorization && (
-                                <span className="text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.2 rounded flex items-center gap-0.5">
-                                  <Lock className="w-2.5 h-2.5" />
-                                  Requiere Autorización
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-[11px] text-neutral-500 mt-0.5 flex items-center gap-2">
-                              <span>Contiene: <strong className="text-neutral-700">{pres.multiplier || 1} unidades base</strong></span>
-                              {pres.sku && <span>• SKU: <span className="font-mono">{pres.sku}</span></span>}
-                              {pres.barcode && <span>• Barras: <span className="font-mono">{pres.barcode}</span></span>}
-                            </div>
+                            )}
+                            {pres.requiresAuthorization && (
+                              <span className="text-[10px] font-semibold bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 px-1.5 py-0.2 rounded flex items-center gap-0.5">
+                                <Lock className="w-2.5 h-2.5" />
+                                Requiere Autorización
+                              </span>
+                            )}
                           </div>
-                        </div>
-
-                        <div className="text-right shrink-0">
-                          <div className="text-xs font-bold text-neutral-900 font-mono">
-                            {formatMoneyUSD(presPrice)}
-                          </div>
-                          <div className="text-[10px] font-mono text-neutral-500">
-                            {formatMoneyVES(presPriceVES)}
+                          <div className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5 flex items-center gap-2">
+                            <span>Contiene: <strong className="text-neutral-700 dark:text-neutral-300">{pres.multiplier || 1} unidades base</strong></span>
+                            {pres.sku && <span>• SKU: <span className="font-mono">{pres.sku}</span></span>}
+                            {pres.barcode && <span>• Barras: <span className="font-mono">{pres.barcode}</span></span>}
                           </div>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
 
-              {/* Selector de Cantidad */}
-              <div className="pt-2 border-t border-neutral-200 flex items-center justify-between">
-                <div>
-                  <label className="block text-xs font-medium text-neutral-700 mb-1">
-                    Cantidad a agregar:
-                  </label>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setPresentationQty((q) => Math.max(1, q - 1))}
-                      className="w-8 h-8 rounded-lg bg-neutral-100 hover:bg-neutral-200 border border-neutral-300 flex items-center justify-center text-neutral-700 cursor-pointer"
-                    >
-                      <Minus className="w-3.5 h-3.5" />
-                    </button>
-                    <input
-                      type="number"
-                      min="1"
-                      value={presentationQty}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value, 10);
-                        setPresentationQty(isNaN(val) ? 1 : Math.max(1, val));
-                        setPresentationModalError(null);
-                      }}
-                      className="w-16 h-8 text-center text-xs font-bold font-mono border border-neutral-300 rounded-lg bg-white"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setPresentationQty((q) => q + 1)}
-                      className="w-8 h-8 rounded-lg bg-neutral-100 hover:bg-neutral-200 border border-neutral-300 flex items-center justify-center text-neutral-700 cursor-pointer"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Subtotal estimado */}
-                {selectedPresentationId && (
-                  <div className="text-right">
-                    <span className="text-[10px] text-neutral-500 block uppercase font-semibold">Subtotal Estimado</span>
-                    {(() => {
-                      const pres = selectedProductForPresentation.presentations?.find(
-                        (p) => p.id === selectedPresentationId
-                      );
-                      const presPrice = pres
-                        ? pres.basePrice !== null && pres.basePrice !== undefined
-                          ? pres.basePrice
-                          : Number((selectedProductForPresentation.priceUSD * (pres.multiplier || 1)).toFixed(4))
-                        : 0;
-                      const subTotal = presPrice * (presentationQty || 1);
-                      return (
-                        <div>
-                          <span className="text-sm font-bold text-neutral-900 font-mono">
-                            {formatMoneyUSD(subTotal)}
-                          </span>
-                          <span className="block text-[11px] font-mono text-neutral-500">
-                            {formatMoneyVES(subTotal * exchangeRateBCV)}
-                          </span>
+                      <div className="text-right shrink-0">
+                        <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100 font-mono">
+                          {formatMoneyUSD(presPrice)}
                         </div>
-                      );
-                    })()}
-                  </div>
-                )}
+                        <div className="text-[10px] font-mono text-neutral-500 dark:text-neutral-400">
+                          {formatMoneyVES(presPriceVES)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Selector de Cantidad */}
+            <div className="pt-2 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Cantidad a agregar:
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setPresentationQty((q) => Math.max(1, q - 1))}
+                    className="w-8 h-8 rounded-lg bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 border border-neutral-300 dark:border-neutral-700 flex items-center justify-center text-neutral-700 dark:text-neutral-300 cursor-pointer"
+                  >
+                    <Minus className="w-3.5 h-3.5" />
+                  </button>
+                  <input
+                    type="number"
+                    min="1"
+                    value={presentationQty}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      setPresentationQty(isNaN(val) ? 1 : Math.max(1, val));
+                      setPresentationModalError(null);
+                    }}
+                    className="w-16 h-8 text-center text-xs font-bold font-mono border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPresentationQty((q) => q + 1)}
+                    className="w-8 h-8 rounded-lg bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 border border-neutral-300 dark:border-neutral-700 flex items-center justify-center text-neutral-700 dark:text-neutral-300 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
 
-              {/* Mensaje de error / advertencia de autorización */}
-              {presentationModalError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg space-y-2">
-                  <div className="flex items-start gap-2">
-                    <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                    <p className="text-xs text-red-700 font-medium">
-                      {presentationModalError}
-                    </p>
-                  </div>
-                  {/* Botón de solicitar supervisor si la causa es falta de autorización */}
-                  {selectedProductForPresentation.presentations?.find((p) => p.id === selectedPresentationId)?.requiresAuthorization &&
-                    !canAuthorizeOperations(user?.role, user?.permissions) && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={handleRequestSupervisorForPresentation}
-                        className="w-full mt-1 border-red-300 text-red-800 hover:bg-red-100 flex items-center justify-center gap-1.5 text-xs"
-                      >
-                        <ShieldCheck className="w-4 h-4 text-red-600" />
-                        <span>Solicitar Autorización de Supervisor</span>
-                      </Button>
-                    )}
+              {/* Subtotal estimado */}
+              {selectedPresentationId && (
+                <div className="text-right">
+                  <span className="text-[10px] text-neutral-500 dark:text-neutral-400 block uppercase font-semibold">Subtotal Estimado</span>
+                  {(() => {
+                    const pres = selectedProductForPresentation.presentations?.find(
+                      (p) => p.id === selectedPresentationId
+                    );
+                    const presPrice = pres
+                      ? pres.basePrice !== null && pres.basePrice !== undefined
+                        ? pres.basePrice
+                        : Number((selectedProductForPresentation.priceUSD * (pres.multiplier || 1)).toFixed(4))
+                      : 0;
+                    const subTotal = presPrice * (presentationQty || 1);
+                    return (
+                      <div>
+                        <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100 font-mono">
+                          {formatMoneyUSD(subTotal)}
+                        </span>
+                        <span className="block text-[11px] font-mono text-neutral-500 dark:text-neutral-400">
+                          {formatMoneyVES(subTotal * exchangeRateBCV)}
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>
 
-            {/* Pie del Modal */}
-            <div className="p-3.5 border-t border-neutral-200 flex items-center justify-end gap-2 bg-neutral-50 shrink-0">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setIsPresentationModalOpen(false);
-                  setSelectedProductForPresentation(null);
-                  setPresentationModalError(null);
-                }}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="button"
-                variant="primary"
-                size="sm"
-                onClick={handleConfirmAddPresentation}
-                className="flex items-center gap-1.5"
-              >
-                <ShoppingCart className="w-4 h-4" />
-                <span>Agregar al Carrito</span>
-              </Button>
-            </div>
+            {/* Mensaje de error / advertencia de autorización */}
+            {presentationModalError && (
+              <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg space-y-2">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                  <p className="text-xs text-red-700 dark:text-red-300 font-medium">
+                    {presentationModalError}
+                  </p>
+                </div>
+                {/* Botón de solicitar supervisor si la causa es falta de autorización */}
+                {selectedProductForPresentation.presentations?.find((p) => p.id === selectedPresentationId)?.requiresAuthorization &&
+                  !canAuthorizeOperations(user?.role, user?.permissions) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRequestSupervisorForPresentation}
+                      className="w-full mt-1 border-red-300 dark:border-red-700 text-red-800 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/40 flex items-center justify-center gap-1.5 text-xs"
+                    >
+                      <ShieldCheck className="w-4 h-4 text-red-600 dark:text-red-400" />
+                      <span>Solicitar Autorización de Supervisor</span>
+                    </Button>
+                  )}
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* Modal de Edición de Descuento por Renglón */}
-      {editingDiscountItem && (
-        <div className="fixed inset-0 bg-neutral-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl border border-neutral-200 max-w-sm w-full p-4 space-y-4 animate-in fade-in duration-150">
-            <div className="flex items-center justify-between pb-2 border-b border-neutral-200">
-              <div className="flex items-center gap-2">
-                <Percent className="w-4 h-4 text-sky-600" />
-                <h3 className="text-sm font-bold text-neutral-900">Descuento de Producto</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setEditingDiscountItem(null)}
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg hover:bg-neutral-100 transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <p className="text-xs text-neutral-600 font-medium">
-              Producto: <strong className="text-neutral-900">{editingDiscountItem.productName}</strong>
+      <Modal
+        isOpen={Boolean(editingDiscountItem)}
+        onClose={() => setEditingDiscountItem(null)}
+        title="Descuento de Producto"
+        icon={<Percent className="w-4 h-4 text-sky-600 dark:text-sky-400" />}
+        size="sm"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setEditingDiscountItem(null)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={() => {
+                if (!editingDiscountItem) return;
+                handleApplyItemDiscount(
+                  editingDiscountItem.productId,
+                  editingDiscountItem.presentationId,
+                  parseFloat(discountInputPercent) || 0
+                );
+              }}
+            >
+              Aplicar
+            </Button>
+          </>
+        }
+      >
+        {editingDiscountItem && (
+          <div className="space-y-4">
+            <p className="text-xs text-neutral-600 dark:text-neutral-300 font-medium">
+              Producto: <strong className="text-neutral-900 dark:text-neutral-100">{editingDiscountItem.productName}</strong>
             </p>
 
             <div>
-              <label className="block text-xs font-medium text-neutral-700 mb-1">
+              <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                 Porcentaje de Descuento (0% - 100%):
               </label>
               <div className="relative">
@@ -4191,56 +4080,31 @@ export const POSRegister: React.FC = () => {
                   value={discountInputPercent}
                   onChange={(e) => setDiscountInputPercent(e.target.value)}
                   placeholder="0"
-                  className="w-full h-9 pl-3 pr-8 text-xs font-mono font-bold border border-neutral-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  className="w-full h-9 pl-3 pr-8 text-xs font-mono font-bold border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
-                <span className="absolute right-3 top-2.5 text-xs text-neutral-400 font-bold">%</span>
+                <span className="absolute right-3 top-2.5 text-xs text-neutral-400 dark:text-neutral-500 font-bold">%</span>
               </div>
             </div>
 
             {/* Atajos Rápidos */}
             <div className="space-y-1">
-              <span className="text-[10px] text-neutral-500 font-semibold uppercase">Atajos rápidos:</span>
+              <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-semibold uppercase">Atajos rápidos:</span>
               <div className="flex gap-1.5 flex-wrap">
                 {[0, 5, 10, 15, 20, 25, 50].map((pct) => (
                   <button
                     key={pct}
                     type="button"
                     onClick={() => setDiscountInputPercent(String(pct))}
-                    className="px-2 py-1 text-[11px] font-mono rounded bg-neutral-100 hover:bg-neutral-200 text-neutral-700 border border-neutral-200 transition-colors cursor-pointer"
+                    className="px-2 py-1 text-[11px] font-mono rounded-lg bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700 transition-colors cursor-pointer"
                   >
                     {pct}%
                   </button>
                 ))}
               </div>
             </div>
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-neutral-200">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setEditingDiscountItem(null)}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="button"
-                variant="primary"
-                size="sm"
-                onClick={() =>
-                  handleApplyItemDiscount(
-                    editingDiscountItem.productId,
-                    editingDiscountItem.presentationId,
-                    parseFloat(discountInputPercent) || 0
-                  )
-                }
-              >
-                Aplicar
-              </Button>
-            </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* Modal Importar Comanda de Restaurante */}
       <ImportRestaurantOrderModal
@@ -4249,6 +4113,7 @@ export const POSRegister: React.FC = () => {
         onImportOrder={handleImportRestaurantOrder}
         token={token}
         activeBranchId={activeBranchId}
+        currentImportedOrderId={importedRestaurantOrderId}
       />
     </div>
   );

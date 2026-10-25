@@ -1157,6 +1157,36 @@ export class POSService {
   }
 
   /**
+   * Obtiene o crea el producto de sistema de tipo servicio para Propinas voluntarias
+   */
+  private static async getOrCreateTipProduct(conn: any, companyId: string): Promise<string> {
+    const [existing]: any = await conn.query(
+      `SELECT id FROM products WHERE company_id = ? AND sku = 'PROPINA' LIMIT 1`,
+      [companyId]
+    );
+    if (existing && existing.length > 0) {
+      return existing[0].id;
+    }
+
+    const tipId = crypto.randomUUID();
+    await conn.query(
+      `INSERT INTO products (
+        id, company_id, sku, barcode, name, description, product_type, tracks_inventory,
+        unit_of_measure, cost_price, base_price, currency, default_tax_rate_id, tax_inclusive, min_stock, max_stock, is_active
+      ) VALUES (?, ?, 'PROPINA', 'PROPINA-SERV', 'Propina del Servicio', 'Servicio de propina voluntaria de restaurante y atención',
+        'service', 0, 'UND', 0.0000, 0.0000, 'USD', NULL, 0, 0, 0, 1)
+      ON DUPLICATE KEY UPDATE id = id`,
+      [tipId, companyId]
+    );
+
+    const [afterRows]: any = await conn.query(
+      `SELECT id FROM products WHERE company_id = ? AND sku = 'PROPINA' LIMIT 1`,
+      [companyId]
+    );
+    return afterRows?.[0]?.id || tipId;
+  }
+
+  /**
    * Procesa una venta en POS, actualiza inventario y genera el ticket fiscal homologado
    */
   static async processSale(companyId: string, userId: string, payload: POSSaleSubmit) {
@@ -1197,6 +1227,15 @@ export class POSService {
             effectiveWarehouseId = anyWh[0].id;
           }
         }
+      }
+
+      // Si la venta incluye propina (restaurante o servicio voluntario), asegurar o resolver el producto de servicio correspondiente
+      let tipProductId: string | null = null;
+      const hasTipItem = payload.items.some(
+        (it) => it.sku === 'PROPINA' || it.productId?.startsWith('rest-tip-')
+      );
+      if (hasTipItem) {
+        tipProductId = await this.getOrCreateTipProduct(conn, companyId);
       }
 
       // Validar si algún renglón utiliza una presentación que requiere autorización de venta
@@ -1298,6 +1337,12 @@ export class POSService {
 
       if ((!allowNegativeStock || requireApprovalNegative) && effectiveWarehouseId) {
         for (const item of payload.items) {
+          const isTipItem = item.sku === 'PROPINA' || item.productId?.startsWith('rest-tip-');
+          // Las propinas y servicios voluntarios no descuentan inventario ni tienen stock físico
+          if (isTipItem) {
+            continue;
+          }
+
           // Consultar si el producto maneja inventario
           const [productRows]: any = await conn.query(
             `SELECT tracks_inventory FROM products WHERE id = ?`,
@@ -1305,9 +1350,9 @@ export class POSService {
           );
           const tracksInventory = productRows && productRows.length > 0
             ? Boolean(productRows[0].tracks_inventory !== 0 && productRows[0].tracks_inventory !== false)
-            : true;
+            : false;
 
-          // Si el producto no maneja inventario, se permite vender sin validar existencias
+          // Si el producto no maneja inventario o es un servicio, se permite vender sin validar existencias
           if (!tracksInventory) {
             continue;
           }
@@ -1440,6 +1485,9 @@ export class POSService {
 
       // 5. Insertar renglones, descontar stock en el almacén de la caja y asentar en Kardex
       for (const item of payload.items) {
+        const isTipItem = item.sku === 'PROPINA' || item.productId?.startsWith('rest-tip-');
+        const effectiveProductId = (isTipItem && tipProductId) ? tipProductId : item.productId;
+
         await conn.query(
           `INSERT INTO sales_invoice_items (
             id, invoice_id, product_id, quantity, unit_price, unit_cost,
@@ -1448,7 +1496,7 @@ export class POSService {
           [
             crypto.randomUUID(),
             invoiceId,
-            item.productId,
+            effectiveProductId,
             item.quantity,
             item.unitPrice,
             item.taxRatePercent,
@@ -1459,14 +1507,19 @@ export class POSService {
           ]
         );
 
+        // Si es propina de restaurante o servicio voluntario, omitir descuento de inventario y Kardex
+        if (isTipItem) {
+          continue;
+        }
+
         // Consultar si el producto descuenta inventario
         const [productTrackRows]: any = await conn.query(
           `SELECT tracks_inventory FROM products WHERE id = ?`,
-          [item.productId]
+          [effectiveProductId]
         );
         const tracksInventory = productTrackRows && productTrackRows.length > 0
           ? Boolean(productTrackRows[0].tracks_inventory !== 0 && productTrackRows[0].tracks_inventory !== false)
-          : true;
+          : false;
 
         if (tracksInventory && effectiveWarehouseId) {
           const unitsToDeduct = Number(item.quantity) * Number(item.multiplier || 1);
@@ -1477,7 +1530,7 @@ export class POSService {
              ON DUPLICATE KEY UPDATE 
                current_stock = current_stock - ?,
                last_movement_at = CURRENT_TIMESTAMP()`,
-            [item.productId, effectiveWarehouseId, unitsToDeduct, unitsToDeduct]
+            [effectiveProductId, effectiveWarehouseId, unitsToDeduct, unitsToDeduct]
           );
 
           // Registrar en Kardex de inventario
@@ -1490,7 +1543,7 @@ export class POSService {
               crypto.randomUUID(),
               payload.branchId,
               effectiveWarehouseId,
-              item.productId,
+              effectiveProductId,
               userId,
               unitsToDeduct,
               invoiceNumber,
@@ -1521,6 +1574,16 @@ export class POSService {
             payment.igtfAmountUSD || 0.0,
             payment.referenceNumber || null,
           ]
+        );
+      }
+
+      // 6.1 Si proviene de una comanda de restaurante, marcarla atómicamente como facturada
+      if (payload.restaurantOrderId) {
+        await conn.query(
+          `UPDATE restaurant_orders 
+           SET is_invoiced = 1, pos_invoice_id = ? 
+           WHERE id = ?`,
+          [invoiceId, payload.restaurantOrderId]
         );
       }
 

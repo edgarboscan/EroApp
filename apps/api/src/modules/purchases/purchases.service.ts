@@ -79,18 +79,52 @@ export class PurchasesService {
     return { ...order, items };
   }
 
+  static async getDefaultBranchId(companyId: string): Promise<string | undefined> {
+    const branches = await query<any>(
+      `SELECT id FROM branches WHERE company_id = ? AND is_active = 1 ORDER BY is_main DESC, code ASC LIMIT 1`,
+      [companyId]
+    );
+    return branches[0]?.id;
+  }
+
   static async createOrder(companyId: string, userId: string, input: CreatePurchaseOrderInput) {
     return await withTransaction(async (conn) => {
       const orderId = crypto.randomUUID();
       const currentYear = new Date().getFullYear();
+
+      let effectiveBranchId = input.branchId;
+      if (!effectiveBranchId) {
+        effectiveBranchId = await PurchasesService.getDefaultBranchId(companyId);
+      }
+      if (!effectiveBranchId) {
+        throw new Error('No se encontró una sucursal activa para registrar la orden de compra');
+      }
 
       // Generar correlativo OC-YYYY-0001
       const [countResult] = await conn.execute<any[]>(
         `SELECT COUNT(*) as total FROM purchase_orders WHERE company_id = ? AND YEAR(order_date) = ?`,
         [companyId, currentYear]
       );
-      const seq = Number(countResult[0]?.total || 0) + 1;
-      const orderNumber = `OC-${currentYear}-${String(seq).padStart(4, '0')}`;
+      let seq = Number(countResult[0]?.total || 0) + 1;
+      let orderNumber = `OC-${currentYear}-${String(seq).padStart(4, '0')}`;
+
+      // Prevenir colisiones con correlativos previos
+      const [existing] = await conn.execute<any[]>(
+        `SELECT id FROM purchase_orders WHERE branch_id = ? AND order_number = ?`,
+        [effectiveBranchId, orderNumber]
+      );
+      if (existing.length > 0) {
+        const [maxResult] = await conn.execute<any[]>(
+          `SELECT order_number FROM purchase_orders WHERE branch_id = ? AND order_number LIKE ? ORDER BY order_number DESC LIMIT 1`,
+          [effectiveBranchId, `OC-${currentYear}-%`]
+        );
+        if (maxResult.length > 0 && maxResult[0].order_number) {
+          const parts = maxResult[0].order_number.split('-');
+          const lastNum = parseInt(parts[parts.length - 1] || '0', 10);
+          seq = Math.max(seq, lastNum + 1);
+          orderNumber = `OC-${currentYear}-${String(seq).padStart(4, '0')}`;
+        }
+      }
 
       // Calcular montos acumulados
       let subtotalAmount = 0;
@@ -129,7 +163,7 @@ export class PurchasesService {
         [
           orderId,
           companyId,
-          input.branchId,
+          effectiveBranchId,
           input.supplierId,
           userId,
           orderNumber,
@@ -234,13 +268,16 @@ export class PurchasesService {
               s.name as supplierName, s.rif as supplierRif,
               w.name as warehouseName, b.name as branchName,
               u.full_name as receivedByUserName,
-              po.order_number as purchaseOrderNumber
+              po.order_number as purchaseOrderNumber,
+              pi.invoice_number as purchaseInvoiceNumber,
+              pi.control_number as purchaseControlNumber
        FROM goods_receipts gr
        INNER JOIN suppliers s ON gr.supplier_id = s.id
        INNER JOIN warehouses w ON gr.warehouse_id = w.id
        INNER JOIN branches b ON gr.branch_id = b.id
        INNER JOIN users u ON gr.user_id = u.id
        LEFT JOIN purchase_orders po ON gr.purchase_order_id = po.id
+       LEFT JOIN purchase_invoices pi ON gr.purchase_invoice_id = pi.id
        WHERE gr.company_id = ?
          AND (? IS NULL OR gr.branch_id = ?)
          AND (? IS NULL OR gr.warehouse_id = ?)
@@ -261,13 +298,16 @@ export class PurchasesService {
               s.name as supplierName, s.rif as supplierRif,
               w.name as warehouseName, b.name as branchName,
               u.full_name as receivedByUserName,
-              po.order_number as purchaseOrderNumber
+              po.order_number as purchaseOrderNumber,
+              pi.invoice_number as purchaseInvoiceNumber,
+              pi.control_number as purchaseControlNumber
        FROM goods_receipts gr
        INNER JOIN suppliers s ON gr.supplier_id = s.id
        INNER JOIN warehouses w ON gr.warehouse_id = w.id
        INNER JOIN branches b ON gr.branch_id = b.id
        INNER JOIN users u ON gr.user_id = u.id
        LEFT JOIN purchase_orders po ON gr.purchase_order_id = po.id
+       LEFT JOIN purchase_invoices pi ON gr.purchase_invoice_id = pi.id
        WHERE gr.id = ? AND gr.company_id = ?`,
       [receiptId, companyId]
     );
@@ -294,13 +334,39 @@ export class PurchasesService {
       const receiptId = crypto.randomUUID();
       const currentYear = new Date().getFullYear();
 
+      let effectiveBranchId = input.branchId;
+      if (!effectiveBranchId) {
+        effectiveBranchId = await PurchasesService.getDefaultBranchId(companyId);
+      }
+      if (!effectiveBranchId) {
+        throw new Error('No se encontró una sucursal activa para registrar la recepción de mercancía');
+      }
+
       // Generar correlativo REC-YYYY-0001
       const [countResult] = await conn.execute<any[]>(
         `SELECT COUNT(*) as total FROM goods_receipts WHERE company_id = ? AND YEAR(receipt_date) = ?`,
         [companyId, currentYear]
       );
-      const seq = Number(countResult[0]?.total || 0) + 1;
-      const receiptNumber = `REC-${currentYear}-${String(seq).padStart(4, '0')}`;
+      let seq = Number(countResult[0]?.total || 0) + 1;
+      let receiptNumber = `REC-${currentYear}-${String(seq).padStart(4, '0')}`;
+
+      // Prevenir colisiones con correlativos previos
+      const [existing] = await conn.execute<any[]>(
+        `SELECT id FROM goods_receipts WHERE branch_id = ? AND receipt_number = ?`,
+        [effectiveBranchId, receiptNumber]
+      );
+      if (existing.length > 0) {
+        const [maxResult] = await conn.execute<any[]>(
+          `SELECT receipt_number FROM goods_receipts WHERE branch_id = ? AND receipt_number LIKE ? ORDER BY receipt_number DESC LIMIT 1`,
+          [effectiveBranchId, `REC-${currentYear}-%`]
+        );
+        if (maxResult.length > 0 && maxResult[0].receipt_number) {
+          const parts = maxResult[0].receipt_number.split('-');
+          const lastNum = parseInt(parts[parts.length - 1] || '0', 10);
+          seq = Math.max(seq, lastNum + 1);
+          receiptNumber = `REC-${currentYear}-${String(seq).padStart(4, '0')}`;
+        }
+      }
 
       let totalCost = 0;
 
@@ -313,9 +379,19 @@ export class PurchasesService {
       if (!effectiveWarehouseId) {
         const [defWh]: any = await conn.query(
           `SELECT id FROM warehouses WHERE branch_id = ? AND is_active = 1 ORDER BY is_default_purchases DESC, is_default DESC LIMIT 1`,
-          [input.branchId]
+          [effectiveBranchId]
         );
         effectiveWarehouseId = defWh[0]?.id;
+      }
+      if (!effectiveWarehouseId) {
+        const [anyWh]: any = await conn.query(
+          `SELECT id FROM warehouses WHERE company_id = ? AND is_active = 1 LIMIT 1`,
+          [companyId]
+        );
+        effectiveWarehouseId = anyWh[0]?.id;
+      }
+      if (!effectiveWarehouseId) {
+        throw new Error('No se encontró un almacén activo para registrar el ingreso de mercancía');
       }
 
       await conn.execute(
@@ -327,7 +403,7 @@ export class PurchasesService {
         [
           receiptId,
           companyId,
-          input.branchId,
+          effectiveBranchId,
           effectiveWarehouseId,
           input.supplierId,
           input.purchaseOrderId || null,
@@ -372,7 +448,7 @@ export class PurchasesService {
         // Stock disponible actual en el depósito de destino
         const [stockRow] = await conn.execute<any[]>(
           `SELECT current_stock FROM product_stocks WHERE product_id = ? AND warehouse_id = ?`,
-          [item.productId, input.warehouseId]
+          [item.productId, effectiveWarehouseId]
         );
         const currentStockInWh = Number(stockRow[0]?.current_stock || 0);
 
@@ -395,12 +471,12 @@ export class PurchasesService {
           await conn.execute(
             `INSERT INTO product_stocks (product_id, warehouse_id, current_stock, last_movement_at)
              VALUES (?, ?, ?, NOW())`,
-            [item.productId, input.warehouseId, item.quantityReceived]
+            [item.productId, effectiveWarehouseId, item.quantityReceived]
           );
         } else {
           await conn.execute(
             `UPDATE product_stocks SET current_stock = current_stock + ?, last_movement_at = NOW() WHERE product_id = ? AND warehouse_id = ?`,
-            [item.quantityReceived, item.productId, input.warehouseId]
+            [item.quantityReceived, item.productId, effectiveWarehouseId]
           );
         }
 
@@ -412,8 +488,8 @@ export class PurchasesService {
           ) VALUES (?, ?, ?, ?, ?, 'PURCHASE', ?, ?, ?, ?)`,
           [
             crypto.randomUUID(),
-            input.branchId,
-            input.warehouseId,
+            effectiveBranchId,
+            effectiveWarehouseId,
             item.productId,
             userId,
             item.quantityReceived,
@@ -457,12 +533,111 @@ export class PurchasesService {
         );
       }
 
+      // 4. Si se especificó factura fiscal del proveedor, registrar inmediatamente la factura en CxP
+      let invoiceId: string | undefined;
+      let finalStatus: 'RECEIVED' | 'INVOICED' = 'RECEIVED';
+
+      if (input.invoiceNumber && input.autoInvoice !== false) {
+        invoiceId = crypto.randomUUID();
+        let baseTaxableAmount = 0;
+        let taxAmount = 0;
+
+        const preparedInvoiceItems = input.items.map((item) => {
+          const itemSubtotal = Number((item.quantityReceived * item.unitCost).toFixed(2));
+          const itemTax = Number((itemSubtotal * 0.16).toFixed(2));
+          const itemTotal = Number((itemSubtotal + itemTax).toFixed(2));
+
+          baseTaxableAmount += itemSubtotal;
+          taxAmount += itemTax;
+
+          return {
+            id: crypto.randomUUID(),
+            productId: item.productId,
+            quantity: item.quantityReceived,
+            unitCost: item.unitCost,
+            itemTax,
+            itemSubtotal,
+            itemTotal,
+          };
+        });
+
+        const totalInvoiceAmount = Number((baseTaxableAmount + taxAmount).toFixed(2));
+
+        // 1. Insertar primero en la tabla padre purchase_invoices
+        await conn.execute(
+          `INSERT INTO purchase_invoices (
+            id, branch_id, warehouse_id, supplier_id, user_id,
+            invoice_number, control_number, invoice_date, currency, exchange_rate,
+            base_exempt_amount, base_taxable_amount, tax_amount, igtf_amount,
+            discount_amount, total_amount, is_credit, status
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, 0.00, ?, ?, 0.00, 0.00, ?, ?, ?)`,
+          [
+            invoiceId,
+            effectiveBranchId,
+            effectiveWarehouseId,
+            input.supplierId,
+            userId,
+            input.invoiceNumber,
+            input.controlNumber || null,
+            input.currency,
+            input.exchangeRate,
+            baseTaxableAmount,
+            taxAmount,
+            totalInvoiceAmount,
+            input.isCredit ? 1 : 0,
+            input.isCredit ? 'PENDING' : 'PAID',
+          ]
+        );
+
+        // 2. Insertar en la tabla hija purchase_invoice_items (cumpliendo fk_pii_invoice)
+        for (const item of preparedInvoiceItems) {
+          await conn.execute(
+            `INSERT INTO purchase_invoice_items (
+              id, invoice_id, product_id, quantity, unit_price,
+              tax_rate, discount_percent, tax_amount, subtotal, total
+            ) VALUES (?, ?, ?, ?, ?, 16.0, 0.0, ?, ?, ?)`,
+            [
+              item.id,
+              invoiceId,
+              item.productId,
+              item.quantity,
+              item.unitCost,
+              item.itemTax,
+              item.itemSubtotal,
+              item.itemTotal,
+            ]
+          );
+        }
+
+        if (input.isCredit) {
+          const payableId = crypto.randomUUID();
+          const dueDate = input.dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+          await conn.execute(
+            `INSERT INTO payables (
+              id, branch_id, supplier_id, invoice_id, amount_total,
+              amount_paid, due_date, status
+            ) VALUES (?, ?, ?, ?, ?, 0.00, ?, 'PENDING')`,
+            [payableId, effectiveBranchId, input.supplierId, invoiceId, totalInvoiceAmount, dueDate]
+          );
+        }
+
+        finalStatus = 'INVOICED';
+        await conn.execute(
+          `UPDATE goods_receipts
+           SET status = 'INVOICED', purchase_invoice_id = ?
+           WHERE id = ?`,
+          [invoiceId, receiptId]
+        );
+      }
+
       return {
         id: receiptId,
         receiptNumber,
-        status: 'RECEIVED',
+        status: finalStatus,
         totalCost,
         itemsCount: input.items.length,
+        invoiceId,
+        invoiceNumber: input.invoiceNumber || undefined,
       };
     });
   }
