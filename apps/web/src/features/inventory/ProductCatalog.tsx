@@ -180,6 +180,7 @@ export const ProductCatalog: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedDepartment, setSelectedDepartment] = useState<string>("");
   const [selectedGroup, setSelectedGroup] = useState<string>("");
+  const [selectedSubgroup, setSelectedSubgroup] = useState<string>("");
   const [stockFilter, setStockFilter] = useState<
     "all" | "in_stock" | "low_stock" | "out_of_stock"
   >("all");
@@ -359,6 +360,7 @@ export const ProductCatalog: React.FC = () => {
       if (activeWarehouseId) params.append("warehouseId", activeWarehouseId);
       if (selectedDepartment) params.append("departmentId", selectedDepartment);
       if (selectedGroup) params.append("groupId", selectedGroup);
+      if (selectedSubgroup) params.append("subgroupId", selectedSubgroup);
       if (searchTerm.trim()) params.append("search", searchTerm.trim());
 
       const url = `/api/inventory/products?${params.toString()}`;
@@ -374,7 +376,14 @@ export const ProductCatalog: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [token, activeWarehouseId, selectedDepartment, selectedGroup, searchTerm]);
+  }, [
+    token,
+    activeWarehouseId,
+    selectedDepartment,
+    selectedGroup,
+    selectedSubgroup,
+    searchTerm,
+  ]);
 
   useEffect(() => {
     fetchAuxiliaryData();
@@ -529,8 +538,12 @@ export const ProductCatalog: React.FC = () => {
           barcode: s.barcode?.trim() || null,
           description: s.description?.trim() || null,
           isPrimary: Boolean(s.isPrimary),
-          costPrice: s.costPrice != null && !isNaN(Number(s.costPrice)) ? Number(s.costPrice) : null,
-          price: s.price != null && !isNaN(Number(s.price)) ? Number(s.price) : null,
+          costPrice:
+            s.costPrice != null && !isNaN(Number(s.costPrice))
+              ? Number(s.costPrice)
+              : null,
+          price:
+            s.price != null && !isNaN(Number(s.price)) ? Number(s.price) : null,
           currency: s.currency || productForm.currency || "USD",
         }));
 
@@ -566,13 +579,15 @@ export const ProductCatalog: React.FC = () => {
           currency: p.currency || productForm.currency || "USD",
         }));
 
-      const finalSkus = cleanSkus.length > 0 ? cleanSkus : presentationDerivedSkus;
+      const finalSkus =
+        cleanSkus.length > 0 ? cleanSkus : presentationDerivedSkus;
 
-      const targetWarehouseId = productForm.warehouseId?.trim() || activeWarehouseId?.trim() || null;
+      const targetWarehouseId =
+        productForm.warehouseId?.trim() || activeWarehouseId?.trim() || null;
       const hasLocationData = Boolean(
         productForm.aisle?.trim() ||
         productForm.shelf?.trim() ||
-        productForm.compartment?.trim()
+        productForm.compartment?.trim(),
       );
 
       const payload = {
@@ -625,7 +640,9 @@ export const ProductCatalog: React.FC = () => {
 
       const json = await res.json();
       if (!res.ok) {
-        throw new Error(json.error?.message || json.message || "Error al guardar el producto");
+        throw new Error(
+          json.error?.message || json.message || "Error al guardar el producto",
+        );
       }
 
       toast.success(
@@ -1025,9 +1042,16 @@ export const ProductCatalog: React.FC = () => {
     if (activeWarehouseId) params.append("warehouseId", activeWarehouseId);
     if (selectedDepartment) params.append("departmentId", selectedDepartment);
     if (selectedGroup) params.append("groupId", selectedGroup);
+    if (selectedSubgroup) params.append("subgroupId", selectedSubgroup);
     if (searchTerm.trim()) params.append("search", searchTerm.trim());
     return `/api/inventory/products/pdf?${params.toString()}`;
-  }, [activeWarehouseId, selectedDepartment, selectedGroup, searchTerm]);
+  }, [
+    activeWarehouseId,
+    selectedDepartment,
+    selectedGroup,
+    selectedSubgroup,
+    searchTerm,
+  ]);
 
   // Exportar CSV
   const handleExportCSV = () => {
@@ -1105,7 +1129,7 @@ export const ProductCatalog: React.FC = () => {
       cell: (row) => {
         return (
           <div>
-            <div className="font-semibold text-neutral-900 flex items-center gap-2">
+            <div className="font-semibold text-neutral-400 flex items-center gap-2">
               <span>{row.name}</span>
               {row.brand && (
                 <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-lg bg-neutral-100 text-neutral-600 border border-neutral-200">
@@ -1152,7 +1176,7 @@ export const ProductCatalog: React.FC = () => {
       header: "Jerarquía / Unidad",
       cell: (row) => (
         <div className="text-xs">
-          <div className="font-medium text-neutral-800">
+          <div className="font-medium text-neutral-400">
             {row.departmentName || "General"}
             {row.groupName && (
               <span className="text-neutral-500 font-normal">
@@ -1198,7 +1222,7 @@ export const ProductCatalog: React.FC = () => {
       header: "Base ($)",
       accessorKey: "basePrice",
       cell: (row) => (
-        <span className="text-xs font-mono text-neutral-800 font-medium">
+        <span className="text-xs font-mono text-neutral-400 font-medium">
           {formatMoneyUSD(row.basePrice || 0)}
         </span>
       ),
@@ -1220,7 +1244,7 @@ export const ProductCatalog: React.FC = () => {
         const rate = row.taxRate ?? 16;
         const finalPrice = (row.basePrice || 0) * (1 + rate / 100);
         return (
-          <span className="font-bold text-neutral-900 text-sm">
+          <span className="font-bold text-neutral-400 text-sm">
             {formatMoneyUSD(finalPrice)}
           </span>
         );
@@ -1238,7 +1262,7 @@ export const ProductCatalog: React.FC = () => {
         }
         const stock = row.currentStock || 0;
         const min = row.minStock || 5;
-        let colorClass = "text-neutral-900 font-medium";
+        let colorClass = "text-neutral-400 font-medium";
         if (stock <= 0) colorClass = "text-red-600 font-bold";
         else if (stock <= min) colorClass = "text-amber-600 font-semibold";
 
@@ -1295,10 +1319,10 @@ export const ProductCatalog: React.FC = () => {
       {/* Encabezado y Botonera Superior */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-neutral-900">
+          <h1 className="text-xl font-bold text-neutral-400 dark:text-neutral-100 tracking-tight">
             Catálogo de Productos e Inventario
           </h1>
-          <p className="text-xs text-neutral-500 mt-0.5">
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
             Gestión de artículos, múltiples SKUs, presentaciones con precios
             específicos, marcas y unidades
           </p>
@@ -1392,10 +1416,10 @@ export const ProductCatalog: React.FC = () => {
 
       {/* Barra de Filtros */}
       <Card className="p-4 rounded-lg">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {/* Búsqueda */}
           <div>
-            <label className="block text-xs font-semibold text-neutral-700 mb-1">
+            <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
               Buscar Producto / SKU / Marca
             </label>
             <div className="relative">
@@ -1405,14 +1429,14 @@ export const ProductCatalog: React.FC = () => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Ej: Harina PAN, HAR-01..."
-                className="w-full h-9 pl-9 pr-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                className="w-full h-9 pl-9 pr-3 text-xs bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded-lg text-neutral-400 dark:text-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
               />
             </div>
           </div>
 
           {/* Departamento */}
           <div>
-            <label className="block text-xs font-semibold text-neutral-700 mb-1">
+            <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
               Departamento
             </label>
             <select
@@ -1420,8 +1444,9 @@ export const ProductCatalog: React.FC = () => {
               onChange={(e) => {
                 setSelectedDepartment(e.target.value);
                 setSelectedGroup("");
+                setSelectedSubgroup("");
               }}
-              className="w-full h-9 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+              className="w-full h-9 px-3 text-xs bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded-lg text-neutral-400 dark:text-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
             >
               <option value="">Todos los Departamentos</option>
               {departments.map((d) => (
@@ -1434,14 +1459,17 @@ export const ProductCatalog: React.FC = () => {
 
           {/* Grupo */}
           <div>
-            <label className="block text-xs font-semibold text-neutral-700 mb-1">
+            <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
               Grupo
             </label>
             <select
               value={selectedGroup}
-              onChange={(e) => setSelectedGroup(e.target.value)}
+              onChange={(e) => {
+                setSelectedGroup(e.target.value);
+                setSelectedSubgroup("");
+              }}
               disabled={!selectedDepartment}
-              className="w-full h-9 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-50"
+              className="w-full h-9 px-3 text-xs bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded-lg text-neutral-400 dark:text-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-50"
             >
               <option value="">Todos los Grupos</option>
               {groups
@@ -1458,15 +1486,37 @@ export const ProductCatalog: React.FC = () => {
             </select>
           </div>
 
+          {/* Subgrupo */}
+          <div>
+            <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+              Subgrupo
+            </label>
+            <select
+              value={selectedSubgroup}
+              onChange={(e) => setSelectedSubgroup(e.target.value)}
+              disabled={!selectedGroup}
+              className="w-full h-9 px-3 text-xs bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded-lg text-neutral-400 dark:text-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-50"
+            >
+              <option value="">Todos los Subgrupos</option>
+              {subgroups
+                .filter((sg) => !selectedGroup || sg.groupId === selectedGroup)
+                .map((sg) => (
+                  <option key={sg.id} value={sg.id}>
+                    {sg.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+
           {/* Estado de Stock */}
           <div>
-            <label className="block text-xs font-semibold text-neutral-700 mb-1">
+            <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
               Existencia en Depósito
             </label>
             <select
               value={stockFilter}
               onChange={(e: any) => setStockFilter(e.target.value)}
-              className="w-full h-9 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+              className="w-full h-9 px-3 text-xs bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded-lg text-neutral-400 dark:text-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
             >
               <option value="all">Todas las existencias</option>
               <option value="in_stock">Con Stock Disponible</option>
@@ -1491,6 +1541,7 @@ export const ProductCatalog: React.FC = () => {
       <Modal
         isOpen={isProductModalOpen}
         onClose={() => setIsProductModalOpen(false)}
+        size="5xl"
         title={isEditingProduct ? "Editar Producto" : "Nuevo Producto"}
         subtitle={
           isEditingProduct
@@ -1498,7 +1549,7 @@ export const ProductCatalog: React.FC = () => {
             : "Registro integral de artículo, SKUs, presentaciones y reglas de precio"
         }
         icon={<Package className="w-5 h-5 text-sky-600" />}
-        maxWidth="max-w-4xl"
+        maxWidth="max-w-6xl"
         footer={
           <div className="flex items-center justify-between w-full">
             <span className="text-xs text-neutral-500">
@@ -1606,6 +1657,7 @@ export const ProductCatalog: React.FC = () => {
                     })
                   }
                   required
+                  className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
               </div>
 
@@ -1617,6 +1669,7 @@ export const ProductCatalog: React.FC = () => {
                   onChange={(e) =>
                     setProductForm({ ...productForm, barcode: e.target.value })
                   }
+                  className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
 
                 <div>
@@ -1630,10 +1683,13 @@ export const ProductCatalog: React.FC = () => {
                       setProductForm({
                         ...productForm,
                         productType: newType,
-                        tracksInventory: newType === "service" ? false : productForm.tracksInventory,
+                        tracksInventory:
+                          newType === "service"
+                            ? false
+                            : productForm.tracksInventory,
                       });
                     }}
-                    className="w-full h-10 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                    className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   >
                     <option value="physical">Físico / Mercancía</option>
                     <option value="service">Servicio</option>
@@ -1661,7 +1717,7 @@ export const ProductCatalog: React.FC = () => {
                     onChange={(e) =>
                       setProductForm({ ...productForm, brand: e.target.value })
                     }
-                    className="w-full h-10 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                    className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   >
                     <option value="">Sin marca específica</option>
                     {brands.map((b) => (
@@ -1696,7 +1752,7 @@ export const ProductCatalog: React.FC = () => {
                         unitOfMeasure: e.target.value,
                       })
                     }
-                    className="w-full h-10 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                    className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   >
                     {unitsOfMeasure.map((u) => (
                       <option key={u.id} value={u.code}>
@@ -1721,7 +1777,7 @@ export const ProductCatalog: React.FC = () => {
                         subgroupId: "",
                       })
                     }
-                    className="w-full h-10 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                    className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   >
                     <option value="">Seleccione Departamento</option>
                     {departments.map((d) => (
@@ -1747,7 +1803,7 @@ export const ProductCatalog: React.FC = () => {
                       })
                     }
                     disabled={!productForm.departmentId}
-                    className="w-full h-10 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-50"
+                    className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   >
                     <option value="">Seleccione Grupo</option>
                     {availableGroupsInForm.map((g) => (
@@ -1774,7 +1830,7 @@ export const ProductCatalog: React.FC = () => {
                       })
                     }
                     disabled={!productForm.groupId}
-                    className="w-full h-10 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-50"
+                    className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   >
                     <option value="">Seleccione Subgrupo (opcional)</option>
                     {availableSubgroupsInForm.map((sg) => (
@@ -1799,19 +1855,21 @@ export const ProductCatalog: React.FC = () => {
                         description: e.target.value,
                       })
                     }
-                    className="w-full h-10 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                    className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   />
                 </div>
               </div>
 
               {/* Control de Manejo de Inventario */}
-              <div className="border border-neutral-200 rounded-lg p-3 bg-neutral-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800  flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-start gap-2.5">
-                  <div className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${productForm.tracksInventory ? 'bg-sky-100 text-sky-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                  <div
+                    className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${productForm.tracksInventory ? "bg-sky-100 text-sky-700" : "bg-emerald-100 text-emerald-700"}`}
+                  >
                     <Boxes className="w-4 h-4" />
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-neutral-900 flex items-center gap-2">
+                    <div className="text-xs font-bold text-neutral-400 flex items-center gap-2">
                       <span>Control de Inventario / Existencias</span>
                       {productForm.tracksInventory ? (
                         <Badge variant="info">Maneja Inventario</Badge>
@@ -1863,6 +1921,7 @@ export const ProductCatalog: React.FC = () => {
                       costPrice: parseFloat(e.target.value) || 0,
                     })
                   }
+                  className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
                 <Input
                   label="Precio Base ($) *"
@@ -1876,6 +1935,7 @@ export const ProductCatalog: React.FC = () => {
                       basePrice: parseFloat(e.target.value) || 0,
                     })
                   }
+                  className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   required
                 />
                 <div>
@@ -1890,7 +1950,7 @@ export const ProductCatalog: React.FC = () => {
                         currency: e.target.value,
                       })
                     }
-                    className="w-full h-10 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                    className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   >
                     <option value="USD">USD ($ - Dólar Estadounidense)</option>
                     <option value="VES">VES (Bs. - Bolívares)</option>
@@ -1911,7 +1971,7 @@ export const ProductCatalog: React.FC = () => {
                         defaultTaxRateId: e.target.value,
                       })
                     }
-                    className="w-full h-10 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                    className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   >
                     {taxRates.map((tr) => (
                       <option key={tr.id} value={tr.id}>
@@ -1936,7 +1996,7 @@ export const ProductCatalog: React.FC = () => {
                   />
                   <label
                     htmlFor="tax-inclusive-toggle"
-                    className="text-xs text-neutral-800 font-medium cursor-pointer"
+                    className="text-xs text-neutral-400 font-medium cursor-pointer"
                   >
                     El Precio Base ya incluye el impuesto (Modalidad Inclusiva)
                   </label>
@@ -1944,12 +2004,12 @@ export const ProductCatalog: React.FC = () => {
               </div>
 
               {/* Resumen de Margen y PVP Final */}
-              <div className="p-4 bg-neutral-50 rounded-lg border border-neutral-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="p-4 bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800  flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div>
                   <span className="text-xs text-neutral-500">
                     PVP Final al Público:
                   </span>
-                  <div className="text-xl font-bold text-neutral-900">
+                  <div className="text-xl font-bold text-neutral-400">
                     {formatMoneyUSD(computedFinalPrice)}
                   </div>
                 </div>
@@ -1958,7 +2018,7 @@ export const ProductCatalog: React.FC = () => {
                   <span className="text-xs text-neutral-500">
                     Margen Estimado:
                   </span>
-                  <div className="text-sm font-semibold text-neutral-800 font-mono">
+                  <div className="text-sm font-semibold text-neutral-400 font-mono">
                     {productForm.costPrice > 0
                       ? `${(((productForm.basePrice - productForm.costPrice) / productForm.costPrice) * 100).toFixed(1)}% Mark-up`
                       : "Sin costo registrado"}
@@ -1973,11 +2033,14 @@ export const ProductCatalog: React.FC = () => {
             <div className="flex flex-col gap-4">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                 <div>
-                  <h4 className="text-xs font-bold text-neutral-900 uppercase">
+                  <h4 className="text-xs font-bold text-neutral-400 uppercase">
                     Presentaciones, Empaques y Códigos SKU
                   </h4>
                   <p className="text-[11px] text-neutral-500">
-                    Configure las diferentes presentaciones de venta (cajas, bultos, paquetes, displays o SKUs alternativos) con su factor en unidades base, código de barras y precio diferenciado.
+                    Configure las diferentes presentaciones de venta (cajas,
+                    bultos, paquetes, displays o SKUs alternativos) con su
+                    factor en unidades base, código de barras y precio
+                    diferenciado.
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1991,7 +2054,7 @@ export const ProductCatalog: React.FC = () => {
                       if (tmpl) handleAddPresentationRow(tmpl);
                       e.target.value = "";
                     }}
-                    className="h-8 px-2.5 text-xs bg-white border border-neutral-300 rounded-lg text-neutral-700"
+                    className="h-8 px-2.5 text-xs  text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   >
                     <option value="">+ Añadir desde Plantilla...</option>
                     {presentationTemplates.map((t) => (
@@ -2017,13 +2080,13 @@ export const ProductCatalog: React.FC = () => {
                 <div className="text-center py-8 border border-dashed border-neutral-300 rounded-lg text-xs text-neutral-500">
                   No hay presentaciones adicionales configuradas. El producto se
                   comercializará únicamente por su SKU principal (
-                  <strong>{productForm.sku || "Sin asignar"}</strong>) en unidad base (
-                  <strong>{productForm.unitOfMeasure}</strong>).
+                  <strong>{productForm.sku || "Sin asignar"}</strong>) en unidad
+                  base (<strong>{productForm.unitOfMeasure}</strong>).
                 </div>
               ) : (
                 <div className="border border-neutral-200 rounded-lg overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-neutral-50 border-b border-neutral-200 font-semibold text-neutral-700">
+                  <table className="w-full text-left text-sm border-collapse">
+                    <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase  tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
                       <tr>
                         <th className="p-2.5">Presentación *</th>
                         <th className="p-2.5">Factor (UND Base)</th>
@@ -2032,11 +2095,11 @@ export const ProductCatalog: React.FC = () => {
                         <th className="p-2.5">Precio Base ($) *</th>
                         <th className="p-2.5">PVP Final (IVA)</th>
                         <th className="p-2.5 text-center">Req. Autoriz.</th>
-                        <th className="p-2.5 text-center">Predeterminada</th>
+                        <th className="p-2.5 text-center">Predet.</th>
                         <th className="p-2.5 text-center">Eliminar</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-neutral-100">
+                    <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800 ">
                       {productForm.presentations.map((pres, idx) => {
                         const finalPresPrice = Number(
                           (
@@ -2045,7 +2108,10 @@ export const ProductCatalog: React.FC = () => {
                           ).toFixed(2),
                         );
                         return (
-                          <tr key={idx} className="hover:bg-neutral-50/50">
+                          <tr
+                            key={idx}
+                            className="border-b border-neutral-100 dark:border-neutral-800 hover:bg-neutral-600 animate-pulse"
+                          >
                             <td className="p-2">
                               <input
                                 type="text"
@@ -2058,7 +2124,7 @@ export const ProductCatalog: React.FC = () => {
                                   )
                                 }
                                 placeholder="Ej: Caja x 24"
-                                className="w-full h-8 px-2 text-xs border border-neutral-300 rounded-lg font-medium"
+                                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                                 required
                               />
                             </td>
@@ -2075,7 +2141,7 @@ export const ProductCatalog: React.FC = () => {
                                     parseFloat(e.target.value) || 1,
                                   )
                                 }
-                                className="w-full h-8 px-2 text-xs border border-neutral-300 rounded-lg font-mono text-center font-bold"
+                                className="w-full h-8 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono text-end"
                                 required
                               />
                             </td>
@@ -2091,7 +2157,7 @@ export const ProductCatalog: React.FC = () => {
                                   )
                                 }
                                 placeholder="SKU Caja..."
-                                className="w-full h-8 px-2 text-xs border border-neutral-300 rounded-lg font-mono font-bold"
+                                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono font-bold"
                               />
                             </td>
                             <td className="p-2">
@@ -2106,7 +2172,7 @@ export const ProductCatalog: React.FC = () => {
                                   )
                                 }
                                 placeholder="EAN-13 / Barras..."
-                                className="w-full h-8 px-2 text-xs border border-neutral-300 rounded-lg font-mono"
+                                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono"
                               />
                             </td>
                             <td className="p-2 w-32">
@@ -2122,11 +2188,11 @@ export const ProductCatalog: React.FC = () => {
                                     parseFloat(e.target.value) || 0,
                                   )
                                 }
-                                className="w-full h-8 px-2 text-xs border border-neutral-300 rounded-lg font-mono font-bold"
+                                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono font-bold"
                                 required
                               />
                             </td>
-                            <td className="p-2 font-mono font-bold text-neutral-900 w-28">
+                            <td className="p-2 font-mono font-bold text-neutral-400 w-28">
                               {formatMoneyUSD(finalPresPrice)}
                             </td>
                             <td className="p-2 text-center w-24">
@@ -2197,6 +2263,7 @@ export const ProductCatalog: React.FC = () => {
                       minStock: parseFloat(e.target.value) || 0,
                     })
                   }
+                  className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
                 <Input
                   label="Stock Máximo Deseado"
@@ -2209,11 +2276,12 @@ export const ProductCatalog: React.FC = () => {
                       maxStock: parseFloat(e.target.value) || 0,
                     })
                   }
+                  className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
               </div>
 
-              <div className="border border-neutral-200 rounded-lg p-3 bg-neutral-50 flex flex-wrap items-center gap-6">
-                <label className="flex items-center gap-2 text-xs text-neutral-800 font-medium cursor-pointer">
+              <div className="bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 flex flex-wrap items-center gap-6">
+                <label className="flex items-center gap-2 text-xs text-neutral-400 font-medium cursor-pointer">
                   <input
                     type="checkbox"
                     checked={productForm.tracksInventory}
@@ -2228,7 +2296,7 @@ export const ProductCatalog: React.FC = () => {
                   Controlar Existencias en Inventario
                 </label>
 
-                <label className="flex items-center gap-2 text-xs text-neutral-800 font-medium cursor-pointer">
+                <label className="flex items-center gap-2 text-xs text-neutral-400 font-medium cursor-pointer">
                   <input
                     type="checkbox"
                     checked={productForm.hasBatches}
@@ -2243,7 +2311,7 @@ export const ProductCatalog: React.FC = () => {
                   Manejo de Lotes y Vencimiento
                 </label>
 
-                <label className="flex items-center gap-2 text-xs text-neutral-800 font-medium cursor-pointer">
+                <label className="flex items-center gap-2 text-xs text-neutral-400 font-medium cursor-pointer">
                   <input
                     type="checkbox"
                     checked={productForm.hasSerials}
@@ -2262,12 +2330,16 @@ export const ProductCatalog: React.FC = () => {
               {!productForm.tracksInventory && (
                 <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center gap-2">
                   <Info className="w-4 h-4 shrink-0 text-emerald-600" />
-                  <span>Este producto no maneja control de inventario. Se podrá vender sin validar stock disponible ni requerir existencias en almacén.</span>
+                  <span>
+                    Este producto no maneja control de inventario. Se podrá
+                    vender sin validar stock disponible ni requerir existencias
+                    en almacén.
+                  </span>
                 </div>
               )}
 
               <div className="pt-2">
-                <h4 className="text-xs font-bold text-neutral-900 uppercase mb-2">
+                <h4 className="text-xs font-bold text-neutral-400 uppercase mb-2">
                   Ubicación Física en Depósito Activo (Opcional)
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -2317,14 +2389,11 @@ export const ProductCatalog: React.FC = () => {
         maxWidth="max-w-lg"
       >
         <div className="flex flex-col gap-4">
-          <form
-            onSubmit={handleSaveBrand}
-            className="flex flex-col gap-3 p-3 bg-neutral-50 rounded-lg border border-neutral-200"
-          >
-            <span className="text-xs font-bold text-neutral-800">
+          <form onSubmit={handleSaveBrand} className="flex flex-col gap-3 p-3 ">
+            <span className="text-xs font-bold text-neutral-400">
               {brandForm.isEditing ? "Editar Marca" : "Registrar Nueva Marca"}
             </span>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800  grid grid-cols-1 sm:grid-cols-2 gap-2">
               <Input
                 label="Nombre de Marca *"
                 placeholder="Ej: Empresas Polar"
@@ -2333,6 +2402,7 @@ export const ProductCatalog: React.FC = () => {
                   setBrandForm({ ...brandForm, name: e.target.value })
                 }
                 required
+                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
               />
               <Input
                 label="Descripción (opcional)"
@@ -2341,6 +2411,7 @@ export const ProductCatalog: React.FC = () => {
                 onChange={(e) =>
                   setBrandForm({ ...brandForm, description: e.target.value })
                 }
+                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
               />
             </div>
             <div className="flex justify-end gap-2 pt-1">
@@ -2370,10 +2441,10 @@ export const ProductCatalog: React.FC = () => {
             {brands.map((b) => (
               <div
                 key={b.id}
-                className="flex items-center justify-between p-2.5 text-xs hover:bg-neutral-50"
+                className="flex items-center justify-between p-2.5 text-xs hover:bg-neutral-0"
               >
                 <div>
-                  <span className="font-semibold text-neutral-800">
+                  <span className="font-semibold text-neutral-400">
                     {b.name}
                   </span>
                   {b.description && (
@@ -2386,7 +2457,6 @@ export const ProductCatalog: React.FC = () => {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 w-7 p-0"
                     onClick={() =>
                       setBrandForm({
                         id: b.id,
@@ -2401,10 +2471,10 @@ export const ProductCatalog: React.FC = () => {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 w-7 p-0 text-red-600 hover:border-red-300"
+                    className="text-red-600 hover:border-red-600"
                     onClick={() => handleDeleteBrand(b)}
                   >
-                    <Trash2 className="w-3 h-3" />
+                    <Trash2 className="w-3 h-3 text-red-500" />
                   </Button>
                 </div>
               </div>
@@ -2425,14 +2495,11 @@ export const ProductCatalog: React.FC = () => {
         maxWidth="max-w-lg"
       >
         <div className="flex flex-col gap-4">
-          <form
-            onSubmit={handleSaveUnit}
-            className="flex flex-col gap-3 p-3 bg-neutral-50 rounded-lg border border-neutral-200"
-          >
-            <span className="text-xs font-bold text-neutral-800">
+          <form onSubmit={handleSaveUnit} className="flex flex-col gap-3 p-3 ">
+            <span className="text-xs font-bold text-neutral-400">
               {unitForm.isEditing ? "Editar Unidad" : "Registrar Nueva Unidad"}
             </span>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 grid grid-cols-3 gap-2">
               <Input
                 label="Código *"
                 placeholder="Ej: UND, KG"
@@ -2453,6 +2520,7 @@ export const ProductCatalog: React.FC = () => {
                   setUnitForm({ ...unitForm, name: e.target.value })
                 }
                 required
+                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
               />
               <Input
                 label="Símbolo"
@@ -2461,6 +2529,7 @@ export const ProductCatalog: React.FC = () => {
                 onChange={(e) =>
                   setUnitForm({ ...unitForm, symbol: e.target.value })
                 }
+                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
               />
             </div>
             <div className="flex justify-end gap-2 pt-1">
@@ -2491,13 +2560,13 @@ export const ProductCatalog: React.FC = () => {
             {unitsOfMeasure.map((u) => (
               <div
                 key={u.id}
-                className="flex items-center justify-between p-2.5 text-xs hover:bg-neutral-50"
+                className="flex items-center justify-between p-2.5 text-xs hover:bg-neutral-600"
               >
                 <div>
-                  <span className="font-mono font-bold text-neutral-900 bg-neutral-100 px-1.5 py-0.5 rounded-lg mr-2">
+                  <span className="font-mono font-bold text-neutral-400 bg-red-500 px-1.5 py-0.5 rounded-lg mr-2">
                     {u.code}
                   </span>
-                  <span className="font-medium text-neutral-800">{u.name}</span>
+                  <span className="font-medium text-neutral-400">{u.name}</span>
                   {u.symbol && (
                     <span className="text-neutral-500 ml-1.5">
                       ({u.symbol})
@@ -2508,7 +2577,6 @@ export const ProductCatalog: React.FC = () => {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 w-7 p-0"
                     onClick={() =>
                       setUnitForm({
                         id: u.id,
@@ -2524,10 +2592,10 @@ export const ProductCatalog: React.FC = () => {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 w-7 p-0 text-red-600 hover:border-red-300"
+                    className="text-red-600 hover:border-red-300"
                     onClick={() => handleDeleteUnit(u)}
                   >
-                    <Trash2 className="w-3 h-3" />
+                    <Trash2 className="w-3 h-3 text-red-500 " />
                   </Button>
                 </div>
               </div>
@@ -2550,21 +2618,22 @@ export const ProductCatalog: React.FC = () => {
         <div className="flex flex-col gap-4">
           <form
             onSubmit={handleSavePresTemplate}
-            className="flex flex-col gap-3 p-3 bg-neutral-50 rounded-lg border border-neutral-200"
+            className="flex flex-col gap-3 p-3"
           >
-            <span className="text-xs font-bold text-neutral-800">
+            <span className="text-xs font-bold text-neutral-400">
               {presForm.isEditing
                 ? "Editar Plantilla de Presentación"
                 : "Registrar Nueva Plantilla"}
             </span>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800  grid grid-cols-1 sm:grid-cols-3 gap-2">
               <Input
-                label="Nombre de Presentación *"
+                label="Nombre *"
                 placeholder="Ej: Caja x 24"
                 value={presForm.name}
                 onChange={(e) =>
                   setPresForm({ ...presForm, name: e.target.value })
                 }
+                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 required
               />
               <Input
@@ -2579,6 +2648,7 @@ export const ProductCatalog: React.FC = () => {
                     defaultMultiplier: parseFloat(e.target.value) || 1,
                   })
                 }
+                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 required
               />
               <div>
@@ -2590,7 +2660,7 @@ export const ProductCatalog: React.FC = () => {
                   onChange={(e) =>
                     setPresForm({ ...presForm, defaultUnit: e.target.value })
                   }
-                  className="w-full h-10 px-2.5 text-xs bg-white border border-neutral-300 rounded-lg"
+                  className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 >
                   {unitsOfMeasure.map((u) => (
                     <option key={u.id} value={u.code}>
@@ -2602,7 +2672,7 @@ export const ProductCatalog: React.FC = () => {
             </div>
 
             <div className="pt-1">
-              <label className="flex items-center gap-2 text-xs text-neutral-800 font-medium cursor-pointer">
+              <label className="flex items-center gap-2 text-xs text-neutral-400 font-medium cursor-pointer">
                 <input
                   type="checkbox"
                   checked={presForm.requiresAuthorization}
@@ -2614,7 +2684,10 @@ export const ProductCatalog: React.FC = () => {
                   }
                   className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 cursor-pointer"
                 />
-                <span>Requiere autorización de administrador o supervisor para ser vendida en caja</span>
+                <span>
+                  Requiere autorización de administrador o supervisor para ser
+                  vendida en caja
+                </span>
               </label>
             </div>
 
@@ -2648,18 +2721,22 @@ export const ProductCatalog: React.FC = () => {
             {presentationTemplates.map((t) => (
               <div
                 key={t.id}
-                className="flex items-center justify-between p-2.5 text-xs hover:bg-neutral-50"
+                className="flex items-center justify-between p-2.5 text-xs hover:bg-neutral-600"
               >
                 <div>
-                  <span className="font-semibold text-neutral-800">
+                  <span className="font-semibold text-neutral-400">
                     {t.name}
                   </span>
                   <span className="text-neutral-500 font-mono text-[11px] ml-2">
-                    (Multiplicador: x{t.defaultMultiplier} {t.defaultUnit})
+                    (Multiplicador: x {formatNumber(t.defaultMultiplier,2)} {t.defaultUnit})
                   </span>
-                  {t.requiresAuthorization && (
+                  {t.requiresAuthorization ? (
                     <span className="ml-2 px-1.5 py-0.5 text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 rounded-lg">
                       Req. Autorización
+                    </span>
+                  ) : (
+                    <span className="ml-2 px-1.5 py-0.5 text-[10px] font-semibold bg-sky-50 text-sky-700 border border-sky-200 rounded-lg">
+                      No requiere Autorización
                     </span>
                   )}
                 </div>
@@ -2667,7 +2744,6 @@ export const ProductCatalog: React.FC = () => {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 w-7 p-0"
                     onClick={() =>
                       setPresForm({
                         id: t.id,
@@ -2685,10 +2761,9 @@ export const ProductCatalog: React.FC = () => {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 w-7 p-0 text-red-600 hover:border-red-300"
                     onClick={() => handleDeletePresTemplate(t)}
                   >
-                    <Trash2 className="w-3 h-3" />
+                    <Trash2 className="w-3 h-3 text-red-600" />
                   </Button>
                 </div>
               </div>

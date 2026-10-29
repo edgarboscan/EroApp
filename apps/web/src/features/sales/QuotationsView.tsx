@@ -1349,7 +1349,7 @@ export const QuotationsView: React.FC = () => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-        <Card className="p-4 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
+        <Card className="p-4 border-l-4 border-l-neutral-500 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-neutral-500 dark:border-neutral-800">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-neutral-400">
               Cotizaciones Activas
@@ -1366,7 +1366,7 @@ export const QuotationsView: React.FC = () => {
           </p>
         </Card>
 
-        <Card className="p-4 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
+        <Card className="p-4 border-l-4 border-l-neutral-500 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-neutral-500 dark:border-neutral-800">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-neutral-500">
               Monto Total Cotizado
@@ -1383,7 +1383,7 @@ export const QuotationsView: React.FC = () => {
           </p>
         </Card>
 
-        <Card className="p-4 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
+        <Card className="p-4 border-l-4 border-l-orange-500 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-orange-200 dark:border-orange-800">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-neutral-500">
               Aprobadas para Facturar
@@ -1400,7 +1400,7 @@ export const QuotationsView: React.FC = () => {
           </p>
         </Card>
 
-        <Card className="p-4 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
+        <Card className="p-4 border-l-4 border-l-purple-500 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-purple-200 dark:border-purple-800">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-neutral-500">
               Cotizaciones Facturadas
@@ -1419,7 +1419,7 @@ export const QuotationsView: React.FC = () => {
           </p>
         </Card>
 
-        <Card className="p-4 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
+        <Card className="p-4 border-l-4 border-l-emerald-500 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-emerald-200 dark:border-emerald-500">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-neutral-500">
               Monto Total Facturado

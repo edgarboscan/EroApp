@@ -372,6 +372,44 @@ export class InventoryService {
   // CATÁLOGO DE PRODUCTOS Y MOVIMIENTOS
   // ==========================================
 
+  static async getDefaultWarehouse(companyId: string, branchId?: string) {
+    const params: any[] = [companyId];
+    let branchCondition = '';
+    if (branchId) {
+      branchCondition = 'AND w.branch_id = ?';
+      params.push(branchId);
+    }
+    const rows = await query<any>(
+      `SELECT w.id, w.name, w.code, w.branch_id as branchId, b.name as branchName, w.is_default, w.is_default_sales
+       FROM warehouses w
+       INNER JOIN branches b ON w.branch_id = b.id
+       WHERE b.company_id = ? AND w.is_active = 1 ${branchCondition}
+       ORDER BY w.is_default DESC, w.name ASC
+       LIMIT 1`,
+      params
+    );
+    return rows[0] || null;
+  }
+
+  static async getSalesWarehouse(companyId: string, branchId?: string) {
+    const params: any[] = [companyId];
+    let branchCondition = '';
+    if (branchId) {
+      branchCondition = 'AND w.branch_id = ?';
+      params.push(branchId);
+    }
+    const rows = await query<any>(
+      `SELECT w.id, w.name, w.code, w.branch_id as branchId, b.name as branchName, w.is_default, w.is_default_sales
+       FROM warehouses w
+       INNER JOIN branches b ON w.branch_id = b.id
+       WHERE b.company_id = ? AND w.is_active = 1 ${branchCondition}
+       ORDER BY w.is_default_sales DESC, w.is_default DESC, w.name ASC
+       LIMIT 1`,
+      params
+    );
+    return rows[0] || null;
+  }
+
   static async getProducts(companyId: string, filters: {
     departmentId?: string;
     groupId?: string;
@@ -392,6 +430,8 @@ export class InventoryService {
               p.min_stock as minStock, p.max_stock as maxStock, p.is_active as isActive,
               p.has_batches as hasBatches, p.has_serials as hasSerials,
               COALESCE(ps.current_stock, 0) as currentStock,
+              wh.id as stockWarehouseId,
+              wh.name as stockWarehouseName,
               pl.aisle, pl.shelf, pl.compartment,
               (SELECT COUNT(*) FROM product_skus WHERE product_id = p.id) as skusCount,
               (SELECT COUNT(*) FROM product_presentations WHERE product_id = p.id) as presentationsCount
@@ -401,6 +441,7 @@ export class InventoryService {
        LEFT JOIN subgroups sg ON p.subgroup_id = sg.id
        LEFT JOIN tax_rates tr ON p.default_tax_rate_id = tr.id
        LEFT JOIN product_stocks ps ON p.id = ps.product_id AND (? IS NULL OR ps.warehouse_id = ?)
+       LEFT JOIN warehouses wh ON wh.id = ?
        LEFT JOIN product_locations pl ON p.id = pl.product_id AND (? IS NULL OR pl.warehouse_id = ?)
        WHERE p.company_id = ?
          AND (? IS NULL OR p.department_id = ?)
@@ -410,6 +451,7 @@ export class InventoryService {
        ORDER BY p.name ASC`,
       [
         filters.warehouseId || null, filters.warehouseId || null,
+        filters.warehouseId || null,
         filters.warehouseId || null, filters.warehouseId || null,
         companyId,
         filters.departmentId || null, filters.departmentId || null,
@@ -462,6 +504,10 @@ export class InventoryService {
       minStock: Number(r.minStock || 0),
       maxStock: Number(r.maxStock || 0),
       currentStock: Number(r.currentStock || 0),
+      availableStock: Number(r.currentStock || 0),
+      stock: Number(r.currentStock || 0),
+      stockWarehouseId: r.stockWarehouseId || filters.warehouseId || null,
+      stockWarehouseName: r.stockWarehouseName || null,
       hasBatches: Boolean(r.hasBatches),
       hasSerials: Boolean(r.hasSerials),
       taxInclusive: Boolean(r.taxInclusive),
@@ -1536,9 +1582,18 @@ export class InventoryService {
       const transferId = crypto.randomUUID();
       let totalCost = 0;
 
+      const validatedItems: {
+        productId: string;
+        quantity: number;
+        unitCost: number;
+        currentStock: number;
+        newStockOrigin: number;
+        notes?: string | null;
+      }[] = [];
+
       for (const item of data.items) {
         const [stockRows]: any = await conn.query(
-          `SELECT ps.current_stock, p.cost_price 
+          `SELECT ps.current_stock, p.cost_price, p.sku, p.name 
            FROM product_stocks ps
            INNER JOIN products p ON ps.product_id = p.id
            WHERE ps.product_id = ? AND ps.warehouse_id = ?`,
@@ -1547,25 +1602,85 @@ export class InventoryService {
 
         const currentStock = Number(stockRows[0]?.current_stock || 0);
         const unitCost = Number(stockRows[0]?.cost_price || 0);
+        const prodSku = stockRows[0]?.sku || '';
+        const prodName = stockRows[0]?.name || item.productId;
 
         if (currentStock < item.quantity) {
-          throw new Error('Stock insuficiente en almacén de origen para el producto seleccionado');
+          throw new Error(
+            `Stock insuficiente para el producto ${prodSku} (${prodName}) en el depósito origen. Disponible: ${currentStock}, Solicitado: ${item.quantity}`
+          );
         }
 
         const newStockOrigin = currentStock - item.quantity;
         totalCost += item.quantity * unitCost;
 
+        validatedItems.push({
+          productId: item.productId,
+          quantity: item.quantity,
+          unitCost,
+          currentStock,
+          newStockOrigin,
+          notes: item.notes || null,
+        });
+      }
+
+      const isInternal = data.originBranchId === data.destinationBranchId;
+      const effectiveTransferType = data.transferType || (isInternal ? 'INTERNAL_WAREHOUSE' : 'BRANCH_TRANSFER');
+
+      const checksumData = `${companyId}:${transferNumber}:${data.originBranchId}:${data.destinationBranchId}:${JSON.stringify(data.items)}`;
+      const fileChecksum = crypto.createHash('sha256').update(checksumData).digest('hex');
+
+      // 1. Insertar primero el registro maestro en inventory_transfers (satisface fk_tri_transfer)
+      await conn.query(
+        `INSERT INTO inventory_transfers (
+          id, company_id, transfer_number, origin_branch_id, origin_warehouse_id,
+          destination_branch_id, destination_warehouse_id, status, total_items,
+          total_cost, shipped_by_user_id, shipped_at, notes,
+          carrier_name, carrier_rif, driver_name, driver_id_document,
+          vehicle_plate, vehicle_model, security_seal_number, shipping_guide_number,
+          estimated_arrival_at, freight_cost, transfer_type, transfer_file_checksum
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'IN_TRANSIT', ?, ?, ?, CURRENT_TIMESTAMP(), ?,
+                  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          transferId,
+          companyId,
+          transferNumber,
+          data.originBranchId,
+          data.originWarehouseId,
+          data.destinationBranchId,
+          data.destinationWarehouseId,
+          data.items.length,
+          totalCost,
+          userId,
+          data.notes || null,
+          data.carrierName || null,
+          data.carrierRif || null,
+          data.driverName || null,
+          data.driverIdDocument || null,
+          data.vehiclePlate || null,
+          data.vehicleModel || null,
+          data.securitySealNumber || null,
+          data.shippingGuideNumber || null,
+          data.estimatedArrivalAt ? new Date(data.estimatedArrivalAt) : null,
+          data.freightCost || 0,
+          effectiveTransferType,
+          fileChecksum,
+        ]
+      );
+
+      // 2. Insertar los items hijos, actualizar stock y registrar movimientos de salida
+      for (const item of validatedItems) {
         await conn.query(
           `UPDATE product_stocks SET current_stock = ?, last_movement_at = CURRENT_TIMESTAMP()
            WHERE product_id = ? AND warehouse_id = ?`,
-          [newStockOrigin, item.productId, data.originWarehouseId]
+          [item.newStockOrigin, item.productId, data.originWarehouseId]
         );
 
         await conn.query(
           `INSERT INTO inventory_transfer_items (
             id, transfer_id, product_id, quantity_sent, unit_cost, notes
           ) VALUES (?, ?, ?, ?, ?, ?)`,
-          [crypto.randomUUID(), transferId, item.productId, item.quantity, unitCost, item.notes || null]
+          [crypto.randomUUID(), transferId, item.productId, item.quantity, item.unitCost, item.notes]
         );
 
         await conn.query(
@@ -1581,36 +1696,15 @@ export class InventoryService {
             item.productId,
             userId,
             item.quantity,
-            unitCost,
-            item.quantity * unitCost,
-            currentStock,
-            newStockOrigin,
+            item.unitCost,
+            item.quantity * item.unitCost,
+            item.currentStock,
+            item.newStockOrigin,
             transferNumber,
             data.notes || 'Traslado en tránsito a otro depósito',
           ]
         );
       }
-
-      await conn.query(
-        `INSERT INTO inventory_transfers (
-          id, company_id, transfer_number, origin_branch_id, origin_warehouse_id,
-          destination_branch_id, destination_warehouse_id, status, total_items,
-          total_cost, shipped_by_user_id, shipped_at, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'IN_TRANSIT', ?, ?, ?, CURRENT_TIMESTAMP(), ?)`,
-        [
-          transferId,
-          companyId,
-          transferNumber,
-          data.originBranchId,
-          data.originWarehouseId,
-          data.destinationBranchId,
-          data.destinationWarehouseId,
-          data.items.length,
-          totalCost,
-          userId,
-          data.notes || null,
-        ]
-      );
 
       return {
         id: transferId,
@@ -1618,12 +1712,13 @@ export class InventoryService {
         status: 'IN_TRANSIT',
         totalItems: data.items.length,
         totalCost,
+        transferFileChecksum: fileChecksum,
       };
     });
   }
 
   /**
-   * Recepciona un traslado en el depósito de destino acreditando el stock
+   * Recepciona un traslado en el depósito de destino acreditando el stock y verificando discrepancias
    */
   static async receiveTransfer(companyId: string, userId: string, data: ReceiveInventoryTransferInput) {
     return await withTransaction(async (conn) => {
@@ -1643,9 +1738,16 @@ export class InventoryService {
         [transfer.id]
       );
 
+      let totalDiscrepancies = 0;
+
       for (const item of items) {
         const receivedItem = data.items?.find((i) => i.productId === item.product_id);
         const qtyReceived = receivedItem ? receivedItem.quantityReceived : Number(item.quantity_sent);
+        const condition = receivedItem?.conditionStatus || 'OPTIMAL';
+        const discrepancy = qtyReceived - Number(item.quantity_sent);
+        if (discrepancy !== 0) {
+          totalDiscrepancies++;
+        }
 
         const [destStockRows]: any = await conn.query(
           `SELECT current_stock FROM product_stocks WHERE product_id = ? AND warehouse_id = ?`,
@@ -1662,8 +1764,13 @@ export class InventoryService {
         );
 
         await conn.query(
-          `UPDATE inventory_transfer_items SET quantity_received = ? WHERE id = ?`,
-          [qtyReceived, item.id]
+          `UPDATE inventory_transfer_items SET 
+            quantity_received = ?, 
+            discrepancy_quantity = ?, 
+            condition_status = ?,
+            notes = COALESCE(?, notes)
+           WHERE id = ?`,
+          [qtyReceived, discrepancy, condition, receivedItem?.notes || null, item.id]
         );
 
         await conn.query(
@@ -1684,38 +1791,55 @@ export class InventoryService {
             prevDestStock,
             newDestStock,
             transfer.transfer_number,
-            data.notes || 'Recepción conforme de mercancía trasladada',
+            data.notes || (discrepancy !== 0 ? `Recepción con discrepancia (${discrepancy > 0 ? '+' : ''}${discrepancy} uds)` : 'Recepción conforme de mercancía trasladada'),
           ]
         );
       }
+
+      const receptionNotes = [
+        data.notes || '',
+        data.securitySealVerified !== undefined ? `Precinto verificado: ${data.securitySealVerified ? 'CONFORME' : 'VIOLADO / NO COINCIDE'}` : '',
+        totalDiscrepancies > 0 ? `Se registraron discrepancias en ${totalDiscrepancies} renglones.` : '',
+      ].filter(Boolean).join(' | ');
 
       await conn.query(
         `UPDATE inventory_transfers SET
           status = 'RECEIVED',
           received_by_user_id = ?,
           received_at = CURRENT_TIMESTAMP(),
-          notes = COALESCE(CONCAT(notes, '\n', ?), notes)
+          notes = COALESCE(CONCAT(COALESCE(notes, ''), '\n[Recepción]: ', ?), notes)
          WHERE id = ?`,
-        [userId, data.notes || '', transfer.id]
+        [userId, receptionNotes, transfer.id]
       );
 
       return {
         id: transfer.id,
         transferNumber: transfer.transfer_number,
         status: 'RECEIVED',
+        totalDiscrepancies,
       };
     });
   }
 
   /**
-   * Obtiene la lista de traslados entre depósitos
+   * Obtiene la lista de traslados entre depósitos y sucursales
    */
-  static async getTransfers(companyId: string, branchId?: string, status?: string) {
+  static async getTransfers(
+    companyId: string,
+    branchId?: string,
+    status?: string,
+    direction: 'OUTGOING' | 'INCOMING' | 'ALL' = 'ALL'
+  ) {
     const params: any[] = [companyId];
     let sql = `
       SELECT 
         it.id, it.transfer_number, it.status, it.total_items, it.total_cost,
         it.shipped_at, it.received_at, it.notes,
+        it.carrier_name, it.carrier_rif, it.driver_name, it.driver_id_document,
+        it.vehicle_plate, it.vehicle_model, it.security_seal_number, it.shipping_guide_number,
+        it.estimated_arrival_at, it.freight_cost, it.transfer_type,
+        it.transfer_file_checksum, it.transfer_file_exported_at, it.email_sent_to, it.email_sent_at,
+        it.origin_branch_id, it.destination_branch_id,
         ob.name as origin_branch_name, ow.name as origin_warehouse_name,
         db.name as destination_branch_name, dw.name as destination_warehouse_name,
         su.full_name as shipped_by_name, ru.full_name as received_by_name
@@ -1730,17 +1854,335 @@ export class InventoryService {
     `;
 
     if (branchId) {
-      sql += ` AND (it.origin_branch_id = ? OR it.destination_branch_id = ?)`;
-      params.push(branchId, branchId);
+      if (direction === 'OUTGOING') {
+        sql += ` AND it.origin_branch_id = ?`;
+        params.push(branchId);
+      } else if (direction === 'INCOMING') {
+        sql += ` AND it.destination_branch_id = ?`;
+        params.push(branchId);
+      } else {
+        sql += ` AND (it.origin_branch_id = ? OR it.destination_branch_id = ?)`;
+        params.push(branchId, branchId);
+      }
     }
-    if (status) {
+
+    if (status && status !== 'ALL') {
       sql += ` AND it.status = ?`;
       params.push(status);
     }
 
-    sql += ` ORDER BY it.created_at DESC LIMIT 50`;
+    sql += ` ORDER BY it.created_at DESC LIMIT 100`;
 
     return await query<any>(sql, params);
+  }
+
+  /**
+   * Obtiene los datos detallados de un traslado de inventario
+   */
+  static async getTransferById(companyId: string, transferId: string) {
+    const rows = await query<any>(
+      `SELECT it.*,
+              ob.name as origin_branch_name, ow.name as origin_warehouse_name,
+              db.name as destination_branch_name, dw.name as destination_warehouse_name,
+              su.full_name as shipped_by_name, ru.full_name as received_by_name
+       FROM inventory_transfers it
+       INNER JOIN branches ob ON it.origin_branch_id = ob.id
+       INNER JOIN warehouses ow ON it.origin_warehouse_id = ow.id
+       INNER JOIN branches db ON it.destination_branch_id = db.id
+       INNER JOIN warehouses dw ON it.destination_warehouse_id = dw.id
+       INNER JOIN users su ON it.shipped_by_user_id = su.id
+       LEFT JOIN users ru ON it.received_by_user_id = ru.id
+       WHERE it.id = ? AND it.company_id = ?`,
+      [transferId, companyId]
+    );
+
+    if (rows.length === 0) return null;
+    const tr = rows[0];
+
+    const items = await query<any>(
+      `SELECT iti.*, p.sku as product_sku, p.name as product_name, p.barcode as product_barcode, p.unit_of_measure
+       FROM inventory_transfer_items iti
+       INNER JOIN products p ON iti.product_id = p.id
+       WHERE iti.transfer_id = ?`,
+      [transferId]
+    );
+
+    return {
+      id: tr.id,
+      transferNumber: tr.transfer_number,
+      shippedAt: tr.shipped_at ? new Date(tr.shipped_at).toISOString() : new Date().toISOString(),
+      receivedAt: tr.received_at ? new Date(tr.received_at).toISOString() : undefined,
+      status: tr.status,
+      transferType: tr.transfer_type || 'BRANCH_TRANSFER',
+      originBranchId: tr.origin_branch_id,
+      originBranchName: tr.origin_branch_name,
+      originWarehouseId: tr.origin_warehouse_id,
+      originWarehouseName: tr.origin_warehouse_name,
+      destinationBranchId: tr.destination_branch_id,
+      destinationBranchName: tr.destination_branch_name,
+      destinationWarehouseId: tr.destination_warehouse_id,
+      destinationWarehouseName: tr.destination_warehouse_name,
+      shippedByUserName: tr.shipped_by_name,
+      receivedByUserName: tr.received_by_name || undefined,
+      notes: tr.notes || undefined,
+      carrierName: tr.carrier_name || undefined,
+      carrierRif: tr.carrier_rif || undefined,
+      driverName: tr.driver_name || undefined,
+      driverIdDocument: tr.driver_id_document || undefined,
+      vehiclePlate: tr.vehicle_plate || undefined,
+      vehicleModel: tr.vehicle_model || undefined,
+      securitySealNumber: tr.security_seal_number || undefined,
+      shippingGuideNumber: tr.shipping_guide_number || undefined,
+      estimatedArrivalAt: tr.estimated_arrival_at ? new Date(tr.estimated_arrival_at).toISOString() : undefined,
+      freightCost: Number(tr.freight_cost || 0),
+      transferFileChecksum: tr.transfer_file_checksum || undefined,
+      transferFileExportedAt: tr.transfer_file_exported_at ? new Date(tr.transfer_file_exported_at).toISOString() : undefined,
+      emailSentTo: tr.email_sent_to || undefined,
+      emailSentAt: tr.email_sent_at ? new Date(tr.email_sent_at).toISOString() : undefined,
+      totalItems: Number(tr.total_items || items.length),
+      totalCost: Number(tr.total_cost || 0),
+      items: items.map((i: any) => ({
+        id: i.id,
+        productId: i.product_id,
+        productSku: i.product_sku,
+        productBarcode: i.product_barcode,
+        productName: i.product_name,
+        unitOfMeasure: i.unit_of_measure || 'UND',
+        quantitySent: Number(i.quantity_sent || 0),
+        quantityReceived: i.quantity_received != null ? Number(i.quantity_received) : undefined,
+        discrepancyQuantity: Number(i.discrepancy_quantity || 0),
+        conditionStatus: i.condition_status || 'OPTIMAL',
+        unitCost: Number(i.unit_cost || 0),
+        notes: i.notes || undefined,
+      })),
+    };
+  }
+
+  /**
+   * Genera el archivo/paquete de intercambio oficial (.ero / .json) para enviar a la sucursal receptora
+   */
+  static async exportTransferPackage(companyId: string, transferId: string) {
+    const tr = await this.getTransferById(companyId, transferId);
+    if (!tr) {
+      throw new Error('Traslado no encontrado');
+    }
+
+    const packageData = {
+      formatVersion: '1.0',
+      transferNumber: tr.transferNumber,
+      companyId,
+      originBranch: {
+        id: tr.originBranchId,
+        name: tr.originBranchName,
+      },
+      originWarehouse: {
+        id: tr.originWarehouseId,
+        name: tr.originWarehouseName,
+      },
+      destinationBranch: {
+        id: tr.destinationBranchId,
+        name: tr.destinationBranchName,
+      },
+      destinationWarehouse: {
+        id: tr.destinationWarehouseId,
+        name: tr.destinationWarehouseName,
+      },
+      transitInfo: {
+        carrierName: tr.carrierName || null,
+        carrierRif: tr.carrierRif || null,
+        driverName: tr.driverName || null,
+        driverIdDocument: tr.driverIdDocument || null,
+        vehiclePlate: tr.vehiclePlate || null,
+        vehicleModel: tr.vehicleModel || null,
+        securitySealNumber: tr.securitySealNumber || null,
+        shippingGuideNumber: tr.shippingGuideNumber || null,
+        estimatedArrivalAt: tr.estimatedArrivalAt || null,
+        freightCost: tr.freightCost || 0,
+      },
+      items: tr.items.map((i) => ({
+        sku: i.productSku,
+        barcode: i.productBarcode || null,
+        productName: i.productName,
+        unitOfMeasure: i.unitOfMeasure,
+        quantitySent: i.quantitySent,
+        unitCost: i.unitCost,
+        notes: i.notes || null,
+      })),
+      totalItems: tr.totalItems,
+      totalCost: tr.totalCost,
+      exportedAt: new Date().toISOString(),
+    };
+
+    const checksumContent = `${companyId}:${tr.transferNumber}:${JSON.stringify(packageData.items)}:${packageData.exportedAt}`;
+    const checksum = crypto.createHash('sha256').update(checksumContent).digest('hex');
+
+    const fullPackage = {
+      ...packageData,
+      checksum,
+    };
+
+    // Actualizar metadata de exportación en BD
+    await query(
+      `UPDATE inventory_transfers SET 
+        transfer_file_checksum = ?,
+        transfer_file_exported_at = CURRENT_TIMESTAMP()
+       WHERE id = ?`,
+      [checksum, transferId]
+    );
+
+    return fullPackage;
+  }
+
+  /**
+   * Carga e importa el archivo (.ero / .json) en la sucursal receptora
+   */
+  static async importTransferPackage(
+    companyId: string,
+    userId: string,
+    pkg: any,
+    targetWarehouseId?: string
+  ) {
+    if (!pkg || !pkg.transferNumber || !Array.isArray(pkg.items) || pkg.items.length === 0) {
+      throw new Error('El archivo no contiene un paquete de transferencia válido');
+    }
+
+    return await withTransaction(async (conn) => {
+      // 1. Validar si ya existe este número de transferencia en la empresa
+      const [existingRows]: any = await conn.query(
+        `SELECT id, status, destination_branch_id, destination_warehouse_id 
+         FROM inventory_transfers 
+         WHERE company_id = ? AND transfer_number = ?`,
+        [companyId, pkg.transferNumber]
+      );
+
+      let transferId: string;
+      const destinationWarehouseId = targetWarehouseId || pkg.destinationWarehouse?.id;
+
+      if (existingRows.length > 0) {
+        const existing = existingRows[0];
+        transferId = existing.id;
+
+        if (existing.status === 'RECEIVED') {
+          throw new Error(`La transferencia ${pkg.transferNumber} ya fue recibida y asentada previamente en el inventario.`);
+        }
+
+        // Si se especificó un almacén destino alternativo para la recepción, actualizarlo
+        if (targetWarehouseId && targetWarehouseId !== existing.destination_warehouse_id) {
+          await conn.query(
+            `UPDATE inventory_transfers SET destination_warehouse_id = ? WHERE id = ?`,
+            [targetWarehouseId, transferId]
+          );
+        }
+      } else {
+        // La transferencia proviene de una sucursal con BD externa o archivo fuera de línea: crear registro entrante
+        transferId = crypto.randomUUID();
+
+        // Validar y vincular productos locales por SKU o código de barras
+        let totalCost = 0;
+        const matchedItems: { productId: string; quantity: number; unitCost: number; notes: string | null }[] = [];
+
+        for (const item of pkg.items) {
+          const [prodRows]: any = await conn.query(
+            `SELECT id, cost_price FROM products WHERE company_id = ? AND (sku = ? OR (barcode = ? AND barcode IS NOT NULL)) LIMIT 1`,
+            [companyId, item.sku, item.barcode || item.sku]
+          );
+
+          if (!prodRows || prodRows.length === 0) {
+            throw new Error(`El producto con SKU '${item.sku}' (${item.productName}) no existe en el catálogo de esta sucursal.`);
+          }
+
+          const localProduct = prodRows[0];
+          const unitCost = Number(item.unitCost || localProduct.cost_price || 0);
+          totalCost += item.quantitySent * unitCost;
+
+          matchedItems.push({
+            productId: localProduct.id,
+            quantity: item.quantitySent,
+            unitCost,
+            notes: item.notes || null,
+          });
+        }
+
+        // Insertar transferencia entrante en tránsito
+        await conn.query(
+          `INSERT INTO inventory_transfers (
+            id, company_id, transfer_number, origin_branch_id, origin_warehouse_id,
+            destination_branch_id, destination_warehouse_id, status, total_items,
+            total_cost, shipped_by_user_id, shipped_at, notes,
+            carrier_name, carrier_rif, driver_name, driver_id_document,
+            vehicle_plate, vehicle_model, security_seal_number, shipping_guide_number,
+            estimated_arrival_at, freight_cost, transfer_type, transfer_file_checksum
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'IN_TRANSIT', ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'BRANCH_TRANSFER', ?)`,
+          [
+            transferId,
+            companyId,
+            pkg.transferNumber,
+            pkg.originBranch?.id || null,
+            pkg.originWarehouse?.id || null,
+            pkg.destinationBranch?.id || null,
+            destinationWarehouseId,
+            matchedItems.length,
+            totalCost,
+            userId,
+            pkg.exportedAt ? new Date(pkg.exportedAt) : new Date(),
+            `Importado desde archivo ${pkg.transferNumber}`,
+            pkg.transitInfo?.carrierName || null,
+            pkg.transitInfo?.carrierRif || null,
+            pkg.transitInfo?.driverName || null,
+            pkg.transitInfo?.driverIdDocument || null,
+            pkg.transitInfo?.vehiclePlate || null,
+            pkg.transitInfo?.vehicleModel || null,
+            pkg.transitInfo?.securitySealNumber || null,
+            pkg.transitInfo?.shippingGuideNumber || null,
+            pkg.transitInfo?.estimatedArrivalAt ? new Date(pkg.transitInfo.estimatedArrivalAt) : null,
+            pkg.transitInfo?.freightCost || 0,
+            pkg.checksum || null,
+          ]
+        );
+
+        // Insertar renglones de transferencia
+        for (const mi of matchedItems) {
+          await conn.query(
+            `INSERT INTO inventory_transfer_items (
+              id, transfer_id, product_id, quantity_sent, unit_cost, notes
+            ) VALUES (?, ?, ?, ?, ?, ?)`,
+            [crypto.randomUUID(), transferId, mi.productId, mi.quantity, mi.unitCost, mi.notes]
+          );
+        }
+      }
+
+      return await this.getTransferById(companyId, transferId);
+    });
+  }
+
+  /**
+   * Registra el envío por correo electrónico de la transferencia a la sucursal destino
+   */
+  static async sendTransferEmail(
+    companyId: string,
+    transferId: string,
+    recipientEmail: string,
+    notes?: string
+  ) {
+    const tr = await this.getTransferById(companyId, transferId);
+    if (!tr) throw new Error('Traslado no encontrado');
+
+    await query(
+      `UPDATE inventory_transfers SET 
+        email_sent_to = ?,
+        email_sent_at = CURRENT_TIMESTAMP()
+       WHERE id = ?`,
+      [recipientEmail, transferId]
+    );
+
+    return {
+      success: true,
+      transferNumber: tr.transferNumber,
+      recipientEmail,
+      sentAt: new Date().toISOString(),
+      message: `Paquete de transferencia ${tr.transferNumber} enviado a ${recipientEmail}`,
+    };
   }
 
   /**
@@ -1787,62 +2229,6 @@ export class InventoryService {
         newStock: Number(i.new_stock || 0),
         unitCost: Number(i.unit_cost || 0),
         totalCost: Number(i.total_cost || 0),
-        notes: i.notes || undefined,
-      })),
-    };
-  }
-
-  /**
-   * Obtiene los datos detallados de un traslado de inventario para Guía de Traslado PDF
-   */
-  static async getTransferById(companyId: string, transferId: string) {
-    const rows = await query<any>(
-      `SELECT it.*,
-              ob.name as origin_branch_name, ow.name as origin_warehouse_name,
-              db.name as destination_branch_name, dw.name as destination_warehouse_name,
-              su.full_name as shipped_by_name, ru.full_name as received_by_name
-       FROM inventory_transfers it
-       INNER JOIN branches ob ON it.origin_branch_id = ob.id
-       INNER JOIN warehouses ow ON it.origin_warehouse_id = ow.id
-       INNER JOIN branches db ON it.destination_branch_id = db.id
-       INNER JOIN warehouses dw ON it.destination_warehouse_id = dw.id
-       INNER JOIN users su ON it.shipped_by_user_id = su.id
-       LEFT JOIN users ru ON it.received_by_user_id = ru.id
-       WHERE it.id = ? AND it.company_id = ?`,
-      [transferId, companyId]
-    );
-
-    if (rows.length === 0) return null;
-    const tr = rows[0];
-
-    const items = await query<any>(
-      `SELECT iti.*, p.sku as product_sku, p.name as product_name
-       FROM inventory_transfer_items iti
-       INNER JOIN products p ON iti.product_id = p.id
-       WHERE iti.transfer_id = ?`,
-      [transferId]
-    );
-
-    return {
-      transferNumber: tr.transfer_number,
-      shippedAt: tr.shipped_at ? new Date(tr.shipped_at).toISOString() : new Date().toISOString(),
-      receivedAt: tr.received_at ? new Date(tr.received_at).toISOString() : undefined,
-      status: tr.status,
-      originBranchName: tr.origin_branch_name,
-      originWarehouseName: tr.origin_warehouse_name,
-      destinationBranchName: tr.destination_branch_name,
-      destinationWarehouseName: tr.destination_warehouse_name,
-      shippedByUserName: tr.shipped_by_name,
-      receivedByUserName: tr.received_by_name || undefined,
-      notes: tr.notes || undefined,
-      totalItems: Number(tr.total_items || items.length),
-      totalCost: Number(tr.total_cost || 0),
-      items: items.map((i: any) => ({
-        productSku: i.product_sku,
-        productName: i.product_name,
-        quantitySent: Number(i.quantity_sent || 0),
-        quantityReceived: i.quantity_received != null ? Number(i.quantity_received) : undefined,
-        unitCost: Number(i.unit_cost || 0),
         notes: i.notes || undefined,
       })),
     };

@@ -116,11 +116,11 @@ export const PayablesAgingView: React.FC = () => {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-xl font-bold text-neutral-900 tracking-tight flex items-center gap-2">
+          <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100 tracking-tight">
             <Clock className="w-5 h-5 text-sky-600" />
             Antigüedad de Saldos a Proveedores (CxP)
           </h1>
-          <p className="text-sm text-neutral-500">
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
             Monitoreo y programación de pagos comerciales según tramos de vencimiento
           </p>
         </div>
@@ -135,6 +135,15 @@ export const PayablesAgingView: React.FC = () => {
             Directorio Proveedores
           </Button>
           <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/supplier-notes')}
+            className="flex-1 sm:flex-none"
+          >
+            <FileText className="w-4 h-4 mr-1 text-sky-600" />
+            Notas Crédito / Débito
+          </Button>
+          <Button
             size="sm"
             onClick={() => navigate('/payables/payments')}
             className="flex-1 sm:flex-none"
@@ -145,9 +154,9 @@ export const PayablesAgingView: React.FC = () => {
         </div>
       </div>
 
-      {/* 6 Aging Buckets KPI Cards */}
+      {/* 6  Buckets KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <Card className="p-3 border-neutral-200 bg-neutral-50/50">
+        <Card className="p-3 border-l-4 border-l-neutral-500  bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-neutral-200 dark:border-neutral-800">
           <p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
             Total Deuda CxP
           </p>
@@ -157,7 +166,7 @@ export const PayablesAgingView: React.FC = () => {
           <span className="text-[10px] text-neutral-400">Compromisos vigentes</span>
         </Card>
 
-        <Card className="p-3 border-neutral-200">
+        <Card className="p-3 border-l-4 border-l-emerald-600  bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-emerald-200 dark:border-emerald-600">
           <p className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wider">
             Corriente (Al Día)
           </p>
@@ -167,7 +176,7 @@ export const PayablesAgingView: React.FC = () => {
           <span className="text-[10px] text-neutral-400">Por vencer</span>
         </Card>
 
-        <Card className="p-3 border-neutral-200">
+        <Card className="p-3 border-l-4 border-l-amber-600  bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-amber-200 dark:border-amber-600 ">
           <p className="text-[11px] font-semibold text-amber-600 uppercase tracking-wider">
             1 - 30 Días
           </p>
@@ -177,7 +186,7 @@ export const PayablesAgingView: React.FC = () => {
           <span className="text-[10px] text-neutral-400">Vencimiento reciente</span>
         </Card>
 
-        <Card className="p-3 border-neutral-200">
+        <Card className="p-3 border-l-4 border-l-orange-600  bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-orange-200 dark:border-orange-600 ">
           <p className="text-[11px] font-semibold text-orange-600 uppercase tracking-wider">
             31 - 60 Días
           </p>
@@ -187,7 +196,7 @@ export const PayablesAgingView: React.FC = () => {
           <span className="text-[10px] text-neutral-400">Mora moderada</span>
         </Card>
 
-        <Card className="p-3 border-neutral-200">
+        <Card className="p-3 border-l-4 border-l-red-600  bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-red-200 dark:border-red-600 ">
           <p className="text-[11px] font-semibold text-red-600 uppercase tracking-wider">
             61 - 90 Días
           </p>
@@ -197,11 +206,11 @@ export const PayablesAgingView: React.FC = () => {
           <span className="text-[10px] text-neutral-400">Mora crítica</span>
         </Card>
 
-        <Card className="p-3 border-neutral-200 bg-red-50/20">
-          <p className="text-[11px] font-semibold text-red-700 uppercase tracking-wider">
+        <Card className="p-3 border-l-4 border-l-red-600  bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-red-200 dark:border-red-800 ">
+          <p className="text-[11px] font-semibold text-red-600 uppercase tracking-wider">
             + 90 Días
           </p>
-          <p className="text-lg font-bold text-red-800 mt-1 font-mono">
+          <p className="text-lg font-bold text-red-700 mt-1 font-mono">
             {formatMoneyUSD(totals.days90Plus)}
           </p>
           <span className="text-[10px] text-red-500 font-semibold">Excedida</span>
@@ -218,7 +227,7 @@ export const PayablesAgingView: React.FC = () => {
               placeholder="Buscar proveedor o factura..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="w-full pl-9 pr-3 py-2  text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
             />
           </div>
           <span className="text-xs text-neutral-500">
@@ -227,8 +236,8 @@ export const PayablesAgingView: React.FC = () => {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-neutral-600">
-            <thead className="bg-neutral-50 border-b border-neutral-200 text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+          <table className="w-full text-left text-sm border-collapse">
+            <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase  tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
               <tr>
                 <th className="py-3 px-4">Proveedor</th>
                 <th className="py-3 px-4">Factura Compra</th>
@@ -241,10 +250,10 @@ export const PayablesAgingView: React.FC = () => {
                 <th className="py-3 px-4 text-right">Acción</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-100">
+            <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800 ">
               {loading ? (
                 Array.from({ length: 4 }).map((_, i) => (
-                  <tr key={i} className="animate-pulse">
+                  <tr key={i} className="border-b border-neutral-100 dark:border-neutral-800 hover:bg-neutral-600 animate-pulse">
                     <td className="py-4 px-4">
                       <div className="h-4 bg-neutral-200 rounded w-36 mb-1" />
                       <div className="h-3 bg-neutral-100 rounded w-20" />

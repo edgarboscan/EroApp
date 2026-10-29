@@ -4,18 +4,31 @@ export const supplierSchema = z.object({
   id: z.string().uuid().optional(),
   rif: z.string().min(6, 'El RIF debe tener al menos 6 caracteres (ej. J-12345678-9)'),
   name: z.string().min(2, 'La razón social o nombre es requerido'),
-  fiscalAddress: z.string().optional(),
-  phone: z.string().optional(),
+  commercialName: z.string().optional().or(z.literal('')),
+  fiscalAddress: z.string().optional().or(z.literal('')),
+  contactName: z.string().optional().or(z.literal('')),
+  phone: z.string().optional().or(z.literal('')),
   email: z.string().email('Correo electrónico inválido').optional().or(z.literal('')),
   isPersonNatural: z.boolean().default(false),
   isResident: z.boolean().default(true),
-  islrConceptCode: z.string().optional(),
+  islrConceptCode: z.string().optional().or(z.literal('')),
   creditLimit: z.number().min(0, 'El límite de crédito no puede ser negativo').default(0),
   paymentTermsDays: z.number().int().min(0).default(0),
   isActive: z.boolean().default(true),
 });
 
 export type SupplierInput = z.infer<typeof supplierSchema>;
+
+export const supplierProductSchema = z.object({
+  productId: z.string().uuid('ID de producto inválido'),
+  supplierProductCode: z.string().optional().or(z.literal('')),
+  costPriceUsd: z.number().min(0, 'El costo no puede ser negativo').default(0),
+  deliveryLeadTimeDays: z.number().int().min(0).default(0),
+  isPreferred: z.boolean().default(false),
+  notes: z.string().optional().or(z.literal('')),
+});
+
+export type SupplierProductInput = z.infer<typeof supplierProductSchema>;
 
 export const createPayablePaymentSchema = z.object({
   payableId: z.string().uuid('ID de cuenta por pagar inválido'),

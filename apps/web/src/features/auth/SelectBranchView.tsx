@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuthStore, isSuperAdminRole } from "../../stores/authStore";
+import { useAuthStore, isSuperAdminRole, isWaiterRole } from "../../stores/authStore";
 import { showConfirmQuestion } from "../../lib/sweetalert";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
@@ -13,6 +13,7 @@ import {
   LogOut,
   RefreshCw,
   Lock,
+  Store,
 } from "lucide-react";
 import { getDefaultAppRoute } from "../../lib/navigation";
 
@@ -33,6 +34,14 @@ interface BranchOption {
   warehouses: WarehouseOption[];
 }
 
+interface CashRegisterOption {
+  id: string;
+  code: string;
+  name: string;
+  status?: string;
+  acceptsOrders?: boolean;
+}
+
 export const SelectBranchView: React.FC = () => {
   const navigate = useNavigate();
   const {
@@ -40,9 +49,12 @@ export const SelectBranchView: React.FC = () => {
     token,
     activeBranchId,
     activeWarehouseId,
+    activeCashRegisterId,
     setActiveBranch,
     logout,
   } = useAuthStore();
+
+  const isWaiter = isWaiterRole(user?.role);
 
   const [branches, setBranches] = useState<BranchOption[]>([]);
   const [selectedBranchId, setSelectedBranchId] = useState<string>(
@@ -51,6 +63,11 @@ export const SelectBranchView: React.FC = () => {
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>(
     activeWarehouseId || "",
   );
+  const [registers, setRegisters] = useState<CashRegisterOption[]>([]);
+  const [selectedCashRegisterId, setSelectedCashRegisterId] = useState<string>(
+    activeCashRegisterId || "",
+  );
+  const [isFetchingRegisters, setIsFetchingRegisters] = useState<boolean>(false);
   const [isFetching, setIsFetching] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
@@ -158,6 +175,65 @@ export const SelectBranchView: React.FC = () => {
     fetchBranches();
   }, [fetchBranches]);
 
+  useEffect(() => {
+    if (!selectedBranchId || !token) {
+      setRegisters([]);
+      setSelectedCashRegisterId("");
+      return;
+    }
+
+    let isMounted = true;
+    const fetchRegisters = async () => {
+      setIsFetchingRegisters(true);
+      try {
+        const queryParam = isWaiter
+          ? `?branchId=${selectedBranchId}&acceptsOrders=true`
+          : `?branchId=${selectedBranchId}`;
+        const res = await fetch(`/api/pos/registers${queryParam}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (isMounted && json.success && Array.isArray(json.data)) {
+            let list: CashRegisterOption[] = json.data;
+            if (isWaiter) {
+              list = list.filter((r: any) => r.acceptsOrders !== false);
+            }
+            setRegisters(list);
+
+            if (list.length > 0) {
+              const current = list.find(
+                (r) => r.id === (selectedCashRegisterId || activeCashRegisterId),
+              );
+              if (current) {
+                setSelectedCashRegisterId(current.id);
+              } else {
+                const openOne =
+                  list.find(
+                    (r) =>
+                      r.status?.toUpperCase() === "OPEN" ||
+                      r.status?.toLowerCase() === "open",
+                  ) || list[0];
+                setSelectedCashRegisterId(openOne.id);
+              }
+            } else {
+              setSelectedCashRegisterId("");
+            }
+          }
+        }
+      } catch {
+        if (isMounted) setRegisters([]);
+      } finally {
+        if (isMounted) setIsFetchingRegisters(false);
+      }
+    };
+
+    fetchRegisters();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedBranchId, token, isWaiter, activeCashRegisterId]);
+
   const isSuper = isSuperAdminRole(user?.role);
   const activeBranch =
     branches.find((b) => b.id === selectedBranchId) || branches[0] || null;
@@ -196,14 +272,28 @@ export const SelectBranchView: React.FC = () => {
       return;
     }
 
+    if (isWaiter && registers.length > 0 && !selectedCashRegisterId) {
+      toast.error("Debe seleccionar una caja para la toma de comandas");
+      return;
+    }
+
+    if (isWaiter && registers.length === 0) {
+      toast.error("No hay cajas disponibles configuradas para aceptar comandas en esta sucursal");
+      return;
+    }
+
     setIsSubmitting(true);
-    setActiveBranch(selectedBranchId, selectedWarehouseId || undefined);
-    toast.success("Sucursal y depósito activados correctamente");
+    setActiveBranch(
+      selectedBranchId,
+      selectedWarehouseId || undefined,
+      selectedCashRegisterId || null,
+    );
+    toast.success("Entorno de trabajo activado correctamente");
     setTimeout(() => {
       setIsSubmitting(false);
-      const targetRoute = getDefaultAppRoute(
-        useAuthStore.getState().hasPermission,
-      );
+      const targetRoute = isWaiter
+        ? "/restaurant/orders"
+        : getDefaultAppRoute(useAuthStore.getState().hasPermission);
       navigate(targetRoute, { replace: true });
     }, 300);
   };
@@ -414,6 +504,79 @@ export const SelectBranchView: React.FC = () => {
                 )}
               </div>
 
+              {/* Paso 3: Caja Registradora para Comandas y Ventas */}
+              {(registers.length > 0 || isWaiter) && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 block">
+                      3. Caja Registradora {isWaiter ? "(Comandas de Restaurante)" : "Asignada (Opcional)"}
+                    </label>
+                    {isWaiter && (
+                      <span className="text-[11px] text-emerald-700 dark:text-emerald-400 flex items-center gap-1 font-medium bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                        Solo cajas que aceptan comandas
+                      </span>
+                    )}
+                  </div>
+
+                  {isFetchingRegisters ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="h-16 bg-neutral-100 dark:bg-neutral-800/60 rounded-lg animate-pulse" />
+                      <div className="h-16 bg-neutral-100 dark:bg-neutral-800/60 rounded-lg animate-pulse" />
+                    </div>
+                  ) : registers.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {registers.map((r) => {
+                        const isSelected = r.id === selectedCashRegisterId;
+                        const isOpen =
+                          r.status?.toUpperCase() === "OPEN" ||
+                          r.status?.toLowerCase() === "open";
+                        return (
+                          <div
+                            key={r.id}
+                            onClick={() => setSelectedCashRegisterId(r.id)}
+                            className={`p-3.5 rounded-lg border text-left transition-colors cursor-pointer ${
+                              isSelected
+                                ? "border-sky-600 bg-sky-50/50 dark:bg-sky-950/20 ring-2 ring-sky-500"
+                                : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400">
+                                {r.code}
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                {isOpen && (
+                                  <span className="text-[10px] bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 px-1.5 py-0.5 rounded font-medium">
+                                    Abierta
+                                  </span>
+                                )}
+                                {isSelected && (
+                                  <Check className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Store
+                                className={`w-4 h-4 shrink-0 ${isSelected ? "text-sky-700 dark:text-sky-400" : "text-neutral-400 dark:text-neutral-500"}`}
+                              />
+                              <span className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
+                                {r.name}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-4 border border-dashed border-amber-200 dark:border-amber-800/60 rounded-lg text-center text-xs text-amber-700 dark:text-amber-300 bg-amber-50/50 dark:bg-amber-950/20">
+                      {isWaiter
+                        ? "No hay cajas configuradas para aceptar comandas en esta sucursal. Contacte al administrador."
+                        : "No hay cajas registradoras activas en esta sucursal."}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Resumen */}
               <div className="p-3 bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-800 rounded-lg text-xs flex items-center justify-between">
                 <span className="text-neutral-500 dark:text-neutral-400">
@@ -426,6 +589,14 @@ export const SelectBranchView: React.FC = () => {
                       {activeWarehouses.find(
                         (w) => w.id === selectedWarehouseId,
                       )?.name || "Depósito no asignado"}
+                      {selectedCashRegisterId && (
+                        <>
+                          {" "}•{" "}
+                          <span className="text-sky-600 dark:text-sky-400">
+                            {registers.find((r) => r.id === selectedCashRegisterId)?.name || "Caja asignada"}
+                          </span>
+                        </>
+                      )}
                     </>
                   ) : (
                     "Sin selección"
@@ -439,7 +610,8 @@ export const SelectBranchView: React.FC = () => {
                 isLoading={isSubmitting}
                 disabled={
                   !selectedBranchId ||
-                  (activeWarehouses.length > 0 && !selectedWarehouseId)
+                  (activeWarehouses.length > 0 && !selectedWarehouseId) ||
+                  (isWaiter && (registers.length === 0 || !selectedCashRegisterId))
                 }
               >
                 <span>Confirmar y Entrar al Sistema</span>

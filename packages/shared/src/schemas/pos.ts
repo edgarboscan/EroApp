@@ -104,6 +104,7 @@ export const cashRegisterSchema = z.object({
   defaultBankAccountIdVES: z.string().optional().nullable(),
   defaultBankAccountIdUSD: z.string().optional().nullable(),
   allowedDepartmentIds: z.array(z.string()).optional().default([]),
+  acceptsOrders: z.boolean().optional().default(true),
   isActive: z.boolean().optional().default(true),
 });
 

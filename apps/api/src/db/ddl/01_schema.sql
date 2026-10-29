@@ -234,7 +234,9 @@ CREATE TABLE `suppliers` (
   `company_id` CHAR(36) NOT NULL,
   `rif` VARCHAR(20) NOT NULL,
   `name` VARCHAR(150) NOT NULL,
+  `commercial_name` VARCHAR(150) DEFAULT NULL,
   `fiscal_address` TEXT DEFAULT NULL,
+  `contact_name` VARCHAR(100) DEFAULT NULL,
   `phone` VARCHAR(30) DEFAULT NULL,
   `email` VARCHAR(100) DEFAULT NULL,
   `is_person_natural` TINYINT(1) NOT NULL DEFAULT 0,
@@ -248,6 +250,28 @@ CREATE TABLE `suppliers` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_suppliers_company_rif` (`company_id`, `rif`),
   CONSTRAINT `fk_suppliers_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+DROP TABLE IF EXISTS `supplier_products`;
+CREATE TABLE `supplier_products` (
+  `id` CHAR(36) NOT NULL,
+  `company_id` CHAR(36) NOT NULL,
+  `supplier_id` CHAR(36) NOT NULL,
+  `product_id` CHAR(36) NOT NULL,
+  `supplier_product_code` VARCHAR(60) DEFAULT NULL,
+  `cost_price_usd` DECIMAL(14,4) NOT NULL DEFAULT 0.0000,
+  `delivery_lead_time_days` INT NOT NULL DEFAULT 0,
+  `is_preferred` TINYINT(1) NOT NULL DEFAULT 0,
+  `notes` VARCHAR(255) DEFAULT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_supplier_product` (`supplier_id`, `product_id`),
+  KEY `idx_sp_product` (`product_id`),
+  KEY `idx_sp_company` (`company_id`),
+  CONSTRAINT `fk_sp_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_sp_supplier` FOREIGN KEY (`supplier_id`) REFERENCES `suppliers` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_sp_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- 5.1 MARCAS DE PRODUCTOS
@@ -1019,6 +1043,7 @@ CREATE TABLE `cash_registers` (
   `name` VARCHAR(100) NOT NULL, -- ej: 'Caja Principal Piso de Venta'
   `fiscal_printer_serial` VARCHAR(50) DEFAULT NULL, -- ej: 'Z5A1234567'
   `invoice_mode` VARCHAR(30) NOT NULL DEFAULT 'normal_printer',
+  `accepts_orders` TINYINT(1) NOT NULL DEFAULT 1,
   `warehouse_id` CHAR(36) DEFAULT NULL,
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1286,6 +1311,83 @@ CREATE TABLE `purchase_payments` (
   KEY `idx_pp_payable` (`payable_id`),
   CONSTRAINT `fk_pp_invoice` FOREIGN KEY (`invoice_id`) REFERENCES `purchase_invoices` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_pp_payable` FOREIGN KEY (`payable_id`) REFERENCES `payables` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- 10.0.1 NOTAS DE CRÉDITO Y DÉBITO A PROVEEDORES
+DROP TABLE IF EXISTS `supplier_note_applications`;
+DROP TABLE IF EXISTS `supplier_note_items`;
+DROP TABLE IF EXISTS `supplier_notes`;
+
+CREATE TABLE `supplier_notes` (
+  `id` CHAR(36) NOT NULL,
+  `company_id` CHAR(36) NOT NULL,
+  `branch_id` CHAR(36) NOT NULL,
+  `supplier_id` CHAR(36) NOT NULL,
+  `user_id` CHAR(36) NOT NULL,
+  `warehouse_id` CHAR(36) DEFAULT NULL,
+  `affected_invoice_id` CHAR(36) DEFAULT NULL,
+  `type` ENUM('CREDIT', 'DEBIT') NOT NULL,
+  `note_number` VARCHAR(30) NOT NULL,
+  `control_number` VARCHAR(30) DEFAULT NULL,
+  `note_date` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `currency` ENUM('USD', 'VES') NOT NULL DEFAULT 'USD',
+  `exchange_rate` DECIMAL(14,4) NOT NULL DEFAULT 1.0000,
+  `subtotal_amount` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `tax_amount` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `total_amount` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `available_balance` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `reason_type` ENUM('RETURN', 'DISCOUNT', 'PRICE_CORRECTION', 'FREIGHT_SURCHARGE', 'LATE_FEE', 'OTHER') NOT NULL DEFAULT 'OTHER',
+  `reason_description` TEXT DEFAULT NULL,
+  `status` ENUM('ACTIVE', 'APPLIED', 'ANNULLED') NOT NULL DEFAULT 'ACTIVE',
+  `annulled_at` DATETIME DEFAULT NULL,
+  `annulled_by` CHAR(36) DEFAULT NULL,
+  `annul_reason` VARCHAR(255) DEFAULT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_sn_company_branch` (`company_id`, `branch_id`),
+  KEY `idx_sn_supplier` (`supplier_id`),
+  KEY `idx_sn_type_status` (`type`, `status`),
+  KEY `idx_sn_affected_inv` (`affected_invoice_id`),
+  CONSTRAINT `fk_sn_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_sn_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_sn_supplier` FOREIGN KEY (`supplier_id`) REFERENCES `suppliers` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_sn_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `supplier_note_items` (
+  `id` CHAR(36) NOT NULL,
+  `note_id` CHAR(36) NOT NULL,
+  `product_id` CHAR(36) DEFAULT NULL,
+  `description` VARCHAR(255) NOT NULL,
+  `quantity` DECIMAL(12,2) NOT NULL DEFAULT 1.00,
+  `unit_cost` DECIMAL(14,4) NOT NULL DEFAULT 0.00,
+  `tax_rate` DECIMAL(5,2) NOT NULL DEFAULT 16.00,
+  `tax_amount` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `subtotal` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `total` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  `return_from_inventory` TINYINT(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `idx_sni_note` (`note_id`),
+  KEY `idx_sni_product` (`product_id`),
+  CONSTRAINT `fk_sni_note` FOREIGN KEY (`note_id`) REFERENCES `supplier_notes` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_sni_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `supplier_note_applications` (
+  `id` CHAR(36) NOT NULL,
+  `note_id` CHAR(36) NOT NULL,
+  `payable_id` CHAR(36) NOT NULL,
+  `amount_applied` DECIMAL(14,2) NOT NULL,
+  `notes` VARCHAR(255) DEFAULT NULL,
+  `created_by` CHAR(36) NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_sna_note` (`note_id`),
+  KEY `idx_sna_payable` (`payable_id`),
+  CONSTRAINT `fk_sna_note` FOREIGN KEY (`note_id`) REFERENCES `supplier_notes` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_sna_payable` FOREIGN KEY (`payable_id`) REFERENCES `payables` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_sna_user` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- 10.1 ÓRDENES DE COMPRA Y RECEPCIÓN DE MERCANCÍAS (GOODS RECEIPTS)

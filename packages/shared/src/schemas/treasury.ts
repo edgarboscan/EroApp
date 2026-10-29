@@ -27,8 +27,9 @@ export const bankMovementSchema = z.object({
   ]),
   amount: z.number().positive('El monto debe ser un valor positivo'),
   movementDate: z.string().default(() => new Date().toISOString()),
-  referenceNumber: z.string().optional(),
+  referenceNumber: z.string().optional().nullable(),
   concept: z.string().min(2, 'El concepto del movimiento es obligatorio'),
+  isReconciled: z.boolean().optional().default(false),
 });
 
 export type BankMovementInput = z.infer<typeof bankMovementSchema>;
@@ -47,8 +48,9 @@ export type TransferBetweenAccountsInput = z.infer<typeof transferBetweenAccount
 export const bankStatementItemSchema = z.object({
   date: z.string(),
   referenceNumber: z.string().min(1, 'Referencia bancaria obligatoria'),
-  description: z.string().optional(),
+  description: z.string().optional().nullable(),
   amount: z.number(), // positivo para abonos, negativo para cargos
+  matchedMovementId: z.string().uuid().optional().nullable(),
 });
 
 export type BankStatementItem = z.infer<typeof bankStatementItemSchema>;
@@ -59,7 +61,15 @@ export const reconcileStatementSchema = z.object({
   periodEnd: z.string(),
   statementEndingBalance: z.number(),
   statementItems: z.array(bankStatementItemSchema).min(1, 'Debe incluir al menos un movimiento del extracto'),
-  notes: z.string().optional(),
+  notes: z.string().optional().nullable(),
 });
 
 export type ReconcileStatementInput = z.infer<typeof reconcileStatementSchema>;
+
+export const bulkReconcileMovementsSchema = z.object({
+  accountId: z.string().uuid('ID de cuenta bancaria inválido'),
+  movementIds: z.array(z.string().uuid()).min(1, 'Debe seleccionar al menos un movimiento'),
+  isReconciled: z.boolean().default(true),
+});
+
+export type BulkReconcileMovementsInput = z.infer<typeof bulkReconcileMovementsSchema>;

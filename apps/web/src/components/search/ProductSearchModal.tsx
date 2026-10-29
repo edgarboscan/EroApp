@@ -24,6 +24,9 @@ export interface ProductSearchItem {
   availableStock?: number;
   stock?: number;
   minStock?: number;
+  currentStock?: number;
+  stockWarehouseId?: string;
+  stockWarehouseName?: string;
 }
 
 export interface ProductSearchModalProps {
@@ -33,7 +36,9 @@ export interface ProductSearchModalProps {
   products?: ProductSearchItem[];
   title?: string;
   subtitle?: string;
-  mode?: 'sale' | 'purchase' | 'transfer' | 'general';
+  mode?: 'sale' | 'purchase' | 'transfer' | 'general' | 'pos';
+  warehouseId?: string;
+  warehouseName?: string;
 }
 
 export const ProductSearchModal: React.FC<ProductSearchModalProps> = ({
@@ -44,20 +49,23 @@ export const ProductSearchModal: React.FC<ProductSearchModalProps> = ({
   title = 'Buscador de Productos en Catálogo',
   subtitle = 'Busca por código SKU, código de barras o nombre comercial',
   mode = 'general',
+  warehouseId,
+  warehouseName,
 }) => {
   const { token, activeBranchId } = useAuthStore();
   const exchangeRate = useExchangeRateStore((s) => s.rate);
   const [searchTerm, setSearchTerm] = useState('');
   const [catalog, setCatalog] = useState<ProductSearchItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [detectedWarehouseName, setDetectedWarehouseName] = useState<string>('');
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-
-  // Cargar catálogo si no se proveyó
+  // Cargar catálogo según depósito de origen, almacén de ventas en POS o almacén predefinido
   useEffect(() => {
     if (!isOpen) return;
 
-    if (initialProducts && initialProducts.length > 0) {
+    // Si se pasa catálogo manual pero NO se requiere consultar existencia por depósito específico
+    if (initialProducts && initialProducts.length > 0 && !warehouseId && mode !== 'transfer' && mode !== 'pos') {
       setCatalog(initialProducts);
       return;
     }
@@ -65,12 +73,31 @@ export const ProductSearchModal: React.FC<ProductSearchModalProps> = ({
     const fetchProducts = async () => {
       setLoading(true);
       try {
-        const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-        const res = await fetch('/api/inventory/products', { headers });
+        const headers: Record<string, string> = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        if (activeBranchId) headers['X-Branch-Id'] = activeBranchId;
+
+        const params = new URLSearchParams();
+        if (warehouseId) {
+          params.append('warehouseId', warehouseId);
+        } else if (mode === 'pos') {
+          params.append('warehouseScope', 'pos');
+        } else {
+          // Para cualquier otra búsqueda debe mostrar la existencia del almacén predefinido
+          params.append('warehouseScope', 'default');
+        }
+        if (activeBranchId) {
+          params.append('branchId', activeBranchId);
+        }
+
+        const res = await fetch(`/api/inventory/products?${params.toString()}`, { headers });
         if (res.ok) {
           const json = await res.json();
           if (json.success && Array.isArray(json.data)) {
             setCatalog(json.data);
+            if (json.data.length > 0 && json.data[0].stockWarehouseName) {
+              setDetectedWarehouseName(json.data[0].stockWarehouseName);
+            }
           }
         }
       } catch {
@@ -81,7 +108,7 @@ export const ProductSearchModal: React.FC<ProductSearchModalProps> = ({
     };
 
     fetchProducts();
-  }, [isOpen, initialProducts, token]);
+  }, [isOpen, initialProducts, token, warehouseId, mode, activeBranchId]);
 
   // Enfocar automáticamente el input de búsqueda al abrir
   useEffect(() => {
@@ -92,6 +119,14 @@ export const ProductSearchModal: React.FC<ProductSearchModalProps> = ({
       }, 50);
     }
   }, [isOpen]);
+
+  const activeWarehouseDisplay = useMemo(() => {
+    if (warehouseName) return warehouseName;
+    if (detectedWarehouseName) return detectedWarehouseName;
+    if (mode === 'transfer') return 'Depósito Origen Seleccionado';
+    if (mode === 'pos') return 'Almacén de Ventas';
+    return 'Almacén Predefinido';
+  }, [warehouseName, detectedWarehouseName, mode]);
 
   // Filtrado reactivo en memoria
   const filteredProducts = useMemo(() => {
@@ -165,6 +200,23 @@ export const ProductSearchModal: React.FC<ProductSearchModalProps> = ({
         </Badge>
       </div>
 
+      {/* Indicador de almacén consultado para la disponibilidad */}
+      {mode !== 'purchase' && (
+        <div className="px-3 sm:px-5 py-1.5 bg-neutral-100/70 dark:bg-neutral-800/40 border-b border-neutral-200 dark:border-neutral-700/60 flex items-center justify-between text-[11px] text-neutral-600 dark:text-neutral-400 shrink-0">
+          <div className="flex items-center gap-1.5 truncate">
+            <span className="font-medium text-neutral-500 dark:text-neutral-400">Existencia en:</span>
+            <strong className="text-neutral-800 dark:text-neutral-200 font-semibold truncate">{activeWarehouseDisplay}</strong>
+          </div>
+          <span className="text-[10px] text-neutral-400 dark:text-neutral-500 shrink-0">
+            {mode === 'transfer'
+              ? 'Depósito Origen Seleccionado'
+              : mode === 'pos'
+              ? 'Almacén Asignado a Ventas'
+              : 'Almacén Predefinido'}
+          </span>
+        </div>
+      )}
+
       {/* Cuerpo scrolleable con tabla de resultados */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-5 text-xs">
         {loading ? (
@@ -188,7 +240,12 @@ export const ProductSearchModal: React.FC<ProductSearchModalProps> = ({
                   <th className="py-2.5 px-3 w-28">Código SKU</th>
                   <th className="py-2.5 px-3">Producto / Descripción</th>
                   {mode !== 'purchase' && (
-                    <th className="py-2.5 px-3 w-28 text-center">Disponibilidad</th>
+                    <th className="py-2.5 px-3 w-32 text-center">
+                      <div>Disponibilidad</div>
+                      <div className="text-[9px] font-normal lowercase tracking-normal text-sky-600 dark:text-sky-400 truncate max-w-[120px]">
+                        ({activeWarehouseDisplay})
+                      </div>
+                    </th>
                   )}
                   <th className="py-2.5 px-3 w-36 text-right">
                     {mode === 'purchase' ? 'Costo Ref. (USD)' : 'Precio Base (USD)'}
@@ -200,7 +257,7 @@ export const ProductSearchModal: React.FC<ProductSearchModalProps> = ({
                   {filteredProducts.map((p) => {
                     const priceUSD = Number(p.basePrice ?? p.salePrice ?? 0);
                     const costUSD = Number(p.defaultCost ?? p.cost ?? p.costPrice ?? 0);
-                    const stock = Number(p.availableStock ?? p.stock ?? 0);
+                    const stock = Number(p.availableStock ?? p.currentStock ?? p.stock ?? 0);
 
                     return (
                       <tr

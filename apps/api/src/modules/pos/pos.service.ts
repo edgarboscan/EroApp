@@ -107,18 +107,22 @@ export class POSService {
 
   /**
    * Obtiene el listado de cajas registradoras de una sucursal o de toda la empresa
+   * Opcionalmente filtra solo cajas que aceptan comandas de restaurante.
    */
-  static async getCashRegisters(companyId: string, branchId?: string) {
+  static async getCashRegisters(companyId: string, branchId?: string, acceptsOrdersOnly?: boolean) {
     const params: any[] = [companyId];
     let branchFilter = '';
     if (branchId) {
-      branchFilter = 'AND cr.branch_id = ?';
+      branchFilter += ' AND cr.branch_id = ?';
       params.push(branchId);
+    }
+    if (acceptsOrdersOnly) {
+      branchFilter += ' AND cr.accepts_orders = 1';
     }
 
     const rows = await query<any>(
       `SELECT cr.id, cr.branch_id, b.name as branch_name, cr.code, cr.name, cr.fiscal_printer_serial,
-              cr.invoice_mode, cr.default_bank_account_ves_id, cr.default_bank_account_usd_id, cr.is_active,
+              cr.invoice_mode, cr.accepts_orders, cr.default_bank_account_ves_id, cr.default_bank_account_usd_id, cr.is_active,
               cr.warehouse_id, w.name as warehouse_name,
               (SELECT cs.id FROM cash_shifts cs WHERE cs.cash_register_id = cr.id AND cs.status = 'OPEN' LIMIT 1) as active_shift_id,
               (SELECT u.full_name FROM cash_shifts cs INNER JOIN users u ON cs.user_id = u.id WHERE cs.cash_register_id = cr.id AND cs.status = 'OPEN' LIMIT 1) as active_cashier_name
@@ -149,6 +153,7 @@ export class POSService {
       name: r.name,
       fiscalPrinterSerial: r.fiscal_printer_serial,
       invoiceMode: r.invoice_mode,
+      acceptsOrders: Boolean(r.accepts_orders !== 0 && r.accepts_orders !== null),
       defaultBankAccountIdVES: r.default_bank_account_ves_id || null,
       defaultBankAccountIdUSD: r.default_bank_account_usd_id || null,
       allowedDepartmentIds: deptMap.get(r.id) || [],
@@ -187,12 +192,13 @@ export class POSService {
     const fiscalPrinterSerial = invoiceMode === 'fiscal_printer'
       ? (input.fiscalPrinterSerial?.trim() || null)
       : null;
+    const acceptsOrders = input.acceptsOrders !== false ? 1 : 0;
 
     await query(
       `INSERT INTO cash_registers (
-        id, branch_id, code, name, fiscal_printer_serial, invoice_mode,
+        id, branch_id, code, name, fiscal_printer_serial, invoice_mode, accepts_orders,
         default_bank_account_ves_id, default_bank_account_usd_id, warehouse_id, is_active
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
       [
         id,
         input.branchId,
@@ -200,6 +206,7 @@ export class POSService {
         name,
         fiscalPrinterSerial,
         invoiceMode,
+        acceptsOrders,
         input.defaultBankAccountIdVES || null,
         input.defaultBankAccountIdUSD || null,
         input.warehouseId || null,
@@ -223,6 +230,7 @@ export class POSService {
       name,
       fiscalPrinterSerial,
       invoiceMode,
+      acceptsOrders: acceptsOrders === 1,
       defaultBankAccountIdVES: input.defaultBankAccountIdVES || null,
       defaultBankAccountIdUSD: input.defaultBankAccountIdUSD || null,
       allowedDepartmentIds: input.allowedDepartmentIds || [],
@@ -253,6 +261,9 @@ export class POSService {
     const fiscalPrinterSerial = invoiceMode === 'fiscal_printer'
       ? (input.fiscalPrinterSerial !== undefined ? input.fiscalPrinterSerial?.trim() || null : current.fiscal_printer_serial)
       : null;
+    const acceptsOrders = input.acceptsOrders !== undefined
+      ? (input.acceptsOrders ? 1 : 0)
+      : (current.accepts_orders !== 0 && current.accepts_orders !== null ? 1 : 0);
     const defaultBankAccountIdVES = input.defaultBankAccountIdVES !== undefined
       ? (input.defaultBankAccountIdVES || null)
       : current.default_bank_account_ves_id;
@@ -266,11 +277,11 @@ export class POSService {
 
     await query(
       `UPDATE cash_registers
-       SET code = ?, name = ?, fiscal_printer_serial = ?, invoice_mode = ?,
+       SET code = ?, name = ?, fiscal_printer_serial = ?, invoice_mode = ?, accepts_orders = ?,
            default_bank_account_ves_id = ?, default_bank_account_usd_id = ?,
            warehouse_id = ?, is_active = ?
        WHERE id = ?`,
-      [code, name, fiscalPrinterSerial, invoiceMode, defaultBankAccountIdVES, defaultBankAccountIdUSD, warehouseId, isActive, id]
+      [code, name, fiscalPrinterSerial, invoiceMode, acceptsOrders, defaultBankAccountIdVES, defaultBankAccountIdUSD, warehouseId, isActive, id]
     );
 
     let allowedDepartmentIds = input.allowedDepartmentIds;

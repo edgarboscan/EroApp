@@ -1,7 +1,7 @@
 shrink-0 bg-white dark:bg-neutral-900
 
 
-bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 
+bg-sky-50/60 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 p-4 rounded-lg  
 
 bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4
 
@@ -9,13 +9,18 @@ table
 w-full text-left text-sm border-collapse
 
 thead
-bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase  tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10
+bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 text-xs uppercase tracking-wider border-b
+border-neutral-200 dark:border-neutral-700 sticky top-0 z-10
 
 body
-divide-y divide-neutral-100 dark:divide-neutral-800 
+divide-y divide-neutral-200 dark:divide-neutral-800
 
 tr
-border-b border-neutral-100 dark:border-neutral-800 hover:bg-neutral-600
+transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800/60 animate-pulse text-neutral-700 dark:text-neutral-300
+
+td
+text-[12px] font-semibold uppercase text-neutral-600 dark:text-neutral-400
+
 
 h1
 text-xl font-bold text-neutral-900 dark:text-neutral-100 tracking-tight
@@ -28,10 +33,12 @@ bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border-
 
 
 KPIS
-p-3 border-l-4 border-l-sky-500  bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800
+p-3 border-l-4 border-l-sky-600 dark:border-l-sky-600  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-sky-200 dark:border-sky-800
 
 SELECT y input
-w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500
+w-full text-xs bg-neutral-50 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2
+text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none
+focus:ring-2 transition-colors
 
 Div Marco
 <div className="flex items-center gap-1.5  px-2.5 py-1.5  p-4 rounded-lg">

@@ -185,7 +185,7 @@ export const KardexView: React.FC = () => {
       accessorKey: 'createdAt',
       cell: (m) => (
         <div className="flex flex-col text-xs font-mono">
-          <span className="font-semibold text-neutral-800">
+          <span className="font-semibold text-neutral-400">
             {new Date(m.createdAt).toLocaleDateString('es-VE')}
           </span>
           <span className="text-[10px] text-neutral-400">
@@ -224,7 +224,7 @@ export const KardexView: React.FC = () => {
       cell: (m) => {
         const isEntry = ['IN', 'ADJUST_IN', 'TRANSFER_IN', 'PURCHASE'].includes(m.movementType);
         return (
-          <span className={`font-mono font-bold text-xs ${isEntry ? 'text-emerald-600' : 'text-neutral-800'}`}>
+          <span className={`font-mono font-bold text-xs ${isEntry ? 'text-emerald-600' : 'text-neutral-400'}`}>
             {isEntry ? `+${formatNumber(m.quantity)}` : `-${formatNumber(m.quantity)}`} {m.unitOfMeasure}
           </span>
         );
@@ -254,7 +254,7 @@ export const KardexView: React.FC = () => {
       header: 'Documento / Motivo',
       cell: (m) => (
         <div className="flex flex-col text-xs max-w-xs">
-          <span className="font-mono font-semibold text-neutral-800">{m.referenceDocument || 'S/D'}</span>
+          <span className="font-mono font-semibold text-neutral-400">{m.referenceDocument || 'S/D'}</span>
           <span className="text-[11px] text-neutral-500 line-clamp-1">{m.reason || 'Sin observación'}</span>
         </div>
       ),
@@ -300,13 +300,14 @@ export const KardexView: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-neutral-900 tracking-tight">
+            <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100 tracking-tight">
               Kardex Valorizado de Inventario
             </h1>
             <Badge variant="info">MÉTODO PONDERADO</Badge>
           </div>
-          <p className="text-xs text-neutral-500 mt-1">
-            Registro cronológico de entradas, salidas, transferencias y ajustes de stock con valoración contable continua.
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+            Registro cronológico de entradas, salidas, transferencias y ajustes
+            de stock con valoración contable continua.
           </p>
         </div>
 
@@ -324,25 +325,36 @@ export const KardexView: React.FC = () => {
 
       {/* Banner de Alertas de Stock Crítico */}
       {stockAlerts.length > 0 && (
-        <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg space-y-2">
-          <div className="flex items-center gap-2 text-xs font-bold text-amber-900">
+        <div className="p-4 bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800  space-y-2">
+          <div className="flex items-center gap-2 text-xs font-bold text-amber-600">
             <AlertTriangle className="w-4 h-4 text-amber-600" />
-            <span>Alertas de Stock Crítico / Agotado ({stockAlerts.length} productos requieren atención)</span>
+            <span>
+              Alertas de Stock Crítico / Agotado ({stockAlerts.length} productos
+              requieren atención)
+            </span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
             {stockAlerts.slice(0, 3).map((a) => (
               <div
                 key={a.productId}
-                className="bg-white p-2.5 rounded-lg border border-amber-200 text-xs flex justify-between items-center"
+                className="bg-red-100 p-2.5 rounded-lg border border-amber-200 text-xs flex justify-between items-center"
               >
                 <div>
-                  <div className="font-semibold text-neutral-900 truncate max-w-[180px]">{a.productName}</div>
+                  <div className="font-semibold text-neutral-900 truncate max-w-[180px]">
+                    {a.productName}
+                  </div>
                   <div className="text-[11px] text-neutral-500">
-                    Stock: <span className="font-bold text-red-600">{a.availableStock}</span> (Mín: {a.minStock})
+                    Stock:{" "}
+                    <span className="font-bold text-red-600">
+                      {a.availableStock}
+                    </span>{" "}
+                    (Mín: {a.minStock})
                   </div>
                 </div>
-                <Badge variant={a.status === 'OUT_OF_STOCK' ? 'danger' : 'warning'}>
-                  {a.status === 'OUT_OF_STOCK' ? 'Agotado' : 'Reordenar'}
+                <Badge
+                  variant={a.status === "OUT_OF_STOCK" ? "danger" : "warning"}
+                >
+                  {a.status === "OUT_OF_STOCK" ? "Agotado" : "Reordenar"}
                 </Badge>
               </div>
             ))}
@@ -352,33 +364,51 @@ export const KardexView: React.FC = () => {
 
       {/* Tarjetas de Métricas de Movimiento */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-4 space-y-1">
+        <Card className="p-4 space-y-1 border-l-4 border-l-sky-600 dark:border-l-sky-400  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-sky-200 dark:border-sky-800">
           <span className="text-xs text-neutral-500">Total Movimientos</span>
-          <div className="text-2xl font-bold font-mono text-neutral-900">{filtered.length}</div>
-          <div className="text-[11px] text-neutral-400">Operaciones auditadas</div>
+          <div className="text-2xl font-bold font-mono text-sky-600 dark:text-sky-400">
+            {filtered.length}
+          </div>
+          <div className="text-[11px] text-neutral-400">
+            Operaciones auditadas
+          </div>
         </Card>
 
-        <Card className="p-4 space-y-1">
+        <Card className="p-4 space-y-1 border-l-4 border-l-emerald-600 dark:border-l-emerald-400  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-emerald-200 dark:border-emerald-400">
           <span className="text-xs text-neutral-500">Unidades Ingresadas</span>
-          <div className="text-2xl font-bold font-mono text-emerald-600">+{formatNumber(totalInQty)}</div>
-          <div className="text-[11px] text-neutral-400">Compras, traslados y ajustes +</div>
+          <div className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
+            +{formatNumber(totalInQty)}
+          </div>
+          <div className="text-[11px] text-neutral-400">
+            Compras, traslados y ajustes +
+          </div>
         </Card>
 
-        <Card className="p-4 space-y-1">
+        <Card className="p-4 space-y-1 border-l-4 border-l-amber-600 dark:border-l-amber-400  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-amber-200 dark:border-amber-800">
           <span className="text-xs text-neutral-500">Unidades Salientes</span>
-          <div className="text-2xl font-bold font-mono text-amber-600">-{formatNumber(totalOutQty)}</div>
-          <div className="text-[11px] text-neutral-400">Ventas, traslados y mermas -</div>
+          <div className="text-2xl font-bold font-mono text-amber-600 dark:text-amber-400">
+            -{formatNumber(totalOutQty)}
+          </div>
+          <div className="text-[11px] text-neutral-400">
+            Ventas, traslados y mermas -
+          </div>
         </Card>
 
-        <Card className="p-4 space-y-1">
-          <span className="text-xs text-neutral-500">Costo Acumulado Registrado</span>
-          <div className="text-2xl font-bold font-mono text-sky-700">{formatMoneyUSD(totalCostValue)}</div>
-          <div className="text-[11px] text-neutral-400">Valoración total transacciones</div>
+        <Card className="p-4 space-y-1 border-l-4 border-l-sky-600 dark:border-l-purple-400  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-purple-600 dark:border-purple-400">
+          <span className="text-xs text-neutral-500">
+            Costo Acumulado Registrado
+          </span>
+          <div className="text-2xl font-bold font-mono text-purple-600 dark:text-purple-400">
+            {formatMoneyUSD(totalCostValue)}
+          </div>
+          <div className="text-[11px] text-neutral-400 dark:text-neutral-400">
+            Valoración total transacciones
+          </div>
         </Card>
       </div>
 
       {/* Barra de Filtros */}
-      <div className="flex flex-wrap items-center gap-3 bg-white p-3 border border-neutral-200 rounded-lg">
+      <div className="flex flex-wrap items-center gap-3 bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 ">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="w-4 h-4 absolute left-3 top-2.5 text-neutral-400" />
           <input
@@ -386,14 +416,14 @@ export const KardexView: React.FC = () => {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por producto, SKU o documento..."
-            className="w-full h-8 pl-9 pr-3 border border-neutral-300 rounded-lg text-xs"
+            className="w-full h-8 pl-9 pr-3 text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
           />
         </div>
 
         <select
           value={selectedType}
           onChange={(e) => setSelectedType(e.target.value)}
-          className="h-8 px-2 border border-neutral-300 rounded-lg text-xs bg-white"
+          className="h-8 px-2 text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
         >
           <option value="ALL">Todos los Movimientos</option>
           <option value="PURCHASE">Compras Proveedor</option>
@@ -411,7 +441,7 @@ export const KardexView: React.FC = () => {
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="h-8 px-2 border border-neutral-300 rounded-lg text-xs"
+            className="h-8 px-2 text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
           />
         </div>
 
@@ -421,7 +451,7 @@ export const KardexView: React.FC = () => {
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
-            className="h-8 px-2 border border-neutral-300 rounded-lg text-xs"
+            className="h-8 px-2 text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
           />
         </div>
       </div>
@@ -450,7 +480,7 @@ export const KardexView: React.FC = () => {
         onClose={() => setShowPdfModal(false)}
         title="Kardex Valorizado de Inventario"
         subtitle="Movimientos cronológicos con valoración ponderada y saldo físico continuo"
-        endpoint={`/api/inventory/kardex?format=pdf${activeBranchId ? `&branchId=${activeBranchId}` : ''}${activeWarehouseId ? `&warehouseId=${activeWarehouseId}` : ''}${selectedType !== 'ALL' ? `&movementType=${selectedType}` : ''}${startDate ? `&startDate=${startDate}` : ''}${endDate ? `&endDate=${endDate}` : ''}`}
+        endpoint={`/api/inventory/kardex?format=pdf${activeBranchId ? `&branchId=${activeBranchId}` : ""}${activeWarehouseId ? `&warehouseId=${activeWarehouseId}` : ""}${selectedType !== "ALL" ? `&movementType=${selectedType}` : ""}${startDate ? `&startDate=${startDate}` : ""}${endDate ? `&endDate=${endDate}` : ""}`}
         filename={`kardex_inventario_${new Date().toISOString().slice(0, 10)}.pdf`}
       />
     </div>

@@ -3,6 +3,12 @@ import { isSuperAdminRole, isSupervisorOrAdminRole, canAuthorizeOperations } fro
 
 export { isSuperAdminRole, isSupervisorOrAdminRole, canAuthorizeOperations };
 
+export function isWaiterRole(role?: string | null): boolean {
+  if (!role) return false;
+  const r = role.toLowerCase();
+  return r.includes('mesonero') || r.includes('mozo') || r.includes('waiter') || r.includes('camarero');
+}
+
 export interface UserSession {
   id: string;
   username: string;
@@ -56,6 +62,7 @@ interface PersistedSession {
   token: string | null;
   activeBranchId: string | null;
   activeWarehouseId: string | null;
+  activeCashRegisterId?: string | null;
   expiresAt: number | null;
   lastActivityAt: number | null;
 }
@@ -65,6 +72,7 @@ interface AuthState {
   token: string | null;
   activeBranchId: string | null;
   activeWarehouseId: string | null;
+  activeCashRegisterId: string | null;
   isAuthenticated: boolean;
   requires2FA: boolean;
   tempUser: TempAuthUser | null;
@@ -74,8 +82,9 @@ interface AuthState {
   setAuth: (user: UserSession, token: string) => void;
   setRequires2FA: (tempUser: TempAuthUser) => void;
   clearTempUser: () => void;
-  setActiveBranch: (branchId: string, warehouseId?: string) => void;
+  setActiveBranch: (branchId: string, warehouseId?: string, cashRegisterId?: string | null) => void;
   setActiveWarehouse: (warehouseId: string) => void;
+  setActiveCashRegister: (cashRegisterId: string | null) => void;
   hasPermission: (module: string, action: string) => boolean;
   recordActivity: () => void;
   checkSessionValidity: () => boolean;
@@ -90,6 +99,7 @@ const loadPersistedAuth = (): {
   token: string | null;
   activeBranchId: string | null;
   activeWarehouseId: string | null;
+  activeCashRegisterId: string | null;
   isAuthenticated: boolean;
   expiresAt: number | null;
   lastActivityAt: number | null;
@@ -103,6 +113,7 @@ const loadPersistedAuth = (): {
         token: null,
         activeBranchId: null,
         activeWarehouseId: null,
+        activeCashRegisterId: null,
         isAuthenticated: false,
         expiresAt: null,
         lastActivityAt: null,
@@ -137,6 +148,7 @@ const loadPersistedAuth = (): {
         token: null,
         activeBranchId: null,
         activeWarehouseId: null,
+        activeCashRegisterId: null,
         isAuthenticated: false,
         expiresAt: null,
         lastActivityAt: null,
@@ -149,6 +161,7 @@ const loadPersistedAuth = (): {
       token: parsed.token || null,
       activeBranchId: parsed.activeBranchId || parsed.user?.branchId || null,
       activeWarehouseId: parsed.activeWarehouseId || parsed.user?.warehouseId || null,
+      activeCashRegisterId: parsed.activeCashRegisterId || null,
       isAuthenticated: Boolean(parsed.token && parsed.user),
       expiresAt: parsed.expiresAt || null,
       lastActivityAt: parsed.lastActivityAt || now,
@@ -160,6 +173,7 @@ const loadPersistedAuth = (): {
       token: null,
       activeBranchId: null,
       activeWarehouseId: null,
+      activeCashRegisterId: null,
       isAuthenticated: false,
       expiresAt: null,
       lastActivityAt: null,
@@ -175,6 +189,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   token: initialSession.token,
   activeBranchId: initialSession.activeBranchId,
   activeWarehouseId: initialSession.activeWarehouseId,
+  activeCashRegisterId: initialSession.activeCashRegisterId,
   isAuthenticated: initialSession.isAuthenticated,
   requires2FA: false,
   tempUser: null,
@@ -195,6 +210,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       token,
       activeBranchId: branchId,
       activeWarehouseId: warehouseId,
+      activeCashRegisterId: null,
       expiresAt,
       lastActivityAt,
     };
@@ -210,6 +226,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       token,
       activeBranchId: branchId,
       activeWarehouseId: warehouseId,
+      activeCashRegisterId: null,
       isAuthenticated: true,
       requires2FA: false,
       tempUser: null,
@@ -233,14 +250,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     });
   },
 
-  setActiveBranch: (branchId, warehouseId) => {
+  setActiveBranch: (branchId, warehouseId, cashRegisterId) => {
     const current = get();
     const updatedWarehouseId = warehouseId !== undefined ? warehouseId : current.activeWarehouseId;
+    const updatedCashRegisterId = cashRegisterId !== undefined ? cashRegisterId : current.activeCashRegisterId;
     const sessionData: PersistedSession = {
       user: current.user,
       token: current.token,
       activeBranchId: branchId,
       activeWarehouseId: updatedWarehouseId,
+      activeCashRegisterId: updatedCashRegisterId,
       expiresAt: current.expiresAt,
       lastActivityAt: current.lastActivityAt,
     };
@@ -253,6 +272,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({
       activeBranchId: branchId,
       ...(warehouseId !== undefined ? { activeWarehouseId: warehouseId } : {}),
+      ...(cashRegisterId !== undefined ? { activeCashRegisterId: cashRegisterId } : {}),
     });
   },
 
@@ -263,6 +283,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       token: current.token,
       activeBranchId: current.activeBranchId,
       activeWarehouseId: warehouseId,
+      activeCashRegisterId: current.activeCashRegisterId,
       expiresAt: current.expiresAt,
       lastActivityAt: current.lastActivityAt,
     };
@@ -273,6 +294,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     set({ activeWarehouseId: warehouseId });
+  },
+
+  setActiveCashRegister: (cashRegisterId) => {
+    const current = get();
+    const sessionData: PersistedSession = {
+      user: current.user,
+      token: current.token,
+      activeBranchId: current.activeBranchId,
+      activeWarehouseId: current.activeWarehouseId,
+      activeCashRegisterId: cashRegisterId,
+      expiresAt: current.expiresAt,
+      lastActivityAt: current.lastActivityAt,
+    };
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(sessionData));
+    } catch {
+      // Ignorar errores
+    }
+
+    set({ activeCashRegisterId: cashRegisterId });
   },
 
   hasPermission: (module, action) => {
@@ -346,6 +387,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       token: null,
       activeBranchId: null,
       activeWarehouseId: null,
+      activeCashRegisterId: null,
       isAuthenticated: false,
       requires2FA: false,
       tempUser: null,

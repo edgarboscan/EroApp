@@ -95,10 +95,11 @@ posRouter.delete('/payment-methods/:id', authenticate, async (c) => {
 // GET /api/pos/registers - Lista de cajas registradoras (por sucursal o toda la empresa)
 posRouter.get('/registers', authenticate, authorize('pos', 'read'), async (c) => {
   const user = c.get('user');
-  const branchId = c.req.query('branchId') || undefined;
+  const branchId = c.req.query('branchId') || c.req.query('branch_id') || undefined;
+  const acceptsOrdersOnly = c.req.query('acceptsOrders') === 'true' || c.req.query('accepts_orders') === 'true';
 
   try {
-    const registers = await POSService.getCashRegisters(user.companyId, branchId);
+    const registers = await POSService.getCashRegisters(user.companyId, branchId, acceptsOrdersOnly);
     return c.json({ success: true, data: registers });
   } catch (error: any) {
     return c.json({ success: false, error: { code: 'REGISTERS_FETCH_FAILED', message: error.message } }, 500);

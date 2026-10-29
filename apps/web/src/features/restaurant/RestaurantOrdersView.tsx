@@ -42,8 +42,9 @@ interface RestaurantCashRegister {
   id: string;
   code: string;
   name: string;
-  status: 'OPEN' | 'CLOSED' | 'MAINTENANCE';
+  status: 'OPEN' | 'CLOSED' | 'MAINTENANCE' | 'open' | 'closed';
   allowedDepartmentIds?: string[];
+  acceptsOrders?: boolean;
 }
 
 interface RestaurantProduct {
@@ -76,7 +77,13 @@ interface ERPCustomer {
 }
 
 export const RestaurantOrdersView: React.FC = () => {
-  const { token, user, activeBranchId } = useAuthStore();
+  const {
+    token,
+    user,
+    activeBranchId,
+    activeCashRegisterId,
+    setActiveCashRegister,
+  } = useAuthStore();
   const rate = useExchangeRateStore((s) => s.rate);
 
   // Estados de datos
@@ -87,7 +94,9 @@ export const RestaurantOrdersView: React.FC = () => {
   const [presetNotes, setPresetNotes] = useState<PresetNote[]>([]);
   const [erpCustomers, setErpCustomers] = useState<ERPCustomer[]>([]);
   const [cashRegisters, setCashRegisters] = useState<RestaurantCashRegister[]>([]);
-  const [selectedCashRegisterId, setSelectedCashRegisterId] = useState<string>('');
+  const [selectedCashRegisterId, setSelectedCashRegisterId] = useState<string>(
+    activeCashRegisterId || '',
+  );
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Filtros de mesas
@@ -190,18 +199,28 @@ export const RestaurantOrdersView: React.FC = () => {
     }
   }, [getHeaders]);
 
-  // Carga de cajas registradoras para filtro de departamentos
+  // Carga de cajas registradoras para filtro de departamentos (sólo cajas que aceptan comandas)
   const fetchCashRegisters = useCallback(async () => {
     try {
-      const branchParam = activeBranchId ? `?branch_id=${activeBranchId}` : '';
+      const branchParam = activeBranchId
+        ? `?branch_id=${activeBranchId}&accepts_orders=true`
+        : '?accepts_orders=true';
       const res = await fetch(`/api/pos/registers${branchParam}`, { headers: getHeaders() });
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
-        setCashRegisters(data.data);
+        const orderRegisters = data.data.filter((r: any) => r.acceptsOrders !== false);
+        setCashRegisters(orderRegisters);
         setSelectedCashRegisterId((prev) => {
-          if (prev && data.data.some((r: any) => r.id === prev)) return prev;
-          const openReg = data.data.find((r: any) => r.status === 'OPEN');
-          return openReg ? openReg.id : (data.data[0]?.id || '');
+          const authRegId = useAuthStore.getState().activeCashRegisterId;
+          if (authRegId && orderRegisters.some((r: any) => r.id === authRegId)) {
+            return authRegId;
+          }
+          if (prev && orderRegisters.some((r: any) => r.id === prev)) return prev;
+          const openReg = orderRegisters.find(
+            (r: any) =>
+              r.status?.toUpperCase() === 'OPEN' || r.status?.toLowerCase() === 'open',
+          );
+          return openReg ? openReg.id : (orderRegisters[0]?.id || '');
         });
       }
     } catch {
@@ -709,23 +728,30 @@ export const RestaurantOrdersView: React.FC = () => {
             </span>
           </div>
 
-          {/* Selector de Caja Registradora para filtrar departamentos y catálogo */}
+          {/* Selector de Caja Registradora para comanda y filtro de catálogo */}
           <div className="flex items-center gap-1.5 bg-slate-800 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg text-xs">
             <Store className="w-4 h-4 text-indigo-400" />
             <span className="text-slate-400 font-medium">Caja:</span>
             <select
               value={selectedCashRegisterId}
-              onChange={(e) => setSelectedCashRegisterId(e.target.value)}
+              onChange={(e) => {
+                const newId = e.target.value;
+                setSelectedCashRegisterId(newId);
+                setActiveCashRegister(newId || null);
+              }}
               className="bg-transparent text-slate-100 font-semibold border-0 focus:outline-none cursor-pointer pr-1"
             >
-              <option value="" className="bg-slate-800 text-slate-200">
-                Todas las Cajas
-              </option>
-              {cashRegisters.map((reg) => (
-                <option key={reg.id} value={reg.id} className="bg-slate-800 text-slate-200">
-                  {reg.name} {reg.status === 'OPEN' ? '(Abierta)' : ''}
+              {cashRegisters.length === 0 ? (
+                <option value="" className="bg-slate-800 text-slate-200">
+                  Sin Cajas de Comandas
                 </option>
-              ))}
+              ) : (
+                cashRegisters.map((reg) => (
+                  <option key={reg.id} value={reg.id} className="bg-slate-800 text-slate-200">
+                    {reg.name} {reg.status?.toUpperCase() === 'OPEN' ? '(Abierta)' : ''}
+                  </option>
+                ))
+              )}
             </select>
           </div>
 

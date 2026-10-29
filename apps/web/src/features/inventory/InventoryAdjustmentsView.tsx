@@ -309,7 +309,7 @@ export const InventoryAdjustmentsView: React.FC = () => {
     {
       header: 'Usuario',
       accessorKey: 'user_name',
-      cell: (a) => <span className="text-xs text-neutral-500">{a.user_name}</span>,
+      cell: (a) => <span className="text-xs text-neutral-400">{a.user_name}</span>,
     },
     {
       header: 'Estado',
@@ -346,13 +346,14 @@ export const InventoryAdjustmentsView: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-neutral-900 tracking-tight">
+            <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100 tracking-tight">
               Ajustes de Inventario
             </h1>
             <Badge variant="neutral">CONTROL DE MERMAS & CONTEO</Badge>
           </div>
-          <p className="text-xs text-neutral-500 mt-1">
-            Registro de mermas, averías, sobrantes y correcciones de existencias físicas con afectación contable.
+          <p className="text-xs text-neutral-400 dark:text-neutral-400 mt-1">
+            Registro de mermas, averías, sobrantes y correcciones de existencias
+            físicas con afectación contable.
           </p>
         </div>
 
@@ -364,34 +365,59 @@ export const InventoryAdjustmentsView: React.FC = () => {
 
       {/* Tarjetas de Métricas */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-4 space-y-1">
-          <span className="text-xs text-neutral-500">Total Ajustes Registrados</span>
-          <div className="text-2xl font-bold font-mono text-neutral-900">{adjustments.length}</div>
+        <Card className="p-4 space-y-1 border-l-4 border-l-sky-600 dark:border-l-sky-400  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-sky-600 dark:border-sky-400">
+          <span className="text-xs text-neutral-400">
+            Total Ajustes Registrados
+          </span>
+          <div className="text-2xl font-bold font-mono text-sky-600 dark:text-sky-400">
+            {adjustments.length}
+          </div>
           <div className="text-[11px] text-neutral-400">Auditoría completa</div>
         </Card>
 
-        <Card className="p-4 space-y-1">
-          <span className="text-xs text-neutral-500">Ajustes por Merma / Avería</span>
-          <div className="text-2xl font-bold font-mono text-red-600">
-            {adjustments.filter((a) => a.type === 'DAMAGE_SPOILED' || a.type === 'EXPIRED').length}
+        <Card className="p-4 space-y-1 border-l-4 border-l-red-600 dark:border-l-red-400  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-red-600 dark:border-red-400">
+          <span className="text-xs text-neutral-400">
+            Ajustes por Merma / Avería
+          </span>
+          <div className="text-2xl font-bold font-mono text-red-600 dark:red-400">
+            {
+              adjustments.filter(
+                (a) => a.type === "DAMAGE_SPOILED" || a.type === "EXPIRED",
+              ).length
+            }
           </div>
-          <div className="text-[11px] text-neutral-400">Productos dañados o vencidos</div>
+          <div className="text-[11px] text-neutral-400">
+            Productos dañados o vencidos
+          </div>
         </Card>
 
-        <Card className="p-4 space-y-1">
-          <span className="text-xs text-neutral-500">Ajustes por Conteo Físico</span>
-          <div className="text-2xl font-bold font-mono text-sky-700">
-            {adjustments.filter((a) => a.type === 'PHYSICAL_COUNT').length}
+        <Card className="p-4 space-y-1 border-l-4 border-l-purple-600 dark:border-l-purple-400  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-purple-600 dark:border-purple-400">
+          <span className="text-xs text-neutral-400">
+            Ajustes por Conteo Físico
+          </span>
+          <div className="text-2xl font-bold font-mono text-purple-600 dark:purple-400">
+            {adjustments.filter((a) => a.type === "PHYSICAL_COUNT").length}
           </div>
-          <div className="text-[11px] text-neutral-400">Cuadre de existencias</div>
+          <div className="text-[11px] text-neutral-400">
+            Cuadre de existencias
+          </div>
         </Card>
 
-        <Card className="p-4 space-y-1">
-          <span className="text-xs text-neutral-500">Impacto Neto en Costo</span>
-          <div className="text-2xl font-bold font-mono text-amber-700">
-            {formatMoneyUSD(adjustments.reduce((sum, a) => sum + Number(a.total_cost_impact), 0))}
+        <Card className="p-4 space-y-1 border-l-4 border-l-orange-600 dark:border-l-orange-400  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-orange-600 dark:border-orange-400">
+          <span className="text-xs text-neutral-400">
+            Impacto Neto en Costo
+          </span>
+          <div className="text-2xl font-bold font-mono text-orange-600 dark:tex-orange-400">
+            {formatMoneyUSD(
+              adjustments.reduce(
+                (sum, a) => sum + Number(a.total_cost_impact),
+                0,
+              ),
+            )}
           </div>
-          <div className="text-[11px] text-neutral-400">Afectación neta de valor</div>
+          <div className="text-[11px] text-neutral-400">
+            Afectación neta de valor
+          </div>
         </Card>
       </div>
 
@@ -422,10 +448,18 @@ export const InventoryAdjustmentsView: React.FC = () => {
         size="2xl"
         footer={
           <div className="flex items-center justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => setShowModal(false)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowModal(false)}
+            >
               Cancelar
             </Button>
-            <Button size="sm" disabled={submitting || items.length === 0} onClick={handleSubmitAdjustment}>
+            <Button
+              size="sm"
+              disabled={submitting || items.length === 0}
+              onClick={handleSubmitAdjustment}
+            >
               <Check className="w-4 h-4 mr-1.5" />
               Aplicar Ajuste a Inventario
             </Button>
@@ -435,7 +469,9 @@ export const InventoryAdjustmentsView: React.FC = () => {
         <div className="space-y-4 text-xs">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Tipo de Ajuste</label>
+              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                Tipo de Ajuste
+              </label>
               <select
                 value={adjustmentType}
                 onChange={(e) => setAdjustmentType(e.target.value)}
@@ -443,7 +479,9 @@ export const InventoryAdjustmentsView: React.FC = () => {
               >
                 <option value="DAMAGE_SPOILED">Merma / Producto Dañado</option>
                 <option value="EXPIRED">Producto Vencido</option>
-                <option value="PHYSICAL_COUNT">Corrección por Conteo Físico</option>
+                <option value="PHYSICAL_COUNT">
+                  Corrección por Conteo Físico
+                </option>
                 <option value="FOUND_SURPLUS">Sobrante Encontrado</option>
                 <option value="THEFT_LOSS">Faltante / Pérdida</option>
                 <option value="INTERNAL_CONSUMPTION">Consumo Interno</option>
@@ -451,7 +489,9 @@ export const InventoryAdjustmentsView: React.FC = () => {
             </div>
 
             <div>
-              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Motivo / Justificación</label>
+              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                Motivo / Justificación
+              </label>
               <input
                 type="text"
                 value={reason}
@@ -464,11 +504,15 @@ export const InventoryAdjustmentsView: React.FC = () => {
 
           {/* Agregar Producto al Ajuste */}
           <div className="p-3 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg border border-neutral-200 dark:border-neutral-700 space-y-2">
-            <span className="font-semibold text-neutral-800 dark:text-neutral-200 block">Agregar Producto a la Lista:</span>
+            <span className="font-semibold text-neutral-800 dark:text-neutral-200 block">
+              Agregar Producto a la Lista:
+            </span>
             <div className="grid grid-cols-12 gap-2 items-end">
               <div className="col-span-5">
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-[11px] text-neutral-500 dark:text-neutral-400 block">Producto</label>
+                  <label className="text-[11px] text-neutral-400 dark:text-neutral-400 block">
+                    Producto
+                  </label>
                   <button
                     type="button"
                     onClick={() => setShowProductSearch(true)}
@@ -502,13 +546,15 @@ export const InventoryAdjustmentsView: React.FC = () => {
                     title="Buscar producto en modal"
                     className="h-8 px-2 shrink-0 flex items-center justify-center"
                   >
-                    <Search className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
+                    <Search className="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-400" />
                   </Button>
                 </div>
               </div>
 
               <div className="col-span-3">
-                <label className="text-[11px] text-neutral-500 dark:text-neutral-400 block mb-1">Acción</label>
+                <label className="text-[11px] text-neutral-400 dark:text-neutral-400 block mb-1">
+                  Acción
+                </label>
                 <select
                   value={newMovementType}
                   onChange={(e) => setNewMovementType(e.target.value as any)}
@@ -520,18 +566,27 @@ export const InventoryAdjustmentsView: React.FC = () => {
               </div>
 
               <div className="col-span-2">
-                <label className="text-[11px] text-neutral-500 dark:text-neutral-400 block mb-1">Cantidad</label>
+                <label className="text-[11px] text-neutral-400 dark:text-neutral-400 block mb-1">
+                  Cantidad
+                </label>
                 <input
                   type="number"
                   min="1"
                   value={newQuantity}
-                  onChange={(e) => setNewQuantity(parseFloat(e.target.value) || 1)}
+                  onChange={(e) =>
+                    setNewQuantity(parseFloat(e.target.value) || 1)
+                  }
                   className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs font-mono font-bold bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
                 />
               </div>
 
               <div className="col-span-2">
-                <Button size="sm" variant="outline" onClick={handleAddItem} className="w-full h-8">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleAddItem}
+                  className="w-full h-8"
+                >
                   <Plus className="w-3.5 h-3.5 mr-1" />
                   Añadir
                 </Button>
@@ -546,16 +601,27 @@ export const InventoryAdjustmentsView: React.FC = () => {
             </span>
             <div className="divide-y divide-neutral-200 dark:divide-neutral-700 border border-neutral-200 dark:border-neutral-700 rounded-lg overflow-hidden max-h-48 overflow-y-auto">
               {items.map((it, idx) => (
-                <div key={idx} className="p-2.5 bg-white dark:bg-neutral-800/80 flex items-center justify-between text-xs">
+                <div
+                  key={idx}
+                  className="p-2.5 bg-white dark:bg-neutral-800/80 flex items-center justify-between text-xs"
+                >
                   <div>
-                    <div className="font-semibold text-neutral-900 dark:text-neutral-100">{it.productName}</div>
-                    <div className="text-[11px] text-neutral-500 dark:text-neutral-400 font-mono">
+                    <div className="font-semibold text-neutral-900 dark:text-neutral-100">
+                      {it.productName}
+                    </div>
+                    <div className="text-[11px] text-neutral-400 dark:text-neutral-400 font-mono">
                       {it.sku} • Costo: {formatMoneyUSD(it.unitCost)}
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <Badge variant={it.movementType === 'ADJUST_IN' ? 'success' : 'danger'}>
-                      {it.movementType === 'ADJUST_IN' ? `+${it.quantity}` : `-${it.quantity}`}
+                    <Badge
+                      variant={
+                        it.movementType === "ADJUST_IN" ? "success" : "danger"
+                      }
+                    >
+                      {it.movementType === "ADJUST_IN"
+                        ? `+${it.quantity}`
+                        : `-${it.quantity}`}
                     </Badge>
                     <span className="font-mono font-bold text-xs text-neutral-900 dark:text-neutral-100">
                       {formatMoneyUSD(it.quantity * it.unitCost)}
@@ -581,7 +647,9 @@ export const InventoryAdjustmentsView: React.FC = () => {
         onClose={() => setShowProductSearch(false)}
         onSelect={(prod) => {
           setNewProductId(prod.id);
-          const cost = Number(prod.defaultCost ?? prod.costPrice ?? (prod as any).cost ?? 0);
+          const cost = Number(
+            prod.defaultCost ?? prod.costPrice ?? (prod as any).cost ?? 0,
+          );
           setNewUnitCost(cost);
           setShowProductSearch(false);
         }}

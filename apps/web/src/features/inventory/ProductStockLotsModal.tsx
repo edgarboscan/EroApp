@@ -82,8 +82,12 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
 }) => {
   const { token } = useAuthStore();
 
-  const [activeTab, setActiveTab] = useState<"warehouses" | "lots">("warehouses");
-  const [warehouseStocks, setWarehouseStocks] = useState<WarehouseStockItem[]>([]);
+  const [activeTab, setActiveTab] = useState<"warehouses" | "lots">(
+    "warehouses",
+  );
+  const [warehouseStocks, setWarehouseStocks] = useState<WarehouseStockItem[]>(
+    [],
+  );
   const [lots, setLots] = useState<ProductLotRecord[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -120,16 +124,21 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
 
       const [stockRes, lotsRes] = await Promise.all([
-        fetch(`/api/inventory/products/${product.id}/stock-by-warehouse`, { headers }),
+        fetch(`/api/inventory/products/${product.id}/stock-by-warehouse`, {
+          headers,
+        }),
         fetch(`/api/inventory/products/${product.id}/lots`, { headers }),
       ]);
 
-      if (!stockRes.ok) throw new Error("Error al consultar existencias en almacenes");
+      if (!stockRes.ok)
+        throw new Error("Error al consultar existencias en almacenes");
       const stockJson = await stockRes.json();
       if (stockJson.success && Array.isArray(stockJson.data)) {
         setWarehouseStocks(stockJson.data);
         if (stockJson.data.length > 0 && !lotForm.warehouseId) {
-          const defaultWh = stockJson.data.find((w: WarehouseStockItem) => w.isDefaultSales) || stockJson.data[0];
+          const defaultWh =
+            stockJson.data.find((w: WarehouseStockItem) => w.isDefaultSales) ||
+            stockJson.data[0];
           setLotForm((prev) => ({
             ...prev,
             warehouseId: defaultWh.warehouseId,
@@ -155,7 +164,10 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
     if (isOpen && product) {
       fetchData();
       // Si el producto maneja lotes y tiene alerta, sugerir pestaña lotes si no hay stock
-      if (product.hasBatches && (!product.currentStock || product.currentStock === 0)) {
+      if (
+        product.hasBatches &&
+        (!product.currentStock || product.currentStock === 0)
+      ) {
         setActiveTab("lots");
       } else {
         setActiveTab("warehouses");
@@ -180,7 +192,13 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
       totalSale += s.totalSaleValuation;
     }
 
-    return { currentStock, reservedStock, availableStock, totalCost, totalSale };
+    return {
+      currentStock,
+      reservedStock,
+      availableStock,
+      totalCost,
+      totalSale,
+    };
   }, [warehouseStocks]);
 
   // Resumen de Lotes
@@ -240,10 +258,14 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
 
       const json = await res.json();
       if (!res.ok || !json.success) {
-        throw new Error(json.error?.message || json.message || "Error al registrar el lote");
+        throw new Error(
+          json.error?.message || json.message || "Error al registrar el lote",
+        );
       }
 
-      toast.success(`Lote ${lotForm.lotNumber.toUpperCase()} registrado exitosamente`);
+      toast.success(
+        `Lote ${lotForm.lotNumber.toUpperCase()} registrado exitosamente`,
+      );
       setIsAddingLot(false);
       setLotForm((prev) => ({
         ...prev,
@@ -275,12 +297,17 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
       footer={
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-2">
-            <span className="text-xs text-neutral-500">Unidad de Medida Base:</span>
+            <span className="text-xs text-neutral-500">
+              Unidad de Medida Base:
+            </span>
             <Badge variant="neutral" className="font-mono text-xs">
               {product.unitOfMeasure || "UND"}
             </Badge>
             {product.hasBatches && (
-              <Badge variant="warning" className="text-amber-700 bg-amber-50 border-amber-200 text-xs">
+              <Badge
+                variant="warning"
+                className="text-amber-700 bg-amber-50 border-amber-200 text-xs"
+              >
                 Maneja Lotes & Vencimiento
               </Badge>
             )}
@@ -305,7 +332,7 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
           >
             <Warehouse className="w-4 h-4" />
             <span>Existencias por Almacén</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-neutral-200 text-neutral-700 text-[10px]">
+            <span className="px-1.5 py-0.2 rounded-full bg-neutral-200 text-neutral-400 text-[10px]">
               {warehouseStocks.length}
             </span>
           </button>
@@ -327,8 +354,8 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
                   lotsSummary.expiredCount > 0
                     ? "bg-red-200 text-red-800 font-bold"
                     : lotsSummary.expiringSoonCount > 0
-                    ? "bg-amber-200 text-amber-800 font-bold"
-                    : "bg-emerald-200 text-emerald-800"
+                      ? "bg-amber-200 text-amber-800 font-bold"
+                      : "bg-emerald-200 text-emerald-800"
                 }`}
               >
                 {lots.length}
@@ -355,48 +382,59 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
           <div className="flex flex-col gap-4">
             {/* Tarjetas de Resumen Consolidado */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="p-3 bg-neutral-50 border border-neutral-200 rounded-lg">
+              <div className="p-3 border-l-4 border-l-sky-900 dark:border-l-sky-400  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-sky-200 dark:border-sky-800">
                 <span className="text-[11px] text-neutral-500 font-medium block">
                   Existencia Total
                 </span>
-                <span className="text-lg font-bold text-neutral-900">
-                  {formatNumber(consolidated.currentStock, { maximumFractionDigits: 2 })}{" "}
-                  <span className="text-xs font-normal text-neutral-500">
+                <span className="text-lg font-bold text-sky-900 dark:text-sky-400">
+                  {formatNumber(consolidated.currentStock, {
+                    maximumFractionDigits: 2,
+                  })}{" "}
+                  <span className="text-xs font-normal text-neutral-400">
                     {product.unitOfMeasure || "UND"}
                   </span>
                 </span>
               </div>
 
-              <div className="p-3 bg-neutral-50 border border-neutral-200 rounded-lg">
-                <span className="text-[11px] text-neutral-500 font-medium block">
+              <div
+                className={`p-3 border-l-4 
+                  ${consolidated.availableStock <= 0 ? "border-l-red-900 dark:border-l-red-400" : "border-l-emerald-900 dark:border-l-emerald-400"}  
+                bg-neutral-50 dark:bg-neutral-800 rounded-lg border 
+                ${consolidated.availableStock <= 0 ? "border-red-200 dark:border-red-800" : "border-emerald-200 dark:border-emerald-800"}`}
+              >
+                <span className="text-[11px] text-neutral-400 font-medium block">
                   Stock Disponible
                 </span>
                 <span
                   className={`text-lg font-bold ${
-                    consolidated.availableStock <= 0 ? "text-red-600" : "text-emerald-700"
+                    consolidated.availableStock <= 0
+                      ? "text-red-600"
+                      : "text-emerald-700"
                   }`}
                 >
-                  {formatNumber(consolidated.availableStock, { maximumFractionDigits: 2 })}{" "}
+                  {formatNumber(consolidated.availableStock, {
+                    maximumFractionDigits: 2,
+                  })}{" "}
                   <span className="text-xs font-normal text-neutral-500">
                     {product.unitOfMeasure || "UND"}
                   </span>
                 </span>
               </div>
 
-              <div className="p-3 bg-neutral-50 border border-neutral-200 rounded-lg">
-                <span className="text-[11px] text-neutral-500 font-medium block">
+              <div className="p-3 border-l-4 border-l-purple-900 dark:border-l-purple-400  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-purple-200 dark:border-purple-80">
+                <span className="text-[11px] text-neutral-400 font-medium block">
                   Valorizado Costo ($)
                 </span>
-                <span className="text-lg font-bold text-neutral-900 font-mono">
+                <span className="text-lg font-bold text-purple-500 font-mono">
                   {formatMoneyUSD(consolidated.totalCost)}
                 </span>
               </div>
 
-              <div className="p-3 bg-neutral-50 border border-neutral-200 rounded-lg">
-                <span className="text-[11px] text-neutral-500 font-medium block">
+              <div className="p-3 border-l-4 border-l-orange-900 dark:border-l-orange-400  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-orange-200 dark:border-orange-80">
+                <span className="text-[11px] text-neutral-400 font-medium block">
                   Valorizado Venta ($)
                 </span>
-                <span className="text-lg font-bold text-neutral-900 font-mono">
+                <span className="text-lg font-bold text-orange-400 font-mono">
                   {formatMoneyUSD(consolidated.totalSale)}
                 </span>
               </div>
@@ -415,8 +453,8 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
               </div>
             ) : (
               <div className="border border-neutral-200 rounded-lg overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-neutral-50 border-b border-neutral-200 font-semibold text-neutral-700">
+                <table className="w-full text-left text-sm border-collapse">
+                  <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase  tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
                     <tr>
                       <th className="p-2.5">Depósito / Sucursal</th>
                       <th className="p-2.5 text-center">Actual</th>
@@ -427,20 +465,29 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
                       <th className="p-2.5 text-right">Val. Venta</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-neutral-100">
+                  <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800 ">
                     {warehouseStocks.map((w) => (
-                      <tr key={w.warehouseId} className="hover:bg-neutral-50/50">
+                      <tr
+                        key={w.warehouseId}
+                        className="border-b border-neutral-100 dark:border-neutral-800 hover:bg-neutral-600"
+                      >
                         <td className="p-2.5">
                           <div className="flex flex-col">
-                            <span className="font-semibold text-neutral-900 flex items-center gap-1.5">
+                            <span className="font-semibold text-neutral-400 flex items-center gap-1.5">
                               {w.warehouseName} ({w.warehouseCode})
                               {w.isDefaultSales && (
-                                <Badge variant="info" className="text-[9px] py-0 px-1 text-sky-700 bg-sky-50 border-sky-200">
+                                <Badge
+                                  variant="info"
+                                  className="text-[9px] py-0 px-1 text-sky-700 bg-sky-50 border-sky-200"
+                                >
                                   Ventas
                                 </Badge>
                               )}
                               {w.isDefaultPurchases && (
-                                <Badge variant="neutral" className="text-[9px] py-0 px-1 text-purple-700 bg-purple-50 border-purple-200">
+                                <Badge
+                                  variant="neutral"
+                                  className="text-[9px] py-0 px-1 text-purple-700 bg-purple-50 border-purple-200"
+                                >
                                   Compras
                                 </Badge>
                               )}
@@ -451,29 +498,39 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
                             </span>
                           </div>
                         </td>
-                        <td className="p-2.5 text-center font-mono font-medium text-neutral-800">
-                          {formatNumber(w.currentStock, { maximumFractionDigits: 2 })}
+                        <td className="p-2.5 text-center font-mono font-medium text-neutral-400">
+                          {formatNumber(w.currentStock, {
+                            maximumFractionDigits: 2,
+                          })}
                         </td>
                         <td className="p-2.5 text-center font-mono text-neutral-500">
-                          {formatNumber(w.reservedStock, { maximumFractionDigits: 2 })}
+                          {formatNumber(w.reservedStock, {
+                            maximumFractionDigits: 2,
+                          })}
                         </td>
                         <td className="p-2.5 text-center font-mono font-bold">
                           <span
                             className={
-                              w.availableStock <= 0 ? "text-red-600" : "text-emerald-700"
+                              w.availableStock <= 0
+                                ? "text-red-600"
+                                : "text-emerald-700"
                             }
                           >
-                            {formatNumber(w.availableStock, { maximumFractionDigits: 2 })}
+                            {formatNumber(w.availableStock, {
+                              maximumFractionDigits: 2,
+                            })}
                           </span>
                         </td>
-                        <td className="p-2.5 text-neutral-700">
+                        <td className="p-2.5 text-neutral-400">
                           {w.aisle ? (
                             <div className="flex items-center gap-1 font-mono text-[11px]">
                               <MapPin className="w-3.5 h-3.5 text-sky-600 shrink-0" />
                               <span>
                                 Pasillo {w.aisle}
                                 {w.shelf ? ` • Estante ${w.shelf}` : ""}
-                                {w.compartment ? ` • Comp. ${w.compartment}` : ""}
+                                {w.compartment
+                                  ? ` • Comp. ${w.compartment}`
+                                  : ""}
                               </span>
                             </div>
                           ) : (
@@ -485,7 +542,7 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
                         <td className="p-2.5 text-right font-mono text-neutral-600">
                           {formatMoneyUSD(w.totalCostValuation)}
                         </td>
-                        <td className="p-2.5 text-right font-mono font-bold text-neutral-900">
+                        <td className="p-2.5 text-right font-mono font-bold text-neutral-400">
                           {formatMoneyUSD(w.totalSaleValuation)}
                         </td>
                       </tr>
@@ -507,7 +564,9 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
                 <div className="flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
                   <span>
-                    Este producto no tiene activada la casilla de <strong>"Manejo de Lotes y Vencimiento"</strong> en su ficha principal. Puede activarla editando el producto.
+                    Este producto no tiene activada la casilla de{" "}
+                    <strong>"Manejo de Lotes y Vencimiento"</strong> en su ficha
+                    principal. Puede activarla editando el producto.
                   </span>
                 </div>
               </div>
@@ -515,58 +574,60 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
 
             {/* Tarjetas Semáforo de Lotes */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="p-3 bg-emerald-50/60 border border-emerald-200 rounded-lg flex items-center justify-between">
+              <div className="p-3 w-full text-xs bg-white dark:bg-neutral-800 border border-emerald-300 dark:border-emerald-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 flex items-center justify-between">
                 <div>
-                  <span className="text-[11px] text-emerald-800 font-medium block">
+                  <span className="text-[11px] text-emerald-400 font-medium block">
                     Lotes Vigentes
                   </span>
-                  <span className="text-lg font-bold text-emerald-900">
+                  <span className="text-lg font-bold text-emerald-400">
                     {lotsSummary.activeCount}
                   </span>
                 </div>
-                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
               </div>
 
-              <div className="p-3 bg-amber-50/60 border border-amber-200 rounded-lg flex items-center justify-between">
+              <div className="p-3 w-full text-xs bg-white dark:bg-neutral-800 border border-amber-300 dark:border-amber-400 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500 flex items-center justify-between">
                 <div>
-                  <span className="text-[11px] text-amber-800 font-medium block">
+                  <span className="text-[11px] text-amber-400 font-medium block">
                     Por Vencer (≤30d)
                   </span>
-                  <span className="text-lg font-bold text-amber-900">
+                  <span className="text-lg font-bold text-amber-400">
                     {lotsSummary.expiringSoonCount}
                   </span>
                 </div>
-                <Clock className="w-5 h-5 text-amber-600" />
+                <Clock className="w-5 h-5 text-amber-400" />
               </div>
 
-              <div className="p-3 bg-red-50/60 border border-red-200 rounded-lg flex items-center justify-between">
+              <div className="p-3 w-full text-xs bg-white dark:bg-neutral-800 border border-red-300 dark:border-red-400 rounded-lg px-3 py-2  focus:outline-none focus:ring-2 focus:ring-red-500 flex items-center justify-between">
                 <div>
-                  <span className="text-[11px] text-red-800 font-medium block">
+                  <span className="text-[11px] text-red-400 font-medium block">
                     Lotes Vencidos
                   </span>
-                  <span className="text-lg font-bold text-red-900">
+                  <span className="text-lg font-bold text-red-400">
                     {lotsSummary.expiredCount}
                   </span>
                 </div>
-                <XCircle className="w-5 h-5 text-red-600" />
+                <XCircle className="w-5 h-5 text-red-400" />
               </div>
 
-              <div className="p-3 bg-neutral-50 border border-neutral-200 rounded-lg flex items-center justify-between">
+              <div className="p-3 w-full text-xs bg-white dark:bg-neutral-800 border border-purple-300 dark:border-purple-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 flex items-center justify-between">
                 <div>
-                  <span className="text-[11px] text-neutral-600 font-medium block">
+                  <span className="text-[11px] text-purple-400 font-medium block">
                     Unidades en Lote
                   </span>
-                  <span className="text-lg font-bold text-neutral-900">
-                    {formatNumber(lotsSummary.totalLotQuantity, { maximumFractionDigits: 2 })}
+                  <span className="text-lg font-bold text-purple-400">
+                    {formatNumber(lotsSummary.totalLotQuantity, {
+                      maximumFractionDigits: 2,
+                    })}
                   </span>
                 </div>
-                <Boxes className="w-5 h-5 text-neutral-500" />
+                <Boxes className="w-5 h-5 text-purple-500" />
               </div>
             </div>
 
             {/* Botón y Formulario para Registrar Nuevo Lote */}
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold text-neutral-900 uppercase">
+              <h4 className="text-xs font-bold text-neutral-400 uppercase">
                 Listado de Lotes Registrados
               </h4>
               <Button
@@ -587,7 +648,7 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
                 className="p-4 bg-neutral-50 border border-neutral-200 rounded-lg flex flex-col gap-3"
               >
                 <div className="flex items-center justify-between border-b border-neutral-200 pb-2">
-                  <h5 className="text-xs font-bold text-neutral-800">
+                  <h5 className="text-xs font-bold text-neutral-400">
                     Ingresar Nuevo Lote con Vencimiento
                   </h5>
                   <span className="text-[11px] text-neutral-500">
@@ -601,18 +662,23 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
                     placeholder="Ej: LOT-2026-003"
                     value={lotForm.lotNumber}
                     onChange={(e) =>
-                      setLotForm({ ...lotForm, lotNumber: e.target.value.toUpperCase() })
+                      setLotForm({
+                        ...lotForm,
+                        lotNumber: e.target.value.toUpperCase(),
+                      })
                     }
                     required
                   />
 
                   <div>
-                    <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    <label className="block text-xs font-semibold text-neutral-400 mb-1">
                       Almacén de Depósito *
                     </label>
                     <select
                       value={lotForm.warehouseId}
-                      onChange={(e) => setLotForm({ ...lotForm, warehouseId: e.target.value })}
+                      onChange={(e) =>
+                        setLotForm({ ...lotForm, warehouseId: e.target.value })
+                      }
                       className="w-full h-10 px-3 text-xs bg-white border border-neutral-300 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
                       required
                     >
@@ -632,7 +698,10 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
                     step="0.01"
                     value={lotForm.quantity}
                     onChange={(e) =>
-                      setLotForm({ ...lotForm, quantity: parseFloat(e.target.value) || 0 })
+                      setLotForm({
+                        ...lotForm,
+                        quantity: parseFloat(e.target.value) || 0,
+                      })
                     }
                     required
                   />
@@ -644,7 +713,10 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
                     type="date"
                     value={lotForm.manufacturingDate}
                     onChange={(e) =>
-                      setLotForm({ ...lotForm, manufacturingDate: e.target.value })
+                      setLotForm({
+                        ...lotForm,
+                        manufacturingDate: e.target.value,
+                      })
                     }
                   />
 
@@ -665,7 +737,10 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
                     step="0.0001"
                     value={lotForm.costPrice}
                     onChange={(e) =>
-                      setLotForm({ ...lotForm, costPrice: parseFloat(e.target.value) || 0 })
+                      setLotForm({
+                        ...lotForm,
+                        costPrice: parseFloat(e.target.value) || 0,
+                      })
                     }
                   />
                 </div>
@@ -675,7 +750,9 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
                     label="Notas / Proveedor / Documento"
                     placeholder="Ej: Factura de importación #9872"
                     value={lotForm.notes}
-                    onChange={(e) => setLotForm({ ...lotForm, notes: e.target.value })}
+                    onChange={(e) =>
+                      setLotForm({ ...lotForm, notes: e.target.value })
+                    }
                   />
 
                   <div className="flex items-center gap-2 pt-4">
@@ -684,15 +761,19 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
                       id="adjustStockCheck"
                       checked={lotForm.adjustStock}
                       onChange={(e) =>
-                        setLotForm({ ...lotForm, adjustStock: e.target.checked })
+                        setLotForm({
+                          ...lotForm,
+                          adjustStock: e.target.checked,
+                        })
                       }
                       className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500"
                     />
                     <label
                       htmlFor="adjustStockCheck"
-                      className="text-xs text-neutral-800 font-medium cursor-pointer"
+                      className="text-xs text-neutral-400 font-medium cursor-pointer"
                     >
-                      Incrementar automáticamente existencias en el depósito (+ Kardex)
+                      Incrementar automáticamente existencias en el depósito (+
+                      Kardex)
                     </label>
                   </div>
                 </div>
@@ -722,31 +803,38 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
               </div>
             ) : lots.length === 0 ? (
               <div className="text-center py-8 border border-dashed border-neutral-300 rounded-lg text-xs text-neutral-500">
-                No hay lotes registrados para este producto. Presione <strong>"Registrar / Ingresar Lote"</strong> para incorporar el primer lote con su vencimiento.
+                No hay lotes registrados para este producto. Presione{" "}
+                <strong>"Registrar / Ingresar Lote"</strong> para incorporar el
+                primer lote con su vencimiento.
               </div>
             ) : (
               <div className="border border-neutral-200 rounded-lg overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-neutral-50 border-b border-neutral-200 font-semibold text-neutral-700">
+                <table className="w-full text-left text-sm border-collapse">
+                  <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase  tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
                     <tr>
                       <th className="p-2.5">Lote #</th>
                       <th className="p-2.5">Almacén</th>
                       <th className="p-2.5">Fabricación</th>
                       <th className="p-2.5">Vencimiento</th>
-                      <th className="p-2.5 text-center">Caducidad / Semáforo</th>
+                      <th className="p-2.5 text-center">
+                        Caducidad / Semáforo
+                      </th>
                       <th className="p-2.5 text-center">Cant. Actual</th>
                       <th className="p-2.5 text-center">Disponible</th>
                       <th className="p-2.5">Notas</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-neutral-100">
+                  <tbody
+                    className="divide-y divide-neutral-100 dark:divide-neutral-800 
+"
+                  >
                     {lots.map((l) => (
-                      <tr key={l.id} className="hover:bg-neutral-50/50">
-                        <td className="p-2.5 font-mono font-bold text-neutral-900">
+                      <tr key={l.id} className="border-b border-neutral-100 dark:border-neutral-800 hover:bg-neutral-600">
+                        <td className="p-2.5 font-mono font-bold text-neutral-400">
                           {l.lotNumber}
                         </td>
                         <td className="p-2.5">
-                          <span className="font-medium text-neutral-800">
+                          <span className="font-medium text-neutral-400">
                             {l.warehouseName}
                           </span>
                           <span className="block text-[10px] text-neutral-400">
@@ -756,29 +844,42 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
                         <td className="p-2.5 text-neutral-600 font-mono">
                           {l.manufacturingDate || "N/A"}
                         </td>
-                        <td className="p-2.5 font-mono font-medium text-neutral-800">
+                        <td className="p-2.5 font-mono font-medium text-neutral-400">
                           {l.expirationDate}
                         </td>
                         <td className="p-2.5 text-center">
                           {l.isExpired ? (
-                            <Badge variant="danger" className="text-[10px] py-0 px-2 text-red-700 bg-red-50 border-red-300">
+                            <Badge
+                              variant="danger"
+                              className="text-[10px] py-0 px-2 text-red-700 bg-red-50 border-red-300"
+                            >
                               Vencido hace {Math.abs(l.daysToExpiration)}d
                             </Badge>
                           ) : l.isExpiringSoon ? (
-                            <Badge variant="warning" className="text-[10px] py-0 px-2 text-amber-700 bg-amber-50 border-amber-300">
+                            <Badge
+                              variant="warning"
+                              className="text-[10px] py-0 px-2 text-amber-700 bg-amber-50 border-amber-300"
+                            >
                               Vence en {l.daysToExpiration}d
                             </Badge>
                           ) : (
-                            <Badge variant="success" className="text-[10px] py-0 px-2 text-emerald-700 bg-emerald-50 border-emerald-300">
+                            <Badge
+                              variant="success"
+                              className="text-[10px] py-0 px-2 text-emerald-700 bg-emerald-50 border-emerald-300"
+                            >
                               Vigente ({l.daysToExpiration}d)
                             </Badge>
                           )}
                         </td>
-                        <td className="p-2.5 text-center font-mono font-bold text-neutral-900">
-                          {formatNumber(l.currentQuantity, { maximumFractionDigits: 2 })}
+                        <td className="p-2.5 text-center font-mono font-bold text-neutral-400">
+                          {formatNumber(l.currentQuantity, {
+                            maximumFractionDigits: 2,
+                          })}
                         </td>
                         <td className="p-2.5 text-center font-mono font-medium text-emerald-700">
-                          {formatNumber(l.availableQuantity, { maximumFractionDigits: 2 })}
+                          {formatNumber(l.availableQuantity, {
+                            maximumFractionDigits: 2,
+                          })}
                         </td>
                         <td className="p-2.5 text-neutral-500 text-[11px]">
                           {l.notes || "-"}

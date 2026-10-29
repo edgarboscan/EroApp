@@ -18,12 +18,14 @@ import { payablesRouter } from './modules/payables/payables.routes';
 import { purchasesRouter } from './modules/purchases/purchases.routes';
 import { salesRouter } from './modules/sales/sales.routes';
 import { customerNotesRouter } from './modules/sales/customerNotes.routes';
+import { supplierNotesRouter } from './modules/purchases/supplierNotes.routes';
 import { treasuryRouter } from './modules/treasury/treasury.routes';
 import { taxesRouter } from './modules/taxes/taxes.routes';
 import { configRouter } from './modules/config/config.routes';
 import { licensesRouter } from './modules/licenses/licenses.routes';
 import { auditRouter } from './modules/audit/audit.routes';
 import { restaurantRouter } from './modules/restaurant/restaurant.routes';
+import { inventoryCountRouter } from './modules/inventory/inventoryCount.routes';
 
 dotenv.config();
 
@@ -65,11 +67,14 @@ app.route('/api/purchases', purchasesRouter);
 app.route('/api/sales', salesRouter);
 app.route('/api/customer-notes', customerNotesRouter);
 app.route('/api/sales/customer-notes', customerNotesRouter);
+app.route('/api/supplier-notes', supplierNotesRouter);
+app.route('/api/purchases/supplier-notes', supplierNotesRouter);
 app.route('/api/treasury', treasuryRouter);
 app.route('/api/taxes', taxesRouter);
 app.route('/api/config', configRouter);
 app.route('/api/licenses', licensesRouter);
 app.route('/api/audit', auditRouter);
+app.route('/api/inventory-counts', inventoryCountRouter);
 app.route('/api/restaurant', restaurantRouter);
 
 // Manejador Global de Errores

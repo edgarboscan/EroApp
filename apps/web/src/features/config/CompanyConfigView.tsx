@@ -50,6 +50,7 @@ export interface CashRegisterConfigItem {
   defaultBankAccountIdVES?: string | null;
   defaultBankAccountIdUSD?: string | null;
   allowedDepartmentIds?: string[];
+  acceptsOrders?: boolean;
   isActive: boolean;
 }
 
@@ -180,6 +181,7 @@ export const CompanyConfigView: React.FC = () => {
     defaultBankAccountIdVES: "",
     defaultBankAccountIdUSD: "",
     allowedDepartmentIds: [] as string[],
+    acceptsOrders: true,
     isActive: true,
   });
   const [availableDepartments, setAvailableDepartments] = useState<
@@ -310,6 +312,7 @@ export const CompanyConfigView: React.FC = () => {
       defaultBankAccountIdVES: "",
       defaultBankAccountIdUSD: "",
       allowedDepartmentIds: [],
+      acceptsOrders: true,
       isActive: true,
     });
     setShowRegisterModal(true);
@@ -327,6 +330,7 @@ export const CompanyConfigView: React.FC = () => {
       defaultBankAccountIdVES: reg.defaultBankAccountIdVES || "",
       defaultBankAccountIdUSD: reg.defaultBankAccountIdUSD || "",
       allowedDepartmentIds: reg.allowedDepartmentIds || [],
+      acceptsOrders: reg.acceptsOrders !== false,
       isActive: reg.isActive,
     });
     setShowRegisterModal(true);
@@ -365,6 +369,7 @@ export const CompanyConfigView: React.FC = () => {
         defaultBankAccountIdVES: registerForm.defaultBankAccountIdVES || null,
         defaultBankAccountIdUSD: registerForm.defaultBankAccountIdUSD || null,
         allowedDepartmentIds: registerForm.allowedDepartmentIds,
+        acceptsOrders: registerForm.acceptsOrders,
         isActive: registerForm.isActive,
       };
 
@@ -1349,8 +1354,21 @@ export const CompanyConfigView: React.FC = () => {
                           <td className="py-2.5 px-3 font-mono font-bold text-neutral-900 dark:text-neutral-100">
                             {r.code}
                           </td>
-                          <td className="py-2.5 px-3 text-neutral-900 dark:text-neutral-100 font-medium">
-                            {r.name}
+                          <td className="py-2.5 px-3">
+                            <div className="flex flex-col gap-1">
+                              <span className="text-neutral-900 dark:text-neutral-100 font-medium">
+                                {r.name}
+                              </span>
+                              {r.acceptsOrders !== false ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800 w-fit">
+                                  ● Acepta Comandas
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] text-neutral-500 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 w-fit">
+                                  Solo POS
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="py-2.5 px-3 text-neutral-600 dark:text-neutral-400">
                             {r.branchName || "Sucursal Principal"}
@@ -2545,25 +2563,53 @@ export const CompanyConfigView: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 pt-1">
-              <input
-                type="checkbox"
-                id="registerIsActive"
-                checked={registerForm.isActive}
-                onChange={(e) =>
-                  setRegisterForm({
-                    ...registerForm,
-                    isActive: e.target.checked,
-                  })
-                }
-                className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-neutral-300 dark:border-neutral-700"
-              />
-              <label
-                htmlFor="registerIsActive"
-                className="text-xs text-neutral-700 dark:text-neutral-300 cursor-pointer"
-              >
-                Caja registradora habilitada para turnos y ventas
-              </label>
+            <div className="space-y-3 pt-1">
+              <div className="flex items-start gap-2.5 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50/60 dark:bg-neutral-800/40">
+                <input
+                  type="checkbox"
+                  id="registerAcceptsOrders"
+                  checked={registerForm.acceptsOrders}
+                  onChange={(e) =>
+                    setRegisterForm({
+                      ...registerForm,
+                      acceptsOrders: e.target.checked,
+                    })
+                  }
+                  className="w-4 h-4 mt-0.5 rounded text-sky-600 focus:ring-sky-500 border-neutral-300 dark:border-neutral-700 cursor-pointer"
+                />
+                <label
+                  htmlFor="registerAcceptsOrders"
+                  className="text-xs text-neutral-700 dark:text-neutral-300 cursor-pointer select-none"
+                >
+                  <span className="font-semibold text-neutral-900 dark:text-neutral-100 block">
+                    Acepta comandas y toma de pedidos de Restaurante
+                  </span>
+                  <span className="text-[11px] text-neutral-500 dark:text-neutral-400 block mt-0.5">
+                    Permite que los mesoneros y mozos seleccionen esta caja y le envíen comandas para su facturación.
+                  </span>
+                </label>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="registerIsActive"
+                  checked={registerForm.isActive}
+                  onChange={(e) =>
+                    setRegisterForm({
+                      ...registerForm,
+                      isActive: e.target.checked,
+                    })
+                  }
+                  className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-neutral-300 dark:border-neutral-700 cursor-pointer"
+                />
+                <label
+                  htmlFor="registerIsActive"
+                  className="text-xs text-neutral-700 dark:text-neutral-300 cursor-pointer select-none"
+                >
+                  Caja registradora habilitada para turnos y ventas
+                </label>
+              </div>
             </div>
 
             <div className="flex justify-end gap-3 pt-3 border-t border-neutral-200 dark:border-neutral-800">

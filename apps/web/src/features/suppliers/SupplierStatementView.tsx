@@ -124,9 +124,18 @@ export const SupplierStatementView: React.FC = () => {
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/supplier-notes')}
+            className="w-full sm:w-auto rounded-lg"
+          >
+            <FileText className="w-4 h-4 mr-1 text-sky-600" />
+            Notas Crédito / Débito
+          </Button>
+          <Button
             size="sm"
             onClick={() => navigate('/payables/payments')}
-            className="w-full sm:w-auto"
+            className="w-full sm:w-auto rounded-lg"
           >
             <DollarSign className="w-4 h-4 mr-1" />
             Registrar Pago a Proveedor

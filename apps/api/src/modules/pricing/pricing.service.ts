@@ -8,6 +8,53 @@ export class PricingService {
    */
   static async previewBulkPriceUpdate(companyId: string, criteria: BulkPriceUpdateCriteria, action: BulkPriceUpdateAction) {
     // 1. Obtener los productos que cumplen los criterios
+    const conditions: string[] = [
+      'p.company_id = ?',
+      'p.is_active = 1',
+    ];
+    const params: any[] = [companyId];
+
+    if (criteria.productType && criteria.productType !== 'all') {
+      conditions.push('p.product_type = ?');
+      params.push(criteria.productType);
+    }
+
+    if (criteria.minCurrentPrice !== undefined && criteria.minCurrentPrice !== null) {
+      conditions.push('p.base_price >= ?');
+      params.push(criteria.minCurrentPrice);
+    }
+
+    if (criteria.maxCurrentPrice !== undefined && criteria.maxCurrentPrice !== null) {
+      conditions.push('p.base_price <= ?');
+      params.push(criteria.maxCurrentPrice);
+    }
+
+    if (criteria.departmentIds && criteria.departmentIds.length > 0) {
+      conditions.push(`p.department_id IN (${criteria.departmentIds.map(() => '?').join(',')})`);
+      params.push(...criteria.departmentIds);
+    }
+
+    if (criteria.groupIds && criteria.groupIds.length > 0) {
+      conditions.push(`p.group_id IN (${criteria.groupIds.map(() => '?').join(',')})`);
+      params.push(...criteria.groupIds);
+    }
+
+    if (criteria.subgroupIds && criteria.subgroupIds.length > 0) {
+      conditions.push(`p.subgroup_id IN (${criteria.subgroupIds.map(() => '?').join(',')})`);
+      params.push(...criteria.subgroupIds);
+    }
+
+    if (criteria.supplierIds && criteria.supplierIds.length > 0) {
+      conditions.push(`p.supplier_id IN (${criteria.supplierIds.map(() => '?').join(',')})`);
+      params.push(...criteria.supplierIds);
+    }
+
+    if (criteria.searchQuery && criteria.searchQuery.trim()) {
+      conditions.push('(p.name LIKE ? OR p.sku LIKE ? OR p.barcode LIKE ?)');
+      const term = `%${criteria.searchQuery.trim()}%`;
+      params.push(term, term, term);
+    }
+
     const products = await query<any>(
       `SELECT p.id, p.sku, p.name, p.cost_price as costPrice, p.base_price as oldBasePrice,
               COALESCE(tr.rate, 16.00) as taxRate, d.name as departmentName, g.name as groupName
@@ -15,17 +62,8 @@ export class PricingService {
        LEFT JOIN tax_rates tr ON p.default_tax_rate_id = tr.id
        LEFT JOIN departments d ON p.department_id = d.id
        LEFT JOIN \`groups\` g ON p.group_id = g.id
-       WHERE p.company_id = ?
-         AND p.is_active = 1
-         AND (? = 'all' OR p.product_type = ?)
-         AND (? IS NULL OR p.base_price >= ?)
-         AND (? IS NULL OR p.base_price <= ?)`,
-      [
-        companyId,
-        criteria.productType || 'all', criteria.productType || 'all',
-        criteria.minCurrentPrice || null, criteria.minCurrentPrice || null,
-        criteria.maxCurrentPrice || null, criteria.maxCurrentPrice || null,
-      ]
+       WHERE ${conditions.join(' AND ')}`,
+      params
     );
 
     // 2. Calcular los nuevos precios simulados

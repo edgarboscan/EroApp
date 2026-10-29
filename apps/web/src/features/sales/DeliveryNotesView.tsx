@@ -893,7 +893,7 @@ export const DeliveryNotesView: React.FC = () => {
       accessorKey: "customerName",
       cell: (item) => (
         <div>
-          <p className="text-xs font-medium text-neutral-900">
+          <p className="text-xs font-medium text-neutral-400">
             {item.customerName}
           </p>
           <span className="font-mono text-[10px] text-neutral-500">
@@ -961,7 +961,7 @@ export const DeliveryNotesView: React.FC = () => {
       accessorKey: "totalAmount",
       cell: (item) => (
         <div className="text-right font-mono">
-          <p className="text-xs font-semibold text-neutral-900">
+          <p className="text-xs font-semibold text-neutral-400">
             {formatMoneyUSD(item.totalAmount)}
           </p>
           <p className="text-[10px] text-neutral-500">
@@ -1031,7 +1031,7 @@ export const DeliveryNotesView: React.FC = () => {
       {/* Encabezado */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-neutral-900 tracking-tight">
+          <h1 className="text-xl font-bold text-neutral-400 tracking-tight">
             Notas de Entrega & Despachos
           </h1>
           <p className="text-xs text-neutral-500 mt-1">
@@ -1060,7 +1060,7 @@ export const DeliveryNotesView: React.FC = () => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="p-4 rounded-lg border border-neutral-200 bg-white">
+        <Card className="p-4 border-l-4 border-l-emerald-500  bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-emerald-200 dark:border-emerald-500">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-neutral-500">
               Total Despachos
@@ -1069,7 +1069,7 @@ export const DeliveryNotesView: React.FC = () => {
               <Truck className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-neutral-900 mt-2">
+          <p className="text-2xl font-bold text-emerald-400 mt-2">
             {deliveries.length}
           </p>
           <p className="text-[10px] text-neutral-400 mt-0.5">
@@ -1077,7 +1077,7 @@ export const DeliveryNotesView: React.FC = () => {
           </p>
         </Card>
 
-        <Card className="p-4 rounded-lg border border-neutral-200 bg-white">
+        <Card className="p-4 border-l-4 border-l-amber-500  bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-amber-200 dark:border-amber-500">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-neutral-500">
               Pendientes por Facturar
@@ -1094,7 +1094,7 @@ export const DeliveryNotesView: React.FC = () => {
           </p>
         </Card>
 
-        <Card className="p-4 rounded-lg border border-neutral-200 bg-white">
+        <Card className="p-4 border-l-4 border-l-sky-500  bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-neutral-500">
               Valor Despachado ($)
@@ -1168,7 +1168,7 @@ export const DeliveryNotesView: React.FC = () => {
                 }}
                 className={`flex-1 py-1 text-[11px] rounded-lg font-medium transition-colors cursor-pointer ${
                   customerFilterType === "ALL"
-                    ? "bg-white text-neutral-900 shadow-xs"
+                    ? "bg-white text-neutral-400 shadow-xs"
                     : "text-neutral-300 hover:text-neutral-400"
                 }`}
               >
@@ -1182,7 +1182,7 @@ export const DeliveryNotesView: React.FC = () => {
                 }}
                 className={`flex-1 py-1 text-[11px] rounded-lg font-medium transition-colors cursor-pointer ${
                   customerFilterType === "WITH_DELIVERIES"
-                    ? "bg-white text-neutral-900 shadow-xs"
+                    ? "bg-white text-neutral-400 shadow-xs"
                     : "text-neutral-300 hover:text-neutral-400"
                 }`}
                 title="Clientes con Notas de Entrega emitidas"
@@ -1197,7 +1197,7 @@ export const DeliveryNotesView: React.FC = () => {
                 }}
                 className={`flex-1 py-1 text-[11px] rounded-lg font-medium transition-colors cursor-pointer ${
                   customerFilterType === "WITH_QUOTATIONS"
-                    ? "bg-white text-neutral-900 shadow-xs"
+                    ? "bg-white text-neutral-400 shadow-xs"
                     : "text-neutral-300 hover:text-neutral-400"
                 }`}
                 title="Clientes con Cotizaciones o Presupuestos registrados"
@@ -1311,7 +1311,7 @@ export const DeliveryNotesView: React.FC = () => {
         size="4xl"
         footer={
           <div className="flex items-center justify-between gap-2 w-full">
-            <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100 font-mono">
+            <span className="text-sm font-bold text-neutral-400 dark:text-neutral-100 font-mono">
               Total Despacho: {formatMoneyUSD(totalDeliveryAmount)}
             </span>
             <div className="flex items-center gap-2">
@@ -1476,7 +1476,7 @@ export const DeliveryNotesView: React.FC = () => {
                 {/* Detalle de Productos a Despachar */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-semibold text-neutral-900 uppercase tracking-wider">
+                    <h4 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">
                       Productos a Despachar ({deliveryItems.length})
                     </h4>
                     <div className="flex items-center gap-2">
@@ -1857,7 +1857,7 @@ export const DeliveryNotesView: React.FC = () => {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <FileText className="w-4 h-4 text-sky-700 dark:text-sky-400" />
-                    <span className="font-semibold text-neutral-900 dark:text-neutral-100 text-xs">
+                    <span className="font-semibold text-neutral-400 dark:text-neutral-100 text-xs">
                       Cotización Vinculada:
                     </span>
                     <span className="font-mono text-xs font-bold text-sky-800 dark:text-sky-300">
@@ -1868,7 +1868,7 @@ export const DeliveryNotesView: React.FC = () => {
                   <div className="text-xs text-neutral-600 dark:text-neutral-400 flex flex-wrap items-center gap-x-3 gap-y-1">
                     <span>
                       Subtotal Cotizado:{" "}
-                      <strong className="font-mono text-neutral-900 dark:text-neutral-100">
+                      <strong className="font-mono text-neutral-400 dark:text-neutral-100">
                         {formatMoneyUSD(
                           Number(
                             viewingDelivery.quotationSubtotalAmount ??
@@ -2001,7 +2001,7 @@ export const DeliveryNotesView: React.FC = () => {
                 <span className="text-[10px] text-neutral-400 block uppercase font-medium">
                   Cliente Destinatario
                 </span>
-                <p className="font-semibold text-neutral-900 dark:text-neutral-100 mt-0.5">
+                <p className="font-semibold text-neutral-400 dark:text-neutral-100 mt-0.5">
                   {viewingDelivery.customerName}
                 </p>
                 <p className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400">
@@ -2062,7 +2062,7 @@ export const DeliveryNotesView: React.FC = () => {
 
             {/* Tabla de Productos Despachados */}
             <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider">
+              <h4 className="text-xs font-semibold text-neutral-400 dark:text-neutral-100 uppercase tracking-wider">
                 Productos Despachados ({viewingDelivery.items?.length || 0})
               </h4>
               <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-700 rounded-lg">
@@ -2083,7 +2083,7 @@ export const DeliveryNotesView: React.FC = () => {
                           <td className="py-2 px-3 font-mono text-neutral-500 dark:text-neutral-400">
                             {i.productSku}
                           </td>
-                          <td className="py-2 px-3 font-medium text-neutral-900 dark:text-neutral-100">
+                          <td className="py-2 px-3 font-medium text-neutral-400 dark:text-neutral-100">
                             {i.productName}
                             {i.notes && (
                               <span className="block text-[10px] text-neutral-400 font-normal">
@@ -2100,7 +2100,7 @@ export const DeliveryNotesView: React.FC = () => {
                           <td className="py-2 px-3 text-right font-mono text-neutral-700 dark:text-neutral-300">
                             {formatMoneyUSD(i.unitPrice)}
                           </td>
-                          <td className="py-2 px-3 text-right font-mono font-bold text-neutral-900 dark:text-neutral-100">
+                          <td className="py-2 px-3 text-right font-mono font-bold text-neutral-400 dark:text-neutral-100">
                             {formatMoneyUSD(i.total)}
                           </td>
                         </tr>
@@ -2125,7 +2125,7 @@ export const DeliveryNotesView: React.FC = () => {
               <div className="bg-neutral-50 dark:bg-neutral-800/60 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700 text-right min-w-[220px] space-y-1">
                 <div className="flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
                   <span>Total Despacho ($):</span>
-                  <strong className="text-neutral-900 dark:text-neutral-100 font-mono text-sm">
+                  <strong className="text-neutral-400 dark:text-neutral-100 font-mono text-sm">
                     {formatMoneyUSD(viewingDelivery.totalAmount)}
                   </strong>
                 </div>
@@ -2181,7 +2181,7 @@ export const DeliveryNotesView: React.FC = () => {
             className="space-y-4 text-xs"
           >
                 <div className="bg-neutral-50 p-3 rounded-lg border border-neutral-200 text-xs">
-                  <p className="font-semibold text-neutral-900">
+                  <p className="font-semibold text-neutral-400">
                     {invoicingDelivery.customerName}
                   </p>
                   <p className="text-neutral-500">

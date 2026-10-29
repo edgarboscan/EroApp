@@ -5,6 +5,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { CustomerSearchModal } from '../../components/search/CustomerSearchModal';
+import { ProductSearchModal, ProductSearchItem } from '../../components/search';
 import { Modal } from '../../components/ui/Modal';
 import { PdfViewerModal } from '../../components/ui/PdfViewerModal';
 import { toast } from 'sonner';
@@ -93,6 +94,33 @@ export const CustomerNotesView: React.FC = () => {
   const [warehouses, setWarehouses] = useState<WarehouseOption[]>([]);
   const [formAutoApply, setFormAutoApply] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Catálogo de productos y buscador
+  const [catalogProducts, setCatalogProducts] = useState<ProductSearchItem[]>([]);
+  const [invoiceItems, setInvoiceItems] = useState<any[]>([]);
+  const [isProductSearchOpen, setIsProductSearchOpen] = useState(false);
+  const [activeSearchRowIdx, setActiveSearchRowIdx] = useState<number | null>(null);
+
+  // Cargar catálogo de productos para el select y el buscador
+  useEffect(() => {
+    if (!token) return;
+    const fetchCatalog = async () => {
+      try {
+        const res = await fetch('/api/inventory/products', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.data)) {
+            setCatalogProducts(json.data);
+          }
+        }
+      } catch {
+        // Ignorar
+      }
+    };
+    fetchCatalog();
+  }, [token]);
 
   // Renglones de la nota
   const [items, setItems] = useState<
@@ -273,7 +301,31 @@ export const CustomerNotesView: React.FC = () => {
     fetchInvoices();
   }, [formCustomerId, token]);
 
-  // Cargar ítems de factura afectada
+  // Cargar ítems de factura afectada cuando cambia selectedInvoiceId para el select
+  useEffect(() => {
+    if (!selectedInvoiceId) {
+      setInvoiceItems([]);
+      return;
+    }
+    const loadItems = async () => {
+      try {
+        const res = await fetch(`/api/customer-notes/invoices/${selectedInvoiceId}/items`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          setInvoiceItems(json.data);
+        } else {
+          setInvoiceItems([]);
+        }
+      } catch {
+        setInvoiceItems([]);
+      }
+    };
+    loadItems();
+  }, [selectedInvoiceId, token]);
+
+  // Cargar ítems de factura afectada en el formulario
   const handleLoadInvoiceItems = async () => {
     if (!selectedInvoiceId) return;
     try {
@@ -282,6 +334,7 @@ export const CustomerNotesView: React.FC = () => {
       });
       const json = await res.json();
       if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+        setInvoiceItems(json.data);
         const loadedItems = json.data.map((it: any) => ({
           productId: it.productId,
           description: it.description || it.productName || 'Producto',
@@ -386,6 +439,95 @@ export const CustomerNotesView: React.FC = () => {
       copy[index] = { ...copy[index], [field]: value };
       return copy;
     });
+  };
+
+  // Buscador de productos en catálogo (ProductSearchModal)
+  const handleOpenProductSearch = (idx: number | null) => {
+    setActiveSearchRowIdx(idx);
+    setIsProductSearchOpen(true);
+  };
+
+  const handleSelectProductFromModal = (prod: ProductSearchItem) => {
+    const price = Number(prod.salePrice ?? prod.basePrice ?? prod.cost ?? prod.defaultCost ?? 0);
+    const tax = Number(prod.taxRate ?? 16.0);
+
+    if (activeSearchRowIdx !== null) {
+      setItems((prev) => {
+        const copy = [...prev];
+        if (copy[activeSearchRowIdx]) {
+          copy[activeSearchRowIdx] = {
+            ...copy[activeSearchRowIdx],
+            productId: prod.id,
+            description: prod.name,
+            unitPrice: price > 0 ? price : copy[activeSearchRowIdx].unitPrice,
+            taxRate: tax,
+          };
+        }
+        return copy;
+      });
+    } else {
+      setItems((prev) => [
+        ...prev,
+        {
+          productId: prod.id,
+          description: prod.name,
+          quantity: 1,
+          unitPrice: price,
+          taxRate: tax,
+          returnToInventory: formType === 'CREDIT',
+        },
+      ]);
+      toast.success(`Producto "${prod.name}" añadido a la nota`);
+    }
+    setIsProductSearchOpen(false);
+    setActiveSearchRowIdx(null);
+  };
+
+  // Selección rápida de producto mediante el <select>
+  const handleProductSelect = (idx: number, productId: string) => {
+    if (!productId) {
+      handleUpdateItem(idx, 'productId', null);
+      return;
+    }
+
+    // Verificar si es ítem de la factura de venta afectada
+    const invItem = invoiceItems.find((it) => it.productId === productId);
+    if (invItem) {
+      setItems((prev) => {
+        const copy = [...prev];
+        copy[idx] = {
+          ...copy[idx],
+          productId: invItem.productId,
+          description: invItem.description || invItem.productName || copy[idx].description,
+          unitPrice: Number(invItem.unitPrice || 0),
+          taxRate: Number(invItem.taxRate || 16.0),
+          quantity: invItem.availableQuantity > 0 ? Number(invItem.availableQuantity) : copy[idx].quantity,
+          invoicedQuantity: invItem.invoicedQuantity,
+          alreadyCreditedQuantity: invItem.alreadyCreditedQuantity,
+          availableQuantity: invItem.availableQuantity,
+        };
+        return copy;
+      });
+      return;
+    }
+
+    // Verificar si es del catálogo general de productos
+    const catItem = catalogProducts.find((p) => p.id === productId);
+    if (catItem) {
+      const price = Number(catItem.salePrice ?? catItem.basePrice ?? catItem.cost ?? catItem.defaultCost ?? 0);
+      const tax = Number(catItem.taxRate ?? 16.0);
+      setItems((prev) => {
+        const copy = [...prev];
+        copy[idx] = {
+          ...copy[idx],
+          productId: catItem.id,
+          description: catItem.name,
+          unitPrice: price > 0 ? price : copy[idx].unitPrice,
+          taxRate: tax,
+        };
+        return copy;
+      });
+    }
   };
 
   // Crear Nota
@@ -683,12 +825,12 @@ export const CustomerNotesView: React.FC = () => {
 
       {/* Tarjetas KPI Resumen */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-4 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
+        <Card className="p-4 border-l-4 border-l-emerald-500  bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-emerald-200 dark:border-emerald-500">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-emerald-800">Notas de Crédito (Total)</span>
+            <span className="text-xs font-semibold text-emerald-500">Notas de Crédito (Total)</span>
             <TrendingDown className="w-4 h-4 text-emerald-600" />
           </div>
-          <div className="text-xl font-bold text-neutral-500  mt-2">
+          <div className="text-xl font-bold text-emerald-500  mt-2">
             {formatMoneyUSD(totalCreditNotesUSD)}
           </div>
           <span className="text-[11px] text-neutral-400 mt-1 block">
@@ -1195,12 +1337,24 @@ export const CustomerNotesView: React.FC = () => {
               <div className="bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 p-3">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-xs font-bold text-neutral-400">
-                    Renglones y Conceptos de la Nota
+                    Renglones y Conceptos de la Nota ({items.length})
                   </h3>
-                  <Button type="button" variant="outline" size="sm" onClick={handleAddItem}>
-                    <Plus className="w-3.5 h-3.5 mr-1" />
-                    Agregar Renglón
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleOpenProductSearch(null)}
+                      className="h-7 text-xs rounded-lg text-sky-600 dark:text-sky-400 border-sky-300 dark:border-sky-800 hover:bg-sky-50 dark:hover:bg-sky-950/40"
+                    >
+                      <Search className="w-3.5 h-3.5 mr-1" />
+                      Buscar en Catálogo
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" onClick={handleAddItem} className="h-7 text-xs rounded-lg">
+                      <Plus className="w-3.5 h-3.5 mr-1" />
+                      Agregar Renglón
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -1209,16 +1363,51 @@ export const CustomerNotesView: React.FC = () => {
                     return (
                       <div
                         key={idx}
-                        className="grid grid-cols-12 gap-2 items-center  rounded-lg text-xs"
+                        className="grid grid-cols-12 gap-2 items-center rounded-lg text-xs"
                       >
-                        {/* Descripción */}
-                        <div className="col-span-12 sm:col-span-5">
+                        {/* Descripción y Selector de Producto */}
+                        <div className="col-span-12 sm:col-span-5 space-y-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <select
+                              value={it.productId || ''}
+                              onChange={(e) => handleProductSelect(idx, e.target.value)}
+                              className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-2.5 py-1.5 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                            >
+                              <option value="">-- Concepto manual / Seleccionar producto --</option>
+                              {invoiceItems.length > 0 && (
+                                <optgroup label="Ítems de la Factura de Venta">
+                                  {invoiceItems.map((invItem) => (
+                                    <option key={`inv-${invItem.productId || invItem.sku}`} value={invItem.productId}>
+                                      [Facturado] {invItem.sku ? `${invItem.sku} - ` : ''}{invItem.description || invItem.productName} (Disp: {invItem.availableQuantity})
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              )}
+                              <optgroup label="Catálogo de Productos">
+                                {catalogProducts.map((p) => (
+                                  <option key={p.id} value={p.id}>
+                                    {p.sku ? `${p.sku} - ` : ''}{p.name}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            </select>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenProductSearch(idx)}
+                              title="Buscar producto en catálogo"
+                              className="h-7 px-2 shrink-0 rounded-lg border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                            >
+                              <Search className="w-3.5 h-3.5 text-neutral-600 dark:text-neutral-300" />
+                            </Button>
+                          </div>
                           <input
                             type="text"
                             placeholder="Descripción o concepto del ítem..."
                             value={it.description}
                             onChange={(e) => handleUpdateItem(idx, 'description', e.target.value)}
-                            className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400  dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                            className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-2.5 py-1 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                           />
                           {it.availableQuantity !== undefined && it.availableQuantity <= 0 && (
                             <span className="text-[10px] text-red-600 font-semibold block mt-0.5">
@@ -1757,6 +1946,20 @@ export const CustomerNotesView: React.FC = () => {
         title={pdfModal.title}
         endpoint={pdfModal.endpoint}
         filename={pdfModal.filename}
+      />
+
+      {/* Modal Buscador de Productos en Catálogo */}
+      <ProductSearchModal
+        isOpen={isProductSearchOpen}
+        onClose={() => {
+          setIsProductSearchOpen(false);
+          setActiveSearchRowIdx(null);
+        }}
+        onSelect={handleSelectProductFromModal}
+        products={catalogProducts}
+        mode="sale"
+        title="Buscador de Productos para Nota de Cliente"
+        subtitle="Busque por código SKU, código de barras o nombre comercial para cargar al comprobante"
       />
     </div>
   );

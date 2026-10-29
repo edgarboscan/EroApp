@@ -4,8 +4,20 @@ import {
   BankMovementInput,
   TransferBetweenAccountsInput,
   ReconcileStatementInput,
+  BulkReconcileMovementsInput,
 } from '@ero/shared';
 import crypto from 'crypto';
+
+export interface GetMovementsFilter {
+  fromDate?: string;
+  toDate?: string;
+  isReconciled?: boolean;
+  movementType?: string;
+  direction?: 'INFLOW' | 'OUTFLOW';
+  search?: string;
+  minAmount?: number;
+  maxAmount?: number;
+}
 
 export class TreasuryService {
   static async getBanks() {
@@ -14,49 +26,130 @@ export class TreasuryService {
     );
   }
 
-  static async getBankAccounts(companyId: string) {
+  /**
+   * Obtiene las cuentas bancarias calculando saldo en libros, partidas en tránsito y saldo real bancario
+   */
+  static async getBankAccounts(companyId: string, branchId?: string) {
+    let sql = `
+      SELECT ba.id, ba.company_id, ba.bank_id, ba.branch_id,
+             b.code as bank_code, b.name as bank_name,
+             br.name as branch_name,
+             ba.account_number, ba.account_type, ba.currency,
+             ba.description, ba.current_balance, ba.is_active,
+             COUNT(CASE WHEN bm.is_reconciled = 0 THEN 1 END) as pending_reconciliations_count,
+             COALESCE(SUM(CASE WHEN bm.is_reconciled = 0 AND bm.amount > 0 THEN bm.amount ELSE 0 END), 0) as uncleared_deposits,
+             COALESCE(SUM(CASE WHEN bm.is_reconciled = 0 AND bm.amount < 0 THEN ABS(bm.amount) ELSE 0 END), 0) as uncleared_withdrawals,
+             COALESCE(SUM(CASE WHEN bm.is_reconciled = 1 THEN bm.amount ELSE 0 END), 0) as cleared_movements_sum,
+             (
+               SELECT JSON_OBJECT(
+                 'id', brc.id,
+                 'periodStart', brc.period_start,
+                 'periodEnd', brc.period_end,
+                 'statementBalance', brc.bank_statement_balance,
+                 'difference', brc.difference,
+                 'status', brc.status,
+                 'createdAt', brc.created_at
+               )
+               FROM bank_reconciliations brc
+               WHERE brc.account_id = ba.id
+               ORDER BY brc.period_end DESC, brc.created_at DESC
+               LIMIT 1
+             ) as last_reconciliation_json
+      FROM bank_accounts ba
+      INNER JOIN banks b ON ba.bank_id = b.id
+      LEFT JOIN branches br ON ba.branch_id = br.id
+      LEFT JOIN bank_movements bm ON ba.id = bm.account_id
+      WHERE ba.company_id = ? AND ba.is_active = 1
+    `;
+    const params: any[] = [companyId];
+
+    if (branchId && branchId !== 'all') {
+      sql += ` AND (ba.branch_id = ? OR ba.branch_id IS NULL)`;
+      params.push(branchId);
+    }
+
+    sql += ` GROUP BY ba.id ORDER BY ba.currency DESC, b.name ASC`;
+
+    const rows = await query<any>(sql, params);
+
+    return rows.map((r) => {
+      const currentBalance = Number(r.current_balance || 0);
+      const unclearedDeposits = Number(r.uncleared_deposits || 0);
+      const unclearedWithdrawals = Number(r.uncleared_withdrawals || 0);
+      const transitBalance = Number((unclearedDeposits - unclearedWithdrawals).toFixed(2));
+      // Saldo Real Bancario = Saldo en Libros + Egresos en Tránsito (no debitados por banco) - Ingresos en Tránsito (no acreditados en banco)
+      const realBalance = Number((currentBalance + unclearedWithdrawals - unclearedDeposits).toFixed(2));
+      const clearedBalance = Number(r.cleared_movements_sum || 0);
+
+      let lastReconciliation = null;
+      if (r.last_reconciliation_json) {
+        try {
+          lastReconciliation = typeof r.last_reconciliation_json === 'string'
+            ? JSON.parse(r.last_reconciliation_json)
+            : r.last_reconciliation_json;
+        } catch {
+          lastReconciliation = null;
+        }
+      }
+
+      return {
+        id: r.id,
+        companyId: r.company_id,
+        bankId: r.bank_id,
+        bankCode: r.bank_code,
+        bankName: r.bank_name,
+        branchId: r.branch_id,
+        branchName: r.branch_name || 'Todas las Sucursales (Global)',
+        accountNumber: r.account_number,
+        accountType: r.account_type,
+        currency: r.currency,
+        description: r.description,
+        currentBalance,
+        bookBalance: currentBalance,
+        unclearedDeposits,
+        unclearedWithdrawals,
+        transitBalance,
+        realBalance,
+        clearedBalance,
+        isActive: Boolean(r.is_active),
+        pendingReconciliationsCount: Number(r.pending_reconciliations_count || 0),
+        lastReconciliation,
+      };
+    });
+  }
+
+  static async getAccountById(id: string, companyId: string) {
     const rows = await query<any>(
       `SELECT ba.id, ba.company_id, ba.bank_id, ba.branch_id,
               b.code as bank_code, b.name as bank_name,
               br.name as branch_name,
               ba.account_number, ba.account_type, ba.currency,
               ba.description, ba.current_balance, ba.is_active,
-              COUNT(CASE WHEN bm.is_reconciled = 0 THEN 1 END) as pending_reconciliations_count
+              COUNT(CASE WHEN bm.is_reconciled = 0 THEN 1 END) as pending_reconciliations_count,
+              COALESCE(SUM(CASE WHEN bm.is_reconciled = 0 AND bm.amount > 0 THEN bm.amount ELSE 0 END), 0) as uncleared_deposits,
+              COALESCE(SUM(CASE WHEN bm.is_reconciled = 0 AND bm.amount < 0 THEN ABS(bm.amount) ELSE 0 END), 0) as uncleared_withdrawals,
+              COALESCE(SUM(CASE WHEN bm.is_reconciled = 1 THEN bm.amount ELSE 0 END), 0) as cleared_movements_sum,
+              (
+                SELECT JSON_OBJECT(
+                  'id', brc.id,
+                  'periodStart', brc.period_start,
+                  'periodEnd', brc.period_end,
+                  'statementBalance', brc.bank_statement_balance,
+                  'difference', brc.difference,
+                  'status', brc.status,
+                  'createdAt', brc.created_at
+                )
+                FROM bank_reconciliations brc
+                WHERE brc.account_id = ba.id
+                ORDER BY brc.period_end DESC, brc.created_at DESC
+                LIMIT 1
+              ) as last_reconciliation_json
        FROM bank_accounts ba
        INNER JOIN banks b ON ba.bank_id = b.id
        LEFT JOIN branches br ON ba.branch_id = br.id
        LEFT JOIN bank_movements bm ON ba.id = bm.account_id
-       WHERE ba.company_id = ? AND ba.is_active = 1
-       GROUP BY ba.id
-       ORDER BY ba.currency DESC, b.name ASC`,
-      [companyId]
-    );
-
-    return rows.map((r) => ({
-      id: r.id,
-      companyId: r.company_id,
-      bankId: r.bank_id,
-      bankCode: r.bank_code,
-      bankName: r.bank_name,
-      branchId: r.branch_id,
-      branchName: r.branch_name,
-      accountNumber: r.account_number,
-      accountType: r.account_type,
-      currency: r.currency,
-      description: r.description,
-      currentBalance: Number(r.current_balance),
-      isActive: Boolean(r.is_active),
-      pendingReconciliationsCount: Number(r.pending_reconciliations_count),
-    }));
-  }
-
-  static async getAccountById(id: string, companyId: string) {
-    const rows = await query<any>(
-      `SELECT ba.*, b.code as bank_code, b.name as bank_name, br.name as branch_name
-       FROM bank_accounts ba
-       INNER JOIN banks b ON ba.bank_id = b.id
-       LEFT JOIN branches br ON ba.branch_id = br.id
-       WHERE ba.id = ? AND ba.company_id = ?`,
+       WHERE ba.id = ? AND ba.company_id = ?
+       GROUP BY ba.id`,
       [id, companyId]
     );
 
@@ -65,6 +158,24 @@ export class TreasuryService {
     }
 
     const r = rows[0];
+    const currentBalance = Number(r.current_balance || 0);
+    const unclearedDeposits = Number(r.uncleared_deposits || 0);
+    const unclearedWithdrawals = Number(r.uncleared_withdrawals || 0);
+    const transitBalance = Number((unclearedDeposits - unclearedWithdrawals).toFixed(2));
+    const realBalance = Number((currentBalance + unclearedWithdrawals - unclearedDeposits).toFixed(2));
+    const clearedBalance = Number(r.cleared_movements_sum || 0);
+
+    let lastReconciliation = null;
+    if (r.last_reconciliation_json) {
+      try {
+        lastReconciliation = typeof r.last_reconciliation_json === 'string'
+          ? JSON.parse(r.last_reconciliation_json)
+          : r.last_reconciliation_json;
+      } catch {
+        lastReconciliation = null;
+      }
+    }
+
     return {
       id: r.id,
       companyId: r.company_id,
@@ -72,13 +183,21 @@ export class TreasuryService {
       bankCode: r.bank_code,
       bankName: r.bank_name,
       branchId: r.branch_id,
-      branchName: r.branch_name,
+      branchName: r.branch_name || 'Todas las Sucursales (Global)',
       accountNumber: r.account_number,
       accountType: r.account_type,
       currency: r.currency,
       description: r.description,
-      currentBalance: Number(r.current_balance),
+      currentBalance,
+      bookBalance: currentBalance,
+      unclearedDeposits,
+      unclearedWithdrawals,
+      transitBalance,
+      realBalance,
+      clearedBalance,
       isActive: Boolean(r.is_active),
+      pendingReconciliationsCount: Number(r.pending_reconciliations_count || 0),
+      lastReconciliation,
     };
   }
 
@@ -130,23 +249,33 @@ export class TreasuryService {
         );
       }
 
-      return { id: accountId, ...data, currentBalance: initBalance };
+      return { id: accountId, ...data, currentBalance: initBalance, realBalance: initBalance };
     });
   }
 
   static async getAccountMovements(
     accountId: string,
     companyId: string,
-    fromDate?: string,
-    toDate?: string,
-    isReconciled?: boolean
+    filterOrFromDate?: GetMovementsFilter | string,
+    toDateArg?: string,
+    isReconciledArg?: boolean
   ) {
     await this.getAccountById(accountId, companyId);
+
+    const filter: GetMovementsFilter =
+      typeof filterOrFromDate === 'object' && filterOrFromDate !== null
+        ? filterOrFromDate
+        : {
+            fromDate: typeof filterOrFromDate === 'string' ? filterOrFromDate : undefined,
+            toDate: toDateArg,
+            isReconciled: isReconciledArg,
+          };
 
     let sql = `
       SELECT bm.id, bm.account_id, bm.user_id, bm.movement_type, bm.amount,
              bm.balance_after, bm.movement_date, bm.reference_number,
              bm.concept, bm.destination_account_id, bm.is_reconciled,
+             bm.reconciliation_id,
              u.full_name as user_name
       FROM bank_movements bm
       LEFT JOIN users u ON bm.user_id = u.id
@@ -154,17 +283,39 @@ export class TreasuryService {
     `;
     const params: any[] = [accountId];
 
-    if (fromDate) {
+    if (filter.fromDate) {
       sql += ` AND bm.movement_date >= ?`;
-      params.push(fromDate);
+      params.push(filter.fromDate);
     }
-    if (toDate) {
+    if (filter.toDate) {
+      const fullToDate = filter.toDate.length <= 10 ? `${filter.toDate} 23:59:59` : filter.toDate;
       sql += ` AND bm.movement_date <= ?`;
-      params.push(toDate);
+      params.push(fullToDate);
     }
-    if (isReconciled !== undefined) {
+    if (filter.isReconciled !== undefined) {
       sql += ` AND bm.is_reconciled = ?`;
-      params.push(isReconciled ? 1 : 0);
+      params.push(filter.isReconciled ? 1 : 0);
+    }
+    if (filter.movementType && filter.movementType !== 'ALL') {
+      sql += ` AND bm.movement_type = ?`;
+      params.push(filter.movementType);
+    }
+    if (filter.direction === 'INFLOW') {
+      sql += ` AND bm.amount > 0`;
+    } else if (filter.direction === 'OUTFLOW') {
+      sql += ` AND bm.amount < 0`;
+    }
+    if (filter.search && filter.search.trim()) {
+      sql += ` AND (bm.reference_number LIKE CONCAT('%', ?, '%') OR bm.concept LIKE CONCAT('%', ?, '%'))`;
+      params.push(filter.search.trim());
+    }
+    if (filter.minAmount !== undefined && !isNaN(filter.minAmount)) {
+      sql += ` AND ABS(bm.amount) >= ?`;
+      params.push(filter.minAmount);
+    }
+    if (filter.maxAmount !== undefined && !isNaN(filter.maxAmount)) {
+      sql += ` AND ABS(bm.amount) <= ?`;
+      params.push(filter.maxAmount);
     }
 
     sql += ` ORDER BY bm.movement_date DESC, bm.created_at DESC`;
@@ -183,6 +334,7 @@ export class TreasuryService {
       concept: r.concept,
       destinationAccountId: r.destination_account_id,
       isReconciled: Boolean(r.is_reconciled),
+      reconciliationId: r.reconciliation_id || null,
     }));
   }
 
@@ -203,6 +355,7 @@ export class TreasuryService {
     }
 
     const movementId = crypto.randomUUID();
+    const isReconciled = Boolean(data.isReconciled);
 
     return await withTransaction(async (conn) => {
       // 1. Update account balance
@@ -216,7 +369,7 @@ export class TreasuryService {
         `INSERT INTO bank_movements (
           id, account_id, user_id, movement_type, amount, balance_after,
           movement_date, reference_number, concept, is_reconciled
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           movementId,
           account.id,
@@ -227,6 +380,7 @@ export class TreasuryService {
           data.movementDate || new Date().toISOString().slice(0, 19).replace('T', ' '),
           data.referenceNumber || null,
           data.concept.trim(),
+          isReconciled ? 1 : 0,
         ]
       );
 
@@ -239,6 +393,7 @@ export class TreasuryService {
         balanceAfter,
         movementType: data.movementType,
         concept: data.concept,
+        isReconciled,
       };
     });
   }
@@ -334,11 +489,117 @@ export class TreasuryService {
     });
   }
 
+  /**
+   * Concilia o desconcilia un movimiento individual de forma directa
+   */
+  static async toggleMovementReconciled(
+    companyId: string,
+    movementId: string,
+    isReconciledTarget?: boolean
+  ) {
+    const rows = await query<any>(
+      `SELECT bm.id, bm.account_id, bm.is_reconciled, bm.amount, bm.reference_number,
+              ba.company_id, ba.current_balance
+       FROM bank_movements bm
+       INNER JOIN bank_accounts ba ON bm.account_id = ba.id
+       WHERE bm.id = ? AND ba.company_id = ?`,
+      [movementId, companyId]
+    );
+
+    if (!rows || rows.length === 0) {
+      throw new Error('Movimiento bancario no encontrado');
+    }
+
+    const current = Boolean(rows[0].is_reconciled);
+    const newStatus = isReconciledTarget !== undefined ? isReconciledTarget : !current;
+
+    await query(
+      `UPDATE bank_movements
+       SET is_reconciled = ?, reconciliation_id = CASE WHEN ? = 0 THEN NULL ELSE reconciliation_id END
+       WHERE id = ?`,
+      [newStatus ? 1 : 0, newStatus ? 1 : 0, movementId]
+    );
+
+    const account = await this.getAccountById(rows[0].account_id, companyId);
+    return {
+      movementId,
+      accountId: rows[0].account_id,
+      isReconciled: newStatus,
+      account,
+    };
+  }
+
+  /**
+   * Concilia o desconcilia un lote de movimientos bancarios seleccionados
+   */
+  static async bulkReconcileMovements(
+    companyId: string,
+    data: BulkReconcileMovementsInput
+  ) {
+    await this.getAccountById(data.accountId, companyId);
+
+    if (!data.movementIds || data.movementIds.length === 0) {
+      return { updatedCount: 0 };
+    }
+
+    await query(
+      `UPDATE bank_movements
+       SET is_reconciled = ?, reconciliation_id = CASE WHEN ? = 0 THEN NULL ELSE reconciliation_id END
+       WHERE id IN (?) AND account_id = ?`,
+      [data.isReconciled ? 1 : 0, data.isReconciled ? 1 : 0, data.movementIds, data.accountId]
+    );
+
+    const account = await this.getAccountById(data.accountId, companyId);
+    return {
+      updatedCount: data.movementIds.length,
+      isReconciled: data.isReconciled,
+      account,
+    };
+  }
+
+  /**
+   * Obtiene el historial de conciliaciones realizadas para una cuenta bancaria
+   */
+  static async getAccountReconciliations(companyId: string, accountId: string) {
+    await this.getAccountById(accountId, companyId);
+
+    const rows = await query<any>(
+      `SELECT br.id, br.account_id, br.user_id, br.period_start, br.period_end,
+              br.initial_book_balance, br.final_book_balance, br.bank_statement_balance,
+              br.difference, br.status, br.notes, br.created_at,
+              u.full_name as user_name
+       FROM bank_reconciliations br
+       LEFT JOIN users u ON br.user_id = u.id
+       WHERE br.account_id = ?
+       ORDER BY br.period_end DESC, br.created_at DESC`,
+      [accountId]
+    );
+
+    return rows.map((r) => ({
+      id: r.id,
+      accountId: r.account_id,
+      userId: r.user_id,
+      userName: r.user_name || 'Sistema',
+      periodStart: r.period_start,
+      periodEnd: r.period_end,
+      initialBookBalance: Number(r.initial_book_balance),
+      finalBookBalance: Number(r.final_book_balance),
+      bankStatementBalance: Number(r.bank_statement_balance),
+      difference: Number(r.difference),
+      status: r.status,
+      notes: r.notes,
+      createdAt: r.created_at,
+    }));
+  }
+
+  /**
+   * Procesa la conciliación formal del extracto bancario con algoritmo de cruce optimizado
+   */
   static async reconcileStatement(companyId: string, userId: string, data: ReconcileStatementInput) {
     const account = await this.getAccountById(data.accountId, companyId);
     const reconciliationId = crypto.randomUUID();
 
-    // Fetch un-reconciled movements for this account
+    // Movimientos pendientes en libros para esta cuenta
     const pendingMovements = await query<any>(
       `SELECT id, amount, reference_number, movement_date, concept
        FROM bank_movements
@@ -350,18 +611,36 @@ export class TreasuryService {
     const unmatchedStatementItems: any[] = [];
 
     for (const stmtItem of data.statementItems) {
-      // Find matching un-reconciled movement by reference or approximate amount
-      const match = pendingMovements.find((m) => {
+      // 1. Coincidencia directa por ID asignado explícitamente en UI
+      if (stmtItem.matchedMovementId) {
+        const directMatch = pendingMovements.find(
+          (m: any) => m.id === stmtItem.matchedMovementId && !matchedMovementIds.includes(m.id)
+        );
+        if (directMatch) {
+          matchedMovementIds.push(directMatch.id);
+          continue;
+        }
+      }
+
+      // 2. Coincidencia inteligente por referencia y monto
+      const refClean = stmtItem.referenceNumber ? stmtItem.referenceNumber.trim().toLowerCase() : '';
+      const refSuffix = refClean.length >= 4 ? refClean.slice(-6) : refClean;
+
+      const match = pendingMovements.find((m: any) => {
         if (matchedMovementIds.includes(m.id)) return false;
 
-        const refMatch =
-          stmtItem.referenceNumber &&
-          m.reference_number &&
-          stmtItem.referenceNumber.trim().toLowerCase() === m.reference_number.trim().toLowerCase();
+        const mRef = m.reference_number ? m.reference_number.trim().toLowerCase() : '';
+        const mRefSuffix = mRef.length >= 4 ? mRef.slice(-6) : mRef;
 
+        const exactRef = refClean && mRef && refClean === mRef;
+        const suffixRef = refSuffix && mRefSuffix && (mRef.endsWith(refSuffix) || refClean.endsWith(mRefSuffix));
         const amountMatch = Math.abs(Number(m.amount) - stmtItem.amount) < 0.01;
 
-        return refMatch || amountMatch;
+        if (exactRef) return true;
+        if (suffixRef && amountMatch) return true;
+        if (!refClean && amountMatch) return true;
+
+        return false;
       });
 
       if (match) {
@@ -376,7 +655,7 @@ export class TreasuryService {
     const status = Math.abs(difference) < 0.01 ? 'RECONCILED' : 'DISCREPANCY';
 
     return await withTransaction(async (conn) => {
-      // 1. Mark matched movements as reconciled
+      // 1. Asentar los movimientos coincidentes como conciliados
       if (matchedMovementIds.length > 0) {
         await conn.query(
           `UPDATE bank_movements
@@ -386,7 +665,7 @@ export class TreasuryService {
         );
       }
 
-      // 2. Insert bank_reconciliation record
+      // 2. Insertar cabecera oficial de conciliación bancaria
       await conn.query(
         `INSERT INTO bank_reconciliations (
           id, account_id, user_id, period_start, period_end, initial_book_balance,
@@ -407,6 +686,8 @@ export class TreasuryService {
         ]
       );
 
+      const refreshedAccount = await this.getAccountById(account.id, companyId);
+
       return {
         reconciliationId,
         accountId: account.id,
@@ -414,6 +695,7 @@ export class TreasuryService {
         unmatchedCount: unmatchedStatementItems.length,
         unmatchedItems: unmatchedStatementItems,
         bookBalance: finalBookBalance,
+        realBalance: refreshedAccount.realBalance,
         statementEndingBalance: data.statementEndingBalance,
         difference,
         status,
@@ -421,25 +703,57 @@ export class TreasuryService {
     });
   }
 
-  static async getTreasurySummary(companyId: string) {
-    const accounts = await this.getBankAccounts(companyId);
+  static async getTreasurySummary(companyId: string, branchId?: string) {
+    const accounts = await this.getBankAccounts(companyId, branchId);
 
-    const totalVes = accounts
+    const totalVesBook = accounts
       .filter((a) => a.currency === 'VES')
       .reduce((sum, a) => sum + a.currentBalance, 0);
 
-    const totalUsd = accounts
+    const totalVesReal = accounts
+      .filter((a) => a.currency === 'VES')
+      .reduce((sum, a) => sum + a.realBalance, 0);
+
+    const totalUsdBook = accounts
       .filter((a) => a.currency === 'USD')
       .reduce((sum, a) => sum + a.currentBalance, 0);
+
+    const totalUsdReal = accounts
+      .filter((a) => a.currency === 'USD')
+      .reduce((sum, a) => sum + a.realBalance, 0);
 
     const totalPendingReconciliations = accounts.reduce(
       (sum, a) => sum + a.pendingReconciliationsCount,
       0
     );
 
+    const totalUnclearedDepositsVes = accounts
+      .filter((a) => a.currency === 'VES')
+      .reduce((sum, a) => sum + a.unclearedDeposits, 0);
+
+    const totalUnclearedWithdrawalsVes = accounts
+      .filter((a) => a.currency === 'VES')
+      .reduce((sum, a) => sum + a.unclearedWithdrawals, 0);
+
+    const totalUnclearedDepositsUsd = accounts
+      .filter((a) => a.currency === 'USD')
+      .reduce((sum, a) => sum + a.unclearedDeposits, 0);
+
+    const totalUnclearedWithdrawalsUsd = accounts
+      .filter((a) => a.currency === 'USD')
+      .reduce((sum, a) => sum + a.unclearedWithdrawals, 0);
+
     return {
-      totalVes: Number(totalVes.toFixed(2)),
-      totalUsd: Number(totalUsd.toFixed(2)),
+      totalVes: Number(totalVesBook.toFixed(2)),
+      totalVesBook: Number(totalVesBook.toFixed(2)),
+      totalVesReal: Number(totalVesReal.toFixed(2)),
+      totalUsd: Number(totalUsdBook.toFixed(2)),
+      totalUsdBook: Number(totalUsdBook.toFixed(2)),
+      totalUsdReal: Number(totalUsdReal.toFixed(2)),
+      totalUnclearedDepositsVes: Number(totalUnclearedDepositsVes.toFixed(2)),
+      totalUnclearedWithdrawalsVes: Number(totalUnclearedWithdrawalsVes.toFixed(2)),
+      totalUnclearedDepositsUsd: Number(totalUnclearedDepositsUsd.toFixed(2)),
+      totalUnclearedWithdrawalsUsd: Number(totalUnclearedWithdrawalsUsd.toFixed(2)),
       activeAccountsCount: accounts.length,
       pendingReconciliationsCount: totalPendingReconciliations,
       accounts,

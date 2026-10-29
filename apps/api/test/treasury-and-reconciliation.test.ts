@@ -74,6 +74,29 @@ export function matchStatementMovements(
   };
 }
 
+export function calculateRealBalance(
+  bookBalance: number,
+  unclearedDeposits: number,
+  unclearedWithdrawals: number
+) {
+  // Saldo Real Bancario = Saldo en Libros + Egresos en Tránsito (no cobrados) - Ingresos en Tránsito (no acreditados)
+  return Number((bookBalance + unclearedWithdrawals - unclearedDeposits).toFixed(2));
+}
+
+describe('Motor de Tesorería - Disponibilidad y Saldo Real Bancario', () => {
+  it('Calcula el saldo real bancario sumando egresos en tránsito y restando ingresos en tránsito', () => {
+    // Si el libro marca 10,000, hay un cheque girado de 2,000 no cobrado y un depósito de 1,500 en tránsito
+    const real = calculateRealBalance(10000.0, 1500.0, 2000.0);
+    // En el banco aún están los 2,000 pero no están los 1,500: 10,000 + 2,000 - 1,500 = 10,500
+    expect(real).toBe(10500.0);
+  });
+
+  it('Saldo real es idéntico al saldo en libros si no existen partidas en tránsito', () => {
+    const real = calculateRealBalance(5000.0, 0, 0);
+    expect(real).toBe(5000.0);
+  });
+});
+
 describe('Motor de Tesorería - Transferencias entre Cuentas', () => {
   it('Ejecuta transferencia entre cuentas de la misma moneda (VES a VES)', () => {
     const res = calculateAccountTransfer(50000.0, 'VES', 10000.0, 'VES', 15000.0);

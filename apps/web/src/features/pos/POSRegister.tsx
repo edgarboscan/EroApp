@@ -43,6 +43,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useExchangeRateStore } from '../../stores/exchangeRateStore';
 import { FiscalInvoiceModal, FiscalInvoiceTicketData } from './FiscalInvoiceModal';
 import { ImportRestaurantOrderModal } from './ImportRestaurantOrderModal';
+import { ProductSearchModal } from '../../components/search/ProductSearchModal';
 import {
   formatNumber,
   formatCurrency,
@@ -133,9 +134,22 @@ export const POSRegister: React.FC = () => {
 
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isProductSearchModalOpen, setIsProductSearchModalOpen] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [activeShift, setActiveShift] = useState<any>(null);
   const [loadingShift, setLoadingShift] = useState(true);
+
+  // Atajo de teclado F3 para buscador de catálogo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F3') {
+        e.preventDefault();
+        setIsProductSearchModalOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Estado para apertura de turno de caja dentro del POS
   const [showOpenShiftModal, setShowOpenShiftModal] = useState(false);
@@ -605,7 +619,7 @@ export const POSRegister: React.FC = () => {
     try {
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
       const targetWh = warehouseIdOverride || activeShift?.warehouseId || activeWarehouseId;
-      const queryParam = targetWh ? `?warehouseId=${encodeURIComponent(targetWh)}` : '';
+      const queryParam = targetWh ? `?warehouseId=${encodeURIComponent(targetWh)}` : '?warehouseScope=pos';
       const res = await fetch(`/api/inventory/products${queryParam}`, { headers });
       if (res.ok) {
         const json = await res.json();
@@ -1910,22 +1924,34 @@ export const POSRegister: React.FC = () => {
         )}
 
         {/* Barra de Búsqueda Rápida / Código de Barras */}
-        <div className="relative">
-          <Search className="w-4 h-4 absolute left-3 top-3.5 text-neutral-400 dark:text-neutral-500" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                handleBarcodeOrSkuScan(searchTerm);
-              }
-            }}
-            placeholder="Escanear código de barras o buscar producto/presentación (Enter para añadir)..."
-            className="w-full h-11 pl-10 pr-10 text-xs bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500 text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 font-medium"
-          />
-          <Barcode className="w-5 h-5 absolute right-3 top-3 text-neutral-400 dark:text-neutral-500" />
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 absolute left-3 top-3.5 text-neutral-400 dark:text-neutral-500" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleBarcodeOrSkuScan(searchTerm);
+                }
+              }}
+              placeholder="Escanear código de barras o buscar producto/presentación (Enter para añadir)..."
+              className="w-full h-11 pl-10 pr-10 text-xs bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500 text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 font-medium"
+            />
+            <Barcode className="w-5 h-5 absolute right-3 top-3 text-neutral-400 dark:text-neutral-500" />
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setIsProductSearchModalOpen(true)}
+            className="h-11 px-3 rounded-lg text-xs flex items-center gap-1.5 shrink-0"
+            title="Buscador en catálogo de ventas (F3)"
+          >
+            <Search className="w-4 h-4" />
+            <span className="hidden sm:inline">Buscar (F3)</span>
+          </Button>
         </div>
 
         {/* Contenedor del Catálogo: Toolbar + Grid o Lista Densa */}
@@ -4114,6 +4140,24 @@ export const POSRegister: React.FC = () => {
         token={token}
         activeBranchId={activeBranchId}
         currentImportedOrderId={importedRestaurantOrderId}
+      />
+
+      {/* Modal Buscador de Productos en Catálogo de Ventas */}
+      <ProductSearchModal
+        isOpen={isProductSearchModalOpen}
+        onClose={() => setIsProductSearchModalOpen(false)}
+        mode="pos"
+        warehouseId={activeShift?.warehouseId || activeWarehouseId || undefined}
+        warehouseName={activeShift?.warehouseName || 'Almacén de Ventas'}
+        onSelect={(prod) => {
+          setIsProductSearchModalOpen(false);
+          const found = products.find((p) => p.id === prod.id);
+          if (found) {
+            handleSelectProduct(found);
+          } else {
+            handleBarcodeOrSkuScan(prod.sku || prod.barcode || prod.name);
+          }
+        }}
       />
     </div>
   );

@@ -22,6 +22,8 @@ import {
   createInventoryAdjustmentSchema,
   createInventoryTransferSchema,
   receiveInventoryTransferSchema,
+  importTransferFileSchema,
+  sendTransferEmailSchema,
   kardexFilterSchema,
   productLotSchema,
 } from '@ero/shared';
@@ -36,8 +38,12 @@ import {
   generateProductsReportPDF,
 } from '../reports/reports-pdf';
 import { ReportsService } from '../reports/reports.service';
+import { inventoryCountRouter } from './inventoryCount.routes';
 
 export const inventoryRouter = new Hono<AppEnv>();
+
+// Módulo de conteo y auditoría física de productos por depósito
+inventoryRouter.route('/counts', inventoryCountRouter);
 
 // ==========================================
 // Rutas de Jerarquía: Departamentos, Grupos, Subgrupos
@@ -222,7 +228,20 @@ inventoryRouter.get('/products', authenticate, authorize(['inventory.read', 'pos
   const groupId = c.req.query('groupId');
   const subgroupId = c.req.query('subgroupId');
   const search = c.req.query('search');
-  const warehouseId = c.req.query('warehouseId') || c.get('activeWarehouseId');
+  const branchId = c.req.query('branchId') || c.req.header('X-Branch-Id') || c.get('activeBranchId') || user.branchId;
+  const warehouseScope = c.req.query('warehouseScope') || c.req.query('mode'); // 'pos' | 'sales' | 'transfer' | 'default'
+  let warehouseId = c.req.query('warehouseId');
+
+  // Si no se especifica depósito: en POS buscar en almacén de ventas, en cualquier otra búsqueda en el almacén predefinido
+  if (!warehouseId) {
+    if (warehouseScope === 'pos' || warehouseScope === 'sales') {
+      const salesWh = await InventoryService.getSalesWarehouse(user.companyId, branchId);
+      warehouseId = salesWh?.id || c.get('activeWarehouseId');
+    } else {
+      const defaultWh = await InventoryService.getDefaultWarehouse(user.companyId, branchId);
+      warehouseId = defaultWh?.id || c.get('activeWarehouseId');
+    }
+  }
 
   const result = await InventoryService.getProducts(user.companyId, { departmentId, groupId, subgroupId, search, warehouseId });
   return c.json({ success: true, data: result });
@@ -234,7 +253,19 @@ inventoryRouter.get('/products/pdf', authenticate, authorize(['inventory.read', 
   const groupId = c.req.query('groupId');
   const subgroupId = c.req.query('subgroupId');
   const search = c.req.query('search');
-  const warehouseId = c.req.query('warehouseId') || c.get('activeWarehouseId');
+  const branchId = c.req.query('branchId') || c.req.header('X-Branch-Id') || c.get('activeBranchId') || user.branchId;
+  const warehouseScope = c.req.query('warehouseScope') || c.req.query('mode');
+  let warehouseId = c.req.query('warehouseId');
+
+  if (!warehouseId) {
+    if (warehouseScope === 'pos' || warehouseScope === 'sales') {
+      const salesWh = await InventoryService.getSalesWarehouse(user.companyId, branchId);
+      warehouseId = salesWh?.id || c.get('activeWarehouseId');
+    } else {
+      const defaultWh = await InventoryService.getDefaultWarehouse(user.companyId, branchId);
+      warehouseId = defaultWh?.id || c.get('activeWarehouseId');
+    }
+  }
 
   try {
     const [products, company, userName] = await Promise.all([
@@ -613,12 +644,28 @@ inventoryRouter.get('/transfers', authenticate, authorize('inventory', 'read'), 
   const user = c.get('user');
   const branchId = c.req.query('branchId') || user.branchId;
   const status = c.req.query('status');
+  const direction = (c.req.query('direction') as 'OUTGOING' | 'INCOMING' | 'ALL') || 'ALL';
 
   try {
-    const list = await InventoryService.getTransfers(user.companyId, branchId, status);
+    const list = await InventoryService.getTransfers(user.companyId, branchId, status, direction);
     return c.json({ success: true, data: list });
   } catch (error: any) {
     return c.json({ success: false, error: { code: 'TRANSFERS_FETCH_FAILED', message: error.message } }, 500);
+  }
+});
+
+inventoryRouter.get('/transfers/:id', authenticate, authorize('inventory', 'read'), async (c) => {
+  const user = c.get('user');
+  const transferId = c.req.param('id')!;
+
+  try {
+    const transfer = await InventoryService.getTransferById(user.companyId, transferId);
+    if (!transfer) {
+      return c.json({ success: false, error: { code: 'TRANSFER_NOT_FOUND', message: 'Traslado no encontrado' } }, 404);
+    }
+    return c.json({ success: true, data: transfer });
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'TRANSFER_FETCH_FAILED', message: error.message } }, 500);
   }
 });
 
@@ -654,6 +701,70 @@ inventoryRouter.post(
       return c.json({ success: true, data: result });
     } catch (error: any) {
       return c.json({ success: false, error: { code: 'TRANSFER_RECEIVE_FAILED', message: error.message } }, 400);
+    }
+  }
+);
+
+// GET /api/inventory/transfers/:id/export-package - Genera y descarga el archivo oficial de intercambio (.ero / .json)
+inventoryRouter.get('/transfers/:id/export-package', authenticate, authorize('inventory', 'read'), async (c) => {
+  const user = c.get('user');
+  const transferId = c.req.param('id')!;
+
+  try {
+    const pkg = await InventoryService.exportTransferPackage(user.companyId, transferId);
+    c.header('Content-Type', 'application/json');
+    c.header('Content-Disposition', `attachment; filename="transferencia_${pkg.transferNumber}.ero"`);
+    return c.json(pkg);
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'TRANSFER_EXPORT_FAILED', message: error.message } }, 400);
+  }
+});
+
+// POST /api/inventory/transfers/import-package - Carga automática de transferencia recibida desde archivo
+inventoryRouter.post(
+  '/transfers/import-package',
+  authenticate,
+  authorize('inventory', 'transfer'),
+  zValidator('json', importTransferFileSchema),
+  async (c) => {
+    const user = c.get('user');
+    const body = c.req.valid('json');
+
+    try {
+      const result = await InventoryService.importTransferPackage(
+        user.companyId,
+        user.sub,
+        body.transferPackage,
+        body.targetDestinationWarehouseId || undefined
+      );
+      return c.json({ success: true, data: result, message: 'Transferencia importada con éxito' });
+    } catch (error: any) {
+      return c.json({ success: false, error: { code: 'TRANSFER_IMPORT_FAILED', message: error.message } }, 400);
+    }
+  }
+);
+
+// POST /api/inventory/transfers/:id/send-email - Envía por correo el paquete y notificación de la transferencia
+inventoryRouter.post(
+  '/transfers/:id/send-email',
+  authenticate,
+  authorize('inventory', 'transfer'),
+  zValidator('json', sendTransferEmailSchema),
+  async (c) => {
+    const user = c.get('user');
+    const transferId = c.req.param('id')!;
+    const body = c.req.valid('json');
+
+    try {
+      const result = await InventoryService.sendTransferEmail(
+        user.companyId,
+        transferId,
+        body.recipientEmail,
+        body.notes || undefined
+      );
+      return c.json({ success: true, data: result, message: 'Correo enviado con éxito' });
+    } catch (error: any) {
+      return c.json({ success: false, error: { code: 'TRANSFER_EMAIL_FAILED', message: error.message } }, 400);
     }
   }
 );

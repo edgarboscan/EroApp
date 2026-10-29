@@ -902,14 +902,14 @@ export const CashAuditVerificationView: React.FC = () => {
 
       {/* Tarjetas de Métricas KPI */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-        <Card className="p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
+        <Card className="p-3 border-l-4 border-l-orange-500  bg-orange-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-orange-400 dark:border-orange-400">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-neutral-500">
               Pendientes Auditoría
             </span>
             <Clock className="w-4 h-4 text-amber-500" />
           </div>
-          <p className="text-2xl font-bold text-neutral-900 font-mono mt-1">
+          <p className="text-2xl font-bold text-orange-700 font-mono mt-1">
             {kpis.totalPending}
           </p>
           <span className="text-[11px] text-neutral-400">
@@ -917,7 +917,7 @@ export const CashAuditVerificationView: React.FC = () => {
           </span>
         </Card>
 
-        <Card className="p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
+        <Card className="p-3 border-l-4 border-l-red-500  bg-red-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-red-400 dark:border-red-400">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-neutral-500">
               Discrepancias / Alertas
@@ -932,14 +932,14 @@ export const CashAuditVerificationView: React.FC = () => {
           </span>
         </Card>
 
-        <Card className="p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
+        <Card className="p-3 border-l-4 border-l-emerald-500  bg-emerald-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-emerald-400 dark:border-emerald-400">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-neutral-500">
               Depósitos Bancarios USD
             </span>
             <DollarSign className="w-4 h-4 text-emerald-500" />
           </div>
-          <p className="text-2xl font-bold text-neutral-900 font-mono mt-1">
+          <p className="text-2xl font-bold text-emerald-500 font-mono mt-1">
             {formatMoneyUSD(kpis.sumUSD)}
           </p>
           <span className="text-[11px] text-neutral-400">
@@ -947,14 +947,14 @@ export const CashAuditVerificationView: React.FC = () => {
           </span>
         </Card>
 
-        <Card className="p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
+        <Card className="p-3 border-l-4 border-l-sky-500  bg-sky-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-400 dark:border-sky-400 ">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-neutral-500">
               Depósitos Bancarios VES
             </span>
             <TrendingUp className="w-4 h-4 text-sky-500" />
           </div>
-          <p className="text-2xl font-bold text-neutral-900 font-mono mt-1">
+          <p className="text-2xl font-bold text-sky-500 font-mono mt-1">
             {formatMoneyVES(kpis.sumVES)}
           </p>
           <span className="text-[11px] text-neutral-400">
@@ -1126,9 +1126,7 @@ export const CashAuditVerificationView: React.FC = () => {
                           Inicial:
                         </span>
                         <span className="text-neutral-800 dark:text-neutral-200">
-                          {formatMoneyUSD(
-                            selectedShiftForAudit.initialCashUSD,
-                          )}
+                          {formatMoneyUSD(selectedShiftForAudit.initialCashUSD)}
                         </span>
                       </div>
                       <div>
@@ -1180,9 +1178,7 @@ export const CashAuditVerificationView: React.FC = () => {
                           Inicial:
                         </span>
                         <span className="text-neutral-800 dark:text-neutral-200">
-                          {formatMoneyVES(
-                            selectedShiftForAudit.initialCashVES,
-                          )}
+                          {formatMoneyVES(selectedShiftForAudit.initialCashVES)}
                         </span>
                       </div>
                       <div>
@@ -1226,54 +1222,49 @@ export const CashAuditVerificationView: React.FC = () => {
                 </div>
 
                 {/* Desglose de Ventas por Método de Pago */}
-                {auditDetails &&
-                  auditDetails.paymentsBreakdown.length > 0 && (
-                    <div className="space-y-2">
-                      <span className="font-bold text-neutral-800 dark:text-neutral-200 text-xs">
-                        Recaudación por Método de Pago (
-                        {auditDetails.invoices.length} facturas)
-                      </span>
-                      <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-700 rounded-lg">
-                        <table className="w-full text-xs text-left">
-                          <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 font-semibold border-b border-neutral-200 dark:border-neutral-700">
-                            <tr>
-                              <th className="px-3 py-2">Método</th>
-                              <th className="px-3 py-2 text-center">
-                                Transacciones
-                              </th>
-                              <th className="px-3 py-2 text-right">
-                                Monto USD
-                              </th>
-                              <th className="px-3 py-2 text-right">
-                                Monto VES
-                              </th>
+                {auditDetails && auditDetails.paymentsBreakdown.length > 0 && (
+                  <div className="space-y-2">
+                    <span className="font-bold text-neutral-800 dark:text-neutral-200 text-xs">
+                      Recaudación por Método de Pago (
+                      {auditDetails.invoices.length} facturas)
+                    </span>
+                    <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-700 rounded-lg">
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 font-semibold border-b border-neutral-200 dark:border-neutral-700">
+                          <tr>
+                            <th className="px-3 py-2">Método</th>
+                            <th className="px-3 py-2 text-center">
+                              Transacciones
+                            </th>
+                            <th className="px-3 py-2 text-right">Monto USD</th>
+                            <th className="px-3 py-2 text-right">Monto VES</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-neutral-200 dark:divide-neutral-700 font-mono">
+                          {auditDetails.paymentsBreakdown.map((p) => (
+                            <tr
+                              key={p.method}
+                              className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                            >
+                              <td className="px-3 py-1.5 font-sans font-medium text-neutral-900 dark:text-neutral-100">
+                                {p.method}
+                              </td>
+                              <td className="px-3 py-1.5 text-center text-neutral-800 dark:text-neutral-200">
+                                {p.txCount}
+                              </td>
+                              <td className="px-3 py-1.5 text-right font-medium text-neutral-900 dark:text-neutral-100">
+                                {formatMoneyUSD(p.totalUSD)}
+                              </td>
+                              <td className="px-3 py-1.5 text-right font-medium text-neutral-900 dark:text-neutral-100">
+                                {formatMoneyVES(p.totalVES)}
+                              </td>
                             </tr>
-                          </thead>
-                          <tbody className="divide-y divide-neutral-200 dark:divide-neutral-700 font-mono">
-                            {auditDetails.paymentsBreakdown.map((p) => (
-                              <tr
-                                key={p.method}
-                                className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
-                              >
-                                <td className="px-3 py-1.5 font-sans font-medium text-neutral-900 dark:text-neutral-100">
-                                  {p.method}
-                                </td>
-                                <td className="px-3 py-1.5 text-center text-neutral-800 dark:text-neutral-200">
-                                  {p.txCount}
-                                </td>
-                                <td className="px-3 py-1.5 text-right font-medium text-neutral-900 dark:text-neutral-100">
-                                  {formatMoneyUSD(p.totalUSD)}
-                                </td>
-                                <td className="px-3 py-1.5 text-right font-medium text-neutral-900 dark:text-neutral-100">
-                                  {formatMoneyVES(p.totalVES)}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                  )}
+                  </div>
+                )}
 
                 {/* Movimientos de Caja (Entradas y Salidas) */}
                 {auditDetails && auditDetails.movements.length > 0 && (
@@ -1293,7 +1284,10 @@ export const CashAuditVerificationView: React.FC = () => {
                         </thead>
                         <tbody className="divide-y divide-neutral-200 dark:divide-neutral-700 font-mono">
                           {auditDetails.movements.map((m) => (
-                            <tr key={m.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                            <tr
+                              key={m.id}
+                              className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                            >
                               <td className="px-3 py-1.5 font-sans">
                                 <Badge
                                   variant={
@@ -1341,7 +1335,10 @@ export const CashAuditVerificationView: React.FC = () => {
                         </thead>
                         <tbody className="divide-y divide-neutral-200 dark:divide-neutral-700 font-mono">
                           {auditDetails.deposits.map((d) => (
-                            <tr key={d.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                            <tr
+                              key={d.id}
+                              className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                            >
                               <td className="px-3 py-1.5 font-sans text-neutral-900 dark:text-neutral-100">
                                 {d.bankName} (...{d.accountNumber.slice(-4)})
                               </td>
@@ -1481,10 +1478,10 @@ export const CashAuditVerificationView: React.FC = () => {
         {selectedShiftForDeposits && (
           <div className="space-y-4 text-xs">
             <div className="p-3 bg-sky-50/70 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-900/60 rounded-lg text-neutral-700 dark:text-neutral-300 leading-relaxed text-[11px]">
-              Asigne los fondos recaudados en este turno a las cuentas
-              bancarias de la empresa. Cada depósito generará un movimiento de
-              tipo <strong>DEPOSIT</strong> en Tesorería, actualizando el
-              saldo bancario y dejándolo disponible para la{" "}
+              Asigne los fondos recaudados en este turno a las cuentas bancarias
+              de la empresa. Cada depósito generará un movimiento de tipo{" "}
+              <strong>DEPOSIT</strong> en Tesorería, actualizando el saldo
+              bancario y dejándolo disponible para la{" "}
               <strong>conciliación bancaria</strong>.
             </div>
 
@@ -1536,9 +1533,7 @@ export const CashAuditVerificationView: React.FC = () => {
                         value={draft.bankAccountId}
                         onChange={(e) => {
                           const accId = e.target.value;
-                          const acc = bankAccounts.find(
-                            (a) => a.id === accId,
-                          );
+                          const acc = bankAccounts.find((a) => a.id === accId);
                           setDepositDrafts((prev) =>
                             prev.map((d) =>
                               d.id === draft.id
@@ -1591,9 +1586,7 @@ export const CashAuditVerificationView: React.FC = () => {
                         }}
                         className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
                       >
-                        <option value="CASH_USD">
-                          Efectivo Divisas (USD)
-                        </option>
+                        <option value="CASH_USD">Efectivo Divisas (USD)</option>
                         <option value="CASH_VES">
                           Efectivo Bolívares (VES)
                         </option>
@@ -1602,9 +1595,7 @@ export const CashAuditVerificationView: React.FC = () => {
                         </option>
                         <option value="PAGO_MOVIL">Pago Móvil</option>
                         <option value="ZELLE">Zelle (USD)</option>
-                        <option value="TRANSFER">
-                          Transferencia Bancaria
-                        </option>
+                        <option value="TRANSFER">Transferencia Bancaria</option>
                         <option value="OTHER">Otro Depósito</option>
                       </select>
                     </div>
@@ -1711,10 +1702,7 @@ export const CashAuditVerificationView: React.FC = () => {
         title={`Alertas de Discrepancia en Arqueos (${notifications.length})`}
         size="2xl"
         footer={
-          <Button
-            size="sm"
-            onClick={() => setShowNotificationsModal(false)}
-          >
+          <Button size="sm" onClick={() => setShowNotificationsModal(false)}>
             Entendido
           </Button>
         }

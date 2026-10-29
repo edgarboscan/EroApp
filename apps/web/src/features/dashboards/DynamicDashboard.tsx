@@ -990,8 +990,8 @@ export const DynamicDashboard: React.FC = () => {
       {/* Header del Dashboard */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-neutral-900 tracking-tight">Dashboard Dinámico</h1>
-          <p className="text-xs text-neutral-500 mt-0.5">
+          <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100 tracking-tight">Dashboard Dinámico</h1>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
             Métricas operativas y financieras en tiempo real según el entorno operativo autorizado
           </p>
         </div>

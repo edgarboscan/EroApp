@@ -27,6 +27,7 @@ import { PhysicalLocationsView } from '../features/inventory/PhysicalLocationsVi
 import { KardexView } from '../features/inventory/KardexView';
 import { InventoryAdjustmentsView } from '../features/inventory/InventoryAdjustmentsView';
 import { InventoryTransfersView } from '../features/inventory/InventoryTransfersView';
+import { InventoryCountView } from '../features/inventory/InventoryCountView';
 import { BulkPriceUpdateWizard } from '../features/pricing/BulkPriceUpdateWizard';
 import { TaxRatesView } from '../features/pricing/TaxRatesView';
 import { ReportsView } from '../features/reports/ReportsView';
@@ -46,6 +47,7 @@ import { PayablePaymentView } from '../features/payables/PayablePaymentView';
 // Módulo Compras & Abastecimiento (Paso 8)
 import { PurchaseOrdersView } from '../features/purchases/PurchaseOrdersView';
 import { GoodsReceiptsView } from '../features/purchases/GoodsReceiptsView';
+import { SupplierNotesView } from '../features/purchases/SupplierNotesView';
 
 // Módulo Ventas Comerciales & Despachos (Paso 9)
 import { QuotationsView } from '../features/sales/QuotationsView';
@@ -248,6 +250,24 @@ export const AppRouter: React.FC = () => {
           }
         />
 
+        <Route
+          path="/supplier-notes"
+          element={
+            <RequirePermission module="purchases" action="read">
+              <SupplierNotesView />
+            </RequirePermission>
+          }
+        />
+
+        <Route
+          path="/purchases/notes"
+          element={
+            <RequirePermission module="purchases" action="read">
+              <SupplierNotesView />
+            </RequirePermission>
+          }
+        />
+
         {/* Módulo Ventas Comerciales & Despachos (Paso 9) */}
         <Route
           path="/sales/quotations"
@@ -373,6 +393,15 @@ export const AppRouter: React.FC = () => {
           element={
             <RequirePermission module="inventory" action="read">
               <KardexView />
+            </RequirePermission>
+          }
+        />
+
+        <Route
+          path="/inventory/counts"
+          element={
+            <RequirePermission module="inventory" action="read">
+              <InventoryCountView />
             </RequirePermission>
           }
         />

@@ -378,6 +378,13 @@ export const MainLayout: React.FC = () => {
           action: "read",
         },
         {
+          label: "Notas Crédito / Débito",
+          to: "/supplier-notes",
+          icon: FileText,
+          module: "purchases",
+          action: "read",
+        },
+        {
           label: "Cuentas por Pagar (CxP)",
           to: "/payables",
           icon: Clock,
@@ -416,6 +423,13 @@ export const MainLayout: React.FC = () => {
           label: "Kardex Valorizado",
           to: "/inventory/kardex",
           icon: History,
+          module: "inventory",
+          action: "read",
+        },
+        {
+          label: "Conteo de Productos",
+          to: "/inventory/counts",
+          icon: ClipboardCheck,
           module: "inventory",
           action: "read",
         },

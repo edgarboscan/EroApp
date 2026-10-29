@@ -45,6 +45,7 @@ interface CashRegister {
   activeShiftId?: string | null;
   activeCashierName?: string | null;
   hasActiveShift: boolean;
+  acceptsOrders?: boolean;
 }
 
 interface CurrentShiftSummary {
@@ -807,7 +808,7 @@ export const CashRegisterView: React.FC = () => {
 
             {/* Tarjetas de Métricas de Recaudación */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Card className="p-4 space-y-1 p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
+              <Card className="p-4 border-l-4 border-l-emerald-500  bg-emerald-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-emerald-400 dark:border-emerald-300">
                 <span className="text-xs text-neutral-500">Efectivo en Divisas (Esperado)</span>
                 <div className="text-xl font-bold font-mono text-emerald-600">
                   {formatMoneyUSD(currentShift.expectedCashUSD)}
@@ -817,7 +818,7 @@ export const CashRegisterView: React.FC = () => {
                 </div>
               </Card>
 
-              <Card className="p-4 space-y-1 p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
+              <Card className="p-4 border-l-4 border-l-emerald-500  bg-emerald-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-emerald-400 dark:border-emerald-400">
                 <span className="text-xs text-neutral-500">Efectivo en Bolívares (Esperado)</span>
                 <div className="text-xl font-bold font-mono text-emerald-600">
                   {formatMoneyVES(currentShift.expectedCashVES)}
@@ -827,7 +828,7 @@ export const CashRegisterView: React.FC = () => {
                 </div>
               </Card>
 
-              <Card className="p-4 space-y-1 p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
+              <Card className="p-4 border-l-4 border-l-sky-500  bg-sky-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-400 dark:border-sky-300">
                 <span className="text-xs text-neutral-500">Pagos Digitales en Bs</span>
                 <div className="text-xl font-bold font-mono text-sky-700">
                   {formatMoneyVES(currentShift.summary.pagomovilVES + currentShift.summary.debitVES)}
@@ -837,7 +838,7 @@ export const CashRegisterView: React.FC = () => {
                 </div>
               </Card>
 
-              <Card className="p-4 space-y-1 p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
+              <Card className="p-4 border-l-4 border-l-sky-500  bg-sky-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-400 dark:border-sky-400">
                 <span className="text-xs text-neutral-500">Zelle / IGTF Divisas</span>
                 <div className="text-xl font-bold font-mono text-indigo-700">
                   {formatMoneyUSD(currentShift.summary.zelleUSD)}

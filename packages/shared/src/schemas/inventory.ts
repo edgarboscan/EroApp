@@ -327,7 +327,18 @@ export const createInventoryTransferSchema = z.object({
   originWarehouseId: entityId('ID de depósito origen requerido'),
   destinationBranchId: entityId('ID de sucursal destino requerido'),
   destinationWarehouseId: entityId('ID de depósito destino requerido'),
-  notes: z.string().max(255).optional().nullable(),
+  transferType: z.enum(['INTERNAL_WAREHOUSE', 'BRANCH_TRANSFER']).default('BRANCH_TRANSFER'),
+  carrierName: z.string().max(150).optional().nullable(),
+  carrierRif: z.string().max(25).optional().nullable(),
+  driverName: z.string().max(150).optional().nullable(),
+  driverIdDocument: z.string().max(30).optional().nullable(),
+  vehiclePlate: z.string().max(30).optional().nullable(),
+  vehicleModel: z.string().max(100).optional().nullable(),
+  securitySealNumber: z.string().max(100).optional().nullable(),
+  shippingGuideNumber: z.string().max(50).optional().nullable(),
+  estimatedArrivalAt: z.string().optional().nullable(),
+  freightCost: z.coerce.number().min(0).default(0),
+  notes: z.string().max(500).optional().nullable(),
   items: z.array(inventoryTransferItemSchema).min(1, 'Debe incluir al menos un producto en el traslado'),
 }).refine((data) => data.originWarehouseId !== data.destinationWarehouseId, {
   message: 'El depósito de origen y el depósito de destino no pueden ser iguales',
@@ -338,14 +349,85 @@ export type CreateInventoryTransferInput = z.infer<typeof createInventoryTransfe
 
 export const receiveInventoryTransferSchema = z.object({
   transferId: entityId('ID de traslado requerido'),
-  notes: z.string().max(255).optional().nullable(),
+  notes: z.string().max(500).optional().nullable(),
+  securitySealVerified: z.boolean().optional(),
   items: z.array(z.object({
     productId: entityId(),
     quantityReceived: z.number().min(0, 'La cantidad recibida no puede ser negativa'),
+    conditionStatus: z.enum(['OPTIMAL', 'DAMAGED', 'SHORTAGE', 'SURPLUS']).default('OPTIMAL'),
+    notes: z.string().max(255).optional().nullable(),
   })).optional(),
 });
 
 export type ReceiveInventoryTransferInput = z.infer<typeof receiveInventoryTransferSchema>;
+
+// Paquete de Transferencia entre Sucursales (.ero / .json)
+export interface BranchTransferPackageItem {
+  sku: string;
+  barcode?: string | null;
+  productName: string;
+  unitOfMeasure: string;
+  quantitySent: number;
+  unitCost: number;
+  notes?: string | null;
+}
+
+export interface BranchTransferPackage {
+  formatVersion: string;
+  transferNumber: string;
+  companyId: string;
+  originBranch: {
+    id: string;
+    name: string;
+    code?: string;
+  };
+  originWarehouse: {
+    id: string;
+    name: string;
+  };
+  destinationBranch: {
+    id: string;
+    name: string;
+    code?: string;
+  };
+  destinationWarehouse: {
+    id: string;
+    name: string;
+  };
+  transitInfo: {
+    carrierName?: string | null;
+    carrierRif?: string | null;
+    driverName?: string | null;
+    driverIdDocument?: string | null;
+    vehiclePlate?: string | null;
+    vehicleModel?: string | null;
+    securitySealNumber?: string | null;
+    shippingGuideNumber?: string | null;
+    estimatedArrivalAt?: string | null;
+    freightCost?: number;
+  };
+  items: BranchTransferPackageItem[];
+  totalItems: number;
+  totalCost: number;
+  checksum: string;
+  exportedAt: string;
+  exportedBy?: string;
+}
+
+export const importTransferFileSchema = z.object({
+  transferPackage: z.any(),
+  targetDestinationWarehouseId: optionalEntityId,
+});
+
+export type ImportTransferFileInput = z.infer<typeof importTransferFileSchema>;
+
+export const sendTransferEmailSchema = z.object({
+  transferId: entityId(),
+  recipientEmail: z.string().email('Correo electrónico de destino inválido'),
+  notes: z.string().max(500).optional().nullable(),
+});
+
+export type SendTransferEmailInput = z.infer<typeof sendTransferEmailSchema>;
 
 // ==========================================
 // Filtros de Kardex
