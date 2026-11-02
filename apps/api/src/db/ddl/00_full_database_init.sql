@@ -1807,6 +1807,48 @@ CREATE TABLE `user_notification_preferences` (
   UNIQUE KEY `uk_user_notif_pref` (`company_id`, `user_id`, `notification_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+-- TABLAS DE CHAT ENTRE USUARIOS
+DROP TABLE IF EXISTS `chat_messages`;
+DROP TABLE IF EXISTS `chat_conversations`;
+
+CREATE TABLE IF NOT EXISTS `chat_conversations` (
+  `id` VARCHAR(36) NOT NULL,
+  `company_id` CHAR(36) NOT NULL,
+  `user1_id` CHAR(36) NOT NULL,
+  `user2_id` CHAR(36) NOT NULL,
+  `last_message` TEXT DEFAULT NULL,
+  `last_message_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_chat_participants` (`company_id`, `user1_id`, `user2_id`),
+  KEY `idx_chat_user1` (`company_id`, `user1_id`, `last_message_at`),
+  KEY `idx_chat_user2` (`company_id`, `user2_id`, `last_message_at`),
+  CONSTRAINT `fk_chat_conv_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_chat_conv_user1` FOREIGN KEY (`user1_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_chat_conv_user2` FOREIGN KEY (`user2_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `chat_messages` (
+  `id` VARCHAR(36) NOT NULL,
+  `conversation_id` VARCHAR(36) NOT NULL,
+  `company_id` CHAR(36) NOT NULL,
+  `sender_id` CHAR(36) NOT NULL,
+  `recipient_id` CHAR(36) NOT NULL,
+  `message` TEXT NOT NULL,
+  `is_read` TINYINT(1) NOT NULL DEFAULT 0,
+  `read_at` DATETIME DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_chat_msg_conv` (`conversation_id`, `created_at`),
+  KEY `idx_chat_msg_unread` (`company_id`, `recipient_id`, `is_read`),
+  KEY `idx_chat_msg_audit` (`company_id`, `created_at`),
+  CONSTRAINT `fk_chat_msg_conv` FOREIGN KEY (`conversation_id`) REFERENCES `chat_conversations` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_chat_msg_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_chat_msg_sender` FOREIGN KEY (`sender_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_chat_msg_recipient` FOREIGN KEY (`recipient_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;
 
 

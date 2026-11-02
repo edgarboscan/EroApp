@@ -24,6 +24,12 @@ import {
   RefreshCw,
   X,
   Eye,
+  Database,
+  Download,
+  Server,
+  AlertTriangle,
+  Key,
+  Copy,
 } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
@@ -68,15 +74,45 @@ export const CompanyConfigView: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = (searchParams.get("tab") as any) || "company";
   const [activeTab, setActiveTab] = useState<
-    "company" | "branches" | "registers" | "rules" | "payment-methods"
+    "company" | "branches" | "registers" | "rules" | "payment-methods" | "maintenance"
   >(
-    ["company", "branches", "registers", "rules", "payment-methods"].includes(
-      initialTab,
-    )
+    [
+      "company",
+      "branches",
+      "registers",
+      "rules",
+      "payment-methods",
+      "maintenance",
+    ].includes(initialTab)
       ? initialTab
       : "company",
   );
   const [loading, setLoading] = useState(false);
+
+  // Estados de Mantenimiento de BD y Nueva Empresa (Superadmin)
+  const [isDownloadingBackup, setIsDownloadingBackup] = useState(false);
+  const [showInitCompanyModal, setShowInitCompanyModal] = useState(false);
+  const [isInitializingCompany, setIsInitializingCompany] = useState(false);
+  const [initResult, setInitResult] = useState<any>(null);
+  const [showInitResultModal, setShowInitResultModal] = useState(false);
+
+  const [initCompanyForm, setInitCompanyForm] = useState({
+    legalName: "",
+    tradeName: "",
+    rif: "",
+    fiscalAddress: "",
+    phone: "",
+    email: "",
+    isSpecialTaxpayer: false,
+    ivaRetentionRate: 75,
+    currencyBase: "USD",
+    currencySecondary: "VES",
+    adminFullName: "",
+    adminUsername: "",
+    adminEmail: "",
+    adminPassword: "",
+    securityConfirmation: "",
+  });
 
   // Permisos y Tasa Oficial de Cambio
   const user = useAuthStore((s) => s.user);
@@ -136,6 +172,154 @@ export const CompanyConfigView: React.FC = () => {
       toast.error(msg);
     } finally {
       setIsUpdatingRate(false);
+    }
+  };
+
+  const handleDownloadBackup = async () => {
+    if (!token) return;
+    setIsDownloadingBackup(true);
+    try {
+      const response = await fetch("/api/config/database/backup", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData?.error?.message ||
+            "Error al generar el respaldo de la base de datos",
+        );
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const timestamp = new Date()
+        .toISOString()
+        .slice(0, 19)
+        .replace(/[:T]/g, "-");
+      a.download = `ero_erp_backup_${timestamp}.sql`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success(
+        "Respaldo completo de base de datos generado y descargado (.sql)",
+      );
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Error al descargar el respaldo";
+      toast.error(msg);
+    } finally {
+      setIsDownloadingBackup(false);
+    }
+  };
+
+  const handleInitializeCompany = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token) return;
+
+    if (initCompanyForm.securityConfirmation !== "INICIALIZAR_EMPRESA") {
+      toast.error(
+        'Debe escribir exactamente "INICIALIZAR_EMPRESA" en la confirmación de seguridad.',
+      );
+      return;
+    }
+
+    if (
+      !initCompanyForm.legalName.trim() ||
+      !initCompanyForm.rif.trim() ||
+      !initCompanyForm.fiscalAddress.trim()
+    ) {
+      toast.error(
+        "Complete los campos obligatorios de la empresa (Razón Social, RIF y Dirección Fiscal).",
+      );
+      return;
+    }
+
+    const confirmed = await showConfirmQuestion({
+      title: "¿Inicializar y Aprovisionar Nueva Empresa?",
+      text: `Se creará la empresa ${initCompanyForm.legalName} (${initCompanyForm.rif}) con sucursal principal, almacén central, caja registradora, métodos de pago y usuario administrador.`,
+      confirmButtonText: "Sí, inicializar empresa",
+      cancelButtonText: "Cancelar",
+      icon: "warning",
+    });
+
+    if (!confirmed) return;
+
+    setIsInitializingCompany(true);
+    try {
+      const res = await fetch("/api/config/database/initialize-company", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          securityConfirmation: "INICIALIZAR_EMPRESA",
+          companyData: {
+            legalName: initCompanyForm.legalName.trim(),
+            tradeName: initCompanyForm.tradeName.trim() || undefined,
+            rif: initCompanyForm.rif.trim().toUpperCase(),
+            fiscalAddress: initCompanyForm.fiscalAddress.trim(),
+            phone: initCompanyForm.phone.trim() || undefined,
+            email: initCompanyForm.email.trim() || undefined,
+            isSpecialTaxpayer: initCompanyForm.isSpecialTaxpayer,
+            ivaRetentionRate: initCompanyForm.isSpecialTaxpayer
+              ? initCompanyForm.ivaRetentionRate
+              : 0,
+            currencyBase: initCompanyForm.currencyBase,
+            currencySecondary: initCompanyForm.currencySecondary,
+            adminFullName: initCompanyForm.adminFullName.trim() || undefined,
+            adminUsername: initCompanyForm.adminUsername.trim() || undefined,
+            adminEmail: initCompanyForm.adminEmail.trim() || undefined,
+            adminPassword: initCompanyForm.adminPassword.trim() || undefined,
+          },
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(
+          json?.error?.message || "Error al inicializar la nueva empresa",
+        );
+      }
+
+      toast.success(
+        "¡Nueva empresa inicializada y aprovisionada exitosamente!",
+      );
+      setInitResult(json.data);
+      setShowInitCompanyModal(false);
+      setShowInitResultModal(true);
+
+      // Limpiar formulario
+      setInitCompanyForm({
+        legalName: "",
+        tradeName: "",
+        rif: "",
+        fiscalAddress: "",
+        phone: "",
+        email: "",
+        isSpecialTaxpayer: false,
+        ivaRetentionRate: 75,
+        currencyBase: "USD",
+        currencySecondary: "VES",
+        adminFullName: "",
+        adminUsername: "",
+        adminEmail: "",
+        adminPassword: "",
+        securityConfirmation: "",
+      });
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Error al inicializar la empresa";
+      toast.error(msg);
+    } finally {
+      setIsInitializingCompany(false);
     }
   };
 
@@ -973,6 +1157,23 @@ export const CompanyConfigView: React.FC = () => {
             <CreditCard className="w-4 h-4" />
             <span>Medios de Pago</span>
           </button>
+
+          {isSuperAdminRole(user?.role) && (
+            <button
+              onClick={() => {
+                setActiveTab("maintenance");
+                setSearchParams({ tab: "maintenance" });
+              }}
+              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+                activeTab === "maintenance"
+                  ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow-sm"
+                  : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200"
+              }`}
+            >
+              <Database className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span>Mantenimiento & BD</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -2391,6 +2592,120 @@ export const CompanyConfigView: React.FC = () => {
             </div>
           </form>
         </div>
+      ) : activeTab === "maintenance" && isSuperAdminRole(user?.role) ? (
+        /* TAB 6: MANTENIMIENTO & BASE DE DATOS (SUPERADMIN ONLY) */
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-6 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-4">
+              <div>
+                <h2 className="text-sm font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
+                  <Database className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  Mantenimiento de Infraestructura & Base de Datos
+                </h2>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                  Operaciones avanzadas reservadas estrictamente para la cuenta Superadministrador del sistema
+                </p>
+              </div>
+              <Badge variant="info">Modo Superadministrador</Badge>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+              {/* Opción 1: Respaldo Completo de Base de Datos */}
+              <div className="border border-neutral-200 dark:border-neutral-800 rounded-lg p-5 bg-neutral-50/50 dark:bg-neutral-800/30 flex flex-col justify-between space-y-4">
+                <div className="space-y-2.5">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 rounded-lg">
+                      <Download className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                        Copia de Seguridad Completa (SQL Dump)
+                      </h3>
+                      <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                        Estructura DDL y volcado de datos transaccionales
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed">
+                    Genera una descarga directa en formato SQL compatible con MySQL 8.0+ y MariaDB. Incluye la definición completa de todas las tablas, vistas, catálogos, operaciones de venta, libros SENIAT, asientos contables, inventario y registros de auditoría.
+                  </p>
+
+                  <div className="text-[11px] text-neutral-500 dark:text-neutral-400 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-3 space-y-1">
+                    <div className="font-semibold text-neutral-700 dark:text-neutral-300">
+                      Detalles del volcado:
+                    </div>
+                    <div>• Cabeceras con deshabilitación temporal de llaves foráneas</div>
+                    <div>• Lotes de inserción optimizados para restauración rápida</div>
+                    <div>• Compatibilidad con herramientas como phpMyAdmin, DBeaver o CLI</div>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <Button
+                    type="button"
+                    variant="primary"
+                    disabled={isDownloadingBackup}
+                    onClick={handleDownloadBackup}
+                    className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>
+                      {isDownloadingBackup
+                        ? "Generando archivo SQL..."
+                        : "Generar y Descargar Respaldo Completo (.sql)"}
+                    </span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Opción 2: Aprovisionamiento de Nueva Empresa */}
+              <div className="border border-neutral-200 dark:border-neutral-800 rounded-lg p-5 bg-neutral-50/50 dark:bg-neutral-800/30 flex flex-col justify-between space-y-4">
+                <div className="space-y-2.5">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 bg-sky-100 dark:bg-sky-950/60 text-sky-700 dark:text-sky-400 rounded-lg">
+                      <Server className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                        Inicializar Nueva Empresa (Tenant Limpio)
+                      </h3>
+                      <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                        Aprovisionamiento corporativo automatizado
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed">
+                    Crea un nuevo tenant empresarial en la base de datos sin afectar a las empresas existentes. Genera de forma automatizada las sucursales iniciales, almacén central, caja registradora, 7 medios de pago estándar, reglas de control comercial y la cuenta del Administrador.
+                  </p>
+
+                  <div className="text-[11px] text-neutral-500 dark:text-neutral-400 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-3 space-y-1">
+                    <div className="font-semibold text-neutral-700 dark:text-neutral-300">
+                      Recursos creados por defecto:
+                    </div>
+                    <div>• Sede Principal (<span className="font-mono">SEDE-01</span>) y Almacén General (<span className="font-mono">ALM-01</span>)</div>
+                    <div>• Caja Mostrador (<span className="font-mono">CAJA-01</span>) y 7 Métodos de Pago</div>
+                    <div>• Roles base (Administrador, Cajero, Inventario, Mesero, Contador)</div>
+                    <div>• Usuario Administrador con acceso total a la nueva empresa</div>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowInitCompanyModal(true)}
+                    className="w-full flex items-center justify-center gap-2 border-sky-300 dark:border-sky-800 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-950/40"
+                  >
+                    <Server className="w-4 h-4" />
+                    <span>Inicializar Nueva Empresa en BD</span>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       ) : (
         /* TAB 5: MEDIOS DE PAGO */
         <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-6 shadow-sm">
@@ -3317,6 +3632,460 @@ export const CompanyConfigView: React.FC = () => {
               </Button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* Modal Inicializar Nueva Empresa (Solo Superadmin) */}
+      {showInitCompanyModal && isSuperAdminRole(user?.role) && (
+        <Modal
+          isOpen={showInitCompanyModal}
+          onClose={() => !isInitializingCompany && setShowInitCompanyModal(false)}
+          title="Inicializar Nueva Empresa en Base de Datos"
+          subtitle="Aprovisiona un nuevo tenant con sucursal principal, almacén central, caja registradora y usuario administrador"
+          size="lg"
+        >
+          <form onSubmit={handleInitializeCompany} className="space-y-4">
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-lg p-3 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+              <div>
+                <span className="font-semibold block">Operación de Infraestructura Multitenant</span>
+                Esta acción creará un nuevo ecosistema empresarial completo en MySQL. Por favor asegúrese de que el RIF sea el oficial ante el SENIAT.
+              </div>
+            </div>
+
+            {/* Datos Fiscales */}
+            <div className="border border-neutral-200 dark:border-neutral-800 rounded-lg p-3.5 space-y-3">
+              <h4 className="text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                Identificación de la Empresa
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                    Razón Social Legal *
+                  </label>
+                  <Input
+                    placeholder="INVERSIONES Y SERVICIOS XYZ, C.A."
+                    value={initCompanyForm.legalName}
+                    onChange={(e) =>
+                      setInitCompanyForm({
+                        ...initCompanyForm,
+                        legalName: e.target.value,
+                      })
+                    }
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                    RIF (Registro Fiscal) *
+                  </label>
+                  <Input
+                    placeholder="J-50123456-7"
+                    value={initCompanyForm.rif}
+                    onChange={(e) =>
+                      setInitCompanyForm({
+                        ...initCompanyForm,
+                        rif: e.target.value.toUpperCase(),
+                      })
+                    }
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                    Nombre Comercial
+                  </label>
+                  <Input
+                    placeholder="COMERCIAL XYZ"
+                    value={initCompanyForm.tradeName}
+                    onChange={(e) =>
+                      setInitCompanyForm({
+                        ...initCompanyForm,
+                        tradeName: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                    Dirección Fiscal Legal *
+                  </label>
+                  <Input
+                    placeholder="Av. Principal, Edificio Centro, Piso 1, Local 4, Caracas"
+                    value={initCompanyForm.fiscalAddress}
+                    onChange={(e) =>
+                      setInitCompanyForm({
+                        ...initCompanyForm,
+                        fiscalAddress: e.target.value,
+                      })
+                    }
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                    Teléfono de Contacto
+                  </label>
+                  <Input
+                    placeholder="+58 212 555-0100"
+                    value={initCompanyForm.phone}
+                    onChange={(e) =>
+                      setInitCompanyForm({
+                        ...initCompanyForm,
+                        phone: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                    Correo Electrónico Corporativo
+                  </label>
+                  <Input
+                    type="email"
+                    placeholder="contacto@empresa.com"
+                    value={initCompanyForm.email}
+                    onChange={(e) =>
+                      setInitCompanyForm({
+                        ...initCompanyForm,
+                        email: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Parámetros Impositivos y Monedas */}
+            <div className="border border-neutral-200 dark:border-neutral-800 rounded-lg p-3.5 space-y-3">
+              <h4 className="text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                Régimen Fiscal & Monedas
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-3 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="initSpecialTaxpayer"
+                    checked={initCompanyForm.isSpecialTaxpayer}
+                    onChange={(e) =>
+                      setInitCompanyForm({
+                        ...initCompanyForm,
+                        isSpecialTaxpayer: e.target.checked,
+                      })
+                    }
+                    className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-neutral-300 dark:border-neutral-700"
+                  />
+                  <label
+                    htmlFor="initSpecialTaxpayer"
+                    className="text-xs text-neutral-700 dark:text-neutral-300 cursor-pointer"
+                  >
+                    Designada como Contribuyente Especial SENIAT (Retiene IVA a proveedores)
+                  </label>
+                </div>
+
+                {initCompanyForm.isSpecialTaxpayer && (
+                  <div>
+                    <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                      Retención IVA Proveedores
+                    </label>
+                    <select
+                      value={initCompanyForm.ivaRetentionRate}
+                      onChange={(e) =>
+                        setInitCompanyForm({
+                          ...initCompanyForm,
+                          ivaRetentionRate: Number(e.target.value),
+                        })
+                      }
+                      className="w-full h-9 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-xs text-neutral-900 dark:text-neutral-100"
+                    >
+                      <option value={75}>75% (General)</option>
+                      <option value={100}>100% (Especial)</option>
+                    </select>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                    Moneda Base
+                  </label>
+                  <select
+                    value={initCompanyForm.currencyBase}
+                    onChange={(e) =>
+                      setInitCompanyForm({
+                        ...initCompanyForm,
+                        currencyBase: e.target.value,
+                      })
+                    }
+                    className="w-full h-9 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-xs text-neutral-900 dark:text-neutral-100"
+                  >
+                    <option value="USD">USD ($ - Dólar)</option>
+                    <option value="VES">VES (Bs - Bolívares)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                    Moneda Secundaria
+                  </label>
+                  <select
+                    value={initCompanyForm.currencySecondary}
+                    onChange={(e) =>
+                      setInitCompanyForm({
+                        ...initCompanyForm,
+                        currencySecondary: e.target.value,
+                      })
+                    }
+                    className="w-full h-9 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-xs text-neutral-900 dark:text-neutral-100"
+                  >
+                    <option value="VES">VES (Bs - Bolívares)</option>
+                    <option value="USD">USD ($ - Dólar)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Administrador Inicial */}
+            <div className="border border-neutral-200 dark:border-neutral-800 rounded-lg p-3.5 space-y-3">
+              <h4 className="text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider flex items-center gap-1.5">
+                <Key className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                Cuenta del Administrador de la Empresa
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                    Nombre Completo
+                  </label>
+                  <Input
+                    placeholder="Administrador General"
+                    value={initCompanyForm.adminFullName}
+                    onChange={(e) =>
+                      setInitCompanyForm({
+                        ...initCompanyForm,
+                        adminFullName: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                    Nombre de Usuario (Login)
+                  </label>
+                  <Input
+                    placeholder="admin_empresa"
+                    value={initCompanyForm.adminUsername}
+                    onChange={(e) =>
+                      setInitCompanyForm({
+                        ...initCompanyForm,
+                        adminUsername: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                    Correo del Administrador
+                  </label>
+                  <Input
+                    type="email"
+                    placeholder="admin@empresa.com"
+                    value={initCompanyForm.adminEmail}
+                    onChange={(e) =>
+                      setInitCompanyForm({
+                        ...initCompanyForm,
+                        adminEmail: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                    Contraseña Inicial
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="Admin2026! (Opcional, predeterminada)"
+                    value={initCompanyForm.adminPassword}
+                    onChange={(e) =>
+                      setInitCompanyForm({
+                        ...initCompanyForm,
+                        adminPassword: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Confirmación Crítica */}
+            <div className="border border-red-200 dark:border-red-900/60 rounded-lg p-3.5 bg-red-50/40 dark:bg-red-950/20 space-y-2">
+              <label className="block text-xs font-bold text-red-800 dark:text-red-300">
+                Confirmación de Seguridad Requerida *
+              </label>
+              <p className="text-[11px] text-red-700 dark:text-red-400">
+                Para confirmar la inicialización, escriba exactamente: <span className="font-mono font-bold">INICIALIZAR_EMPRESA</span>
+              </p>
+              <Input
+                placeholder="INICIALIZAR_EMPRESA"
+                value={initCompanyForm.securityConfirmation}
+                onChange={(e) =>
+                  setInitCompanyForm({
+                    ...initCompanyForm,
+                    securityConfirmation: e.target.value,
+                  })
+                }
+                className="font-mono font-semibold"
+                required
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2 border-t border-neutral-200 dark:border-neutral-800">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isInitializingCompany}
+                onClick={() => setShowInitCompanyModal(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={
+                  isInitializingCompany ||
+                  initCompanyForm.securityConfirmation !== "INICIALIZAR_EMPRESA"
+                }
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {isInitializingCompany
+                  ? "Inicializando..."
+                  : "Inicializar Empresa"}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Modal Resumen de Empresa Inicializada */}
+      {showInitResultModal && initResult && (
+        <Modal
+          isOpen={showInitResultModal}
+          onClose={() => setShowInitResultModal(false)}
+          title="Empresa Inicializada con Éxito"
+          subtitle="Recursos aprovisionados y credenciales de acceso creadas"
+        >
+          <div className="space-y-4">
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-lg text-emerald-800 dark:text-emerald-300 text-xs">
+              <span className="font-bold block">Aprovisionamiento Completado</span>
+              La empresa ha sido creada en la base de datos con todos sus módulos, sucursal, almacén, caja y métodos de pago operativos.
+            </div>
+
+            <div className="border border-neutral-200 dark:border-neutral-800 rounded-lg p-3.5 space-y-2 text-xs">
+              <div className="font-semibold text-neutral-900 dark:text-neutral-100 border-b border-neutral-100 dark:border-neutral-800 pb-1.5">
+                Datos Corporativos Creados
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-[11px]">
+                <div>
+                  <span className="text-neutral-500">Razón Social:</span>{" "}
+                  <span className="font-medium text-neutral-900 dark:text-neutral-100">
+                    {initResult.company?.legalName}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-neutral-500">RIF:</span>{" "}
+                  <span className="font-mono font-medium text-neutral-900 dark:text-neutral-100">
+                    {initResult.company?.rif}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-neutral-500">Sede Principal:</span>{" "}
+                  <span className="font-medium text-neutral-900 dark:text-neutral-100">
+                    {initResult.branch?.name} ({initResult.branch?.code})
+                  </span>
+                </div>
+                <div>
+                  <span className="text-neutral-500">Almacén Central:</span>{" "}
+                  <span className="font-medium text-neutral-900 dark:text-neutral-100">
+                    {initResult.warehouse?.name} ({initResult.warehouse?.code})
+                  </span>
+                </div>
+                <div>
+                  <span className="text-neutral-500">Caja Mostrador:</span>{" "}
+                  <span className="font-medium text-neutral-900 dark:text-neutral-100">
+                    {initResult.cashRegister?.name} ({initResult.cashRegister?.code})
+                  </span>
+                </div>
+                <div>
+                  <span className="text-neutral-500">Métodos de Pago:</span>{" "}
+                  <span className="font-medium text-neutral-900 dark:text-neutral-100">
+                    7 configurados (con IGTF)
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Credenciales de Acceso */}
+            <div className="border border-sky-200 dark:border-sky-800 bg-sky-50/40 dark:bg-sky-950/20 rounded-lg p-3.5 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-sky-900 dark:text-sky-200">
+                  Credenciales del Administrador
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const text = `ERO ERP - Credenciales de Acceso\nEmpresa: ${initResult.company?.legalName} (${initResult.company?.rif})\nUsuario: ${initResult.adminUser?.username}\nContraseña: ${initResult.adminUser?.initialPassword}\nCorreo: ${initResult.adminUser?.email}`;
+                    navigator.clipboard.writeText(text);
+                    toast.success("Credenciales copiadas al portapapeles");
+                  }}
+                  className="flex items-center gap-1 text-[11px] text-sky-700 dark:text-sky-300 hover:underline font-medium cursor-pointer"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Copiar credenciales</span>
+                </button>
+              </div>
+
+              <div className="space-y-1 font-mono text-[11px] text-neutral-800 dark:text-neutral-200 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded p-2.5">
+                <div>
+                  <span className="text-neutral-400">Usuario:</span>{" "}
+                  <span className="font-bold text-neutral-900 dark:text-white">
+                    {initResult.adminUser?.username}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-neutral-400">Contraseña:</span>{" "}
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                    {initResult.adminUser?.initialPassword}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-neutral-400">Correo:</span>{" "}
+                  <span>{initResult.adminUser?.email}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-neutral-200 dark:border-neutral-800">
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => setShowInitResultModal(false)}
+              >
+                Entendido y Cerrar
+              </Button>
+            </div>
+          </div>
         </Modal>
       )}
     </div>

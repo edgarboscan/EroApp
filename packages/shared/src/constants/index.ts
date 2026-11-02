@@ -26,6 +26,7 @@ export const MODULES = {
   ACCOUNTING: 'accounting',
   RESTAURANT: 'restaurant',
   NOTIFICATIONS: 'notifications',
+  CHAT: 'chat',
 } as const;
 
 export type ModuleType = (typeof MODULES)[keyof typeof MODULES];
@@ -60,6 +61,7 @@ export const ACTIONS = {
   APPROVE_DISCOUNT: 'approve_discount',
   CREDIT_NOTES: 'credit_notes',
   EXPORT_SENIAT: 'export_seniat',
+  AUDIT: 'audit',
   // Acciones específicas de Reportes Gerenciales
   SALES_REPORT: 'sales',
   CASH_SHIFTS_REPORT: 'cash_shifts',

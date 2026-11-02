@@ -1505,4 +1505,295 @@ export class ConfigService {
     const current = await this.getExchangeRate(companyId);
     return current.rate;
   }
+
+  /**
+   * Genera un respaldo SQL completo de la base de datos MySQL (estructura DDL + datos INSERTs)
+   * Exclusivo para Super Administrador
+   */
+  static async generateDatabaseBackup(): Promise<string> {
+    const tableRows = await query<any>(
+      `SELECT table_name as tableName 
+       FROM information_schema.tables 
+       WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE'
+       ORDER BY table_name ASC`
+    );
+
+    const now = new Date();
+    let sqlDump = `-- =============================================================================\n`;
+    sqlDump += `-- ERO ERP VE - RESPALDO OFICIAL DE BASE DE DATOS (MYSQL 8)\n`;
+    sqlDump += `-- Fecha de Generación: ${now.toLocaleString()} (${now.toISOString()})\n`;
+    sqlDump += `-- Generado por: Super Administrador\n`;
+    sqlDump += `-- Total Tablas: ${tableRows.length}\n`;
+    sqlDump += `-- =============================================================================\n\n`;
+    sqlDump += `SET NAMES utf8mb4;\n`;
+    sqlDump += `SET FOREIGN_KEY_CHECKS = 0;\n`;
+    sqlDump += `SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";\n\n`;
+
+    for (const row of tableRows) {
+      const tableName = row.tableName;
+      try {
+        // Estructura DDL
+        const createTableResult = await query<any>(`SHOW CREATE TABLE \`${tableName}\``);
+        if (createTableResult.length > 0) {
+          const createDdl = createTableResult[0]['Create Table'];
+          sqlDump += `-- -----------------------------------------------------\n`;
+          sqlDump += `-- Tabla: \`${tableName}\`\n`;
+          sqlDump += `-- -----------------------------------------------------\n`;
+          sqlDump += `DROP TABLE IF EXISTS \`${tableName}\`;\n`;
+          sqlDump += `${createDdl};\n\n`;
+        }
+
+        // Datos
+        const dataRows = await query<any>(`SELECT * FROM \`${tableName}\``);
+        if (dataRows.length > 0) {
+          const columns = Object.keys(dataRows[0]);
+          const colList = columns.map((c) => `\`${c}\``).join(', ');
+
+          const batchSize = 50;
+          for (let i = 0; i < dataRows.length; i += batchSize) {
+            const batch = dataRows.slice(i, i + batchSize);
+            const valueRows = batch.map((r) => {
+              const vals = columns.map((col) => {
+                const val = r[col];
+                if (val === null || val === undefined) return 'NULL';
+                if (typeof val === 'number') return String(val);
+                if (typeof val === 'boolean') return val ? '1' : '0';
+                if (val instanceof Date) return `'${val.toISOString().slice(0, 19).replace('T', ' ')}'`;
+                const str = String(val)
+                  .replace(/\\/g, '\\\\')
+                  .replace(/'/g, "''")
+                  .replace(/\0/g, '\\0')
+                  .replace(/\n/g, '\\n')
+                  .replace(/\r/g, '\\r');
+                return `'${str}'`;
+              });
+              return `(${vals.join(', ')})`;
+            });
+
+            sqlDump += `INSERT INTO \`${tableName}\` (${colList}) VALUES\n${valueRows.join(',\n')};\n`;
+          }
+          sqlDump += `\n`;
+        }
+      } catch (err: any) {
+        sqlDump += `-- Advertencia: no se pudo exportar tabla \`${tableName}\`: ${err.message}\n\n`;
+      }
+    }
+
+    sqlDump += `SET FOREIGN_KEY_CHECKS = 1;\n`;
+    sqlDump += `-- =============================================================================\n`;
+    sqlDump += `-- FIN DEL RESPALDO\n`;
+    sqlDump += `-- =============================================================================\n`;
+
+    return sqlDump;
+  }
+
+  /**
+   * Inicializa y aprovisiona una nueva empresa con su estructura básica requerida
+   * Exclusivo para Super Administrador
+   */
+  static async initializeNewCompany(
+    superAdminUserId: string,
+    data: {
+      rif: string;
+      legalName: string;
+      tradeName?: string;
+      fiscalAddress: string;
+      phone?: string;
+      email?: string;
+      isSpecialTaxpayer?: boolean;
+      ivaRetentionRate?: number;
+      currencyBase?: string;
+      currencySecondary?: string;
+      adminUsername?: string;
+      adminFullName?: string;
+      adminEmail?: string;
+      adminPassword?: string;
+    }
+  ) {
+    const rifClean = data.rif.trim().toUpperCase();
+    if (!rifClean) throw new Error('El RIF de la empresa es obligatorio.');
+    if (!data.legalName.trim()) throw new Error('La Razón Social es obligatoria.');
+    if (!data.fiscalAddress.trim()) throw new Error('La Dirección Fiscal es obligatoria.');
+
+    // Verificar si el RIF ya existe
+    const existingComp = await query<any>(`SELECT id FROM companies WHERE rif = ? LIMIT 1`, [rifClean]);
+    if (existingComp.length > 0) {
+      throw new Error(`Ya existe una empresa registrada con el RIF ${rifClean}.`);
+    }
+
+    const newCompanyId = crypto.randomUUID();
+    const newBranchId = crypto.randomUUID();
+    const newWarehouseId = crypto.randomUUID();
+    const newCashRegisterId = crypto.randomUUID();
+    const newAdminUserId = crypto.randomUUID();
+
+    // 1. Crear Empresa
+    await query(
+      `INSERT INTO companies (
+        id, rif, legal_name, trade_name, fiscal_address, phone, email,
+        is_special_taxpayer, iva_retention_rate, currency_base, currency_secondary,
+        report_currency, is_active
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'BOTH', 1)`,
+      [
+        newCompanyId,
+        rifClean,
+        data.legalName.trim(),
+        (data.tradeName || data.legalName).trim(),
+        data.fiscalAddress.trim(),
+        data.phone?.trim() || null,
+        data.email?.trim() || null,
+        data.isSpecialTaxpayer ? 1 : 0,
+        data.ivaRetentionRate || 75.0,
+        data.currencyBase || 'USD',
+        data.currencySecondary || 'VES',
+      ]
+    );
+
+    // 2. Reglas de Negocio
+    await query(
+      `INSERT INTO business_rules (
+        company_id, allow_negative_stock, require_supervisor_discount,
+        require_supervisor_credit, max_unsupervised_discount, enable_igtf,
+        igtf_rate, auto_close_shifts, enforce_blind_cash_count
+      ) VALUES (?, 0, 1, 1, 5.00, 1, 3.00, 0, 1)`,
+      [newCompanyId]
+    );
+
+    // 3. Sucursal Principal
+    await query(
+      `INSERT INTO branches (id, company_id, code, name, address, phone, is_main, is_active)
+       VALUES (?, ?, 'SEDE-01', 'Sede Principal', ?, ?, 1, 1)`,
+      [newBranchId, newCompanyId, data.fiscalAddress.trim(), data.phone?.trim() || null]
+    );
+
+    // 4. Almacén Central
+    await query(
+      `INSERT INTO warehouses (id, branch_id, code, name, is_default, is_active)
+       VALUES (?, ?, 'ALM-01', 'Depósito General Central', 1, 1)`,
+      [newWarehouseId, newBranchId]
+    );
+
+    // 5. Caja Registradora Principal
+    await query(
+      `INSERT INTO cash_registers (id, branch_id, code, name, invoice_mode, warehouse_id, is_active)
+       VALUES (?, ?, 'CAJA-01', 'Caja Principal Mostrador', 'auto_invoice', ?, 1)`,
+      [newCashRegisterId, newBranchId, newWarehouseId]
+    );
+
+    // 6. Métodos de Pago estándar
+    const defaultMethods = [
+      { id: crypto.randomUUID(), code: 'CASH_USD', name: 'Efectivo Divisas ($)', type: 'cash', currency: 'USD', igtf: 1 },
+      { id: crypto.randomUUID(), code: 'CASH_VES', name: 'Efectivo Bolívares (Bs)', type: 'cash', currency: 'VES', igtf: 0 },
+      { id: crypto.randomUUID(), code: 'PAGOMOVIL', name: 'Pago Móvil C2P / P2P', type: 'pagomovil', currency: 'VES', igtf: 0 },
+      { id: crypto.randomUUID(), code: 'DEBIT_VES', name: 'Punto de Venta Débito', type: 'pos_terminal', currency: 'VES', igtf: 0 },
+      { id: crypto.randomUUID(), code: 'CREDIT_VES', name: 'Punto de Venta Crédito', type: 'pos_terminal', currency: 'VES', igtf: 0 },
+      { id: crypto.randomUUID(), code: 'ZELLE', name: 'Zelle USD', type: 'zelle', currency: 'USD', igtf: 0 },
+      { id: crypto.randomUUID(), code: 'TRANSFER_VES', name: 'Transferencia Bancaria Bs', type: 'bank_transfer', currency: 'VES', igtf: 0 },
+    ];
+
+    for (const m of defaultMethods) {
+      await query(
+        `INSERT INTO payment_methods (id, company_id, code, name, type, currency, applies_igtf, is_active)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+        [m.id, newCompanyId, m.code, m.name, m.type, m.currency, m.igtf]
+      );
+    }
+
+    // 7. Roles estándar para la empresa
+    const adminRoleId = crypto.randomUUID();
+    await query(
+      `INSERT INTO roles (id, company_id, name, description, is_system)
+       VALUES (?, ?, 'Administrador', 'Control administrativo total de la empresa', 0)`,
+      [adminRoleId, newCompanyId]
+    );
+
+    // Vincular todos los permisos del sistema al Administrador
+    await query(
+      `INSERT IGNORE INTO role_permissions (role_id, permission_id)
+       SELECT ?, id FROM permissions`,
+      [adminRoleId]
+    );
+
+    // Roles operativos base
+    const opRoles = [
+      { id: crypto.randomUUID(), name: 'Cajero', desc: 'Facturación en POS, cobros y arqueos de caja' },
+      { id: crypto.randomUUID(), name: 'Supervisor de Inventario', desc: 'Control de existencias, catálogo, conteos y transferencias' },
+      { id: crypto.randomUUID(), name: 'Mesero / Restaurante', desc: 'Apertura y comandeo de pedidos en salones y mesas' },
+      { id: crypto.randomUUID(), name: 'Contador Senior', desc: 'Libros contables, balance de comprobación y tributos SENIAT' },
+    ];
+    for (const r of opRoles) {
+      await query(
+        `INSERT INTO roles (id, company_id, name, description, is_system) VALUES (?, ?, ?, ?, 0)`,
+        [r.id, newCompanyId, r.name, r.desc]
+      );
+    }
+
+    // 8. Crear Usuario Administrador
+    const adminUsername = (data.adminUsername || `admin_${rifClean.toLowerCase().replace(/[^a-z0-9]/g, '')}`).trim();
+    const adminFullName = (data.adminFullName || `Administrador General (${data.tradeName || data.legalName})`).trim();
+    const adminEmail = (data.adminEmail || data.email || `${adminUsername}@empresa.com`).trim();
+    const adminPassword = data.adminPassword?.trim() || 'Admin2026!';
+
+    let passwordHash = adminPassword;
+    try {
+      const argon2 = await import('argon2');
+      passwordHash = await argon2.default.hash(adminPassword);
+    } catch {
+      passwordHash = adminPassword;
+    }
+
+    await query(
+      `INSERT INTO users (
+        id, company_id, role_id, username, email, password_hash, full_name,
+        is_active, all_branches, can_switch_warehouses
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, 1)`,
+      [newAdminUserId, newCompanyId, adminRoleId, adminUsername, adminEmail, passwordHash, adminFullName]
+    );
+
+    await query(
+      `INSERT INTO user_branches (user_id, branch_id, is_default) VALUES (?, ?, 1)`,
+      [newAdminUserId, newBranchId]
+    );
+    await query(
+      `INSERT INTO user_warehouses (user_id, warehouse_id, is_default) VALUES (?, ?, 1)`,
+      [newAdminUserId, newWarehouseId]
+    );
+
+    // 9. Registrar en auditoría
+    await query(
+      `INSERT INTO audit_logs (id, company_id, user_id, action, entity, entity_id, new_values, ip_address)
+       VALUES (UUID(), ?, ?, 'INITIALIZE_COMPANY', 'companies', ?, ?, '127.0.0.1')`,
+      [newCompanyId, superAdminUserId, newCompanyId, JSON.stringify({ rif: rifClean, legalName: data.legalName })]
+    ).catch(() => {});
+
+    return {
+      company: {
+        id: newCompanyId,
+        rif: rifClean,
+        legalName: data.legalName,
+      },
+      branch: {
+        id: newBranchId,
+        code: 'SEDE-01',
+        name: 'Sede Principal',
+      },
+      warehouse: {
+        id: newWarehouseId,
+        code: 'ALM-01',
+        name: 'Depósito General Central',
+      },
+      cashRegister: {
+        id: newCashRegisterId,
+        code: 'CAJA-01',
+        name: 'Caja Principal Mostrador',
+      },
+      adminUser: {
+        id: newAdminUserId,
+        username: adminUsername,
+        fullName: adminFullName,
+        email: adminEmail,
+        initialPassword: adminPassword,
+      },
+    };
+  }
 }

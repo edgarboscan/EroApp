@@ -521,3 +521,71 @@ configRouter.delete('/payment-methods/:id', authenticate, authorize('config', 'd
   }
 });
 
+// ==========================================
+// MANTENIMIENTO Y BASE DE DATOS (Super Admin)
+// ==========================================
+
+// GET /api/config/database/backup - Generar y descargar respaldo completo SQL
+configRouter.get('/database/backup', authenticate, async (c) => {
+  const user = c.get('user');
+  if (!isSuperAdminRole(user.role)) {
+    return c.json(
+      { success: false, error: { code: 'FORBIDDEN', message: 'Acceso restringido: Solo el Super Administrador puede descargar respaldos de la base de datos.' } },
+      403
+    );
+  }
+
+  try {
+    const sqlDump = await ConfigService.generateDatabaseBackup();
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    const filename = `ero_erp_backup_${timestamp}.sql`;
+
+    return new Response(sqlDump, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/sql; charset=utf-8',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+      },
+    });
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'BACKUP_FAILED', message: error.message } }, 500);
+  }
+});
+
+// POST /api/config/database/initialize-company - Aprovisionar nueva empresa limpia
+configRouter.post('/database/initialize-company', authenticate, async (c) => {
+  const user = c.get('user');
+  if (!isSuperAdminRole(user.role)) {
+    return c.json(
+      { success: false, error: { code: 'FORBIDDEN', message: 'Acceso restringido: Solo el Super Administrador puede inicializar nuevas empresas.' } },
+      403
+    );
+  }
+
+  try {
+    const body = await c.req.json();
+    if (body.securityConfirmation !== 'INICIALIZAR_EMPRESA') {
+      return c.json(
+        {
+          success: false,
+          error: {
+            code: 'SECURITY_CONFIRMATION_INVALID',
+            message: 'Palabra de seguridad incorrecta. Debe escribir exactamente "INICIALIZAR_EMPRESA" para proceder.',
+          },
+        },
+        400
+      );
+    }
+
+    const result = await ConfigService.initializeNewCompany(user.sub, body.companyData);
+    return c.json({
+      success: true,
+      message: 'Nueva empresa inicializada y aprovisionada correctamente.',
+      data: result,
+    }, 201);
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'COMPANY_INIT_FAILED', message: error.message } }, 400);
+  }
+});
+

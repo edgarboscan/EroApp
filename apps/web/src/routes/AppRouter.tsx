@@ -78,6 +78,8 @@ import { PaymentMethodsConfigView } from '../features/config/PaymentMethodsConfi
 import { UsersAndRolesView } from '../features/config/UsersAndRolesView';
 import { LicensesView } from '../features/config/LicensesView';
 import { AuditLogsView } from '../features/audit/AuditLogsView';
+import { ChatAuditView } from '../features/chat/ChatAuditView';
+import { HelpCenterView } from '../features/help/HelpCenterView';
 
 export const AppRouter: React.FC = () => {
   return (
@@ -572,6 +574,18 @@ export const AppRouter: React.FC = () => {
             </RequirePermission>
           }
         />
+
+        <Route
+          path="/config/chat-audit"
+          element={
+            <RequirePermission module="chat" action="audit">
+              <ChatAuditView />
+            </RequirePermission>
+          }
+        />
+
+        {/* Centro de Ayuda & Manual de Usuario */}
+        <Route path="/help" element={<HelpCenterView />} />
       </Route>
 
       {/* Fallback de redirección */}

@@ -20,6 +20,7 @@ import {
   Building2,
   Warehouse,
   Bell,
+  Copy,
 } from "lucide-react";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
@@ -147,6 +148,10 @@ export const MODULE_METADATA: Record<
     label: "Notificaciones y Alertas",
     badgeColor: "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800",
   },
+  chat: {
+    label: "Chat Interno & Bitácora",
+    badgeColor: "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800",
+  },
 };
 
 export const DEFAULT_PERMISSIONS: PermissionItem[] = [
@@ -156,28 +161,35 @@ export const DEFAULT_PERMISSIONS: PermissionItem[] = [
     module: "pos",
     action: "read",
     key: "pos.read",
-    description: "Acceso a pantalla de caja",
+    description: "Menú Ventas > Punto de Venta (POS) - Acceso a pantalla y operación de facturación en caja",
   },
   {
     id: "p_pos_create",
     module: "pos",
     action: "create",
     key: "pos.create",
-    description: "Apertura y operaciones de caja",
+    description: "Menú Ventas > Punto de Venta (POS) - Apertura de turno de caja e inicio de operaciones",
   },
   {
     id: "p_pos_close_register",
     module: "pos",
     action: "close_register",
     key: "pos.close_register",
-    description: "Realizar cierre de caja y arqueo",
+    description: "Menú Ventas > Cierre de Caja & Arqueo - Realizar corte X / Z, arqueo ciego y cierre de turno",
   },
   {
     id: "p_pos_audit_shifts",
     module: "pos",
     action: "audit_shifts",
     key: "pos.audit_shifts",
-    description: "Auditar y verificar arqueos de caja, dictaminar discrepancias y registrar depósitos bancarios",
+    description: "Menú Ventas > Verificación de Arqueos - Auditar arqueos de caja, dictaminar diferencias y registrar depósitos bancarios",
+  },
+  {
+    id: "p_pos_authorize",
+    module: "pos",
+    action: "authorize",
+    key: "pos.authorize",
+    description: "Menú Ventas > POS - Autorizar operaciones restringidas (Venta con stock negativo, precios especiales, descuentos)",
   },
 
   // Ventas
@@ -186,35 +198,49 @@ export const DEFAULT_PERMISSIONS: PermissionItem[] = [
     module: "sales",
     action: "read",
     key: "sales.read",
-    description: "Ver ventas y facturas",
+    description: "Menú Ventas > Cotizaciones y Facturas - Consultar documentos de venta, despachos y presupuestos",
   },
   {
     id: "p_sales_create",
     module: "sales",
     action: "create",
     key: "sales.create",
-    description: "Facturar y procesar ventas",
+    description: "Menú Ventas - Crear y emitir facturas de venta, cotizaciones y notas de entrega",
   },
   {
     id: "p_sales_update",
     module: "sales",
     action: "update",
     key: "sales.update",
-    description: "Modificar cotizaciones y documentos de venta",
+    description: "Menú Ventas - Editar y modificar cotizaciones y notas de venta en borrador",
   },
   {
     id: "p_sales_delete",
     module: "sales",
     action: "delete",
     key: "sales.delete",
-    description: "Anular documentos de venta",
+    description: "Menú Ventas - Anular facturas, cotizaciones y notas de entrega",
+  },
+  {
+    id: "p_sales_credit_notes",
+    module: "sales",
+    action: "credit_notes",
+    key: "sales.credit_notes",
+    description: "Menú Ventas > Notas de Crédito & Débito - Emitir devoluciones, notas de crédito y notas de débito",
   },
   {
     id: "p_sales_discount",
     module: "sales",
     action: "approve_discount",
     key: "sales.approve_discount",
-    description: "Aprobar descuentos comerciales",
+    description: "Menú Ventas - Aprobar descuentos comerciales y promociones en ventas",
+  },
+  {
+    id: "p_sales_approve",
+    module: "sales",
+    action: "approve",
+    key: "sales.approve",
+    description: "Menú Ventas - Autorizar ventas a crédito o con condiciones especiales",
   },
 
   // Clientes
@@ -223,28 +249,28 @@ export const DEFAULT_PERMISSIONS: PermissionItem[] = [
     module: "customers",
     action: "read",
     key: "customers.read",
-    description: "Consultar directorio de clientes",
+    description: "Menú Ventas > Directorio de Clientes - Consultar catálogo, fichas y datos de clientes",
   },
   {
     id: "p_customers_create",
     module: "customers",
     action: "create",
     key: "customers.create",
-    description: "Registrar nuevos clientes",
+    description: "Menú Ventas > Clientes - Crear y registrar nuevos clientes en el directorio",
   },
   {
     id: "p_customers_update",
     module: "customers",
     action: "update",
     key: "customers.update",
-    description: "Modificar datos de clientes",
+    description: "Menú Ventas > Clientes - Editar datos fiscales, contactos y límites de crédito de clientes",
   },
   {
     id: "p_customers_delete",
     module: "customers",
     action: "delete",
     key: "customers.delete",
-    description: "Anular o desactivar clientes",
+    description: "Menú Ventas > Clientes - Anular, desactivar o eliminar clientes del directorio",
   },
 
   // Cuentas por Cobrar
@@ -253,14 +279,14 @@ export const DEFAULT_PERMISSIONS: PermissionItem[] = [
     module: "receivables",
     action: "read",
     key: "receivables.read",
-    description: "Consultar cuentas por cobrar",
+    description: "Menú Ventas > Cuentas por Cobrar (CxC) - Consultar facturas pendientes, estados de cuenta y cartera",
   },
   {
     id: "p_receivables_create",
     module: "receivables",
     action: "create",
     key: "receivables.create",
-    description: "Registrar cobros y abonos CxC",
+    description: "Menú Ventas > Cuentas por Cobrar (CxC) - Registrar cobros, abonos e ingresos de clientes",
   },
 
   // Compras
@@ -269,28 +295,28 @@ export const DEFAULT_PERMISSIONS: PermissionItem[] = [
     module: "purchases",
     action: "read",
     key: "purchases.read",
-    description: "Consultar compras y recepciones",
+    description: "Menú Compras > Órdenes de Compra - Consultar historial de compras y recepciones",
   },
   {
     id: "p_purchases_create",
     module: "purchases",
     action: "create",
     key: "purchases.create",
-    description: "Registrar compras y facturas de proveedor",
+    description: "Menú Compras - Crear órdenes de compra y registrar recepciones de mercancía con factura",
   },
   {
     id: "p_purchases_update",
     module: "purchases",
     action: "update",
     key: "purchases.update",
-    description: "Modificar órdenes de compra",
+    description: "Menú Compras - Editar y modificar órdenes de compra en estado borrador",
   },
   {
     id: "p_purchases_delete",
     module: "purchases",
     action: "delete",
     key: "purchases.delete",
-    description: "Anular órdenes de compra",
+    description: "Menú Compras - Anular órdenes de compra o recepciones de proveedor",
   },
 
   // Proveedores
@@ -299,21 +325,21 @@ export const DEFAULT_PERMISSIONS: PermissionItem[] = [
     module: "suppliers",
     action: "read",
     key: "suppliers.read",
-    description: "Consultar catálogo de proveedores",
+    description: "Menú Compras > Directorio de Proveedores - Consultar catálogo, fichas y cuentas de proveedores",
   },
   {
     id: "p_suppliers_create",
     module: "suppliers",
     action: "create",
     key: "suppliers.create",
-    description: "Registrar nuevos proveedores",
+    description: "Menú Compras > Proveedores - Crear y registrar nuevos proveedores en el catálogo",
   },
   {
     id: "p_suppliers_update",
     module: "suppliers",
     action: "update",
     key: "suppliers.update",
-    description: "Modificar datos de proveedores",
+    description: "Menú Compras > Proveedores - Editar datos fiscales, comerciales y formas de pago de proveedores",
   },
 
   // Cuentas por Pagar
@@ -322,21 +348,21 @@ export const DEFAULT_PERMISSIONS: PermissionItem[] = [
     module: "payables",
     action: "read",
     key: "payables.read",
-    description: "Consultar cuentas por pagar",
+    description: "Menú Compras > Cuentas por Pagar (CxP) - Consultar deudas pendientes y compromisos con proveedores",
   },
   {
     id: "p_payables_create",
     module: "payables",
     action: "create",
     key: "payables.create",
-    description: "Registrar pagos y amortizaciones a proveedores",
+    description: "Menú Compras > Cuentas por Pagar (CxP) - Registrar pagos, transferencias y amortizaciones a proveedores",
   },
   {
     id: "p_payables_update",
     module: "payables",
     action: "update",
     key: "payables.update",
-    description: "Modificar pagos a proveedores",
+    description: "Menú Compras > Cuentas por Pagar (CxP) - Modificar o anular comprobantes de pago a proveedores",
   },
 
   // Inventario
@@ -345,35 +371,49 @@ export const DEFAULT_PERMISSIONS: PermissionItem[] = [
     module: "inventory",
     action: "read",
     key: "inventory.read",
-    description: "Ver catálogo y stock",
+    description: "Menú Inventario > Catálogo & Kardex - Consultar productos, existencias por almacén y movimientos",
   },
   {
     id: "p_inventory_create",
     module: "inventory",
     action: "create",
     key: "inventory.create",
-    description: "Crear productos y jerarquías",
+    description: "Menú Inventario > Catálogo - Crear nuevos productos, departamentos, grupos y subgrupos",
   },
   {
     id: "p_inventory_update",
     module: "inventory",
     action: "update",
     key: "inventory.update",
-    description: "Modificar productos y ubicaciones",
+    description: "Menú Inventario > Catálogo - Editar y modificar datos, PVP, costos, impuestos y ubicaciones de productos",
   },
   {
     id: "p_inventory_adjust",
     module: "inventory",
     action: "adjust",
     key: "inventory.adjust",
-    description: "Realizar ajustes de inventario",
+    description: "Menú Inventario > Ajustes de Inventario - Registrar entradas y salidas por ajustes físicos o mermas",
   },
   {
     id: "p_inventory_transfer",
     module: "inventory",
     action: "transfer",
     key: "inventory.transfer",
-    description: "Realizar traslados entre depósitos",
+    description: "Menú Inventario > Traslados entre Depósitos - Crear y procesar transferencias de stock entre depósitos",
+  },
+  {
+    id: "p_inventory_counts",
+    module: "inventory",
+    action: "counts",
+    key: "inventory.counts",
+    description: "Menú Inventario > Conteo de Productos - Toma física de inventario, registro de conteos y cálculo de mermas",
+  },
+  {
+    id: "p_inventory_approve",
+    module: "inventory",
+    action: "approve",
+    key: "inventory.approve",
+    description: "Menú Inventario - Autorizar ajustes extraordinarios, transferencias críticas y mermas",
   },
 
   // Precios
@@ -382,28 +422,28 @@ export const DEFAULT_PERMISSIONS: PermissionItem[] = [
     module: "pricing",
     action: "read",
     key: "pricing.read",
-    description: "Ver listas y reglas de precios",
+    description: "Menú Precios - Consultar listas de precios, reglas de margen y alícuotas fiscales",
   },
   {
     id: "p_pricing_bulk",
     module: "pricing",
     action: "bulk_update",
     key: "pricing.bulk_update",
-    description: "Ejecutar actualización masiva de precios",
+    description: "Menú Precios > Cambio Masivo de Precios - Modificar masivamente precios de venta por departamento o grupo",
   },
   {
     id: "p_pricing_rate",
     module: "pricing",
     action: "exchange_rate",
     key: "pricing.exchange_rate",
-    description: "Modificar tasa de cambio oficial BCV",
+    description: "Menú Configuración > Monedas & Tasa BCV - Modificar y sincronizar la tasa de cambio oficial BCV",
   },
   {
     id: "p_pricing_tax",
     module: "pricing",
     action: "apply_tax",
     key: "pricing.apply_tax",
-    description: "Modificar tasas de impuesto con afectación",
+    description: "Menú Precios > Tasas de Impuestos - Configurar alícuotas de IVA y asociarlas a los productos",
   },
 
   // Tesorería
@@ -412,21 +452,21 @@ export const DEFAULT_PERMISSIONS: PermissionItem[] = [
     module: "treasury",
     action: "read",
     key: "treasury.read",
-    description: "Consultar saldos bancarios y movimientos",
+    description: "Menú Tesorería > Posición Bancaria - Consultar cuentas bancarias, saldos y movimientos",
   },
   {
     id: "p_treasury_create",
     module: "treasury",
     action: "create",
     key: "treasury.create",
-    description: "Registrar movimientos y transferencias bancarias",
+    description: "Menú Tesorería > Movimientos Bancarios - Registrar transferencias, depósitos y comisiones",
   },
   {
     id: "p_treasury_reconcile",
     module: "treasury",
     action: "reconcile",
     key: "treasury.reconcile",
-    description: "Ejecutar conciliación bancaria por extracto",
+    description: "Menú Tesorería > Conciliación Bancaria - Importar extractos y ejecutar conciliación de cuentas",
   },
 
   // Impuestos
@@ -435,14 +475,21 @@ export const DEFAULT_PERMISSIONS: PermissionItem[] = [
     module: "taxes",
     action: "read",
     key: "taxes.read",
-    description: "Consultar retenciones y libros SENIAT",
+    description: "Menú Tributos SENIAT - Consultar retenciones de IVA/ISLR y libros fiscales de compras y ventas",
   },
   {
     id: "p_taxes_create",
     module: "taxes",
     action: "create",
     key: "taxes.create",
-    description: "Emitir y anular retenciones SENIAT",
+    description: "Menú Tributos SENIAT - Emitir y anular comprobantes de retención de IVA e ISLR",
+  },
+  {
+    id: "p_taxes_export_seniat",
+    module: "taxes",
+    action: "export_seniat",
+    key: "taxes.export_seniat",
+    description: "Menú Tributos SENIAT - Exportar archivos XML/TXT para declaración legal en el portal SENIAT",
   },
 
   // Reportes
@@ -451,105 +498,105 @@ export const DEFAULT_PERMISSIONS: PermissionItem[] = [
     module: "reports",
     action: "read",
     key: "reports.read",
-    description: "Acceso al módulo y visualizador general de reportes",
+    description: "Menú Reportes - Acceso al módulo y visualizador general de reportes",
   },
   {
     id: "p_reports_pdf",
     module: "reports",
     action: "export_pdf",
     key: "reports.export_pdf",
-    description: "Exportar reportes en PDF",
+    description: "Menú Reportes - Exportar y descargar reportes oficiales en formato PDF",
   },
   {
     id: "p_reports_excel",
     module: "reports",
     action: "export_excel",
     key: "reports.export_excel",
-    description: "Exportar reportes en Excel/CSV",
+    description: "Menú Reportes - Exportar reportes en formato Excel / CSV",
   },
   {
     id: "p_reports_sales",
     module: "reports",
     action: "sales",
     key: "reports.sales",
-    description: "Reporte General de Ventas (Fiscal, IVA, IGTF, Formas de Pago)",
+    description: "Menú Reportes > Ventas Generales - Reporte detallado de ventas, bases gravables, IVA, IGTF y formas de cobro",
   },
   {
     id: "p_reports_cash_shifts",
     module: "reports",
     action: "cash_shifts",
     key: "reports.cash_shifts",
-    description: "Reporte de Cierres de Caja & Arqueos (X / Z)",
+    description: "Menú Reportes > Cierres de Caja - Reporte de cierres de lote POS, cuadres X/Z y depósitos de recaudación",
   },
   {
     id: "p_reports_sales_by_cashier",
     module: "reports",
     action: "sales_by_cashier",
     key: "reports.sales_by_cashier",
-    description: "Reporte de Rendimiento y Desempeño por Cajero",
+    description: "Menú Reportes > Desempeño por Cajero - Rendimiento, facturas procesadas y volumen por cajero",
   },
   {
     id: "p_reports_sales_by_product",
     module: "reports",
     action: "sales_by_product",
     key: "reports.sales_by_product",
-    description: "Reporte de Ventas y Rotación por Producto",
+    description: "Menú Reportes > Ventas por Producto - Ranking de rotación, cantidades vendidas y volumen facturado",
   },
   {
     id: "p_reports_inventory_hierarchy",
     module: "reports",
     action: "inventory_hierarchy",
     key: "reports.inventory_hierarchy",
-    description: "Reporte de Jerarquía & Stock Valorizado de Inventario",
+    description: "Menú Reportes > Jerarquía & Stock Valorizado - Existencias y valoración por departamento, grupo y subgrupo",
   },
   {
     id: "p_reports_restaurant_tips",
     module: "reports",
     action: "restaurant_tips",
     key: "reports.restaurant_tips",
-    description: "Reporte de Propinas de Restaurante por Mesero",
+    description: "Menú Reportes > Propinas de Restaurante - Reporte de propinas recaudadas por mesero en comandas",
   },
   {
     id: "p_reports_receivables_aging",
     module: "reports",
     action: "receivables_aging",
     key: "reports.receivables_aging",
-    description: "Reporte de Antigüedad de Cartera (CxC)",
+    description: "Menú Reportes > Antigüedad Cartera (CxC) - Vencimientos de facturas a crédito por cobrar a clientes",
   },
   {
     id: "p_reports_payables_aging",
     module: "reports",
     action: "payables_aging",
     key: "reports.payables_aging",
-    description: "Reporte de Antigüedad de Deudas (CxP)",
+    description: "Menú Reportes > Antigüedad Deudas (CxP) - Vencimientos de cuentas por pagar a proveedores",
   },
   {
     id: "p_reports_treasury_balances",
     module: "reports",
     action: "treasury_balances",
     key: "reports.treasury_balances",
-    description: "Reporte de Posición Global de Saldos y Liquidez Bancaria",
+    description: "Menú Reportes > Posición Bancaria & Liquidez - Saldos consolidados de cuentas bancarias en Bs y USD",
   },
   {
     id: "p_reports_bank_movements",
     module: "reports",
     action: "bank_movements",
     key: "reports.bank_movements",
-    description: "Reporte de Libro Auxiliar & Movimientos Bancarios",
+    description: "Menú Reportes > Movimientos de Cuenta - Libro auxiliar cronológico de cargos y abonos bancarios",
   },
   {
     id: "p_reports_bank_reconciliation",
     module: "reports",
     action: "bank_reconciliation",
     key: "reports.bank_reconciliation",
-    description: "Reporte de Conciliación Bancaria Certificada",
+    description: "Menú Reportes > Acta de Conciliación - Dictamen formal y partidas en tránsito de conciliación bancaria",
   },
   {
     id: "p_reports_cash_flow",
     module: "reports",
     action: "cash_flow",
     key: "reports.cash_flow",
-    description: "Reporte de Flujo de Caja Operativo de Tesorería",
+    description: "Menú Reportes > Flujo de Caja Operativo - Entradas y salidas de liquidez de tesorería",
   },
 
   // Configuración
@@ -558,14 +605,14 @@ export const DEFAULT_PERMISSIONS: PermissionItem[] = [
     module: "config",
     action: "read",
     key: "config.read",
-    description: "Consultar configuración del sistema, empresa y sucursales",
+    description: "Menú Configuración - Consultar datos de empresa, sucursales y parámetros generales",
   },
   {
     id: "p_config_write",
     module: "config",
     action: "write",
     key: "config.write",
-    description: "Modificar configuración del sistema, usuarios y roles",
+    description: "Menú Configuración > Usuarios & Permisos - Crear y editar usuarios, sucursales y matriz de roles y permisos",
   },
 
   // Dashboards
@@ -574,14 +621,14 @@ export const DEFAULT_PERMISSIONS: PermissionItem[] = [
     module: "dashboards",
     action: "read",
     key: "dashboards.read",
-    description: "Ver dashboards",
+    description: "Menú Inicio > Dashboards - Consultar paneles e indicadores ejecutivos del negocio",
   },
   {
     id: "p_dashboards_update",
     module: "dashboards",
     action: "update",
     key: "dashboards.update",
-    description: "Personalizar layout de widgets",
+    description: "Menú Inicio > Dashboards - Personalizar y configurar widgets del panel",
   },
 
   // Auditoría
@@ -590,7 +637,7 @@ export const DEFAULT_PERMISSIONS: PermissionItem[] = [
     module: "audit",
     action: "read",
     key: "audit.read",
-    description: "Consultar bitácora y registros de auditoría",
+    description: "Menú Configuración > Bitácora de Auditoría - Consultar registros y trazabilidad de operaciones del sistema",
   },
 
   // Restaurante & Comandas (KDS)
@@ -599,56 +646,56 @@ export const DEFAULT_PERMISSIONS: PermissionItem[] = [
     module: "restaurant",
     action: "read",
     key: "restaurant.read",
-    description: "Consultar mesas, comandas, consumo y catálogo de restaurante",
+    description: "Menú Restaurante > Toma de Pedidos - Ver plano de mesas, comandas abiertas y estados de salón",
   },
   {
     id: "p_restaurant_write",
     module: "restaurant",
     action: "write",
     key: "restaurant.write",
-    description: "Abrir comandas, asignar meseros y tomar pedidos de mesa",
+    description: "Menú Restaurante > Comandas - Crear y abrir nuevas comandas de salón, barra o delivery",
   },
   {
     id: "p_restaurant_items",
     module: "restaurant",
     action: "items",
     key: "restaurant.items",
-    description: "Agregar, modificar observaciones y anular ítems de comanda",
+    description: "Menú Restaurante > Comandas - Agregar platos, bebidas, observaciones y anular ítems",
   },
   {
     id: "p_restaurant_payments",
     module: "restaurant",
     action: "payments",
     key: "restaurant.payments",
-    description: "Registrar pagos y división de cuenta (Split bill) por cliente",
+    description: "Menú Restaurante > Cobro de Comandas - Cobrar cuentas, procesar pagos y división de cuenta (Split Bill)",
   },
   {
     id: "p_restaurant_close",
     module: "restaurant",
     action: "close",
     key: "restaurant.close",
-    description: "Cerrar mesa, emitir cuenta, liberar mesa y reporte de propinas",
+    description: "Menú Restaurante > Cierre de Mesa - Cerrar cuenta, emitir ticket fiscal/pre-cuenta y liberar mesas",
   },
   {
     id: "p_restaurant_tables",
     module: "restaurant",
     action: "tables",
     key: "restaurant.tables",
-    description: "Administrar plano de mesas, capacidades y zonas de salón",
+    description: "Menú Restaurante > Salones & Mesas - Diseñar y editar planos de salón y distribución de mesas",
   },
   {
     id: "p_restaurant_kds",
     module: "restaurant",
     action: "kds",
     key: "restaurant.kds",
-    description: "Monitoreo y despacho de comandas en Cocina y Barra (KDS)",
+    description: "Menú Restaurante > Cocina & Barra (KDS) - Pantalla de comandas para preparar y despachar pedidos",
   },
   {
     id: "p_restaurant_settings",
     module: "restaurant",
     action: "settings",
     key: "restaurant.settings",
-    description: "Configurar tickets, comanderas y parámetros de restaurante",
+    description: "Menú Restaurante > Configuración - Parámetros operativos, comanderas y tickets de restaurante",
   },
 
   // Contabilidad Senior VEN-NIF
@@ -657,28 +704,28 @@ export const DEFAULT_PERMISSIONS: PermissionItem[] = [
     module: "accounting",
     action: "read",
     key: "accounting.read",
-    description: "Ver plan de cuentas, comprobantes de diario, mayor y estados financieros",
+    description: "Menú Contabilidad - Consultar plan de cuentas, diario, mayor, balance y estados financieros",
   },
   {
     id: "p_accounting_write",
     module: "accounting",
     action: "write",
     key: "accounting.write",
-    description: "Crear y modificar cuentas contables y comprobantes de diario en borrador",
+    description: "Menú Contabilidad - Crear y modificar cuentas contables y asientos de diario en borrador",
   },
   {
     id: "p_accounting_post",
     module: "accounting",
     action: "post",
     key: "accounting.post",
-    description: "Asentar legalmente comprobantes en el libro diario (Aprobación)",
+    description: "Menú Contabilidad - Asentar y aprobar legalmente asientos en el libro diario contable",
   },
   {
     id: "p_accounting_close",
     module: "accounting",
     action: "close",
     key: "accounting.close",
-    description: "Ejecutar procesos de cierre mensual/anual y ajuste por inflación",
+    description: "Menú Contabilidad > Cierres & Ajuste Inflación - Ejecutar cierres mensuales/anuales y ajuste por inflación DPC-10",
   },
 
   // Notificaciones y Alertas
@@ -687,14 +734,30 @@ export const DEFAULT_PERMISSIONS: PermissionItem[] = [
     module: "notifications",
     action: "read",
     key: "notifications.read",
-    description: "Consultar centro de notificaciones y alertas",
+    description: "Barra Superior > Notificaciones - Ver centro de notificaciones y alertas operativas",
   },
   {
     id: "p_notifications_write",
     module: "notifications",
     action: "write",
     key: "notifications.write",
-    description: "Configurar preferencias y compartir reportes por correo",
+    description: "Barra Superior > Notificaciones - Gestionar preferencias y descartar notificaciones",
+  },
+
+  // Chat Interno & Bitácora de Conversaciones
+  {
+    id: "p_chat_read",
+    module: "chat",
+    action: "read",
+    key: "chat.read",
+    description: "Barra Superior > Chat Interno - Enviar y recibir mensajes directos con otros usuarios, usar emoticones y mantener conversaciones",
+  },
+  {
+    id: "p_chat_audit",
+    module: "chat",
+    action: "audit",
+    key: "chat.audit",
+    description: "Menú Configuración > Bitácora de Chat - Visualizar historial y bitácora completa de conversaciones entre todos los usuarios del sistema",
   },
 ];
 
@@ -754,6 +817,7 @@ export const UsersAndRolesView: React.FC = () => {
   const [roleSelectedPerms, setRoleSelectedPerms] = useState<string[]>([]);
   const [submittingRole, setSubmittingRole] = useState(false);
   const [permSearchQuery, setPermSearchQuery] = useState("");
+  const [sourceRoleIdToImport, setSourceRoleIdToImport] = useState("");
 
   const canManageRoles =
     isSuperAdminRole(user?.role) || hasPermission("config", "write");
@@ -1049,6 +1113,7 @@ export const UsersAndRolesView: React.FC = () => {
     setRoleFormDesc("");
     setRoleSelectedPerms([]);
     setPermSearchQuery("");
+    setSourceRoleIdToImport("");
     setIsRoleModalOpen(true);
   };
 
@@ -1064,7 +1129,63 @@ export const UsersAndRolesView: React.FC = () => {
           : [];
     setRoleSelectedPerms(existing);
     setPermSearchQuery("");
+    setSourceRoleIdToImport("");
     setIsRoleModalOpen(true);
+  };
+
+  const handleCloneRole = (roleToClone: RoleRecord) => {
+    setEditingRole(null);
+    setRoleFormName(`Copia de ${roleToClone.name}`);
+    setRoleFormDesc(
+      roleToClone.description
+        ? `Copia de: ${roleToClone.description}`
+        : `Plantilla basada en ${roleToClone.name}`
+    );
+    const permsToClone =
+      Array.isArray(roleToClone.permissions) && roleToClone.permissions.length > 0
+        ? roleToClone.permissions
+        : roleToClone.name.toLowerCase().includes("super")
+          ? permissions.map((p) => p.key)
+          : [];
+    setRoleSelectedPerms(permsToClone);
+    setPermSearchQuery("");
+    setSourceRoleIdToImport("");
+    setIsRoleModalOpen(true);
+    toast.info(`Nuevo rol preparado a partir de "${roleToClone.name}" con ${permsToClone.length} permisos.`);
+  };
+
+  const handleImportPermissionsFromRole = (
+    sourceRoleId: string,
+    mode: "replace" | "merge"
+  ) => {
+    const sourceRole = roles.find((r) => r.id === sourceRoleId);
+    if (!sourceRole) return;
+
+    const permsToImport =
+      Array.isArray(sourceRole.permissions) && sourceRole.permissions.length > 0
+        ? sourceRole.permissions
+        : sourceRole.name.toLowerCase().includes("super")
+          ? permissions.map((p) => p.key)
+          : [];
+
+    if (permsToImport.length === 0) {
+      toast.warning(`El rol "${sourceRole.name}" no tiene permisos asignados.`);
+      return;
+    }
+
+    if (mode === "replace") {
+      setRoleSelectedPerms(permsToImport);
+      toast.success(
+        `Se importaron y reemplazaron ${permsToImport.length} permisos del rol "${sourceRole.name}".`
+      );
+    } else {
+      const merged = Array.from(new Set([...roleSelectedPerms, ...permsToImport]));
+      const addedCount = merged.length - roleSelectedPerms.length;
+      setRoleSelectedPerms(merged);
+      toast.success(
+        `Se añadieron ${addedCount} permisos nuevos del rol "${sourceRole.name}" (Total seleccionados: ${merged.length}).`
+      );
+    }
   };
 
   const handleTogglePerm = (key: string) => {
@@ -1667,12 +1788,24 @@ export const UsersAndRolesView: React.FC = () => {
                     </div>
 
                     {/* Acciones */}
-                    <div className="pt-3 border-t border-neutral-200 dark:border-neutral-800 flex justify-end">
+                    <div className="pt-3 border-t border-neutral-200 dark:border-neutral-800 flex gap-2 justify-end">
+                      {canManageRoles && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleCloneRole(r)}
+                          className="border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800 shrink-0"
+                          title="Crear un nuevo rol duplicando los permisos de este rol"
+                        >
+                          <Copy className="w-3.5 h-3.5 mr-1" />
+                          Clonar
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => handleOpenEditRole(r)}
-                        className="w-full justify-center border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                        className="flex-1 justify-center border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800"
                       >
                         <Edit2 className="w-3.5 h-3.5 mr-1.5" />
                         {r.isSystem
@@ -2173,6 +2306,64 @@ export const UsersAndRolesView: React.FC = () => {
                 placeholder="ej: Supervisión de transacciones y cierres fiscales"
                 className="w-full px-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
               />
+            </div>
+          </div>
+
+          {/* Importar permisos desde otro rol */}
+          <div className="p-3 text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-950/60 px-2 py-1 rounded-lg border border-sky-300 dark:border-sky-800 space-y-2">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5">
+              <div className="flex items-center gap-1.5">
+                <Copy className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
+                  Importar permisos de otro rol:
+                </span>
+              </div>
+              <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                Copia la matriz de accesos de un rol plantilla para agilizar la configuración
+              </span>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-2">
+              <select
+                value={sourceRoleIdToImport}
+                onChange={(e) => setSourceRoleIdToImport(e.target.value)}
+                className="w-full sm:flex-1 px-3 py-1.5 text-xs border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+              >
+                <option value="">-- Seleccionar rol de origen --</option>
+                {roles
+                  .filter((r) => !editingRole || r.id !== editingRole.id)
+                  .map((r) => {
+                    const count = Array.isArray(r.permissions) && r.permissions.length > 0
+                      ? r.permissions.length
+                      : r.permissionsCount || 0;
+                    return (
+                      <option key={r.id} value={r.id}>
+                        {r.name} ({count} permisos asignados)
+                      </option>
+                    );
+                  })}
+              </select>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  disabled={!sourceRoleIdToImport}
+                  onClick={() => handleImportPermissionsFromRole(sourceRoleIdToImport, "replace")}
+                  className="flex-1 sm:flex-none px-3 py-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-lg transition-colors cursor-pointer shadow-2xs"
+                  title="Reemplaza la selección actual con los permisos del rol seleccionado"
+                >
+                  Reemplazar
+                </button>
+                <button
+                  type="button"
+                  disabled={!sourceRoleIdToImport}
+                  onClick={() => handleImportPermissionsFromRole(sourceRoleIdToImport, "merge")}
+                  className="flex-1 sm:flex-none px-3 py-1.5 text-xs font-semibold bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 disabled:opacity-40 text-neutral-800 dark:text-neutral-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                  title="Añade los permisos del rol seleccionado a los que ya están seleccionados"
+                >
+                  Combinar
+                </button>
+              </div>
             </div>
           </div>
 

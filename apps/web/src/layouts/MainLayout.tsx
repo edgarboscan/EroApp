@@ -50,6 +50,8 @@ import {
   FolderTree,
   Sun,
   Moon,
+  MessageSquareText,
+  HelpCircle,
 } from "lucide-react";
 import { useExchangeRateStore } from "../stores/exchangeRateStore";
 import { useThemeStore } from "../stores/themeStore";
@@ -59,6 +61,7 @@ import { Button } from "../components/ui/Button";
 import { toast } from "sonner";
 import { formatExchangeRate, formatMoneyVES } from "@ero/shared";
 import { NotificationBell } from "../components/notifications/NotificationBell";
+import { ChatButton } from "../features/chat/ChatButton";
 import { useNotificationStore } from "../stores/notificationStore";
 import { PdfViewerModal } from "../components/ui/PdfViewerModal";
 import { SelectBranchModal } from "../features/auth/SelectBranchModal";
@@ -298,7 +301,7 @@ export const MainLayout: React.FC = () => {
           to: "/pos/cierre",
           icon: Calculator,
           module: "pos",
-          action: "read",
+          action: "close_register",
         },
         {
           label: "Verificación de Arqueos",
@@ -326,7 +329,7 @@ export const MainLayout: React.FC = () => {
           to: "/sales/credit-debit-notes",
           icon: ArrowRightLeft,
           module: "sales",
-          action: "read",
+          action: "credit_notes",
         },
         {
           label: "Directorio de Clientes",
@@ -353,15 +356,15 @@ export const MainLayout: React.FC = () => {
           label: "Toma de Pedidos (Mesas)",
           to: "/restaurant/orders",
           icon: Utensils,
-          module: "pos",
+          module: "restaurant",
           action: "read",
         },
         {
           label: "Cocina & Barra (KDS)",
           to: "/restaurant/kds",
           icon: ChefHat,
-          module: "pos",
-          action: "read",
+          module: "restaurant",
+          action: "kds",
         },
       ],
     },
@@ -445,7 +448,7 @@ export const MainLayout: React.FC = () => {
           to: "/inventory/counts",
           icon: ClipboardCheck,
           module: "inventory",
-          action: "read",
+          action: "counts",
         },
         {
           label: "Ajustes de Inventario",
@@ -719,7 +722,20 @@ export const MainLayout: React.FC = () => {
           module: "audit",
           action: "read",
         },
+        {
+          label: "Bitácora de Chat",
+          to: "/config/chat-audit",
+          icon: MessageSquareText,
+          module: "chat",
+          action: "audit",
+        },
       ],
+    },
+    {
+      id: "help",
+      title: "Ayuda & Manuales",
+      icon: HelpCircle,
+      to: "/help",
     },
   ];
 
@@ -1101,9 +1117,9 @@ export const MainLayout: React.FC = () => {
             <div className="hidden sm:flex items-center gap-2 text-xs">
               <div className="flex items-center gap-1.5 bg-neutral-100 dark:bg-neutral-800 px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700">
                 <Building2 className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
-                <span className="font-semibold text-neutral-700 dark:text-neutral-300">
+                {/* <span className="font-semibold text-neutral-700 dark:text-neutral-300">
                   Sucursal:
-                </span>
+                </span> */}
                 <span className="font-medium text-neutral-900 dark:text-neutral-100">
                   {branchLabel}
                 </span>
@@ -1111,9 +1127,9 @@ export const MainLayout: React.FC = () => {
 
               <div className="flex items-center gap-1.5 bg-neutral-100 dark:bg-neutral-800 px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700">
                 <Warehouse className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
-                <span className="font-semibold text-neutral-700 dark:text-neutral-300">
+                {/* <span className="font-semibold text-neutral-700 dark:text-neutral-300">
                   Depósito:
-                </span>
+                </span> */}
                 <span className="font-medium text-neutral-900 dark:text-neutral-100">
                   {warehouseLabel}
                 </span>
@@ -1125,7 +1141,7 @@ export const MainLayout: React.FC = () => {
                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-sky-700 dark:text-sky-400 font-medium transition-colors cursor-pointer"
               >
                 <ArrowRightLeft className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline text-xs">Cambiar</span>
+                {/* <span className="hidden sm:inline text-xs">Cambiar</span> */}
               </button>
             </div>
           </div>
@@ -1178,6 +1194,21 @@ export const MainLayout: React.FC = () => {
 
             {/* Centro de Notificaciones */}
             <NotificationBell />
+
+            {/* Chat Interno entre Usuarios */}
+            <ChatButton />
+
+            {/* Acceso Rápido al Centro de Ayuda & Manuales */}
+            <button
+              type="button"
+              onClick={() => navigate("/help")}
+              title="Centro de Ayuda & Manual de Usuario"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-neutral-400"
+              aria-label="Centro de Ayuda y Manuales"
+            >
+              <HelpCircle className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+              {/* <span className="hidden xl:inline text-xs">Ayuda</span> */}
+            </button>
 
             {/* Botón  Alternar Tema Claro / Oscuro */}
             <button
