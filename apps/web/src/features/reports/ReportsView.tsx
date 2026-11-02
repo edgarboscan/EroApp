@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -27,9 +27,10 @@ import {
   Coins,
   Landmark,
   FileCheck,
+  Lock,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useAuthStore } from '../../stores/authStore';
+import { useAuthStore, isSuperAdminRole } from '../../stores/authStore';
 import { useExchangeRateStore } from '../../stores/exchangeRateStore';
 import {
   formatMoneyUSD,
@@ -64,6 +65,36 @@ const reportSlugMap: Record<string, ReportTab> = {
   'bank-movements': 'bank_movements',
   'bank-reconciliation': 'bank_reconciliation',
   'cash-flow': 'cash_flow',
+};
+
+const reportActionMap: Record<ReportTab, string> = {
+  sales: 'sales',
+  cash_shifts: 'cash_shifts',
+  sales_by_cashier: 'sales_by_cashier',
+  sales_by_product: 'sales_by_product',
+  inventory_hierarchy: 'inventory_hierarchy',
+  restaurant_tips: 'restaurant_tips',
+  receivables_aging: 'receivables_aging',
+  payables_aging: 'payables_aging',
+  treasury_balances: 'treasury_balances',
+  bank_movements: 'bank_movements',
+  bank_reconciliation: 'bank_reconciliation',
+  cash_flow: 'cash_flow',
+};
+
+const tabToSlugMap: Record<ReportTab, string> = {
+  sales: 'sales',
+  cash_shifts: 'cash-shifts',
+  sales_by_cashier: 'cashiers',
+  sales_by_product: 'products',
+  inventory_hierarchy: 'inventory',
+  restaurant_tips: 'restaurant-tips',
+  receivables_aging: 'receivables',
+  payables_aging: 'payables',
+  treasury_balances: 'treasury-balances',
+  bank_movements: 'bank-movements',
+  bank_reconciliation: 'bank-reconciliation',
+  cash_flow: 'cash-flow',
 };
 
 const reportMeta: Record<ReportTab, { title: string; category: string; subtitle: string; icon: React.ComponentType<{ className?: string }> }> = {
@@ -153,12 +184,43 @@ const formatSafeDateTime = (val?: string | null) => {
 };
 
 export const ReportsView: React.FC = () => {
+  const navigate = useNavigate();
   const { reportId } = useParams<{ reportId?: string }>();
   const activeTab: ReportTab = reportSlugMap[reportId || 'sales'] || 'sales';
   const meta = reportMeta[activeTab];
 
-  const { token, activeBranchId } = useAuthStore();
+  const { token, activeBranchId, hasPermission, user } = useAuthStore();
+  const isSuper = isSuperAdminRole(user?.role);
   const bcvRate = useExchangeRateStore((s) => s.rate) || 1;
+
+  // Lista de reportes autorizados para este usuario/rol
+  const allTabs: ReportTab[] = [
+    'sales',
+    'cash_shifts',
+    'sales_by_cashier',
+    'sales_by_product',
+    'inventory_hierarchy',
+    'restaurant_tips',
+    'receivables_aging',
+    'payables_aging',
+    'treasury_balances',
+    'bank_movements',
+    'bank_reconciliation',
+    'cash_flow',
+  ];
+
+  const allowedTabs = allTabs.filter(
+    (tab) => isSuper || hasPermission('reports', reportActionMap[tab])
+  );
+
+  const canAccessCurrentTab = isSuper || hasPermission('reports', reportActionMap[activeTab]);
+
+  useEffect(() => {
+    if (!canAccessCurrentTab && allowedTabs.length > 0) {
+      const firstAllowedSlug = tabToSlugMap[allowedTabs[0]];
+      navigate(`/reports/${firstAllowedSlug}`, { replace: true });
+    }
+  }, [canAccessCurrentTab, allowedTabs, navigate]);
 
   // Filtros Globales
   const [startDate, setStartDate] = useState<string>(() => {
@@ -594,6 +656,33 @@ export const ReportsView: React.FC = () => {
     activeTab !== 'payables_aging' &&
     activeTab !== 'treasury_balances' &&
     activeTab !== 'bank_reconciliation';
+
+  if (!isSuper && allowedTabs.length === 0) {
+    return (
+      <div className="p-8 text-center bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-xs my-8 max-w-lg mx-auto">
+        <div className="w-12 h-12 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-400 flex items-center justify-center mx-auto mb-3">
+          <Lock className="w-6 h-6" />
+        </div>
+        <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
+          Sin reportes asignados
+        </h2>
+        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 leading-relaxed">
+          Su rol de usuario no tiene permisos configurados para acceder a reportes específicos del sistema. Contacte al administrador para habilitar los reportes requeridos.
+        </p>
+      </div>
+    );
+  }
+
+  if (!canAccessCurrentTab) {
+    return (
+      <div className="p-8 text-center bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-xs my-8 max-w-lg mx-auto">
+        <Loader2 className="w-6 h-6 animate-spin text-sky-600 mx-auto mb-3" />
+        <p className="text-xs text-neutral-500 dark:text-neutral-400">
+          Redirigiendo a su reporte autorizado...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

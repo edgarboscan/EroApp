@@ -586,7 +586,7 @@ export const MainLayout: React.FC = () => {
           to: "/reports/sales",
           icon: ShoppingCart,
           module: "reports",
-          action: "export_pdf",
+          action: "sales",
           category: "Ventas & Caja",
         },
         {
@@ -594,7 +594,7 @@ export const MainLayout: React.FC = () => {
           to: "/reports/cash-shifts",
           icon: CreditCard,
           module: "reports",
-          action: "export_pdf",
+          action: "cash_shifts",
           category: "Ventas & Caja",
         },
         {
@@ -602,7 +602,7 @@ export const MainLayout: React.FC = () => {
           to: "/reports/cashiers",
           icon: User,
           module: "reports",
-          action: "export_pdf",
+          action: "sales_by_cashier",
           category: "Ventas & Caja",
         },
         {
@@ -610,7 +610,7 @@ export const MainLayout: React.FC = () => {
           to: "/reports/products",
           icon: Package,
           module: "reports",
-          action: "export_pdf",
+          action: "sales_by_product",
           category: "Inventario & Stock",
         },
         {
@@ -618,7 +618,7 @@ export const MainLayout: React.FC = () => {
           to: "/reports/inventory",
           icon: Layers,
           module: "reports",
-          action: "export_pdf",
+          action: "inventory_hierarchy",
           category: "Inventario & Stock",
         },
         {
@@ -626,7 +626,7 @@ export const MainLayout: React.FC = () => {
           to: "/reports/restaurant-tips",
           icon: Coins,
           module: "reports",
-          action: "export_pdf",
+          action: "restaurant_tips",
           category: "Restaurante",
         },
         {
@@ -634,7 +634,7 @@ export const MainLayout: React.FC = () => {
           to: "/reports/receivables",
           icon: TrendingUp,
           module: "reports",
-          action: "export_pdf",
+          action: "receivables_aging",
           category: "Finanzas & Cartera",
         },
         {
@@ -642,7 +642,7 @@ export const MainLayout: React.FC = () => {
           to: "/reports/payables",
           icon: ArrowRightLeft,
           module: "reports",
-          action: "export_pdf",
+          action: "payables_aging",
           category: "Finanzas & Cartera",
         },
         {
@@ -650,7 +650,7 @@ export const MainLayout: React.FC = () => {
           to: "/reports/treasury-balances",
           icon: Landmark,
           module: "reports",
-          action: "export_pdf",
+          action: "treasury_balances",
           category: "Tesorería & Bancos",
         },
         {
@@ -658,7 +658,7 @@ export const MainLayout: React.FC = () => {
           to: "/reports/bank-movements",
           icon: FileSpreadsheet,
           module: "reports",
-          action: "export_pdf",
+          action: "bank_movements",
           category: "Tesorería & Bancos",
         },
         {
@@ -666,7 +666,7 @@ export const MainLayout: React.FC = () => {
           to: "/reports/bank-reconciliation",
           icon: FileCheck,
           module: "reports",
-          action: "export_pdf",
+          action: "bank_reconciliation",
           category: "Tesorería & Bancos",
         },
         {
@@ -674,7 +674,7 @@ export const MainLayout: React.FC = () => {
           to: "/reports/cash-flow",
           icon: Coins,
           module: "reports",
-          action: "export_pdf",
+          action: "cash_flow",
           category: "Tesorería & Bancos",
         },
       ],

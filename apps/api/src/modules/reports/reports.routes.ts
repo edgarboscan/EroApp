@@ -915,7 +915,7 @@ reportsRouter.get('/bank-reconciliation', authenticate, authorize('reports', 'ba
 });
 
 // GET /api/reports/cash-flow - Flujo de Caja Operativo de Tesorería
-reportsRouter.get('/cash-flow', authenticate, authorize('reports', 'export_pdf'), async (c) => {
+reportsRouter.get('/cash-flow', authenticate, authorize('reports', 'cash_flow'), async (c) => {
   const user = c.get('user');
   const branchId = c.req.query('branchId');
   const startDate = c.req.query('startDate');
@@ -981,3 +981,6 @@ reportsRouter.get('/cash-flow', authenticate, authorize('reports', 'export_pdf')
     return c.json({ success: true, data });
   } catch (error: any) {
     return c.json({ success: false, error: { message: error.message } }, 500);
+  }
+});
+
