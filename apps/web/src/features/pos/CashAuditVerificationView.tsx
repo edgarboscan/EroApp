@@ -902,62 +902,70 @@ export const CashAuditVerificationView: React.FC = () => {
 
       {/* Tarjetas de Métricas KPI */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-        <Card className="p-3 border-l-4 border-l-orange-500  bg-orange-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-orange-400 dark:border-orange-400">
+        <Card className="p-4 border-l-4 border-l-[#FFC107] dark:border-l-[#FBBF24] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-neutral-500">
+            <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
               Pendientes Auditoría
             </span>
-            <Clock className="w-4 h-4 text-amber-500" />
+            <div className="w-8 h-8 rounded-lg bg-[#FFC107]/15 text-[#b28500] dark:bg-[#FBBF24]/15 dark:text-[#FBBF24] flex items-center justify-center">
+              <Clock className="w-4 h-4" />
+            </div>
           </div>
-          <p className="text-2xl font-bold text-orange-700 font-mono mt-1">
+          <p className="text-2xl font-bold text-[#b28500] dark:text-[#FBBF24] font-mono mt-2">
             {kpis.totalPending}
           </p>
-          <span className="text-[11px] text-neutral-400">
+          <span className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1 block">
             Turnos cerrados por verificar
           </span>
         </Card>
 
-        <Card className="p-3 border-l-4 border-l-red-500  bg-red-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-red-400 dark:border-red-400">
+        <Card className="p-4 border-l-4 border-l-[#EF4444] dark:border-l-[#F87171] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-neutral-500">
+            <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
               Discrepancias / Alertas
             </span>
-            <AlertTriangle className="w-4 h-4 text-red-500" />
+            <div className="w-8 h-8 rounded-lg bg-[#EF4444]/10 text-[#EF4444] dark:bg-[#F87171]/15 dark:text-[#F87171] flex items-center justify-center">
+              <AlertTriangle className="w-4 h-4" />
+            </div>
           </div>
-          <p className="text-2xl font-bold text-red-600 font-mono mt-1">
+          <p className="text-2xl font-bold text-[#EF4444] dark:text-[#F87171] font-mono mt-2">
             {kpis.totalDiscrepancies}
           </p>
-          <span className="text-[11px] text-neutral-400">
+          <span className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1 block">
             Con faltante o sobrante
           </span>
         </Card>
 
-        <Card className="p-3 border-l-4 border-l-emerald-500  bg-emerald-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-emerald-400 dark:border-emerald-400">
+        <Card className="p-4 border-l-4 border-l-[#28A745] dark:border-l-[#4ADE80] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-neutral-500">
+            <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
               Depósitos Bancarios USD
             </span>
-            <DollarSign className="w-4 h-4 text-emerald-500" />
+            <div className="w-8 h-8 rounded-lg bg-[#28A745]/10 text-[#28A745] dark:bg-[#4ADE80]/15 dark:text-[#4ADE80] flex items-center justify-center">
+              <DollarSign className="w-4 h-4" />
+            </div>
           </div>
-          <p className="text-2xl font-bold text-emerald-500 font-mono mt-1">
+          <p className="text-2xl font-bold text-[#28A745] dark:text-[#4ADE80] font-mono mt-2">
             {formatMoneyUSD(kpis.sumUSD)}
           </p>
-          <span className="text-[11px] text-neutral-400">
+          <span className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1 block">
             Registrado en Tesorería
           </span>
         </Card>
 
-        <Card className="p-3 border-l-4 border-l-sky-500  bg-sky-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-400 dark:border-sky-400 ">
+        <Card className="p-4 border-l-4 border-l-[#007BFF] dark:border-l-[#3D91FF] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-neutral-500">
+            <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
               Depósitos Bancarios VES
             </span>
-            <TrendingUp className="w-4 h-4 text-sky-500" />
+            <div className="w-8 h-8 rounded-lg bg-[#007BFF]/10 text-[#007BFF] dark:bg-[#3D91FF]/15 dark:text-[#3D91FF] flex items-center justify-center">
+              <TrendingUp className="w-4 h-4" />
+            </div>
           </div>
-          <p className="text-2xl font-bold text-sky-500 font-mono mt-1">
+          <p className="text-2xl font-bold text-[#007BFF] dark:text-[#3D91FF] font-mono mt-2">
             {formatMoneyVES(kpis.sumVES)}
           </p>
-          <span className="text-[11px] text-neutral-400">
+          <span className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1 block">
             Listo para conciliación
           </span>
         </Card>

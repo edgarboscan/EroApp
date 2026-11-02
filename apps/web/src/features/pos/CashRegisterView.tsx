@@ -808,42 +808,42 @@ export const CashRegisterView: React.FC = () => {
 
             {/* Tarjetas de Métricas de Recaudación */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Card className="p-4 border-l-4 border-l-emerald-500  bg-emerald-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-emerald-400 dark:border-emerald-300">
-                <span className="text-xs text-neutral-500">Efectivo en Divisas (Esperado)</span>
-                <div className="text-xl font-bold font-mono text-emerald-600">
+              <Card className="p-4 border-l-4 border-l-[#007BFF] dark:border-l-[#3D91FF] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+                <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">Efectivo en Divisas (Esperado)</span>
+                <div className="text-2xl font-bold font-mono text-[#007BFF] dark:text-[#3D91FF] mt-1">
                   {formatMoneyUSD(currentShift.expectedCashUSD)}
                 </div>
-                <div className="text-[11px] text-neutral-400">
+                <div className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1">
                   Ventas: {formatMoneyUSD(currentShift.summary.cashSalesUSD)} • Salidas: -{formatMoneyUSD(currentShift.summary.outflowsUSD)}
                 </div>
               </Card>
 
-              <Card className="p-4 border-l-4 border-l-emerald-500  bg-emerald-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-emerald-400 dark:border-emerald-400">
-                <span className="text-xs text-neutral-500">Efectivo en Bolívares (Esperado)</span>
-                <div className="text-xl font-bold font-mono text-emerald-600">
+              <Card className="p-4 border-l-4 border-l-[#28A745] dark:border-l-[#4ADE80] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+                <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">Efectivo en Bolívares (Esperado)</span>
+                <div className="text-2xl font-bold font-mono text-[#28A745] dark:text-[#4ADE80] mt-1">
                   {formatMoneyVES(currentShift.expectedCashVES)}
                 </div>
-                <div className="text-[11px] text-neutral-400">
+                <div className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1">
                   Ventas en Bs físico en caja
                 </div>
               </Card>
 
-              <Card className="p-4 border-l-4 border-l-sky-500  bg-sky-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-400 dark:border-sky-300">
-                <span className="text-xs text-neutral-500">Pagos Digitales en Bs</span>
-                <div className="text-xl font-bold font-mono text-sky-700">
+              <Card className="p-4 border-l-4 border-l-[#17A2B8] dark:border-l-[#38C9DD] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+                <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">Pagos Digitales en Bs</span>
+                <div className="text-2xl font-bold font-mono text-[#17A2B8] dark:text-[#38C9DD] mt-1">
                   {formatMoneyVES(currentShift.summary.pagomovilVES + currentShift.summary.debitVES)}
                 </div>
-                <div className="text-[11px] text-neutral-400">
+                <div className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1">
                   Pago Móvil: {formatMoneyVES(currentShift.summary.pagomovilVES)} • Débito: {formatMoneyVES(currentShift.summary.debitVES)}
                 </div>
               </Card>
 
-              <Card className="p-4 border-l-4 border-l-sky-500  bg-sky-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-400 dark:border-sky-400">
-                <span className="text-xs text-neutral-500">Zelle / IGTF Divisas</span>
-                <div className="text-xl font-bold font-mono text-indigo-700">
+              <Card className="p-4 border-l-4 border-l-[#FFC107] dark:border-l-[#FBBF24] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+                <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">Zelle / IGTF Divisas</span>
+                <div className="text-2xl font-bold font-mono text-[#b28500] dark:text-[#FBBF24] mt-1">
                   {formatMoneyUSD(currentShift.summary.zelleUSD)}
                 </div>
-                <div className="text-[11px] text-neutral-400">
+                <div className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1">
                   IGTF 3% recaudado: {formatMoneyUSD(currentShift.summary.totalIGTFUSD)}
                 </div>
               </Card>

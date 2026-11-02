@@ -47,7 +47,7 @@ interface SalesBookTotals {
 }
 
 export const SalesBookView: React.FC = () => {
-  const { activeBranchId } = useAuthStore();
+  const { token, activeBranchId } = useAuthStore();
   const now = new Date();
   const currentPeriod = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
   const [period, setPeriod] = useState(currentPeriod);
@@ -60,6 +60,11 @@ export const SalesBookView: React.FC = () => {
     totalIgtf: 0,
     totalIvaRetained: 0,
   });
+  const [companyTaxStatus, setCompanyTaxStatus] = useState<{
+    isSpecialTaxpayer: boolean;
+    ivaRetentionRate: number;
+    taxpayerCondition: string;
+  } | null>(null);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [showPdfModal, setShowPdfModal] = useState(false);
@@ -75,12 +80,15 @@ export const SalesBookView: React.FC = () => {
       params.append('period', period);
       if (activeBranchId) params.append('branchId', activeBranchId);
 
-      const res = await fetch(`/api/taxes/books/sales?${params.toString()}`);
+      const res = await fetch(`/api/taxes/books/sales?${params.toString()}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.data) {
           setItems(json.data.items || []);
           if (json.data.totals) setTotals(json.data.totals);
+          if (json.data.companyTaxStatus) setCompanyTaxStatus(json.data.companyTaxStatus);
         } else {
           setItems([]);
         }
@@ -156,11 +164,20 @@ export const SalesBookView: React.FC = () => {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-xl font-bold text-neutral-900 tracking-tight flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-sky-600" />
-            Libro Fiscal de Ventas (SENIAT)
-          </h1>
-          <p className="text-sm text-neutral-500">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl font-bold text-neutral-400 dark:text-neutral-100 tracking-tight flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-sky-600" />
+              Libro Fiscal de Ventas (SENIAT)
+            </h1>
+            {companyTaxStatus && (
+              <Badge variant={companyTaxStatus.isSpecialTaxpayer ? 'success' : 'neutral'}>
+                {companyTaxStatus.isSpecialTaxpayer
+                  ? 'Contribuyente Especial'
+                  : 'Contribuyente Ordinario'}
+              </Badge>
+            )}
+          </div>
+          <p className="text-sm text-neutral-500 mt-0.5">
             Registro cronológico obligatorio de facturación según Art. 76-78 del Reglamento de la Ley del IVA
           </p>
         </div>
@@ -187,80 +204,92 @@ export const SalesBookView: React.FC = () => {
 
       {/* Summary KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <Card className="p-3 border-neutral-200">
-          <p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
+        <Card className="p-3.5 border-l-4 border-l-[#007BFF] dark:border-l-[#3D91FF] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
             Total Facturado
           </p>
-          <p className="text-xl font-bold text-neutral-900 mt-1 font-mono">
+          <p className="text-xl font-bold text-[#007BFF] dark:text-[#3D91FF] mt-1 font-mono">
             {formatMoneyUSD(totals.totalSales)}
           </p>
-          <p className="text-[10px] text-neutral-500 mt-0.5">Ventas brutas mes</p>
+          <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">
+            Ventas brutas mes
+          </p>
         </Card>
 
-        <Card className="p-3 border-neutral-200">
-          <p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
+        <Card className="p-3.5 border-l-4 border-l-neutral-400 dark:border-l-neutral-600 bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
             Ventas Exentas
           </p>
-          <p className="text-xl font-bold text-neutral-700 mt-1 font-mono">
+          <p className="text-xl font-bold text-[#333333] dark:text-[#E0E0E0] mt-1 font-mono">
             {formatMoneyUSD(totals.totalExempt)}
           </p>
-          <p className="text-[10px] text-neutral-500 mt-0.5">Sin impuesto</p>
+          <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">
+            Sin impuesto
+          </p>
         </Card>
 
-        <Card className="p-3 border-neutral-200">
-          <p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
+        <Card className="p-3.5 border-l-4 border-l-[#17A2B8] dark:border-l-[#38C9DD] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
             Base Imponible (16%)
           </p>
-          <p className="text-xl font-bold text-sky-700 mt-1 font-mono">
+          <p className="text-xl font-bold text-[#17A2B8] dark:text-[#38C9DD] mt-1 font-mono">
             {formatMoneyUSD(totals.totalTaxable)}
           </p>
-          <p className="text-[10px] text-neutral-500 mt-0.5">Sujeto a IVA</p>
+          <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">
+            Sujeto a IVA
+          </p>
         </Card>
 
-        <Card className="p-3 border-neutral-200">
-          <p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
+        <Card className="p-3.5 border-l-4 border-l-[#FFC107] dark:border-l-[#FBBF24] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
             IVA Débito Fiscal
           </p>
-          <p className="text-xl font-bold text-neutral-900 mt-1 font-mono">
+          <p className="text-xl font-bold text-[#b28500] dark:text-[#FBBF24] mt-1 font-mono">
             {formatMoneyUSD(totals.totalTax)}
           </p>
-          <p className="text-[10px] text-neutral-500 mt-0.5">Impuesto facturado</p>
+          <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">
+            Impuesto facturado
+          </p>
         </Card>
 
-        <Card className="p-3 border-neutral-200">
-          <p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
+        <Card className="p-3.5 border-l-4 border-l-[#28A745] dark:border-l-[#4ADE80] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
             IGTF Percibido (3%)
           </p>
-          <p className="text-xl font-bold text-emerald-700 mt-1 font-mono">
+          <p className="text-xl font-bold text-[#28A745] dark:text-[#4ADE80] mt-1 font-mono">
             {formatMoneyUSD(totals.totalIgtf)}
           </p>
-          <p className="text-[10px] text-neutral-500 mt-0.5">Pagos divisas efectivo</p>
+          <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">
+            Pagos divisas efectivo
+          </p>
         </Card>
 
-        <Card className="p-3 border-neutral-200 bg-sky-50/50 border-sky-200">
-          <p className="text-[11px] font-semibold text-sky-800 uppercase tracking-wider">
+        <Card className="p-3.5 border-l-4 border-l-[#007BFF] dark:border-l-[#3D91FF] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
             IVA Retenido Cliente
           </p>
-          <p className="text-xl font-bold text-sky-900 mt-1 font-mono">
+          <p className="text-xl font-bold text-[#007BFF] dark:text-[#3D91FF] mt-1 font-mono">
             {formatMoneyUSD(totals.totalIvaRetained)}
           </p>
-          <p className="text-[10px] text-sky-700 mt-0.5">Comprobantes recibidos</p>
+          <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">
+            Comprobantes recibidos
+          </p>
         </Card>
       </div>
 
       {/* Main Ledger Table Card */}
       <Card className="border-neutral-200 overflow-hidden">
         {/* Controls Bar */}
-        <div className="p-4 border-b border-neutral-200 bg-neutral-50/50 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        <div className="p-4 border-b border-sky-200 dark:border-sky-800 bg-sky-50/60 dark:bg-sky-950/30 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 bg-white border border-neutral-200 rounded-lg px-2.5 py-1 text-xs text-neutral-600">
-              <Calendar className="w-3.5 h-3.5 text-neutral-400" />
+            <div className="flex items-center gap-1.5  rounded-lg px-2.5 py-1 text-xs text-neutral-600 dark:text-neutral-100">
+              <Calendar className="w-3.5 h-3.5 text-neutral-400 dark:text-sky-400" />
               <span>Mes / Período:</span>
               <input
                 type="month"
                 value={period}
                 onChange={(e) => setPeriod(e.target.value)}
-                className="bg-transparent font-medium text-neutral-900 focus:outline-none"
+                className="border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:outline-none p-1.5"
               />
             </div>
             <span className="text-xs text-neutral-500">
@@ -282,8 +311,8 @@ export const SalesBookView: React.FC = () => {
 
         {/* Semantic Ledger Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-neutral-600">
-            <thead className="bg-neutral-50 border-b border-neutral-200 font-semibold text-neutral-500 uppercase tracking-wider">
+          <table className="w-full text-left text-xs text-[#333333] dark:text-[#E0E0E0]">
+            <thead className="bg-[#F4F6F9] dark:bg-[#18191A] text-neutral-700 dark:text-neutral-300 uppercase font-semibold text-[10px] tracking-wider border-b border-gray-200 dark:border-gray-800 sticky top-0 z-10">
               <tr>
                 <th className="py-3 px-3 text-center">Op. N°</th>
                 <th className="py-3 px-3">Fecha</th>
@@ -300,30 +329,64 @@ export const SalesBookView: React.FC = () => {
                 <th className="py-3 px-3 text-right">IVA Retenido</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-100">
+            <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
               {loading ? (
                 Array.from({ length: 4 }).map((_, i) => (
-                  <tr key={i} className="animate-pulse">
-                    <td className="py-3 px-3 text-center"><div className="h-4 bg-neutral-200 rounded w-6 mx-auto"></div></td>
-                    <td className="py-3 px-3"><div className="h-4 bg-neutral-200 rounded w-16"></div></td>
-                    <td className="py-3 px-3"><div className="h-4 bg-neutral-200 rounded w-20"></div></td>
-                    <td className="py-3 px-3"><div className="h-4 bg-neutral-200 rounded w-32"></div></td>
-                    <td className="py-3 px-3"><div className="h-4 bg-neutral-200 rounded w-20"></div></td>
-                    <td className="py-3 px-3"><div className="h-4 bg-neutral-200 rounded w-16"></div></td>
-                    <td className="py-3 px-3"><div className="h-4 bg-neutral-200 rounded w-16 ml-auto"></div></td>
-                    <td className="py-3 px-3"><div className="h-4 bg-neutral-200 rounded w-12 ml-auto"></div></td>
-                    <td className="py-3 px-3"><div className="h-4 bg-neutral-200 rounded w-16 ml-auto"></div></td>
-                    <td className="py-3 px-3"><div className="h-4 bg-neutral-200 rounded w-8 ml-auto"></div></td>
-                    <td className="py-3 px-3"><div className="h-4 bg-neutral-200 rounded w-14 ml-auto"></div></td>
-                    <td className="py-3 px-3"><div className="h-4 bg-neutral-200 rounded w-12 ml-auto"></div></td>
-                    <td className="py-3 px-3"><div className="h-4 bg-neutral-200 rounded w-14 ml-auto"></div></td>
+                  <tr
+                    key={i}
+                    className="border-b border-gray-100 dark:border-gray-800/80 hover:bg-[#F4F6F9] dark:hover:bg-neutral-800/50 transition-colors"
+                  >
+                    <td className="py-3 px-3 text-center">
+                      <div className="h-4 bg-neutral-200 rounded w-6 mx-auto"></div>
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="h-4 bg-neutral-200 rounded w-16"></div>
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="h-4 bg-neutral-200 rounded w-20"></div>
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="h-4 bg-neutral-200 rounded w-32"></div>
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="h-4 bg-neutral-200 rounded w-20"></div>
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="h-4 bg-neutral-200 rounded w-16"></div>
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="h-4 bg-neutral-200 rounded w-16 ml-auto"></div>
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="h-4 bg-neutral-200 rounded w-12 ml-auto"></div>
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="h-4 bg-neutral-200 rounded w-16 ml-auto"></div>
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="h-4 bg-neutral-200 rounded w-8 ml-auto"></div>
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="h-4 bg-neutral-200 rounded w-14 ml-auto"></div>
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="h-4 bg-neutral-200 rounded w-12 ml-auto"></div>
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="h-4 bg-neutral-200 rounded w-14 ml-auto"></div>
+                    </td>
                   </tr>
                 ))
               ) : filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="py-12 text-center text-neutral-400">
+                  <td
+                    colSpan={13}
+                    className="py-12 text-center text-neutral-400"
+                  >
                     <AlertCircle className="w-8 h-8 mx-auto mb-2 text-neutral-300" />
-                    <p className="text-sm font-medium text-neutral-600">No hay facturas de venta registradas</p>
+                    <p className="text-sm font-medium text-neutral-600">
+                      No hay facturas de venta registradas
+                    </p>
                     <p className="text-xs text-neutral-400 mt-1">
                       No se registraron ventas durante el período {period}
                     </p>
@@ -331,20 +394,26 @@ export const SalesBookView: React.FC = () => {
                 </tr>
               ) : (
                 filteredItems.map((item) => (
-                  <tr key={item.invoiceId} className="hover:bg-neutral-50/70 transition-colors">
+                  <tr
+                    key={item.invoiceId}
+                    className="border-b border-gray-100 dark:border-gray-800/80 hover:bg-[#F4F6F9] dark:hover:bg-neutral-800/50 transition-colors"
+                  >
                     <td className="py-3 px-3 text-center font-mono font-medium text-neutral-500">
                       {item.rowNum}
                     </td>
-                    <td className="py-3 px-3 text-neutral-900 whitespace-nowrap">
-                      {new Date(item.emissionDate).toLocaleDateString('es-VE')}
+                    <td className="py-3 px-3 text-neutral-500 whitespace-nowrap">
+                      {new Date(item.emissionDate).toLocaleDateString("es-VE")}
                     </td>
                     <td className="py-3 px-3 font-mono font-medium text-neutral-800">
                       {item.customerRif}
                     </td>
-                    <td className="py-3 px-3 font-medium text-neutral-900 max-w-[200px] truncate" title={item.customerName}>
+                    <td
+                      className="py-3 px-3 font-medium text-neutral-500 max-w-[200px] truncate"
+                      title={item.customerName}
+                    >
                       {item.customerName}
                     </td>
-                    <td className="py-3 px-3 font-mono text-neutral-900">
+                    <td className="py-3 px-3 font-mono font-bold text-[#007BFF] dark:text-[#3D91FF]">
                       {item.invoiceNumber}
                     </td>
                     <td className="py-3 px-3 font-mono text-neutral-500">
@@ -362,13 +431,13 @@ export const SalesBookView: React.FC = () => {
                     <td className="py-3 px-3 text-right font-mono text-neutral-500">
                       {item.taxRate}%
                     </td>
-                    <td className="py-3 px-3 text-right font-mono text-neutral-900">
+                    <td className="py-3 px-3 text-right font-mono text-neutral-500">
                       {formatMoneyUSD(item.taxAmount)}
                     </td>
-                    <td className="py-3 px-3 text-right font-mono text-emerald-700">
+                    <td className="py-3 px-3 text-right font-mono text-emerald-400">
                       {formatMoneyUSD(item.igtfAmount)}
                     </td>
-                    <td className="py-3 px-3 text-right font-mono font-medium text-sky-700">
+                    <td className="py-3 px-3 text-right font-mono font-medium text-sky-400">
                       {formatMoneyUSD(item.ivaRetainedAmount)}
                     </td>
                   </tr>
@@ -377,9 +446,12 @@ export const SalesBookView: React.FC = () => {
             </tbody>
             {/* Table Footer with Totals */}
             {items.length > 0 && (
-              <tfoot className="bg-neutral-100 font-bold border-t-2 border-neutral-300 text-neutral-900">
+              <tfoot className="bg-[#F4F6F9] dark:bg-[#18191A] text-neutral-700 dark:text-neutral-300 uppercase font-semibold text-[10px] tracking-wider border-b border-gray-200 dark:border-gray-800">
                 <tr>
-                  <td colSpan={6} className="py-3 px-3 text-right uppercase text-[11px] tracking-wider">
+                  <td
+                    colSpan={6}
+                    className="py-3 px-3 text-right uppercase text-[11px] tracking-wider"
+                  >
                     Totales del Período ({period}):
                   </td>
                   <td className="py-3 px-3 text-right font-mono">
@@ -414,8 +486,8 @@ export const SalesBookView: React.FC = () => {
         onClose={() => setShowPdfModal(false)}
         title={`Libro Fiscal de Ventas SENIAT - ${period}`}
         subtitle="Formato oficial apaisado según Providencias Administrativas SENIAT"
-        endpoint={`/api/taxes/books/sales?period=${period}${activeBranchId ? `&branchId=${activeBranchId}` : ''}&format=pdf`}
-        filename={`Libro_Ventas_SENIAT_${period.replace('-', '')}.pdf`}
+        endpoint={`/api/taxes/books/sales?period=${period}${activeBranchId ? `&branchId=${activeBranchId}` : ""}&format=pdf`}
+        filename={`Libro_Ventas_SENIAT_${period.replace("-", "")}.pdf`}
       />
     </div>
   );

@@ -382,59 +382,56 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
           <div className="flex flex-col gap-4">
             {/* Tarjetas de Resumen Consolidado */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="p-3 border-l-4 border-l-sky-900 dark:border-l-sky-400  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-sky-200 dark:border-sky-800">
-                <span className="text-[11px] text-neutral-500 font-medium block">
+              <div className="p-3 border-l-4 border-l-[#007BFF] dark:border-l-[#3D91FF] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+                <span className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
                   Existencia Total
                 </span>
-                <span className="text-lg font-bold text-sky-900 dark:text-sky-400">
+                <span className="text-lg font-bold font-mono text-[#007BFF] dark:text-[#3D91FF] block mt-1">
                   {formatNumber(consolidated.currentStock, {
                     maximumFractionDigits: 2,
                   })}{" "}
-                  <span className="text-xs font-normal text-neutral-400">
+                  <span className="text-xs font-normal text-neutral-400 dark:text-neutral-500">
                     {product.unitOfMeasure || "UND"}
                   </span>
                 </span>
               </div>
 
               <div
-                className={`p-3 border-l-4 
-                  ${consolidated.availableStock <= 0 ? "border-l-red-900 dark:border-l-red-400" : "border-l-emerald-900 dark:border-l-emerald-400"}  
-                bg-neutral-50 dark:bg-neutral-800 rounded-lg border 
-                ${consolidated.availableStock <= 0 ? "border-red-200 dark:border-red-800" : "border-emerald-200 dark:border-emerald-800"}`}
+                className={`p-3 border-l-4 ${consolidated.availableStock <= 0 ? "border-l-[#EF4444] dark:border-l-[#F87171]" : "border-l-[#28A745] dark:border-l-[#4ADE80]"} bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs`}
               >
-                <span className="text-[11px] text-neutral-400 font-medium block">
+                <span className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
                   Stock Disponible
                 </span>
                 <span
-                  className={`text-lg font-bold ${
+                  className={`text-lg font-bold font-mono block mt-1 ${
                     consolidated.availableStock <= 0
-                      ? "text-red-600"
-                      : "text-emerald-700"
+                      ? "text-[#EF4444] dark:text-[#F87171]"
+                      : "text-[#28A745] dark:text-[#4ADE80]"
                   }`}
                 >
                   {formatNumber(consolidated.availableStock, {
                     maximumFractionDigits: 2,
                   })}{" "}
-                  <span className="text-xs font-normal text-neutral-500">
+                  <span className="text-xs font-normal text-neutral-400 dark:text-neutral-500">
                     {product.unitOfMeasure || "UND"}
                   </span>
                 </span>
               </div>
 
-              <div className="p-3 border-l-4 border-l-purple-900 dark:border-l-purple-400  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-purple-200 dark:border-purple-80">
-                <span className="text-[11px] text-neutral-400 font-medium block">
+              <div className="p-3 border-l-4 border-l-[#17A2B8] dark:border-l-[#38C9DD] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+                <span className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
                   Valorizado Costo ($)
                 </span>
-                <span className="text-lg font-bold text-purple-500 font-mono">
+                <span className="text-lg font-bold text-[#17A2B8] dark:text-[#38C9DD] font-mono block mt-1">
                   {formatMoneyUSD(consolidated.totalCost)}
                 </span>
               </div>
 
-              <div className="p-3 border-l-4 border-l-orange-900 dark:border-l-orange-400  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-orange-200 dark:border-orange-80">
-                <span className="text-[11px] text-neutral-400 font-medium block">
+              <div className="p-3 border-l-4 border-l-[#FFC107] dark:border-l-[#FBBF24] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+                <span className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
                   Valorizado Venta ($)
                 </span>
-                <span className="text-lg font-bold text-orange-400 font-mono">
+                <span className="text-lg font-bold text-[#b28500] dark:text-[#FBBF24] font-mono block mt-1">
                   {formatMoneyUSD(consolidated.totalSale)}
                 </span>
               </div>
@@ -469,11 +466,11 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
                     {warehouseStocks.map((w) => (
                       <tr
                         key={w.warehouseId}
-                        className="border-b border-neutral-100 dark:border-neutral-800 hover:bg-neutral-600"
+                        className="border-b border-gray-100 dark:border-gray-800/80 hover:bg-[#F4F6F9] dark:hover:bg-neutral-800/50 transition-colors"
                       >
                         <td className="p-2.5">
                           <div className="flex flex-col">
-                            <span className="font-semibold text-neutral-400 flex items-center gap-1.5">
+                            <span className="font-semibold text-[#333333] dark:text-[#E0E0E0] flex items-center gap-1.5">
                               {w.warehouseName} ({w.warehouseCode})
                               {w.isDefaultSales && (
                                 <Badge
@@ -574,54 +571,62 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
 
             {/* Tarjetas Semáforo de Lotes */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="p-3 w-full text-xs bg-white dark:bg-neutral-800 border border-emerald-300 dark:border-emerald-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 flex items-center justify-between">
+              <div className="p-3 border-l-4 border-l-[#28A745] dark:border-l-[#4ADE80] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs flex items-center justify-between">
                 <div>
-                  <span className="text-[11px] text-emerald-400 font-medium block">
+                  <span className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
                     Lotes Vigentes
                   </span>
-                  <span className="text-lg font-bold text-emerald-400">
+                  <span className="text-lg font-bold font-mono text-[#28A745] dark:text-[#4ADE80] block mt-1">
                     {lotsSummary.activeCount}
                   </span>
                 </div>
-                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                <div className="w-8 h-8 rounded-lg bg-[#28A745]/10 text-[#28A745] dark:bg-[#4ADE80]/15 dark:text-[#4ADE80] flex items-center justify-center">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
               </div>
 
-              <div className="p-3 w-full text-xs bg-white dark:bg-neutral-800 border border-amber-300 dark:border-amber-400 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500 flex items-center justify-between">
+              <div className="p-3 border-l-4 border-l-[#FFC107] dark:border-l-[#FBBF24] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs flex items-center justify-between">
                 <div>
-                  <span className="text-[11px] text-amber-400 font-medium block">
+                  <span className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
                     Por Vencer (≤30d)
                   </span>
-                  <span className="text-lg font-bold text-amber-400">
+                  <span className="text-lg font-bold font-mono text-[#b28500] dark:text-[#FBBF24] block mt-1">
                     {lotsSummary.expiringSoonCount}
                   </span>
                 </div>
-                <Clock className="w-5 h-5 text-amber-400" />
+                <div className="w-8 h-8 rounded-lg bg-[#FFC107]/15 text-[#b28500] dark:bg-[#FBBF24]/15 dark:text-[#FBBF24] flex items-center justify-center">
+                  <Clock className="w-4 h-4" />
+                </div>
               </div>
 
-              <div className="p-3 w-full text-xs bg-white dark:bg-neutral-800 border border-red-300 dark:border-red-400 rounded-lg px-3 py-2  focus:outline-none focus:ring-2 focus:ring-red-500 flex items-center justify-between">
+              <div className="p-3 border-l-4 border-l-[#EF4444] dark:border-l-[#F87171] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs flex items-center justify-between">
                 <div>
-                  <span className="text-[11px] text-red-400 font-medium block">
+                  <span className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
                     Lotes Vencidos
                   </span>
-                  <span className="text-lg font-bold text-red-400">
+                  <span className="text-lg font-bold font-mono text-[#EF4444] dark:text-[#F87171] block mt-1">
                     {lotsSummary.expiredCount}
                   </span>
                 </div>
-                <XCircle className="w-5 h-5 text-red-400" />
+                <div className="w-8 h-8 rounded-lg bg-[#EF4444]/10 text-[#EF4444] dark:bg-[#F87171]/15 dark:text-[#F87171] flex items-center justify-center">
+                  <XCircle className="w-4 h-4" />
+                </div>
               </div>
 
-              <div className="p-3 w-full text-xs bg-white dark:bg-neutral-800 border border-purple-300 dark:border-purple-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 flex items-center justify-between">
+              <div className="p-3 border-l-4 border-l-[#17A2B8] dark:border-l-[#38C9DD] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs flex items-center justify-between">
                 <div>
-                  <span className="text-[11px] text-purple-400 font-medium block">
+                  <span className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
                     Unidades en Lote
                   </span>
-                  <span className="text-lg font-bold text-purple-400">
+                  <span className="text-lg font-bold font-mono text-[#17A2B8] dark:text-[#38C9DD] block mt-1">
                     {formatNumber(lotsSummary.totalLotQuantity, {
                       maximumFractionDigits: 2,
                     })}
                   </span>
                 </div>
-                <Boxes className="w-5 h-5 text-purple-500" />
+                <div className="w-8 h-8 rounded-lg bg-[#17A2B8]/10 text-[#17A2B8] dark:bg-[#38C9DD]/15 dark:text-[#38C9DD] flex items-center justify-center">
+                  <Boxes className="w-4 h-4" />
+                </div>
               </div>
             </div>
 
@@ -829,12 +834,12 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
 "
                   >
                     {lots.map((l) => (
-                      <tr key={l.id} className="border-b border-neutral-100 dark:border-neutral-800 hover:bg-neutral-600">
-                        <td className="p-2.5 font-mono font-bold text-neutral-400">
+                      <tr key={l.id} className="border-b border-gray-100 dark:border-gray-800/80 hover:bg-[#F4F6F9] dark:hover:bg-neutral-800/50 transition-colors">
+                        <td className="p-2.5 font-mono font-bold text-[#007BFF] dark:text-[#3D91FF]">
                           {l.lotNumber}
                         </td>
                         <td className="p-2.5">
-                          <span className="font-medium text-neutral-400">
+                          <span className="font-medium text-[#333333] dark:text-[#E0E0E0]">
                             {l.warehouseName}
                           </span>
                           <span className="block text-[10px] text-neutral-400">
@@ -844,7 +849,7 @@ export const ProductStockLotsModal: React.FC<ProductStockLotsModalProps> = ({
                         <td className="p-2.5 text-neutral-600 font-mono">
                           {l.manufacturingDate || "N/A"}
                         </td>
-                        <td className="p-2.5 font-mono font-medium text-neutral-400">
+                        <td className="p-2.5 font-mono font-medium text-[#333333] dark:text-[#E0E0E0]">
                           {l.expirationDate}
                         </td>
                         <td className="p-2.5 text-center">

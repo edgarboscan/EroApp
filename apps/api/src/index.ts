@@ -26,6 +26,8 @@ import { licensesRouter } from './modules/licenses/licenses.routes';
 import { auditRouter } from './modules/audit/audit.routes';
 import { restaurantRouter } from './modules/restaurant/restaurant.routes';
 import { inventoryCountRouter } from './modules/inventory/inventoryCount.routes';
+import { accountingRouter } from './modules/accounting/accounting.routes';
+import { notificationsRouter } from './modules/notifications/notifications.routes';
 
 dotenv.config();
 
@@ -76,6 +78,8 @@ app.route('/api/licenses', licensesRouter);
 app.route('/api/audit', auditRouter);
 app.route('/api/inventory-counts', inventoryCountRouter);
 app.route('/api/restaurant', restaurantRouter);
+app.route('/api/accounting', accountingRouter);
+app.route('/api/notifications', notificationsRouter);
 
 // Manejador Global de Errores
 app.onError((err, c) => {

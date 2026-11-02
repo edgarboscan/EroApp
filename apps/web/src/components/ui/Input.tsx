@@ -17,14 +17,14 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
       ? className.replace(/\btext-(?:end|right|center)\b/g, "").trim()
       : className;
 
-    const alignmentClass = isNumber ? "text-end" : "";
+    const alignmentClass = isNumber ? "text-left" : "";
 
     return (
       <div className="flex flex-col gap-1.5 w-full">
         {label && (
           <label
             htmlFor={inputId}
-            className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 tracking-wide"
+            className="text-xs font-semibold text-[#333333] dark:text-[#E0E0E0] tracking-wide"
           >
             {label}
           </label>
@@ -33,10 +33,10 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           id={inputId}
           type={type}
-          className={`h-10 px-3 text-sm bg-white dark:bg-neutral-800 border rounded-lg text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:bg-neutral-100 dark:disabled:bg-neutral-900 disabled:cursor-not-allowed ${
+          className={`h-10 px-3 text-sm bg-white dark:bg-[#1E1F21] border rounded-lg text-[#333333] dark:text-[#E0E0E0] placeholder:text-neutral-400 dark:placeholder:text-neutral-500 transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:bg-gray-100 dark:disabled:bg-neutral-800/60 disabled:cursor-not-allowed ${
             error
               ? "border-red-500 focus-visible:ring-red-500"
-              : "border-neutral-300 dark:border-neutral-700 focus-visible:ring-sky-500 hover:border-neutral-400 dark:hover:border-neutral-600"
+              : "border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600 focus-visible:border-[#007BFF] dark:focus-visible:border-[#3D91FF] focus-visible:ring-[#007BFF]/25 dark:focus-visible:ring-[#3D91FF]/35"
           } ${alignmentClass} ${sanitizedClassName}`}
           {...props}
         />

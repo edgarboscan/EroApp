@@ -1,18 +1,27 @@
 import React from 'react';
 
 interface BadgeProps {
-  variant?: 'neutral' | 'success' | 'warning' | 'danger' | 'info';
+  variant?: 'neutral' | 'success' | 'warning' | 'danger' | 'info' | 'primary' | 'secondary';
   children: React.ReactNode;
   className?: string;
 }
 
 export const Badge: React.FC<BadgeProps> = ({ variant = 'neutral', children, className = '' }) => {
   const variantStyles = {
-    neutral: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700',
-    success: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
-    warning: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800',
-    danger: 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800',
-    info: 'bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800',
+    neutral:
+      'bg-gray-100 dark:bg-neutral-800/80 text-neutral-700 dark:text-neutral-300 border-gray-200 dark:border-gray-700',
+    success:
+      'bg-[#28A745]/10 dark:bg-[#4ADE80]/15 text-[#28A745] dark:text-[#4ADE80] border-[#28A745]/25 dark:border-[#4ADE80]/30',
+    warning:
+      'bg-[#FFC107]/15 dark:bg-[#FBBF24]/15 text-[#b28500] dark:text-[#FBBF24] border-[#FFC107]/30 dark:border-[#FBBF24]/30',
+    danger:
+      'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800',
+    info:
+      'bg-[#17A2B8]/10 dark:bg-[#38C9DD]/15 text-[#17A2B8] dark:text-[#38C9DD] border-[#17A2B8]/25 dark:border-[#38C9DD]/30',
+    primary:
+      'bg-[#007BFF]/10 dark:bg-[#3D91FF]/15 text-[#007BFF] dark:text-[#3D91FF] border-[#007BFF]/25 dark:border-[#3D91FF]/30',
+    secondary:
+      'bg-[#17A2B8]/10 dark:bg-[#38C9DD]/15 text-[#17A2B8] dark:text-[#38C9DD] border-[#17A2B8]/25 dark:border-[#38C9DD]/30',
   };
 
   return (

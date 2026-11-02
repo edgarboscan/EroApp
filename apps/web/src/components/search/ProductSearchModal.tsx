@@ -12,6 +12,7 @@ export interface ProductSearchItem {
   sku: string;
   name: string;
   barcode?: string;
+  departmentId?: string;
   categoryName?: string;
   category?: string;
   unitOfMeasure?: string;
@@ -39,6 +40,8 @@ export interface ProductSearchModalProps {
   mode?: 'sale' | 'purchase' | 'transfer' | 'general' | 'pos';
   warehouseId?: string;
   warehouseName?: string;
+  cashRegisterId?: string;
+  allowedDepartmentIds?: string[];
 }
 
 export const ProductSearchModal: React.FC<ProductSearchModalProps> = ({
@@ -51,6 +54,8 @@ export const ProductSearchModal: React.FC<ProductSearchModalProps> = ({
   mode = 'general',
   warehouseId,
   warehouseName,
+  cashRegisterId,
+  allowedDepartmentIds,
 }) => {
   const { token, activeBranchId } = useAuthStore();
   const exchangeRate = useExchangeRateStore((s) => s.rate);
@@ -89,6 +94,9 @@ export const ProductSearchModal: React.FC<ProductSearchModalProps> = ({
         if (activeBranchId) {
           params.append('branchId', activeBranchId);
         }
+        if (cashRegisterId) {
+          params.append('cashRegisterId', cashRegisterId);
+        }
 
         const res = await fetch(`/api/inventory/products?${params.toString()}`, { headers });
         if (res.ok) {
@@ -108,7 +116,7 @@ export const ProductSearchModal: React.FC<ProductSearchModalProps> = ({
     };
 
     fetchProducts();
-  }, [isOpen, initialProducts, token, warehouseId, mode, activeBranchId]);
+  }, [isOpen, initialProducts, token, warehouseId, mode, activeBranchId, cashRegisterId]);
 
   // Enfocar automáticamente el input de búsqueda al abrir
   useEffect(() => {
@@ -130,17 +138,21 @@ export const ProductSearchModal: React.FC<ProductSearchModalProps> = ({
 
   // Filtrado reactivo en memoria
   const filteredProducts = useMemo(() => {
+    let prods = catalog;
+    if (allowedDepartmentIds && allowedDepartmentIds.length > 0) {
+      prods = prods.filter((p) => p.departmentId && allowedDepartmentIds.includes(p.departmentId));
+    }
     const term = searchTerm.trim().toLowerCase();
-    if (!term) return catalog;
+    if (!term) return prods;
 
-    return catalog.filter((p) => {
+    return prods.filter((p) => {
       const matchSku = p.sku?.toLowerCase().includes(term);
       const matchName = p.name?.toLowerCase().includes(term);
       const matchBarcode = p.barcode?.toLowerCase().includes(term);
       const matchCategory = (p.categoryName || p.category)?.toLowerCase().includes(term);
       return matchSku || matchName || matchBarcode || matchCategory;
     });
-  }, [catalog, searchTerm]);
+  }, [catalog, searchTerm, allowedDepartmentIds]);
 
   if (!isOpen) return null;
 
@@ -233,16 +245,16 @@ export const ProductSearchModal: React.FC<ProductSearchModalProps> = ({
             </span>
           </div>
         ) : (
-          <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-700 rounded-lg">
+          <div className="overflow-x-auto border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-[#1E1F21] shadow-xs">
             <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 font-semibold border-b border-neutral-200 dark:border-neutral-700 text-[11px] uppercase tracking-wider sticky top-0 z-10">
+              <thead className="bg-[#F4F6F9] dark:bg-[#18191A] text-neutral-700 dark:text-neutral-300 font-semibold border-b border-gray-200 dark:border-gray-800 text-[10px] uppercase tracking-wider sticky top-0 z-10">
                 <tr>
                   <th className="py-2.5 px-3 w-28">Código SKU</th>
                   <th className="py-2.5 px-3">Producto / Descripción</th>
                   {mode !== 'purchase' && (
                     <th className="py-2.5 px-3 w-32 text-center">
                       <div>Disponibilidad</div>
-                      <div className="text-[9px] font-normal lowercase tracking-normal text-sky-600 dark:text-sky-400 truncate max-w-[120px]">
+                      <div className="text-[9px] font-normal lowercase tracking-normal text-[#007BFF] dark:text-[#3D91FF] truncate max-w-[120px]">
                         ({activeWarehouseDisplay})
                       </div>
                     </th>
@@ -253,7 +265,7 @@ export const ProductSearchModal: React.FC<ProductSearchModalProps> = ({
                   <th className="py-2.5 px-3 w-24 text-right">Acción</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800/80">
                   {filteredProducts.map((p) => {
                     const priceUSD = Number(p.basePrice ?? p.salePrice ?? 0);
                     const costUSD = Number(p.defaultCost ?? p.cost ?? p.costPrice ?? 0);
@@ -263,7 +275,7 @@ export const ProductSearchModal: React.FC<ProductSearchModalProps> = ({
                       <tr
                         key={p.id}
                         onClick={() => handleSelectItem(p)}
-                        className="hover:bg-neutral-50 dark:hover:bg-neutral-800/60 cursor-pointer transition-colors group"
+                        className="hover:bg-[#F4F6F9]/80 dark:hover:bg-neutral-800/50 cursor-pointer transition-colors group"
                       >
                         <td className="py-2.5 px-3 font-mono font-medium text-neutral-800 dark:text-neutral-200">
                           <span className="bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 px-1.5 py-0.5 rounded text-[11px]">
@@ -271,7 +283,7 @@ export const ProductSearchModal: React.FC<ProductSearchModalProps> = ({
                           </span>
                         </td>
                         <td className="py-2.5 px-3">
-                          <div className="font-medium text-neutral-900 dark:text-neutral-100 group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors">
+                          <div className="font-medium text-neutral-900 dark:text-neutral-100 group-hover:text-[#007BFF] dark:group-hover:text-[#3D91FF] transition-colors">
                             {p.name}
                           </div>
                           <div className="text-[11px] text-neutral-400 dark:text-neutral-500 flex items-center gap-2">
@@ -284,11 +296,11 @@ export const ProductSearchModal: React.FC<ProductSearchModalProps> = ({
                         {mode !== 'purchase' && (
                           <td className="py-2.5 px-3 text-center">
                             {stock > 10 ? (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#28A745]/15 dark:bg-[#4ADE80]/20 text-[#28A745] dark:text-[#4ADE80] border border-[#28A745]/30 dark:border-[#4ADE80]/35">
                                 {stock} disp.
                               </span>
                             ) : stock > 0 ? (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#FFC107]/15 dark:bg-[#FBBF24]/20 text-[#b28500] dark:text-[#FBBF24] border border-[#FFC107]/30 dark:border-[#FBBF24]/35">
                                 {stock} bajo
                               </span>
                             ) : (
@@ -332,7 +344,7 @@ export const ProductSearchModal: React.FC<ProductSearchModalProps> = ({
                               e.stopPropagation();
                               handleSelectItem(p);
                             }}
-                            className="text-xs py-1 px-2.5 group-hover:bg-sky-50 dark:group-hover:bg-sky-950/40 group-hover:border-sky-300 dark:group-hover:border-sky-700 group-hover:text-sky-700 dark:group-hover:text-sky-300"
+                            className="text-xs py-1 px-2.5 group-hover:bg-[#007BFF]/10 dark:group-hover:bg-[#3D91FF]/15 group-hover:border-[#007BFF] dark:group-hover:border-[#3D91FF] group-hover:text-[#007BFF] dark:group-hover:text-[#3D91FF]"
                           >
                             <Check className="w-3.5 h-3.5 mr-1" />
                             Elegir

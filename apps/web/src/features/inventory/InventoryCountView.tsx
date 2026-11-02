@@ -29,12 +29,14 @@ import {
   X,
   TrendingUp,
   TrendingDown,
+  FolderTree,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/authStore';
 import { useExchangeRateStore } from '../../stores/exchangeRateStore';
 import { formatMoneyUSD, formatMoneyVES } from '@ero/shared';
 import { showConfirmQuestion } from '../../lib/sweetalert';
+import { HierarchySearchModal, HierarchySelection } from '../../components/search';
 import type {
   WarehouseProductStockItem,
   InventoryCount,
@@ -110,6 +112,18 @@ export const InventoryCountView: React.FC = () => {
   // Modal: Reconcile confirmation
   const [showReconcileModal, setShowReconcileModal] = useState<boolean>(false);
   const [reconcileNotes, setReconcileNotes] = useState<string>('');
+
+  // Modal: Hierarchy Search
+  const [hierarchyModalTarget, setHierarchyModalTarget] = useState<'tableFilter' | 'sessionModal' | null>(null);
+
+  const handleHierarchySelect = (sel: HierarchySelection) => {
+    if (hierarchyModalTarget === 'tableFilter') {
+      setSelectedDepartmentId(sel.departmentId || '');
+    } else if (hierarchyModalTarget === 'sessionModal') {
+      setNewSessionDepartmentId(sel.departmentId || '');
+    }
+    setHierarchyModalTarget(null);
+  };
 
   // Audio beep player using Web Audio API
   const playBeep = useCallback((success: boolean = true) => {
@@ -829,91 +843,91 @@ export const InventoryCountView: React.FC = () => {
         <>
           {/* Executive KPI Summary Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-            <Card className="p-3.5 flex flex-col justify-between border border-neutral-200 dark:border-neutral-800 rounded-lg">
-              <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Total Productos</span>
+            <Card className="p-3.5 flex flex-col justify-between border-l-4 border-l-[#007BFF] dark:border-l-[#3D91FF] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+              <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Total Productos</span>
               <div className="mt-1 flex items-baseline justify-between">
-                <span className="text-xl font-bold text-neutral-900 dark:text-neutral-100">
+                <span className="text-xl font-bold font-mono text-[#007BFF] dark:text-[#3D91FF]">
                   {statistics.totalItems}
                 </span>
-                <span className="text-xs text-neutral-500">{statistics.totalSystemUnits} uds</span>
+                <span className="text-xs text-neutral-500 dark:text-neutral-400 font-mono">{statistics.totalSystemUnits} uds</span>
               </div>
               <div className="mt-2 w-full bg-neutral-200 dark:bg-neutral-700 h-1 rounded-full overflow-hidden">
                 <div
-                  className="bg-neutral-900 dark:bg-neutral-100 h-full transition-all duration-300"
+                  className="bg-[#007BFF] dark:bg-[#3D91FF] h-full transition-all duration-300"
                   style={{ width: `${statistics.progressPercent}%` }}
                 />
               </div>
             </Card>
 
-            <Card className="p-3.5 flex flex-col justify-between border border-neutral-200 dark:border-neutral-800 rounded-lg">
-              <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Ítems Auditados</span>
+            <Card className="p-3.5 flex flex-col justify-between border-l-4 border-l-[#17A2B8] dark:border-l-[#38C9DD] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+              <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Ítems Auditados</span>
               <div className="mt-1 flex items-baseline justify-between">
-                <span className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                <span className="text-xl font-bold font-mono text-[#17A2B8] dark:text-[#38C9DD]">
                   {statistics.itemsCounted}
                 </span>
-                <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                <span className="text-xs font-semibold text-[#17A2B8] dark:text-[#38C9DD]">
                   {statistics.progressPercent}%
                 </span>
               </div>
-              <span className="text-[11px] text-neutral-500 mt-1">
+              <span className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1">
                 {statistics.totalCountedUnits} uds contadas
               </span>
             </Card>
 
-            <Card className="p-3.5 flex flex-col justify-between border border-neutral-200 dark:border-neutral-800 rounded-lg">
-              <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Conformes (Exactos)</span>
+            <Card className="p-3.5 flex flex-col justify-between border-l-4 border-l-[#28A745] dark:border-l-[#4ADE80] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+              <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Conformes</span>
               <div className="mt-1 flex items-baseline justify-between">
-                <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+                <span className="text-xl font-bold font-mono text-[#28A745] dark:text-[#4ADE80]">
                   {statistics.itemsMatching}
                 </span>
-                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                <CheckCircle2 className="w-4 h-4 text-[#28A745] dark:text-[#4ADE80]" />
               </div>
-              <span className="text-[11px] text-neutral-500 mt-1">Sin diferencias</span>
+              <span className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1">Sin diferencias</span>
             </Card>
 
-            <Card className="p-3.5 flex flex-col justify-between border border-neutral-200 dark:border-neutral-800 rounded-lg">
-              <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Sobrantes (+)</span>
+            <Card className="p-3.5 flex flex-col justify-between border-l-4 border-l-[#FFC107] dark:border-l-[#FBBF24] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+              <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Sobrantes (+)</span>
               <div className="mt-1 flex items-baseline justify-between">
-                <span className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
+                <span className="text-xl font-bold font-mono text-[#b28500] dark:text-[#FBBF24]">
                   {statistics.itemsSurplus}
                 </span>
-                <TrendingUp className="w-4 h-4 text-indigo-500" />
+                <TrendingUp className="w-4 h-4 text-[#b28500] dark:text-[#FBBF24]" />
               </div>
-              <span className="text-[11px] text-indigo-600 dark:text-indigo-400 mt-1 font-medium">
+              <span className="text-[11px] text-[#b28500] dark:text-[#FBBF24] mt-1 font-medium">
                 +{formatMoneyUSD(statistics.totalCostSurplusUSD)}
               </span>
             </Card>
 
-            <Card className="p-3.5 flex flex-col justify-between border border-neutral-200 dark:border-neutral-800 rounded-lg">
-              <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Faltantes (-)</span>
+            <Card className="p-3.5 flex flex-col justify-between border-l-4 border-l-[#EF4444] dark:border-l-[#F87171] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+              <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Faltantes (-)</span>
               <div className="mt-1 flex items-baseline justify-between">
-                <span className="text-xl font-bold text-rose-600 dark:text-rose-400">
+                <span className="text-xl font-bold font-mono text-[#EF4444] dark:text-[#F87171]">
                   {statistics.itemsMissing}
                 </span>
-                <TrendingDown className="w-4 h-4 text-rose-500" />
+                <TrendingDown className="w-4 h-4 text-[#EF4444] dark:text-[#F87171]" />
               </div>
-              <span className="text-[11px] text-rose-600 dark:text-rose-400 mt-1 font-medium">
+              <span className="text-[11px] text-[#EF4444] dark:text-[#F87171] mt-1 font-medium">
                 -{formatMoneyUSD(statistics.totalCostMissingUSD)}
               </span>
             </Card>
 
-            <Card className="p-3.5 flex flex-col justify-between border border-neutral-200 dark:border-neutral-800 rounded-lg bg-neutral-50 dark:bg-neutral-900/40">
-              <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Descuadre Neto</span>
+            <Card className={`p-3.5 flex flex-col justify-between border-l-4 ${statistics.netImpactUSD > 0 ? "border-l-[#28A745] dark:border-l-[#4ADE80]" : statistics.netImpactUSD < 0 ? "border-l-[#EF4444] dark:border-l-[#F87171]" : "border-l-neutral-400 dark:border-l-neutral-600"} bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs`}>
+              <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Descuadre Neto</span>
               <div className="mt-1">
                 <span
-                  className={`text-lg font-bold ${
+                  className={`text-lg font-bold font-mono ${
                     statistics.netImpactUSD > 0
-                      ? 'text-indigo-600 dark:text-indigo-400'
+                      ? 'text-[#28A745] dark:text-[#4ADE80]'
                       : statistics.netImpactUSD < 0
-                      ? 'text-rose-600 dark:text-rose-400'
-                      : 'text-neutral-800 dark:text-neutral-200'
+                      ? 'text-[#EF4444] dark:text-[#F87171]'
+                      : 'text-[#333333] dark:text-[#E0E0E0]'
                   }`}
                 >
                   {statistics.netImpactUSD > 0 ? '+' : ''}
                   {formatMoneyUSD(statistics.netImpactUSD)}
                 </span>
               </div>
-              <span className="text-[11px] text-neutral-500 mt-1">
+              <span className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1 font-mono">
                 {formatMoneyVES(statistics.netImpactVES)} ({currencySecondary})
               </span>
             </Card>
@@ -1035,7 +1049,7 @@ export const InventoryCountView: React.FC = () => {
               </div>
 
               {/* Department Dropdown */}
-              <div className="w-44">
+              <div className="w-48 flex items-center gap-1">
                 <select
                   value={selectedDepartmentId}
                   onChange={(e) => setSelectedDepartmentId(e.target.value)}
@@ -1048,6 +1062,14 @@ export const InventoryCountView: React.FC = () => {
                     </option>
                   ))}
                 </select>
+                <button
+                  type="button"
+                  onClick={() => setHierarchyModalTarget('tableFilter')}
+                  className="p-2 border border-neutral-300 dark:border-neutral-700 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-sky-600 cursor-pointer shrink-0"
+                  title="Buscar departamento en jerarquía"
+                >
+                  <FolderTree className="w-4 h-4" />
+                </button>
               </div>
 
               {/* Stock Filter */}
@@ -1563,9 +1585,19 @@ export const InventoryCountView: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
-              Alcance por Departamento (Opcional)
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                Alcance por Departamento (Opcional)
+              </label>
+              <button
+                type="button"
+                onClick={() => setHierarchyModalTarget('sessionModal')}
+                className="text-[11px] font-medium text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <FolderTree className="w-3 h-3" />
+                <span>Buscar en Jerarquía</span>
+              </button>
+            </div>
             <select
               value={newSessionDepartmentId}
               onChange={(e) => setNewSessionDepartmentId(e.target.value)}
@@ -1704,6 +1736,21 @@ export const InventoryCountView: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      {/* Modal de Búsqueda de Jerarquía */}
+      <HierarchySearchModal
+        isOpen={hierarchyModalTarget !== null}
+        onClose={() => setHierarchyModalTarget(null)}
+        onSelect={handleHierarchySelect}
+        initialDepartmentId={
+          hierarchyModalTarget === 'sessionModal'
+            ? newSessionDepartmentId
+            : selectedDepartmentId
+        }
+        selectionMode="department_only"
+        title="Buscar Departamento en Jerarquía"
+        subtitle="Seleccione el departamento correspondiente para delimitar el conteo"
+      />
     </div>
   );
 };

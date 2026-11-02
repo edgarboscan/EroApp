@@ -185,9 +185,9 @@ export const CustomerSearchModal: React.FC<CustomerSearchModalProps> = ({
             </span>
           </div>
         ) : (
-          <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-700 rounded-lg">
+          <div className="overflow-x-auto border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-[#1E1F21] shadow-xs">
             <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 font-semibold border-b border-neutral-200 dark:border-neutral-700 text-[11px] uppercase tracking-wider sticky top-0 z-10">
+              <thead className="bg-[#F4F6F9] dark:bg-[#18191A] text-neutral-700 dark:text-neutral-300 font-semibold border-b border-gray-200 dark:border-gray-800 text-[10px] uppercase tracking-wider sticky top-0 z-10">
                 <tr>
                   <th className="py-2.5 px-3 w-32">Documento / RIF</th>
                   <th className="py-2.5 px-3">Nombre / Razón Social</th>
@@ -196,7 +196,7 @@ export const CustomerSearchModal: React.FC<CustomerSearchModalProps> = ({
                   <th className="py-2.5 px-3 w-24 text-right">Acción</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800/80">
                 {filteredCustomers.map((c) => {
                   const docNumber = c.doc || c.documentId || c.rif || (c.docType && c.docNumber ? `${c.docType}-${c.docNumber}` : 'S/D');
                   const isBlocked = Boolean(c.isBlocked || c.is_blocked || c.status === 'BLOCKED');
@@ -212,7 +212,7 @@ export const CustomerSearchModal: React.FC<CustomerSearchModalProps> = ({
                       className={`transition-colors group ${
                         isBlocked
                           ? 'bg-red-50/40 dark:bg-red-950/20 hover:bg-red-50/60 dark:hover:bg-red-950/30 cursor-not-allowed'
-                          : 'hover:bg-neutral-50 dark:hover:bg-neutral-800/60 cursor-pointer'
+                          : 'hover:bg-[#F4F6F9]/80 dark:hover:bg-neutral-800/50 cursor-pointer transition-colors'
                       }`}
                     >
                       <td className="py-2.5 px-3 font-mono font-medium text-neutral-800 dark:text-neutral-200">
@@ -229,7 +229,7 @@ export const CustomerSearchModal: React.FC<CustomerSearchModalProps> = ({
                           <span className={`font-semibold transition-colors ${
                             isBlocked
                               ? 'text-neutral-700 dark:text-neutral-300'
-                              : 'text-neutral-900 dark:text-neutral-100 group-hover:text-sky-600 dark:group-hover:text-sky-400'
+                              : 'text-neutral-900 dark:text-neutral-100 group-hover:text-[#007BFF] dark:group-hover:text-[#3D91FF]'
                           }`}>
                             {c.name}
                           </span>
@@ -300,7 +300,7 @@ export const CustomerSearchModal: React.FC<CustomerSearchModalProps> = ({
                               e.stopPropagation();
                               handleSelectItem(c);
                             }}
-                            className="text-xs py-1 px-2.5 group-hover:bg-sky-50 dark:group-hover:bg-sky-950/40 group-hover:border-sky-300 dark:group-hover:border-sky-700 group-hover:text-sky-700 dark:group-hover:text-sky-300"
+                            className="text-xs py-1 px-2.5 group-hover:bg-[#007BFF]/10 dark:group-hover:bg-[#3D91FF]/15 group-hover:border-[#007BFF] dark:group-hover:border-[#3D91FF] group-hover:text-[#007BFF] dark:group-hover:text-[#3D91FF]"
                           >
                             <Check className="w-3.5 h-3.5 mr-1" />
                             Elegir

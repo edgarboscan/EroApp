@@ -2,6 +2,21 @@
 -- ERO ERP VE - RESTAURANT & KITCHEN DISPLAY (KDS) TABLES
 -- ========================================================
 
+CREATE TABLE IF NOT EXISTS `restaurant_settings` (
+  `company_id` CHAR(36) NOT NULL,
+  `branch_id` CHAR(36) DEFAULT NULL,
+  `print_order_ticket` TINYINT(1) NOT NULL DEFAULT 1,
+  `print_waiter_copy` TINYINT(1) NOT NULL DEFAULT 1,
+  `print_kitchen_ticket` TINYINT(1) NOT NULL DEFAULT 1,
+  `ticket_print_mode` ENUM('direct', 'prompt') NOT NULL DEFAULT 'prompt',
+  `ticket_header` VARCHAR(255) DEFAULT NULL,
+  `ticket_footer` VARCHAR(255) DEFAULT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`company_id`),
+  CONSTRAINT `fk_rsettings_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS `restaurant_tables` (
   `id` CHAR(36) NOT NULL,
   `company_id` CHAR(36) NOT NULL,
@@ -43,6 +58,7 @@ CREATE TABLE IF NOT EXISTS `restaurant_orders` (
   `waiter_name` VARCHAR(150) DEFAULT NULL,
   `customer_id` CHAR(36) DEFAULT NULL,
   `customer_name` VARCHAR(150) DEFAULT NULL,
+  `cash_register_id` CHAR(36) DEFAULT NULL,
   `status` ENUM('OPEN', 'BILL_REQUESTED', 'PAID', 'CANCELLED') NOT NULL DEFAULT 'OPEN',
   `notes` TEXT DEFAULT NULL,
   `total_usd` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
@@ -164,3 +180,25 @@ CREATE TABLE IF NOT EXISTS `restaurant_order_payments` (
   CONSTRAINT `fk_ropayments_order` FOREIGN KEY (`order_id`) REFERENCES `restaurant_orders` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_ropayments_customer` FOREIGN KEY (`order_customer_id`) REFERENCES `restaurant_order_customers` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- -----------------------------------------------------------------------------
+-- PERMISOS DEL MÓDULO RESTAURANT & COMANDAS (KDS)
+-- -----------------------------------------------------------------------------
+INSERT IGNORE INTO `permissions` (`id`, `module`, `action`, `description`) VALUES
+  (UUID(), 'restaurant', 'read', 'Ver plano de mesas, pedidos abiertos y comandas'),
+  (UUID(), 'restaurant', 'write', 'Crear y editar pedidos de salón/comandas'),
+  (UUID(), 'restaurant', 'items', 'Agregar, despachar o anular platos/ítems de comanda'),
+  (UUID(), 'restaurant', 'payments', 'Procesar pagos y cuentas separadas de comanda'),
+  (UUID(), 'restaurant', 'close', 'Cerrar mesas y turnos de restaurante'),
+  (UUID(), 'restaurant', 'tables', 'Configuración de salones y distribución de mesas'),
+  (UUID(), 'restaurant', 'kds', 'Acceso y operación del Kitchen Display System (KDS)'),
+  (UUID(), 'restaurant', 'settings', 'Configurar parámetros y reglas de restaurante');
+
+-- Asignar permisos de restaurante a roles administrativos
+INSERT IGNORE INTO `role_permissions` (`role_id`, `permission_id`)
+SELECT r.id, p.id 
+FROM `roles` r
+CROSS JOIN `permissions` p
+WHERE r.name IN ('Super Admin', 'Administrador', 'Super Administrador', 'General Manager')
+  AND p.module = 'restaurant';
+

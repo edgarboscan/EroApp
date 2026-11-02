@@ -10,12 +10,51 @@ import crypto from 'crypto';
 
 export class TaxesService {
   /**
-   * Obtiene el listado de retenciones IVA e ISLR con KPIs consolidados
+   * Obtiene la condición tributaria oficial de la empresa (Agente de Retención / Sujeto Pasivo Especial)
+   */
+  static async getCompanyTaxStatus(companyId: string) {
+    const rows = await query<any>(
+      `SELECT id, rif, legal_name, trade_name, is_special_taxpayer, iva_retention_rate 
+       FROM companies 
+       WHERE id = ?`,
+      [companyId]
+    );
+
+    if (rows.length === 0) {
+      return {
+        id: companyId,
+        rif: 'J-00000000-0',
+        legalName: 'EMPRESA',
+        tradeName: null,
+        isSpecialTaxpayer: false,
+        ivaRetentionRate: 0,
+        taxpayerCondition: 'Contribuyente Ordinario (No Agente de Retención)',
+      };
+    }
+
+    const c = rows[0];
+    const isSpecial = Boolean(c.is_special_taxpayer);
+    return {
+      id: c.id,
+      rif: c.rif,
+      legalName: c.legal_name,
+      tradeName: c.trade_name,
+      isSpecialTaxpayer: isSpecial,
+      ivaRetentionRate: isSpecial ? Number(c.iva_retention_rate || 75) : 0,
+      taxpayerCondition: isSpecial
+        ? 'Sujeto Pasivo Especial (Agente de Retención SENIAT)'
+        : 'Contribuyente Ordinario (No Agente de Retención)',
+    };
+  }
+
+  /**
+   * Obtiene el listado de retenciones IVA e ISLR con KPIs consolidados y estatus fiscal
    */
   static async getWithholdings(
     companyId: string,
     filter?: { type?: 'ALL' | 'IVA' | 'ISLR'; period?: string; branchId?: string; supplierId?: string }
   ) {
+    const companyTaxStatus = await this.getCompanyTaxStatus(companyId);
     const period = filter?.period;
     const branchId = filter?.branchId;
     const supplierId = filter?.supplierId;
@@ -152,6 +191,7 @@ export class TaxesService {
       .reduce((sum, w) => sum + w.retainedAmount, 0);
 
     return {
+      companyTaxStatus,
       ivaWithholdings,
       islrWithholdings,
       kpis: {
@@ -267,8 +307,15 @@ export class TaxesService {
 
   /**
    * Obtiene facturas de compra pendientes de retención de IVA o ISLR
+   * NOTA LEGAL SENIAT: Solo si la empresa es Sujeto Pasivo Especial (Agente de Retención)
    */
   static async getInvoicesPendingWithholding(companyId: string, branchId?: string) {
+    // 0. Si la empresa no es agente de retención, legalmente no debe retener a proveedores
+    const companyStatus = await this.getCompanyTaxStatus(companyId);
+    if (!companyStatus.isSpecialTaxpayer) {
+      return [];
+    }
+
     let sql = `
       SELECT 
         pi.id, pi.branch_id, br.name as branch_name,
@@ -315,10 +362,23 @@ export class TaxesService {
   }
 
   /**
-   * Emite comprobante oficial de Retención de IVA
+   * Emite comprobante oficial de Retención de IVA (Providencia SNAT/2015/0049)
+   * REGLA ESTRICTA: La empresa debe ser Agente de Retención (Sujeto Pasivo Especial)
    */
   static async emitIVAWithholding(companyId: string, userId: string, data: EmitWithholdingIVAInput) {
     return await withTransaction(async (conn) => {
+      // 0. Verificar condición de Sujeto Pasivo Especial (Agente de Retención)
+      const [companyRows] = await conn.query<any[]>(
+        `SELECT is_special_taxpayer, iva_retention_rate FROM companies WHERE id = ?`,
+        [companyId]
+      );
+      const isSpecial = companyRows.length > 0 ? Boolean(companyRows[0].is_special_taxpayer) : false;
+      if (!isSpecial) {
+        throw new Error(
+          'Operación rechazada: La empresa no está calificada como Sujeto Pasivo Especial (Agente de Retención) ante el SENIAT. Conforme al Artículo 11 de la Ley del IVA y Providencia SNAT/2015/0049, los contribuyentes ordinarios no tienen facultad legal para practicar retenciones de IVA a sus proveedores ni emitir comprobantes.'
+        );
+      }
+
       // 1. Verificar existencia de factura de compra
       const [invoiceRows] = await conn.query<any[]>(
         `SELECT pi.*, br.company_id, s.rif as supplier_rif, s.name as supplier_name
@@ -366,8 +426,11 @@ export class TaxesService {
       const nextSequence = Number(countRows[0].count) + 1;
       const voucherNumber = generateSENIATVoucherNumber(year, month, nextSequence);
 
-      // 4. Calcular el monto retenido
-      const retainedPercentage = data.retainedPercentage === 100 ? 100 : 75;
+      // 4. Determinar el porcentaje y monto retenido
+      const companyDefaultRate = Number(companyRows[0].iva_retention_rate) || 75;
+      const retainedPercentage = data.retainedPercentage 
+        ? (data.retainedPercentage === 100 ? 100 : 75)
+        : (companyDefaultRate === 100 ? 100 : 75);
       const ivaRetainedAmount = calculateIVARetention(Number(invoice.tax_amount), retainedPercentage);
 
       // 5. Insertar en tax_withholdings_iva
@@ -401,6 +464,42 @@ export class TaxesService {
         ]
       );
 
+      // 6. Aplicar abono por retención a Cuentas por Pagar (payables)
+      const [payableRows] = await conn.query<any[]>(
+        `SELECT id, amount_total, amount_paid, amount_balance FROM payables WHERE invoice_id = ?`,
+        [invoice.id]
+      );
+      if (payableRows.length > 0) {
+        const payable = payableRows[0];
+        const paymentId = crypto.randomUUID();
+        const exchangeRate = Number(invoice.exchange_rate) || 1;
+        const amountUsd = invoice.currency === 'USD' ? ivaRetainedAmount : Number((ivaRetainedAmount / exchangeRate).toFixed(2));
+        const amountVes = invoice.currency === 'VES' ? ivaRetainedAmount : Number((ivaRetainedAmount * exchangeRate).toFixed(2));
+
+        await conn.query(
+          `INSERT INTO purchase_payments (
+            id, invoice_id, payable_id, method, amount_ves, amount_usd, exchange_rate, reference_number, notes
+          ) VALUES (?, ?, ?, 'RETENCION_IVA', ?, ?, ?, ?, ?)`,
+          [
+            paymentId,
+            invoice.id,
+            payable.id,
+            amountVes,
+            amountUsd,
+            exchangeRate,
+            voucherNumber,
+            `Comprobante Retención IVA SENIAT N° ${voucherNumber}`
+          ]
+        );
+
+        const newAmountPaid = Number(payable.amount_paid) + (invoice.currency === 'VES' ? amountVes : amountUsd);
+        const newStatus = newAmountPaid >= Number(payable.amount_total) ? 'PAID' : 'PARTIAL';
+        await conn.query(
+          `UPDATE payables SET amount_paid = ?, status = ? WHERE id = ?`,
+          [newAmountPaid, newStatus, payable.id]
+        );
+      }
+
       return {
         id: withholdingId,
         voucherNumber,
@@ -417,9 +516,22 @@ export class TaxesService {
 
   /**
    * Emite comprobante de Retención de ISLR (Decreto 1808)
+   * REGLA ESTRICTA: La empresa debe ser Agente de Retención
    */
   static async emitISLRWithholding(companyId: string, userId: string, data: EmitWithholdingISLRInput) {
     return await withTransaction(async (conn) => {
+      // 0. Verificar condición de Agente de Retención
+      const [companyRows] = await conn.query<any[]>(
+        `SELECT is_special_taxpayer FROM companies WHERE id = ?`,
+        [companyId]
+      );
+      const isSpecial = companyRows.length > 0 ? Boolean(companyRows[0].is_special_taxpayer) : false;
+      if (!isSpecial) {
+        throw new Error(
+          'Operación rechazada: La empresa está calificada como Contribuyente Ordinario ante el SENIAT. Conforme al Decreto 1808 y la normativa tributaria venezolana, la retención de ISLR a proveedores solo puede ser practicada por entidades designadas formalmente como Agentes de Retención.'
+        );
+      }
+
       // 1. Verificar factura de compra
       const [invoiceRows] = await conn.query<any[]>(
         `SELECT pi.*, br.company_id, s.rif as supplier_rif, s.name as supplier_name
@@ -501,6 +613,42 @@ export class TaxesService {
         ]
       );
 
+      // 6. Aplicar abono por retención a Cuentas por Pagar (payables)
+      const [payableRows] = await conn.query<any[]>(
+        `SELECT id, amount_total, amount_paid, amount_balance FROM payables WHERE invoice_id = ?`,
+        [invoice.id]
+      );
+      if (payableRows.length > 0) {
+        const payable = payableRows[0];
+        const paymentId = crypto.randomUUID();
+        const exchangeRate = Number(invoice.exchange_rate) || 1;
+        const amountUsd = invoice.currency === 'USD' ? islrRetainedAmount : Number((islrRetainedAmount / exchangeRate).toFixed(2));
+        const amountVes = invoice.currency === 'VES' ? islrRetainedAmount : Number((islrRetainedAmount * exchangeRate).toFixed(2));
+
+        await conn.query(
+          `INSERT INTO purchase_payments (
+            id, invoice_id, payable_id, method, amount_ves, amount_usd, exchange_rate, reference_number, notes
+          ) VALUES (?, ?, ?, 'RETENCION_ISLR', ?, ?, ?, ?, ?)`,
+          [
+            paymentId,
+            invoice.id,
+            payable.id,
+            amountVes,
+            amountUsd,
+            exchangeRate,
+            voucherNumber,
+            `Comprobante Retención ISLR Decreto 1808 N° ${voucherNumber}`
+          ]
+        );
+
+        const newAmountPaid = Number(payable.amount_paid) + (invoice.currency === 'VES' ? amountVes : amountUsd);
+        const newStatus = newAmountPaid >= Number(payable.amount_total) ? 'PAID' : 'PARTIAL';
+        await conn.query(
+          `UPDATE payables SET amount_paid = ?, status = ? WHERE id = ?`,
+          [newAmountPaid, newStatus, payable.id]
+        );
+      }
+
       return {
         id: withholdingId,
         voucherNumber,
@@ -517,21 +665,70 @@ export class TaxesService {
   }
 
   /**
-   * Anula un comprobante de retención
+   * Anula un comprobante de retención y restaura el saldo en CxP
    */
   static async annulWithholding(companyId: string, type: 'IVA' | 'ISLR', id: string) {
-    const table = type === 'IVA' ? 'tax_withholdings_iva' : 'tax_withholdings_islr';
-    const result = await query(
-      `UPDATE ${table} SET status = 'ANNULLED' WHERE id = ? AND company_id = ?`,
-      [id, companyId]
-    );
-    return { success: true, message: `Comprobante de ${type} anulado correctamente` };
+    return await withTransaction(async (conn) => {
+      const table = type === 'IVA' ? 'tax_withholdings_iva' : 'tax_withholdings_islr';
+      const [rows] = await conn.query<any[]>(
+        `SELECT * FROM ${table} WHERE id = ? AND company_id = ?`,
+        [id, companyId]
+      );
+
+      if (rows.length === 0) {
+        throw new Error('Comprobante de retención no encontrado');
+      }
+
+      const voucher = rows[0];
+      if (voucher.status === 'ANNULLED') {
+        throw new Error('El comprobante ya se encuentra anulado');
+      }
+
+      // 1. Marcar como anulado
+      await conn.query(
+        `UPDATE ${table} SET status = 'ANNULLED' WHERE id = ? AND company_id = ?`,
+        [id, companyId]
+      );
+
+      // 2. Reversar en purchase_payments y payables
+      const [paymentRows] = await conn.query<any[]>(
+        `SELECT id, payable_id, amount_usd, amount_ves FROM purchase_payments 
+         WHERE reference_number = ? AND invoice_id = ?`,
+        [voucher.voucher_number, voucher.purchase_invoice_id]
+      );
+
+      if (paymentRows.length > 0) {
+        const payment = paymentRows[0];
+        await conn.query(`DELETE FROM purchase_payments WHERE id = ?`, [payment.id]);
+
+        if (payment.payable_id) {
+          const [payableRows] = await conn.query<any[]>(
+            `SELECT id, amount_total, amount_paid FROM payables WHERE id = ?`,
+            [payment.payable_id]
+          );
+          if (payableRows.length > 0) {
+            const payable = payableRows[0];
+            const dedAmount = Number(payment.amount_usd) || Number(payment.amount_ves) || 0;
+            const newAmountPaid = Math.max(0, Number(payable.amount_paid) - dedAmount);
+            const newStatus = newAmountPaid <= 0 ? 'PENDING' : 'PARTIAL';
+            await conn.query(
+              `UPDATE payables SET amount_paid = ?, status = ? WHERE id = ?`,
+              [newAmountPaid, newStatus, payable.id]
+            );
+          }
+        }
+      }
+
+      return { success: true, message: `Comprobante de ${type} N° ${voucher.voucher_number} anulado correctamente y cuenta por pagar restaurada` };
+    });
   }
 
   /**
    * Genera el Libro de Compras Fiscal (SENIAT) para el período dado
    */
   static async getPurchasesBook(companyId: string, period: string, branchId?: string) {
+    const companyTaxStatus = await this.getCompanyTaxStatus(companyId);
+
     let sql = `
       SELECT * FROM v_book_purchases
       WHERE company_id = ? AND fiscal_period = ?
@@ -562,8 +759,8 @@ export class TaxesService {
       baseTaxableAmount: Number(r.base_taxable_amount),
       taxRate: Number(r.tax_rate),
       taxAmount: Number(r.tax_amount),
-      ivaRetainedAmount: Number(r.iva_retained_amount),
-      withholdingVoucherNumber: r.withholding_voucher_number || '',
+      ivaRetainedAmount: companyTaxStatus.isSpecialTaxpayer ? Number(r.iva_retained_amount) : 0,
+      withholdingVoucherNumber: companyTaxStatus.isSpecialTaxpayer ? (r.withholding_voucher_number || '') : '',
       fiscalPeriod: r.fiscal_period,
     }));
 
@@ -579,6 +776,7 @@ export class TaxesService {
     );
 
     return {
+      companyTaxStatus,
       period,
       branchId,
       items: mapped,
@@ -596,6 +794,8 @@ export class TaxesService {
    * Genera el Libro de Ventas Fiscal (SENIAT) para el período dado
    */
   static async getSalesBook(companyId: string, period: string, branchId?: string) {
+    const companyTaxStatus = await this.getCompanyTaxStatus(companyId);
+
     let sql = `
       SELECT * FROM v_book_sales
       WHERE company_id = ? AND fiscal_period = ?
@@ -643,6 +843,7 @@ export class TaxesService {
     );
 
     return {
+      companyTaxStatus,
       period,
       branchId,
       items: mapped,
@@ -661,6 +862,8 @@ export class TaxesService {
    * Genera el Reporte Anual de Retenciones de ISLR (Comprobante ARCV) por proveedor
    */
   static async getARCVReport(companyId: string, taxYear: number, supplierId?: string) {
+    const companyTaxStatus = await this.getCompanyTaxStatus(companyId);
+
     let sql = `
       SELECT 
         s.id as supplier_id, s.rif as supplier_rif, s.name as supplier_name,
@@ -731,6 +934,7 @@ export class TaxesService {
     }));
 
     return {
+      companyTaxStatus,
       taxYear,
       suppliersCount: suppliersList.length,
       suppliers: suppliersList,
@@ -738,14 +942,52 @@ export class TaxesService {
   }
 
   /**
+   * Obtiene los años gravables registrados en base de datos para el comprobante ARCV
+   */
+  static async getARCVAvailableYears(companyId: string): Promise<number[]> {
+    const rows = await query<{ year: string }>(
+      `SELECT DISTINCT year FROM (
+         SELECT LEFT(tax_period, 4) as year
+         FROM tax_withholdings_islr
+         WHERE company_id = ? AND status <> 'ANNULLED' AND tax_period IS NOT NULL
+         UNION
+         SELECT CAST(YEAR(invoice_date) AS CHAR) as year
+         FROM purchase_invoices
+         WHERE company_id = ? AND status <> 'ANNULLED' AND invoice_date IS NOT NULL
+       ) y
+       WHERE year IS NOT NULL AND year REGEXP '^[0-9]{4}$'
+       ORDER BY year DESC`,
+      [companyId, companyId]
+    );
+
+    const years = rows
+      .map((r) => parseInt(r.year, 10))
+      .filter((y) => !isNaN(y) && y >= 2000 && y <= 2100);
+
+    if (years.length === 0) {
+      years.push(new Date().getFullYear());
+    }
+
+    return years;
+  }
+
+  /**
    * Exporta la Declaración Informativa SENIAT en formato oficial XML / TXT
+   * REGLA ESTRICTA: Solo para Agentes de Retención
    */
   static async exportSENIAT(companyId: string, period: string, type: 'ISLR' | 'IVA') {
     const [companyRows] = await query<any[]>(
-      `SELECT rif, legal_name FROM companies WHERE id = ?`,
+      `SELECT rif, legal_name, is_special_taxpayer FROM companies WHERE id = ?`,
       [companyId]
     );
-    const company = companyRows[0] || { rif: 'J-00000000-0', legal_name: 'EMPRESA' };
+    const company = companyRows[0] || { rif: 'J-00000000-0', legal_name: 'EMPRESA', is_special_taxpayer: 0 };
+    
+    if (!company.is_special_taxpayer) {
+      throw new Error(
+        'Operación no permitida: La empresa está calificada como Contribuyente Ordinario ante el SENIAT. Los contribuyentes ordinarios no actúan como Agentes de Retención ni presentan Declaraciones Informativas de Retenciones practicadas (Archivos TXT/XML SENIAT).'
+      );
+    }
+
     const cleanCompanyRif = company.rif.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
     const periodFormatted = period.replace('-', '');
 

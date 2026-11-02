@@ -10,9 +10,11 @@ import {
   AddOrderPaymentSchema,
   OpenOrderSchema,
   CloseTableOrderSchema,
+  UpdateRestaurantSettingsSchema,
 } from '@ero/shared';
 import { RestaurantService } from './restaurant.service';
 import { authenticate, AppEnv } from '../../middleware/auth';
+import { authorize } from '../../middleware/rbac';
 
 export const restaurantRouter = new Hono<AppEnv>();
 
@@ -21,7 +23,7 @@ export const restaurantRouter = new Hono<AppEnv>();
 // ==========================================
 
 // GET /api/restaurant/tables - Listar mesas
-restaurantRouter.get('/tables', authenticate, async (c) => {
+restaurantRouter.get('/tables', authenticate, authorize('restaurant', 'read'), async (c) => {
   const user = c.get('user');
   const branchId = c.req.header('x-branch-id') || user.branchId || 'b1111111-1111-1111-1111-111111111111';
   const zone = c.req.query('zone');
@@ -39,6 +41,7 @@ restaurantRouter.get('/tables', authenticate, async (c) => {
 restaurantRouter.post(
   '/tables',
   authenticate,
+  authorize('restaurant', 'tables'),
   zValidator('json', CreateRestaurantTableSchema),
   async (c) => {
     const user = c.get('user');
@@ -58,6 +61,7 @@ restaurantRouter.post(
 restaurantRouter.put(
   '/tables/:id',
   authenticate,
+  authorize('restaurant', 'tables'),
   zValidator('json', UpdateRestaurantTableSchema),
   async (c) => {
     const user = c.get('user');
@@ -74,7 +78,7 @@ restaurantRouter.put(
 );
 
 // DELETE /api/restaurant/tables/:id - Eliminar mesa
-restaurantRouter.delete('/tables/:id', authenticate, async (c) => {
+restaurantRouter.delete('/tables/:id', authenticate, authorize('restaurant', 'tables'), async (c) => {
   const user = c.get('user');
   const tableId = c.req.param('id') as string;
 
@@ -91,7 +95,7 @@ restaurantRouter.delete('/tables/:id', authenticate, async (c) => {
 // ==========================================
 
 // GET /api/restaurant/products - Listar productos por departamento / grupo
-restaurantRouter.get('/products', authenticate, async (c) => {
+restaurantRouter.get('/products', authenticate, authorize(['restaurant.read', 'restaurant.write', 'pos.read']), async (c) => {
   const user = c.get('user');
   const departmentId = c.req.query('department_id');
   const groupId = c.req.query('group_id');
@@ -111,7 +115,7 @@ restaurantRouter.get('/products', authenticate, async (c) => {
 });
 
 // GET /api/restaurant/departments - Departamentos y grupos para filtrado
-restaurantRouter.get('/departments', authenticate, async (c) => {
+restaurantRouter.get('/departments', authenticate, authorize(['restaurant.read', 'restaurant.write', 'pos.read']), async (c) => {
   const user = c.get('user');
   const cashRegisterId = c.req.query('cash_register_id');
 
@@ -128,7 +132,7 @@ restaurantRouter.get('/departments', authenticate, async (c) => {
 // ==========================================
 
 // GET /api/restaurant/preset-notes - Listar observaciones preestablecidas
-restaurantRouter.get('/preset-notes', authenticate, async (c) => {
+restaurantRouter.get('/preset-notes', authenticate, authorize(['restaurant.read', 'restaurant.write']), async (c) => {
   const user = c.get('user');
   const category = c.req.query('category');
 
@@ -144,6 +148,7 @@ restaurantRouter.get('/preset-notes', authenticate, async (c) => {
 restaurantRouter.post(
   '/preset-notes',
   authenticate,
+  authorize(['restaurant.write', 'restaurant.settings']),
   zValidator('json', CreatePresetNoteSchema),
   async (c) => {
     const user = c.get('user');
@@ -166,6 +171,7 @@ restaurantRouter.post(
 restaurantRouter.post(
   '/orders/open',
   authenticate,
+  authorize('restaurant', 'write'),
   zValidator('json', OpenOrderSchema),
   async (c) => {
     const user = c.get('user');
@@ -186,7 +192,7 @@ restaurantRouter.post(
 );
 
 // GET /api/restaurant/orders/:id - Detalle completo de comanda
-restaurantRouter.get('/orders/:id', authenticate, async (c) => {
+restaurantRouter.get('/orders/:id', authenticate, authorize(['restaurant.read', 'restaurant.write', 'pos.read']), async (c) => {
   const orderId = c.req.param('id') as string;
 
   try {
@@ -201,7 +207,7 @@ restaurantRouter.get('/orders/:id', authenticate, async (c) => {
 });
 
 // GET /api/restaurant/orders/table/:tableId - Comanda activa por mesa
-restaurantRouter.get('/orders/table/:tableId', authenticate, async (c) => {
+restaurantRouter.get('/orders/table/:tableId', authenticate, authorize(['restaurant.read', 'restaurant.write', 'pos.read']), async (c) => {
   const tableId = c.req.param('tableId') as string;
 
   try {
@@ -216,6 +222,7 @@ restaurantRouter.get('/orders/table/:tableId', authenticate, async (c) => {
 restaurantRouter.post(
   '/orders/:id/customers',
   authenticate,
+  authorize('restaurant', 'write'),
   zValidator('json', CreateOrderCustomerSchema),
   async (c) => {
     const orderId = c.req.param('id');
@@ -234,6 +241,7 @@ restaurantRouter.post(
 restaurantRouter.post(
   '/orders/:id/items',
   authenticate,
+  authorize('restaurant', 'items'),
   zValidator('json', AddOrderItemSchema),
   async (c) => {
     const user = c.get('user');
@@ -250,7 +258,7 @@ restaurantRouter.post(
 );
 
 // PUT /api/restaurant/items/:id - Actualizar ítem de comanda
-restaurantRouter.put('/items/:id', authenticate, async (c) => {
+restaurantRouter.put('/items/:id', authenticate, authorize('restaurant', 'items'), async (c) => {
   const itemId = c.req.param('id') as string;
   const body = await c.req.json();
 
@@ -263,7 +271,7 @@ restaurantRouter.put('/items/:id', authenticate, async (c) => {
 });
 
 // DELETE /api/restaurant/items/:id - Eliminar ítem de comanda
-restaurantRouter.delete('/items/:id', authenticate, async (c) => {
+restaurantRouter.delete('/items/:id', authenticate, authorize('restaurant', 'items'), async (c) => {
   const itemId = c.req.param('id') as string;
 
   try {
@@ -279,7 +287,7 @@ restaurantRouter.delete('/items/:id', authenticate, async (c) => {
 // ==========================================
 
 // GET /api/restaurant/kds/queue - Cola de preparación remota
-restaurantRouter.get('/kds/queue', authenticate, async (c) => {
+restaurantRouter.get('/kds/queue', authenticate, authorize(['restaurant.kds', 'restaurant.read']), async (c) => {
   const user = c.get('user');
   const branchId = c.req.header('x-branch-id') || user.branchId || 'b1111111-1111-1111-1111-111111111111';
   const station = c.req.query('station') as any;
@@ -303,6 +311,7 @@ restaurantRouter.get('/kds/queue', authenticate, async (c) => {
 restaurantRouter.put(
   '/kds/items/:id/status',
   authenticate,
+  authorize('restaurant', 'kds'),
   zValidator('json', UpdateItemStatusSchema),
   async (c) => {
     const itemId = c.req.param('id') as string;
@@ -322,7 +331,7 @@ restaurantRouter.put(
 // ==========================================
 
 // GET /api/restaurant/orders/:id/breakdown - Desglose de pagos y división de cuenta
-restaurantRouter.get('/orders/:id/breakdown', authenticate, async (c) => {
+restaurantRouter.get('/orders/:id/breakdown', authenticate, authorize(['restaurant.payments', 'restaurant.read']), async (c) => {
   const orderId = c.req.param('id') as string;
 
   try {
@@ -337,6 +346,7 @@ restaurantRouter.get('/orders/:id/breakdown', authenticate, async (c) => {
 restaurantRouter.post(
   '/orders/:id/payments',
   authenticate,
+  authorize('restaurant', 'payments'),
   zValidator('json', AddOrderPaymentSchema),
   async (c) => {
     const orderId = c.req.param('id') as string;
@@ -355,6 +365,7 @@ restaurantRouter.post(
 restaurantRouter.post(
   '/orders/:id/close',
   authenticate,
+  authorize('restaurant', 'close'),
   zValidator('json', CloseTableOrderSchema),
   async (c) => {
     const user = c.get('user');
@@ -379,7 +390,7 @@ restaurantRouter.post(
 // ==========================================
 
 // GET /api/restaurant/closures - Listar históricos de cierre
-restaurantRouter.get('/closures', authenticate, async (c) => {
+restaurantRouter.get('/closures', authenticate, authorize(['restaurant.close', 'restaurant.read', 'reports.read']), async (c) => {
   const user = c.get('user');
   const branchId = c.req.header('x-branch-id') || user.branchId || 'b1111111-1111-1111-1111-111111111111';
   const tableId = c.req.query('table_id');
@@ -403,7 +414,7 @@ restaurantRouter.get('/closures', authenticate, async (c) => {
 });
 
 // GET /api/restaurant/closures/:id - Detalle de un cierre
-restaurantRouter.get('/closures/:id', authenticate, async (c) => {
+restaurantRouter.get('/closures/:id', authenticate, authorize(['restaurant.close', 'restaurant.read', 'reports.read']), async (c) => {
   const closureId = c.req.param('id') as string;
 
   try {
@@ -418,7 +429,7 @@ restaurantRouter.get('/closures/:id', authenticate, async (c) => {
 });
 
 // GET /api/restaurant/tips-report - Reporte de Propinas por Mesero / Usuario que generó comanda
-restaurantRouter.get('/tips-report', authenticate, async (c) => {
+restaurantRouter.get('/tips-report', authenticate, authorize(['restaurant.close', 'restaurant.read', 'reports.read']), async (c) => {
   const user = c.get('user');
   const branchId = c.req.header('x-branch-id') || user.branchId || 'b1111111-1111-1111-1111-111111111111';
   const waiterId = c.req.query('waiter_id') || c.req.query('waiterId');
@@ -447,7 +458,7 @@ restaurantRouter.get('/tips-report', authenticate, async (c) => {
 // ==========================================
 
 // GET /api/restaurant/orders-unbilled - Comandas cerradas listas para importar al POS
-restaurantRouter.get('/orders-unbilled', authenticate, async (c) => {
+restaurantRouter.get('/orders-unbilled', authenticate, authorize(['restaurant.read', 'pos.read', 'pos.create']), async (c) => {
   const user = c.get('user');
   const branchId = c.req.header('x-branch-id') || user.branchId || 'b1111111-1111-1111-1111-111111111111';
 
@@ -460,7 +471,7 @@ restaurantRouter.get('/orders-unbilled', authenticate, async (c) => {
 });
 
 // POST /api/restaurant/orders/:id/mark-invoiced - Marcar comanda como facturada por POS
-restaurantRouter.post('/orders/:id/mark-invoiced', authenticate, async (c) => {
+restaurantRouter.post('/orders/:id/mark-invoiced', authenticate, authorize(['restaurant.write', 'pos.create']), async (c) => {
   const orderId = c.req.param('id') as string;
   const body = await c.req.json().catch(() => ({}));
 
@@ -471,4 +482,38 @@ restaurantRouter.post('/orders/:id/mark-invoiced', authenticate, async (c) => {
     return c.json({ success: false, error: { message: error.message } }, 400);
   }
 });
+
+// ==========================================
+// CONFIGURACIÓN GENERAL DE RESTAURANTE
+// ==========================================
+
+// GET /api/restaurant/settings - Obtener configuración general de restaurante
+restaurantRouter.get('/settings', authenticate, authorize(['restaurant.read', 'restaurant.settings', 'config.read']), async (c) => {
+  const user = c.get('user');
+  const branchId = c.req.header('x-branch-id') || user.branchId || undefined;
+  try {
+    const settings = await RestaurantService.getRestaurantSettings(user.companyId, branchId);
+    return c.json({ success: true, data: settings });
+  } catch (error: any) {
+    return c.json({ success: false, error: { message: error.message } }, 500);
+  }
+});
+
+// PUT /api/restaurant/settings - Actualizar configuración general de restaurante
+restaurantRouter.put(
+  '/settings',
+  authenticate,
+  authorize('restaurant', 'settings'),
+  zValidator('json', UpdateRestaurantSettingsSchema),
+  async (c) => {
+    const user = c.get('user');
+    const body = c.req.valid('json');
+    try {
+      const settings = await RestaurantService.updateRestaurantSettings(user.companyId, body);
+      return c.json({ success: true, data: settings });
+    } catch (error: any) {
+      return c.json({ success: false, error: { message: error.message } }, 500);
+    }
+  }
+);
 

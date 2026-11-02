@@ -726,11 +726,13 @@ export const SupplierNotesView: React.FC = () => {
           </Button>
           {canManageNotes && (
             <Button
+              variant="outline"
               size="sm"
               onClick={handleOpenCreateModal}
-              className="flex-1 sm:flex-none rounded-lg bg-sky-600 hover:bg-sky-700 text-white"
+              className="flex items-center gap-2 border-[#007BFF] dark:border-[#3D91FF] rounded-lg bg-blue-50 dark:bg-blue-600/30 hover:bg-border-blue-600 dark:hover:border-blue-500 flex-1 sm:flex-none"
+              title="Nueva Nota de Proveedor"
             >
-              <Plus className="w-4 h-4 mr-1" />
+              <Plus className="w-4 h-4 text-blue-600 dark:blue-500 mr-1" />
               Nueva Nota
             </Button>
           )}
@@ -739,69 +741,69 @@ export const SupplierNotesView: React.FC = () => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-4 border-l-4 border-l-emerald-500 bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800">
+        <Card className="p-4 border-l-4 border-l-[#28A745] dark:border-l-[#4ADE80] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
                 Total Notas de Crédito
               </p>
-              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-500 mt-1">
+              <p className="text-2xl font-bold font-mono text-[#28A745] dark:text-[#4ADE80] mt-1">
                 {formatMoneyUSD(kpiData.creditTotal)}
               </p>
               <span className="text-xs text-neutral-500">A favor de la empresa</span>
             </div>
-            <div className="p-2 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg text-emerald-600 dark:text-emerald-400">
+            <div className="p-2 bg-[#28A745]/10 text-[#28A745] dark:bg-[#4ADE80]/15 dark:text-[#4ADE80] rounded-lg">
               <ArrowDownRight className="w-5 h-5" />
             </div>
           </div>
         </Card>
 
-        <Card className="p-4 border-l-4 border-l-sky-500 bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800">
+        <Card className="p-4 border-l-4 border-l-[#17A2B8] dark:border-l-[#38C9DD] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
                 Saldo a Favor Disponible
               </p>
-              <p className="text-2xl font-bold text-sky-600 dark:text-sky-400 mt-1">
+              <p className="text-2xl font-bold font-mono text-[#17A2B8] dark:text-[#38C9DD] mt-1">
                 {formatMoneyUSD(kpiData.availableCreditTotal)}
               </p>
               <span className="text-xs text-sky-600 font-medium">Por aplicar en CxP</span>
             </div>
-            <div className="p-2 bg-sky-50 dark:bg-sky-950/40 rounded-lg text-sky-600 dark:text-sky-400">
+            <div className="p-2 bg-[#17A2B8]/10 text-[#17A2B8] dark:bg-[#38C9DD]/15 dark:text-[#38C9DD] rounded-lg">
               <DollarSign className="w-5 h-5" />
             </div>
           </div>
         </Card>
 
-        <Card className="p-4 border-l-4 border-l-amber-500 bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800">
+        <Card className="p-4 border-l-4 border-l-[#FFC107] dark:border-l-[#FBBF24] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
                 Total Notas de Débito
               </p>
-              <p className="text-2xl font-bold text-amber-600 dark:text-amber-500 mt-1">
+              <p className="text-2xl font-bold font-mono text-[#b28500] dark:text-[#FBBF24] mt-1">
                 {formatMoneyUSD(kpiData.debitTotal)}
               </p>
               <span className="text-xs text-neutral-500">Recargos y mayor deuda</span>
             </div>
-            <div className="p-2 bg-amber-50 dark:bg-amber-950/40 rounded-lg text-amber-600 dark:text-amber-400">
+            <div className="p-2 bg-[#FFC107]/15 text-[#b28500] dark:bg-[#FBBF24]/15 dark:text-[#FBBF24] rounded-lg">
               <ArrowUpRight className="w-5 h-5" />
             </div>
           </div>
         </Card>
 
-        <Card className="p-4 border-l-4 border-l-purple-500 bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800">
+        <Card className="p-4 border-l-4 border-l-[#007BFF] dark:border-l-[#3D91FF] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
                 Créditos Compensados
               </p>
-              <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">
+              <p className="text-2xl font-bold font-mono text-[#007BFF] dark:text-[#3D91FF] mt-1">
                 {kpiData.appliedCount}
               </p>
               <span className="text-xs text-neutral-500">Notas aplicadas totalmente</span>
             </div>
-            <div className="p-2 bg-purple-50 dark:bg-purple-950/40 rounded-lg text-purple-600 dark:text-purple-400">
+            <div className="p-2 bg-[#007BFF]/10 text-[#007BFF] dark:bg-[#3D91FF]/15 dark:text-[#3D91FF] rounded-lg">
               <CheckCircle2 className="w-5 h-5" />
             </div>
           </div>

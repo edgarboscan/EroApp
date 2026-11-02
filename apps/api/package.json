@@ -6,7 +6,9 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:seed:hypermarket": "tsx src/db/runHypermarketSeed.ts",
+    "db:generate:ddl": "tsx src/db/generateSqlScripts.ts"
   },
   "dependencies": {
     "@ero/shared": "workspace:*",

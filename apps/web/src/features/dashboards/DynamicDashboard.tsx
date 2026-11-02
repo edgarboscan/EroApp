@@ -4,6 +4,7 @@ import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { useAuthStore, isSuperAdminRole } from '../../stores/authStore';
+import { useThemeStore } from '../../stores/themeStore';
 import { toast } from 'sonner';
 import { formatMoneyUSD, formatMoneyVES, formatNumber } from '../../utils/formatters';
 import { showConfirmQuestion } from '../../lib/sweetalert';
@@ -233,6 +234,23 @@ export const DynamicDashboard: React.FC = () => {
   const [isLoadingSummary, setIsLoadingSummary] = useState(true);
 
   const isSuper = isSuperAdminRole(user?.role);
+
+  // Paleta oficial de colores reactiva al tema Light / Dark
+  const resolvedTheme = useThemeStore((s) => s.resolvedTheme);
+  const isDark = resolvedTheme === 'dark';
+
+  const chartColors = useMemo(() => {
+    return {
+      primary: isDark ? '#3D91FF' : '#007BFF',
+      secondary: isDark ? '#38C9DD' : '#17A2B8',
+      success: isDark ? '#4ADE80' : '#28A745',
+      warning: isDark ? '#FBBF24' : '#FFC107',
+      text: isDark ? '#E0E0E0' : '#333333',
+      grid: isDark ? '#374151' : '#E5E7EB',
+      tooltipBg: isDark ? '#1E1F21' : '#FFFFFF',
+      tooltipBorder: isDark ? '#374151' : '#E5E7EB',
+    };
+  }, [isDark]);
 
   // Cargar sucursales autorizadas desde API
   useEffect(() => {
@@ -563,8 +581,8 @@ export const DynamicDashboard: React.FC = () => {
     if (!isEditMode) return null;
 
     return (
-      <div className="flex items-center justify-between pb-3 mb-3 border-b border-sky-100 bg-sky-50/60 -mx-4 -mt-4 p-2.5 rounded-t-lg">
-        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-sky-800">
+      <div className="flex items-center justify-between pb-3 mb-3 border-b border-[#007BFF]/20 dark:border-[#3D91FF]/25 bg-[#007BFF]/10 dark:bg-[#3D91FF]/15 -mx-4 -mt-4 p-2.5 rounded-t-lg">
+        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[#007BFF] dark:text-[#3D91FF]">
           <Layers className="w-3.5 h-3.5" />
           <span>Posición #{index + 1} ({item.colSpan === 1 ? '1 col' : item.colSpan === 2 ? '2 cols' : 'Ancho completo'})</span>
         </div>
@@ -574,7 +592,7 @@ export const DynamicDashboard: React.FC = () => {
             type="button"
             disabled={index === 0}
             onClick={() => handleMoveLeft(index)}
-            className="p-1 rounded-lg text-neutral-600 hover:text-sky-700 hover:bg-sky-100 disabled:opacity-30 disabled:pointer-events-none"
+            className="p-1 rounded-lg text-neutral-600 dark:text-neutral-300 hover:text-[#007BFF] dark:hover:text-[#3D91FF] hover:bg-[#007BFF]/10 dark:hover:bg-[#3D91FF]/20 disabled:opacity-30 disabled:pointer-events-none"
             title="Mover antes"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
@@ -583,7 +601,7 @@ export const DynamicDashboard: React.FC = () => {
             type="button"
             disabled={index === activeWidgets.length - 1}
             onClick={() => handleMoveRight(index)}
-            className="p-1 rounded-lg text-neutral-600 hover:text-sky-700 hover:bg-sky-100 disabled:opacity-30 disabled:pointer-events-none"
+            className="p-1 rounded-lg text-neutral-600 dark:text-neutral-300 hover:text-[#007BFF] dark:hover:text-[#3D91FF] hover:bg-[#007BFF]/10 dark:hover:bg-[#3D91FF]/20 disabled:opacity-30 disabled:pointer-events-none"
             title="Mover después"
           >
             <ArrowRight className="w-3.5 h-3.5" />
@@ -591,7 +609,7 @@ export const DynamicDashboard: React.FC = () => {
           <button
             type="button"
             onClick={() => handleToggleColSpan(item.instanceId)}
-            className="p-1 rounded-lg text-neutral-600 hover:text-sky-700 hover:bg-sky-100"
+            className="p-1 rounded-lg text-neutral-600 dark:text-neutral-300 hover:text-[#007BFF] dark:hover:text-[#3D91FF] hover:bg-[#007BFF]/10 dark:hover:bg-[#3D91FF]/20"
             title="Alternar ancho de widget"
           >
             {item.colSpan === 4 ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
@@ -599,7 +617,7 @@ export const DynamicDashboard: React.FC = () => {
           <button
             type="button"
             onClick={() => handleRemoveWidget(item.instanceId)}
-            className="p-1 rounded-lg text-red-600 hover:text-red-700 hover:bg-red-100"
+            className="p-1 rounded-lg text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40"
             title="Remover widget"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -635,19 +653,19 @@ export const DynamicDashboard: React.FC = () => {
       case 'WIDGET_SALES_TODAY': {
         const sales = summaryData?.salesToday || { totalUSD: 0, totalVES: 0, countInvoices: 0 };
         return (
-          <Card>
+          <Card className="p-4 border-l-4 border-l-[#007BFF] dark:border-l-[#3D91FF] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
             {renderWidgetControls(item, index)}
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Ventas de Hoy</span>
-              <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
+              <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Ventas de Hoy</span>
+              <div className="w-8 h-8 rounded-lg bg-[#007BFF]/10 text-[#007BFF] dark:bg-[#3D91FF]/15 dark:text-[#3D91FF] flex items-center justify-center">
                 <DollarSign className="w-4 h-4" />
               </div>
             </div>
             <div className="mt-3">
-              <div className="text-2xl font-bold text-neutral-900">{formatMoneyUSD(sales.totalUSD)}</div>
-              <div className="text-xs text-neutral-500 mt-1">
+              <div className="text-2xl font-bold text-[#333333] dark:text-[#E0E0E0]">{formatMoneyUSD(sales.totalUSD)}</div>
+              <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
                 {formatMoneyVES(sales.totalVES)} •{' '}
-                <span className="font-semibold text-neutral-700">
+                <span className="font-semibold text-neutral-700 dark:text-neutral-300">
                   {formatNumber(sales.countInvoices)}
                 </span>{' '}
                 {sales.countInvoices === 1 ? 'factura emitida' : 'facturas emitidas'}
@@ -660,17 +678,17 @@ export const DynamicDashboard: React.FC = () => {
       case 'WIDGET_TICKET_AVG': {
         const ticket = summaryData?.ticketAvg || { avgTicketUSD: 0, countInvoices: 0 };
         return (
-          <Card>
+          <Card className="p-4 border-l-4 border-l-[#28A745] dark:border-l-[#4ADE80] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
             {renderWidgetControls(item, index)}
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Ticket Promedio</span>
-              <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Ticket Promedio</span>
+              <div className="w-8 h-8 rounded-lg bg-[#28A745]/10 text-[#28A745] dark:bg-[#4ADE80]/15 dark:text-[#4ADE80] flex items-center justify-center">
                 <TrendingUp className="w-4 h-4" />
               </div>
             </div>
             <div className="mt-3">
-              <div className="text-2xl font-bold text-neutral-900">{formatMoneyUSD(ticket.avgTicketUSD)}</div>
-              <div className="text-xs text-neutral-500 font-medium mt-1">
+              <div className="text-2xl font-bold text-[#333333] dark:text-[#E0E0E0]">{formatMoneyUSD(ticket.avgTicketUSD)}</div>
+              <div className="text-xs text-neutral-500 dark:text-neutral-400 font-medium mt-1">
                 {ticket.countInvoices > 0
                   ? `Calculado sobre ${ticket.countInvoices} facturas (7 días)`
                   : 'Sin ventas en los últimos 7 días'}
@@ -683,17 +701,17 @@ export const DynamicDashboard: React.FC = () => {
       case 'WIDGET_CRITICAL_STOCK': {
         const criticalCount = summaryData?.criticalStock?.count || 0;
         return (
-          <Card>
+          <Card className="p-4 border-l-4 border-l-[#FFC107] dark:border-l-[#FBBF24] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
             {renderWidgetControls(item, index)}
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Stock Crítico</span>
-              <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+              <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Stock Crítico</span>
+              <div className="w-8 h-8 rounded-lg bg-[#FFC107]/15 text-[#b28500] dark:bg-[#FBBF24]/15 dark:text-[#FBBF24] flex items-center justify-center">
                 <AlertTriangle className="w-4 h-4" />
               </div>
             </div>
             <div className="mt-3">
-              <div className="text-2xl font-bold text-neutral-900">{criticalCount}</div>
-              <div className={`text-xs font-medium mt-1 ${criticalCount > 0 ? 'text-amber-600' : 'text-neutral-500'}`}>
+              <div className="text-2xl font-bold text-[#333333] dark:text-[#E0E0E0]">{criticalCount}</div>
+              <div className={`text-xs font-medium mt-1 ${criticalCount > 0 ? 'text-[#b28500] dark:text-[#FBBF24]' : 'text-neutral-500 dark:text-neutral-400'}`}>
                 {criticalCount > 0
                   ? 'Productos requieren reposición inmediata'
                   : 'Inventario en niveles óptimos'}
@@ -706,18 +724,18 @@ export const DynamicDashboard: React.FC = () => {
       case 'WIDGET_TAX_SUMMARY': {
         const tax = summaryData?.taxSummary || { totalIVA: 0, totalIGTF: 0 };
         return (
-          <Card>
+          <Card className="p-4 border-l-4 border-l-[#17A2B8] dark:border-l-[#38C9DD] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
             {renderWidgetControls(item, index)}
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">IVA Facturado (Mes)</span>
-              <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">IVA Facturado (Mes)</span>
+              <div className="w-8 h-8 rounded-lg bg-[#17A2B8]/10 text-[#17A2B8] dark:bg-[#38C9DD]/15 dark:text-[#38C9DD] flex items-center justify-center">
                 <FileCheck className="w-4 h-4" />
               </div>
             </div>
             <div className="mt-3">
-              <div className="text-2xl font-bold text-neutral-900">{formatMoneyUSD(tax.totalIVA)}</div>
-              <div className="text-xs text-neutral-500 mt-1">
-                IGTF percibido: <span className="font-semibold text-neutral-700">{formatMoneyUSD(tax.totalIGTF)}</span>
+              <div className="text-2xl font-bold text-[#333333] dark:text-[#E0E0E0]">{formatMoneyUSD(tax.totalIVA)}</div>
+              <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                IGTF percibido: <span className="font-semibold text-neutral-700 dark:text-neutral-300">{formatMoneyUSD(tax.totalIGTF)}</span>
               </div>
             </div>
           </Card>
@@ -727,19 +745,19 @@ export const DynamicDashboard: React.FC = () => {
       case 'WIDGET_CXC_SUMMARY': {
         const cxc = summaryData?.cxcSummary || { totalPendingUSD: 0, overdueUSD: 0, cxcDistribution: [] };
         return (
-          <Card>
+          <Card className="p-4 border-l-4 border-l-[#FFC107] dark:border-l-[#FBBF24] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
             {renderWidgetControls(item, index)}
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Cuentas por Cobrar</span>
-              <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+              <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Cuentas por Cobrar</span>
+              <div className="w-8 h-8 rounded-lg bg-[#007BFF]/10 text-[#007BFF] dark:bg-[#3D91FF]/15 dark:text-[#3D91FF] flex items-center justify-center">
                 <CreditCard className="w-4 h-4" />
               </div>
             </div>
             <div className="mt-3">
-              <div className="text-2xl font-bold text-neutral-900">{formatMoneyUSD(cxc.totalPendingUSD)}</div>
-              <div className="text-xs text-neutral-500 mt-1">
+              <div className="text-2xl font-bold text-[#333333] dark:text-[#E0E0E0]">{formatMoneyUSD(cxc.totalPendingUSD)}</div>
+              <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
                 Vencido:{' '}
-                <span className={`font-semibold ${cxc.overdueUSD > 0 ? 'text-red-600' : 'text-neutral-700'}`}>
+                <span className={`font-semibold ${cxc.overdueUSD > 0 ? 'text-red-600 dark:text-red-400' : 'text-neutral-700 dark:text-neutral-300'}`}>
                   {formatMoneyUSD(cxc.overdueUSD)}
                 </span>
               </div>
@@ -751,18 +769,18 @@ export const DynamicDashboard: React.FC = () => {
       case 'WIDGET_PURCHASES_MONTH': {
         const purchases = summaryData?.purchasesMonth || { totalUSD: 0, ordersCount: 0 };
         return (
-          <Card>
+          <Card className="p-4 border-l-4 border-l-[#17A2B8] dark:border-l-[#38C9DD] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
             {renderWidgetControls(item, index)}
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Compras del Mes</span>
-              <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
+              <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Compras del Mes</span>
+              <div className="w-8 h-8 rounded-lg bg-[#17A2B8]/10 text-[#17A2B8] dark:bg-[#38C9DD]/15 dark:text-[#38C9DD] flex items-center justify-center">
                 <ShoppingBag className="w-4 h-4" />
               </div>
             </div>
             <div className="mt-3">
-              <div className="text-2xl font-bold text-neutral-900">{formatMoneyUSD(purchases.totalUSD)}</div>
-              <div className="text-xs text-neutral-500 mt-1">
-                En <span className="font-semibold text-neutral-700">{purchases.ordersCount}</span> órdenes de compra
+              <div className="text-2xl font-bold font-mono text-[#17A2B8] dark:text-[#38C9DD]">{formatMoneyUSD(purchases.totalUSD)}</div>
+              <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                En <span className="font-semibold text-neutral-700 dark:text-neutral-300">{purchases.ordersCount}</span> órdenes de compra
               </div>
             </div>
           </Card>
@@ -775,9 +793,9 @@ export const DynamicDashboard: React.FC = () => {
           <Card title="Top 5 Productos más Vendidos" subtitle="Unidades facturadas en los últimos 30 días">
             {renderWidgetControls(item, index)}
             {topProducts.length === 0 ? (
-              <div className="h-64 flex flex-col items-center justify-center text-center p-6 bg-neutral-50/50 rounded-lg border border-dashed border-neutral-200 mt-2">
-                <Package className="w-8 h-8 text-neutral-300 mb-2" />
-                <p className="text-xs font-semibold text-neutral-700">Sin productos vendidos</p>
+              <div className="h-64 flex flex-col items-center justify-center text-center p-6 bg-[#F4F6F9]/60 dark:bg-[#242526]/50 rounded-lg border border-dashed border-gray-200 dark:border-gray-800 mt-2">
+                <Package className="w-8 h-8 text-neutral-300 dark:text-neutral-600 mb-2" />
+                <p className="text-xs font-semibold text-[#333333] dark:text-[#E0E0E0]">Sin productos vendidos</p>
                 <p className="text-[11px] text-neutral-400 mt-1 max-w-xs">
                   No se registran ventas para la sucursal o depósito seleccionado en los últimos 30 días.
                 </p>
@@ -786,10 +804,27 @@ export const DynamicDashboard: React.FC = () => {
               <div className="h-64 mt-2">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={topProducts} layout="vertical" margin={{ left: 20, right: 20 }}>
-                    <XAxis type="number" tick={{ fontSize: 11 }} />
-                    <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={120} />
-                    <Tooltip />
-                    <Bar dataKey="ventas" fill="#0284c7" radius={[0, 4, 4, 0]} />
+                    <defs>
+                      <linearGradient id="topProductsGrad" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor={chartColors.primary} stopOpacity={0.8} />
+                        <stop offset="100%" stopColor={chartColors.primary} stopOpacity={1} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={chartColors.grid} />
+                    <XAxis type="number" tick={{ fontSize: 11, fill: chartColors.text }} />
+                    <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: chartColors.text }} width={120} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: chartColors.tooltipBg,
+                        borderColor: chartColors.tooltipBorder,
+                        color: chartColors.text,
+                        borderRadius: '0.5rem',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                      }}
+                      itemStyle={{ color: chartColors.text }}
+                      labelStyle={{ color: chartColors.text, fontWeight: 600 }}
+                    />
+                    <Bar dataKey="ventas" fill="url(#topProductsGrad)" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -799,15 +834,27 @@ export const DynamicDashboard: React.FC = () => {
       }
 
       case 'WIDGET_CXC_AGING': {
-        const cxcDistribution = summaryData?.cxcSummary?.cxcDistribution || [];
-        const hasCxC = cxcDistribution.some((d) => d.value > 0);
+        const rawDistribution = summaryData?.cxcSummary?.cxcDistribution || [];
+        const hasCxC = rawDistribution.some((d) => d.value > 0);
+        const palette = [
+          chartColors.success,   // Al Día
+          chartColors.primary,   // 1-30 Días
+          chartColors.secondary, // 31-60 Días
+          chartColors.warning,   // 61-90 Días
+          '#ef4444',             // +90 Días
+        ];
+        const cxcDistribution = rawDistribution.map((d, idx) => ({
+          ...d,
+          color: palette[idx % palette.length],
+        }));
+
         return (
           <Card title="Antigüedad de Saldos (CxC)" subtitle="Monto por cobrar según días de vencimiento ($ USD)">
             {renderWidgetControls(item, index)}
             {!hasCxC ? (
-              <div className="h-64 flex flex-col items-center justify-center text-center p-6 bg-neutral-50/50 rounded-lg border border-dashed border-neutral-200 mt-2">
-                <CreditCard className="w-8 h-8 text-neutral-300 mb-2" />
-                <p className="text-xs font-semibold text-neutral-700">Sin cuentas por cobrar pendientes</p>
+              <div className="h-64 flex flex-col items-center justify-center text-center p-6 bg-[#F4F6F9]/60 dark:bg-[#242526]/50 rounded-lg border border-dashed border-gray-200 dark:border-gray-800 mt-2">
+                <CreditCard className="w-8 h-8 text-neutral-300 dark:text-neutral-600 mb-2" />
+                <p className="text-xs font-semibold text-[#333333] dark:text-[#E0E0E0]">Sin cuentas por cobrar pendientes</p>
                 <p className="text-[11px] text-neutral-400 mt-1 max-w-xs">
                   Todos los clientes están al día o no existen documentos de crédito registrados.
                 </p>
@@ -827,10 +874,20 @@ export const DynamicDashboard: React.FC = () => {
                         dataKey="value"
                       >
                         {cxcDistribution.map((entry, idx) => (
-                          <Cell key={`cell-${idx}`} fill={entry.color} />
+                          <Cell key={`cell-${idx}`} fill={entry.color} stroke={chartColors.tooltipBg} strokeWidth={2} />
                         ))}
                       </Pie>
-                      <Tooltip />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: chartColors.tooltipBg,
+                          borderColor: chartColors.tooltipBorder,
+                          color: chartColors.text,
+                          borderRadius: '0.5rem',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                        }}
+                        itemStyle={{ color: chartColors.text }}
+                        labelStyle={{ color: chartColors.text, fontWeight: 600 }}
+                      />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
@@ -838,8 +895,8 @@ export const DynamicDashboard: React.FC = () => {
                   {cxcDistribution.map((d, idx) => (
                     <div key={idx} className="flex items-center gap-1.5">
                       <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.color }} />
-                      <span className="text-neutral-600">{d.name}:</span>
-                      <span className="font-semibold text-neutral-900">{formatMoneyUSD(d.value)}</span>
+                      <span className="text-neutral-500 dark:text-neutral-400">{d.name}:</span>
+                      <span className="font-semibold text-[#333333] dark:text-[#E0E0E0]">{formatMoneyUSD(d.value)}</span>
                     </div>
                   ))}
                 </div>
@@ -861,11 +918,27 @@ export const DynamicDashboard: React.FC = () => {
             <div className="h-64 mt-2">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={trend} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="day" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip />
-                  <Bar dataKey="ventas" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+                  <defs>
+                    <linearGradient id="salesTrendGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={chartColors.primary} stopOpacity={0.9} />
+                      <stop offset="100%" stopColor={chartColors.secondary} stopOpacity={0.5} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartColors.grid} />
+                  <XAxis dataKey="day" tick={{ fontSize: 11, fill: chartColors.text }} />
+                  <YAxis tick={{ fontSize: 11, fill: chartColors.text }} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: chartColors.tooltipBg,
+                      borderColor: chartColors.tooltipBorder,
+                      color: chartColors.text,
+                      borderRadius: '0.5rem',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    }}
+                    itemStyle={{ color: chartColors.text }}
+                    labelStyle={{ color: chartColors.text, fontWeight: 600 }}
+                  />
+                  <Bar dataKey="ventas" fill="url(#salesTrendGrad)" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -881,7 +954,7 @@ export const DynamicDashboard: React.FC = () => {
             <div className="overflow-x-auto mt-2">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-neutral-200 text-neutral-500 uppercase">
+                  <tr className="border-b border-gray-200 dark:border-gray-800 text-neutral-500 dark:text-neutral-400 uppercase">
                     <th className="py-2.5 px-3">SKU</th>
                     <th className="py-2.5 px-3">Producto</th>
                     <th className="py-2.5 px-3">Depósito</th>
@@ -890,12 +963,12 @@ export const DynamicDashboard: React.FC = () => {
                     <th className="py-2.5 px-3 text-center">Estado</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-neutral-100">
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800/80">
                   {items.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="py-8 text-center text-xs text-neutral-400">
-                        <CheckCircle2 className="w-6 h-6 text-emerald-500 mx-auto mb-1.5" />
-                        <span className="font-semibold text-neutral-700">Niveles de inventario óptimos</span>
+                        <CheckCircle2 className="w-6 h-6 text-[#28A745] dark:text-[#4ADE80] mx-auto mb-1.5" />
+                        <span className="font-semibold text-neutral-700 dark:text-neutral-300">Niveles de inventario óptimos</span>
                         <p className="text-[11px] text-neutral-400 mt-0.5">
                           No existen productos por debajo de la existencia mínima requerida.
                         </p>
@@ -903,12 +976,12 @@ export const DynamicDashboard: React.FC = () => {
                     </tr>
                   ) : (
                     items.map((prod, idx) => (
-                      <tr key={idx} className="hover:bg-neutral-50/50">
-                        <td className="py-2.5 px-3 font-mono font-medium text-neutral-700">{prod.sku}</td>
-                        <td className="py-2.5 px-3 font-medium text-neutral-900">{prod.name}</td>
-                        <td className="py-2.5 px-3 text-neutral-600">{prod.warehouse}</td>
-                        <td className="py-2.5 px-3 text-right font-bold text-red-600">{prod.stock}</td>
-                        <td className="py-2.5 px-3 text-right text-neutral-600">{prod.min}</td>
+                      <tr key={idx} className="hover:bg-[#F4F6F9]/70 dark:hover:bg-neutral-800/40 transition-colors">
+                        <td className="py-2.5 px-3 font-mono font-medium text-[#333333] dark:text-[#E0E0E0]">{prod.sku}</td>
+                        <td className="py-2.5 px-3 font-medium text-[#333333] dark:text-[#E0E0E0]">{prod.name}</td>
+                        <td className="py-2.5 px-3 text-neutral-500 dark:text-neutral-400">{prod.warehouse}</td>
+                        <td className="py-2.5 px-3 text-right font-bold text-red-600 dark:text-red-400">{prod.stock}</td>
+                        <td className="py-2.5 px-3 text-right text-neutral-500 dark:text-neutral-400">{prod.min}</td>
                         <td className="py-2.5 px-3 text-center">
                           <Badge variant="danger">Bajo Mínimo</Badge>
                         </td>
@@ -930,7 +1003,7 @@ export const DynamicDashboard: React.FC = () => {
             <div className="overflow-x-auto mt-2">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-neutral-200 text-neutral-500 uppercase">
+                  <tr className="border-b border-gray-200 dark:border-gray-800 text-neutral-500 dark:text-neutral-400 uppercase">
                     <th className="py-2.5 px-3">N° Documento</th>
                     <th className="py-2.5 px-3">Hora</th>
                     <th className="py-2.5 px-3">Cliente / Razón Social</th>
@@ -938,12 +1011,12 @@ export const DynamicDashboard: React.FC = () => {
                     <th className="py-2.5 px-3 text-center">Estado Fiscal</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-neutral-100">
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800/80">
                   {transactions.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="py-8 text-center text-xs text-neutral-400">
-                        <Inbox className="w-6 h-6 text-neutral-300 mx-auto mb-1.5" />
-                        <span className="font-semibold text-neutral-700">Sin operaciones fiscales</span>
+                        <Inbox className="w-6 h-6 text-neutral-300 dark:text-neutral-600 mx-auto mb-1.5" />
+                        <span className="font-semibold text-neutral-700 dark:text-neutral-300">Sin operaciones fiscales</span>
                         <p className="text-[11px] text-neutral-400 mt-0.5">
                           No se han emitido facturas en esta sucursal o depósito durante la jornada.
                         </p>
@@ -951,11 +1024,11 @@ export const DynamicDashboard: React.FC = () => {
                     </tr>
                   ) : (
                     transactions.map((tx, idx) => (
-                      <tr key={idx} className="hover:bg-neutral-50/50">
-                        <td className="py-2.5 px-3 font-mono font-bold text-neutral-900">{tx.number}</td>
-                        <td className="py-2.5 px-3 text-neutral-500 font-mono">{tx.time}</td>
-                        <td className="py-2.5 px-3 text-neutral-700 font-medium">{tx.customer}</td>
-                        <td className="py-2.5 px-3 text-right font-bold text-neutral-900">
+                      <tr key={idx} className="hover:bg-[#F4F6F9]/70 dark:hover:bg-neutral-800/40 transition-colors">
+                        <td className="py-2.5 px-3 font-mono font-bold text-[#333333] dark:text-[#E0E0E0]">{tx.number}</td>
+                        <td className="py-2.5 px-3 text-neutral-500 dark:text-neutral-400 font-mono">{tx.time}</td>
+                        <td className="py-2.5 px-3 text-[#333333] dark:text-[#E0E0E0] font-medium">{tx.customer}</td>
+                        <td className="py-2.5 px-3 text-right font-bold text-[#333333] dark:text-[#E0E0E0]">
                           {formatMoneyUSD(Number(tx.amount))}
                         </td>
                         <td className="py-2.5 px-3 text-center">
@@ -999,23 +1072,23 @@ export const DynamicDashboard: React.FC = () => {
         <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
           {/* Selector de Sucursal Autorizada */}
           <div
-            className={`flex items-center gap-2 bg-white border border-neutral-200 rounded-lg px-3 py-1.5 shadow-sm text-xs w-full sm:w-auto ${
-              isBranchLocked ? 'opacity-85 bg-neutral-50' : ''
+            className={`flex items-center gap-2 bg-white dark:bg-[#1E1F21] border border-gray-200 dark:border-gray-800 rounded-lg px-3 py-1.5 shadow-xs text-xs w-full sm:w-auto ${
+              isBranchLocked ? 'opacity-85 bg-gray-50 dark:bg-neutral-800/50' : ''
             } hidden`}
           >
-            <Building2 className="w-4 h-4 text-sky-600 shrink-0" />
-            <span className="text-neutral-500 font-medium shrink-0">Sucursal:</span>
+            <Building2 className="w-4 h-4 text-[#007BFF] dark:text-[#3D91FF] shrink-0" />
+            <span className="text-neutral-500 dark:text-neutral-400 font-medium shrink-0">Sucursal:</span>
             <select
               value={selectedBranch}
               disabled={isBranchLocked}
               onChange={(e) => handleBranchChange(e.target.value)}
-              className={`bg-transparent font-semibold text-neutral-900 focus:outline-none w-full ${
+              className={`bg-transparent font-semibold text-[#333333] dark:text-[#E0E0E0] focus:outline-none w-full ${
                 isBranchLocked ? 'cursor-not-allowed' : 'cursor-pointer'
               }`}
             >
               {isSuper && <option value="ALL">Consolidado (Todas las autorizadas)</option>}
               {branches.map((b) => (
-                <option key={b.id} value={b.id}>
+                <option key={b.id} value={b.id} className="bg-white dark:bg-[#1E1F21] text-[#333333] dark:text-[#E0E0E0]">
                   {b.name} ({b.code})
                 </option>
               ))}
@@ -1029,23 +1102,23 @@ export const DynamicDashboard: React.FC = () => {
 
           {/* Selector de Depósito / Almacén Autorizado */}
           <div
-            className={`flex items-center gap-2 bg-white border border-neutral-200 rounded-lg px-3 py-1.5 shadow-sm text-xs w-full sm:w-auto ${
-              isWarehouseLocked ? 'opacity-85 bg-neutral-50' : ''
+            className={`flex items-center gap-2 bg-white dark:bg-[#1E1F21] border border-gray-200 dark:border-gray-800 rounded-lg px-3 py-1.5 shadow-xs text-xs w-full sm:w-auto ${
+              isWarehouseLocked ? 'opacity-85 bg-gray-50 dark:bg-neutral-800/50' : ''
             } hidden`}
           >
-            <Warehouse className="w-4 h-4 text-sky-600 shrink-0" />
-            <span className="text-neutral-500 font-medium shrink-0">Depósito:</span>
+            <Warehouse className="w-4 h-4 text-[#007BFF] dark:text-[#3D91FF] shrink-0" />
+            <span className="text-neutral-500 dark:text-neutral-400 font-medium shrink-0">Depósito:</span>
             <select
               value={selectedWarehouse}
               disabled={isWarehouseLocked}
               onChange={(e) => handleWarehouseChange(e.target.value)}
-              className={`bg-transparent font-semibold text-neutral-900 focus:outline-none w-full ${
+              className={`bg-transparent font-semibold text-[#333333] dark:text-[#E0E0E0] focus:outline-none w-full ${
                 isWarehouseLocked ? 'cursor-not-allowed' : 'cursor-pointer'
               }`}
             >
               {(isSuper || canSwitchWarehouse) && <option value="ALL">Todos los depósitos</option>}
               {availableWarehouses.map((w) => (
-                <option key={w.id} value={w.id}>
+                <option key={w.id} value={w.id} className="bg-white dark:bg-[#1E1F21] text-[#333333] dark:text-[#E0E0E0]">
                   {w.name} ({w.code})
                 </option>
               ))}
@@ -1085,10 +1158,10 @@ export const DynamicDashboard: React.FC = () => {
 
       {/* Alerta de Modo Edición */}
       {isEditMode && (
-        <div className="bg-sky-50 border border-sky-200 rounded-lg p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+        <div className="bg-[#007BFF]/10 dark:bg-[#3D91FF]/15 border border-[#007BFF]/25 dark:border-[#3D91FF]/30 rounded-lg p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
           <div className="flex items-center gap-2">
-            <Edit3 className="w-4 h-4 text-sky-600 shrink-0" />
-            <span className="text-xs text-sky-900 font-medium">
+            <Edit3 className="w-4 h-4 text-[#007BFF] dark:text-[#3D91FF] shrink-0" />
+            <span className="text-xs text-[#007BFF] dark:text-[#3D91FF] font-medium">
               Modo edición activo: Puedes reordenar con las flechas, cambiar el ancho de columnas, ocultar widgets o añadir nuevos del catálogo.
             </span>
           </div>
@@ -1104,7 +1177,7 @@ export const DynamicDashboard: React.FC = () => {
 
       {/* Grid Dinámico de Widgets */}
       {activeWidgets.length === 0 ? (
-        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-12 text-center space-y-3">
+        <div className="bg-white dark:bg-[#1E1F21] border border-gray-200 dark:border-gray-800 rounded-lg p-12 text-center space-y-3">
           <Layers className="w-10 h-10 text-neutral-300 dark:text-neutral-600 mx-auto" />
           <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">No hay widgets en tu dashboard</h3>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto">
@@ -1164,12 +1237,12 @@ export const DynamicDashboard: React.FC = () => {
               return (
                 <div
                   key={catWidget.code}
-                  className="border border-neutral-200 dark:border-neutral-800 rounded-lg p-3.5 flex flex-col justify-between hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors bg-white dark:bg-neutral-800/60"
+                  className="border border-gray-200 dark:border-gray-800 rounded-lg p-3.5 flex flex-col justify-between hover:border-gray-300 dark:hover:border-gray-700 transition-colors bg-white dark:bg-[#1E1F21]"
                 >
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100">{catWidget.title}</span>
-                      <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300">
+                      <span className="text-xs font-bold text-[#333333] dark:text-[#E0E0E0]">{catWidget.title}</span>
+                      <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-lg bg-gray-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">
                         {catWidget.category === 'kpi'
                           ? 'KPI'
                           : catWidget.category === 'chart'
@@ -1182,7 +1255,7 @@ export const DynamicDashboard: React.FC = () => {
                     </p>
                   </div>
 
-                  <div className="pt-3 mt-3 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between">
+                  <div className="pt-3 mt-3 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
                     <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
                       {catWidget.defaultColSpan === 1
                         ? '1 columna'

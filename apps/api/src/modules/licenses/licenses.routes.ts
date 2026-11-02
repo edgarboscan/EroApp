@@ -1,14 +1,27 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { licenseActivationSchema, generateLicenseSchema, isSuperAdminRole } from '@ero/shared';
+import { licenseActivationSchema, generateLicenseSchema, isSuperAdminRole, isSupervisorOrAdminRole } from '@ero/shared';
 import { LicensesService } from './licenses.service';
 import { authenticate, AppEnv } from '../../middleware/auth';
-import { authorize } from '../../middleware/rbac';
 
 export const licensesRouter = new Hono<AppEnv>();
 
-licensesRouter.get('/status', authenticate, authorize('config', 'read'), async (c) => {
+licensesRouter.get('/status', authenticate, async (c) => {
   const user = c.get('user');
+  const userPerms = user.permissions || [];
+  const canRead =
+    isSuperAdminRole(user.role) ||
+    isSupervisorOrAdminRole(user.role) ||
+    userPerms.includes('config.read') ||
+    userPerms.includes('config.write');
+
+  if (!canRead) {
+    return c.json({
+      success: false,
+      error: { code: 'FORBIDDEN', message: 'No posee privilegios para consultar el estado de la licencia' },
+    }, 403);
+  }
+
   try {
     const license = await LicensesService.getLicense(user.companyId);
     return c.json({ success: true, data: license });
@@ -17,7 +30,22 @@ licensesRouter.get('/status', authenticate, authorize('config', 'read'), async (
   }
 });
 
-licensesRouter.get('/fingerprint', authenticate, authorize('config', 'read'), async (c) => {
+licensesRouter.get('/fingerprint', authenticate, async (c) => {
+  const user = c.get('user');
+  const userPerms = user.permissions || [];
+  const canRead =
+    isSuperAdminRole(user.role) ||
+    isSupervisorOrAdminRole(user.role) ||
+    userPerms.includes('config.read') ||
+    userPerms.includes('config.write');
+
+  if (!canRead) {
+    return c.json({
+      success: false,
+      error: { code: 'FORBIDDEN', message: 'No posee privilegios para consultar el fingerprint del hardware' },
+    }, 403);
+  }
+
   try {
     const fingerprint = LicensesService.getHardwareFingerprint();
     return c.json({ success: true, data: { hardwareFingerprint: fingerprint } });
@@ -64,7 +92,18 @@ licensesRouter.post(
   }
 );
 
-licensesRouter.post('/generate-key', authenticate, authorize('config', 'read'), async (c) => {
+licensesRouter.post('/generate-key', authenticate, async (c) => {
+  const user = c.get('user');
+  if (!isSuperAdminRole(user.role)) {
+    return c.json({
+      success: false,
+      error: {
+        code: 'FORBIDDEN',
+        message: 'Solo el Super Administrador tiene autorización para generar claves de licencia',
+      },
+    }, 403);
+  }
+
   try {
     const body = await c.req.json().catch(() => ({}));
     const fingerprint = body.hardwareFingerprint || LicensesService.getHardwareFingerprint();
@@ -86,10 +125,26 @@ licensesRouter.post('/generate-key', authenticate, authorize('config', 'read'), 
 licensesRouter.post(
   '/activate',
   authenticate,
-  authorize('config', 'update'),
   zValidator('json', licenseActivationSchema),
   async (c) => {
     const user = c.get('user');
+    const userPerms = user.permissions || [];
+    const canActivate =
+      isSuperAdminRole(user.role) ||
+      isSupervisorOrAdminRole(user.role) ||
+      userPerms.includes('config.write') ||
+      userPerms.includes('config.read');
+
+    if (!canActivate) {
+      return c.json({
+        success: false,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Solo los administradores o usuarios autorizados pueden activar licencias en el sistema',
+        },
+      }, 403);
+    }
+
     const input = c.req.valid('json');
     try {
       const license = await LicensesService.activateLicense(user.companyId, input);

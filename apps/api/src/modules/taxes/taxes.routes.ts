@@ -13,6 +13,13 @@ import { z } from 'zod';
 
 export const taxesRouter = new Hono<AppEnv>();
 
+// GET /api/taxes/company-tax-status - Condición tributaria de la empresa (Agente de Retención / Contribuyente Especial)
+taxesRouter.get('/company-tax-status', authenticate, authorize('taxes', 'read'), async (c) => {
+  const user = c.get('user');
+  const data = await TaxesService.getCompanyTaxStatus(user.companyId);
+  return c.json({ success: true, data });
+});
+
 // GET /api/taxes/withholdings - Listado y KPIs de retenciones
 taxesRouter.get('/withholdings', authenticate, authorize('taxes', 'read'), async (c) => {
   const user = c.get('user');
@@ -69,10 +76,14 @@ taxesRouter.post(
   authorize('taxes', 'create'),
   zValidator('json', emitWithholdingIVASchema),
   async (c) => {
-    const user = c.get('user');
-    const body = c.req.valid('json');
-    const data = await TaxesService.emitIVAWithholding(user.companyId, user.sub, body);
-    return c.json({ success: true, data }, 201);
+    try {
+      const user = c.get('user');
+      const body = c.req.valid('json');
+      const data = await TaxesService.emitIVAWithholding(user.companyId, user.sub, body);
+      return c.json({ success: true, data }, 201);
+    } catch (err: any) {
+      return c.json({ success: false, error: { message: err.message } }, 400);
+    }
   }
 );
 
@@ -83,10 +94,14 @@ taxesRouter.post(
   authorize('taxes', 'create'),
   zValidator('json', emitWithholdingISLRSchema),
   async (c) => {
-    const user = c.get('user');
-    const body = c.req.valid('json');
-    const data = await TaxesService.emitISLRWithholding(user.companyId, user.sub, body);
-    return c.json({ success: true, data }, 201);
+    try {
+      const user = c.get('user');
+      const body = c.req.valid('json');
+      const data = await TaxesService.emitISLRWithholding(user.companyId, user.sub, body);
+      return c.json({ success: true, data }, 201);
+    } catch (err: any) {
+      return c.json({ success: false, error: { message: err.message } }, 400);
+    }
   }
 );
 
@@ -103,10 +118,14 @@ taxesRouter.post(
     })
   ),
   async (c) => {
-    const user = c.get('user');
-    const { type, id } = c.req.valid('json');
-    const data = await TaxesService.annulWithholding(user.companyId, type, id);
-    return c.json({ success: true, data });
+    try {
+      const user = c.get('user');
+      const { type, id } = c.req.valid('json');
+      const data = await TaxesService.annulWithholding(user.companyId, type, id);
+      return c.json({ success: true, data });
+    } catch (err: any) {
+      return c.json({ success: false, error: { message: err.message } }, 400);
+    }
   }
 );
 
@@ -164,6 +183,13 @@ taxesRouter.get('/books/sales', authenticate, authorize('taxes', 'read'), async 
   return c.json({ success: true, data });
 });
 
+// GET /api/taxes/arcv/years - Años gravables con registros en base de datos
+taxesRouter.get('/arcv/years', authenticate, authorize('taxes', 'read'), async (c) => {
+  const user = c.get('user');
+  const years = await TaxesService.getARCVAvailableYears(user.companyId);
+  return c.json({ success: true, data: years });
+});
+
 // GET /api/taxes/arcv - Reporte Anual de Retenciones ISLR (Comprobante ARCV) (JSON / PDF)
 taxesRouter.get('/arcv', authenticate, authorize('taxes', 'read'), async (c) => {
   const user = c.get('user');
@@ -193,21 +219,25 @@ taxesRouter.get('/arcv', authenticate, authorize('taxes', 'read'), async (c) => 
 
 // GET /api/taxes/export/seniat - Exportación oficial XML/TXT para portal SENIAT
 taxesRouter.get('/export/seniat', authenticate, authorize('taxes', 'read'), async (c) => {
-  const user = c.get('user');
-  const now = new Date();
-  const currentPeriod = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
-  const period = c.req.query('period') || currentPeriod;
-  const type = (c.req.query('type') as 'ISLR' | 'IVA') || 'ISLR';
+  try {
+    const user = c.get('user');
+    const now = new Date();
+    const currentPeriod = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
+    const period = c.req.query('period') || currentPeriod;
+    const type = (c.req.query('type') as 'ISLR' | 'IVA') || 'ISLR';
 
-  const fileData = await TaxesService.exportSENIAT(user.companyId, period, type);
+    const fileData = await TaxesService.exportSENIAT(user.companyId, period, type);
 
-  c.header('Content-Disposition', `attachment; filename="${fileData.filename}"`);
-  if (fileData.format === 'xml') {
-    c.header('Content-Type', 'application/xml; charset=ISO-8859-1');
-  } else {
-    c.header('Content-Type', 'text/plain; charset=utf-8');
+    c.header('Content-Disposition', `attachment; filename="${fileData.filename}"`);
+    if (fileData.format === 'xml') {
+      c.header('Content-Type', 'application/xml; charset=ISO-8859-1');
+    } else {
+      c.header('Content-Type', 'text/plain; charset=utf-8');
+    }
+
+    return c.body(fileData.content);
+  } catch (err: any) {
+    return c.json({ success: false, error: { message: err.message } }, 400);
   }
-
-  return c.body(fileData.content);
 });
 

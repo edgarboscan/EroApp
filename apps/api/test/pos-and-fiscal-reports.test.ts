@@ -5,7 +5,9 @@ import {
   cashMovementSchema,
   generateFiscalReportSchema,
   calculateIGTF,
+  cashRegisterSchema,
 } from '@ero/shared';
+import { POSService } from '../src/modules/pos/pos.service';
 
 describe('Punto de Venta Fiscal (POS Avanzado) & Cierre de Caja (Paso 6)', () => {
   describe('Validación de Esquemas de Turnos y Movimientos de Caja', () => {
@@ -213,6 +215,75 @@ describe('Punto de Venta Fiscal (POS Avanzado) & Cierre de Caja (Paso 6)', () =>
 
       const totalPaid = payment1USD + 0.3;
       expect(totalPaid).toBe(finalTotalUSD);
+    });
+  });
+
+  describe('Configuración de Cajas No Fiscales e Impresoras de Ticket', () => {
+    it('debe validar y normalizar la configuración de impresora de tickets para cajas no fiscales', () => {
+      const parsed = cashRegisterSchema.safeParse({
+        branchId: 'b1111111-1111-1111-1111-111111111111',
+        code: 'CAJA-TEST-NF',
+        name: 'Caja Mostrador No Fiscal',
+        invoiceMode: 'normal_printer',
+        ticketPrinterType: 'thermal_80mm',
+        ticketPrinterName: 'EPSON TM-T20III',
+        ticketPrintMode: 'direct',
+      });
+      expect(parsed.success).toBe(true);
+      if (parsed.success) {
+        expect(parsed.data.ticketPrinterType).toBe('thermal_80mm');
+        expect(parsed.data.ticketPrinterName).toBe('EPSON TM-T20III');
+        expect(parsed.data.ticketPrintMode).toBe('direct');
+      }
+    });
+
+    it('debe admitir impresora térmica de 58mm y modo preguntar (prompt)', () => {
+      const parsed = cashRegisterSchema.safeParse({
+        branchId: 'b1111111-1111-1111-1111-111111111111',
+        code: 'CAJA-MINI-01',
+        name: 'Caja Portátil 58mm',
+        invoiceMode: 'normal_printer',
+        ticketPrinterType: 'thermal_58mm',
+        ticketPrintMode: 'prompt',
+      });
+      expect(parsed.success).toBe(true);
+      if (parsed.success) {
+        expect(parsed.data.ticketPrinterType).toBe('thermal_58mm');
+        expect(parsed.data.ticketPrintMode).toBe('prompt');
+      }
+    });
+
+    it('debe guardar y consultar opciones de ticket en POSService', async () => {
+      const code = `TEST-${Date.now().toString().slice(-4)}`;
+      const created = await POSService.createCashRegister('c1111111-1111-1111-1111-111111111111', {
+        branchId: 'b1111111-1111-1111-1111-111111111111',
+        code,
+        name: `Caja Prueba Ticket ${code}`,
+        invoiceMode: 'normal_printer' as any,
+        ticketPrinterType: 'thermal_80mm',
+        ticketPrinterName: 'POS-80-USB',
+        ticketPrintMode: 'direct',
+      });
+
+      expect(created.id).toBeDefined();
+      expect(created.ticketPrinterType).toBe('thermal_80mm');
+      expect(created.ticketPrinterName).toBe('POS-80-USB');
+      expect(created.ticketPrintMode).toBe('direct');
+
+      // Actualizar a prompt y 58mm
+      const updated = await POSService.updateCashRegister('c1111111-1111-1111-1111-111111111111', created.id, {
+        ticketPrinterType: 'thermal_58mm',
+        ticketPrintMode: 'prompt',
+      });
+      expect(updated.ticketPrinterType).toBe('thermal_58mm');
+      expect(updated.ticketPrintMode).toBe('prompt');
+
+      // Consultar listado
+      const registers = await POSService.getCashRegisters('c1111111-1111-1111-1111-111111111111');
+      const found = registers.find((r) => r.id === created.id);
+      expect(found).toBeDefined();
+      expect(found?.ticketPrinterType).toBe('thermal_58mm');
+      expect(found?.ticketPrintMode).toBe('prompt');
     });
   });
 });

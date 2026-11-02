@@ -40,6 +40,8 @@ interface FiscalInvoiceModalProps {
   data: FiscalInvoiceTicketData | null;
   onClose: () => void;
   isFiscal?: boolean;
+  printerType?: string;
+  printerName?: string | null;
 }
 
 export const FiscalInvoiceModal: React.FC<FiscalInvoiceModalProps> = ({
@@ -47,6 +49,8 @@ export const FiscalInvoiceModal: React.FC<FiscalInvoiceModalProps> = ({
   data,
   onClose,
   isFiscal = true,
+  printerType = 'thermal_80mm',
+  printerName,
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -69,8 +73,8 @@ export const FiscalInvoiceModal: React.FC<FiscalInvoiceModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isFiscal ? 'Factura Fiscal Homologada SENIAT' : 'Ticket de Venta (No Fiscal)'}
-      subtitle={`${isFiscal ? 'Factura' : 'Comprobante'}: ${data.invoiceNumber} • Control: ${data.controlNumber}`}
+      title={isFiscal ? 'Factura Fiscal Homologada SENIAT' : `Ticket de Venta (${printerType === 'thermal_58mm' ? 'Térmica 58mm' : 'Térmica 80mm'})`}
+      subtitle={`${isFiscal ? 'Factura' : 'Comprobante'}: ${data.invoiceNumber} • Control: ${data.controlNumber}${!isFiscal && printerName ? ` • Impresora: ${printerName}` : ''}`}
       size="md"
       footer={
         <div className="flex items-center justify-between w-full print:hidden">

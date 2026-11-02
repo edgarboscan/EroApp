@@ -357,57 +357,63 @@ export const InventoryAdjustmentsView: React.FC = () => {
           </p>
         </div>
 
-        <Button size="sm" onClick={() => setShowModal(true)}>
-          <Plus className="w-4 h-4 mr-1.5" />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowModal(true)}
+          className="flex items-center gap-2 border-[#007BFF] dark:border-[#3D91FF] rounded-lg bg-blue-50 dark:bg-blue-600/30 hover:bg-border-blue-600 dark:hover:border-blue-500"
+          title="Nuevo Ajuste de Inventario"
+        >
+          <Plus className="w-4 h-4 text-blue-600 dark:blue-500 mr-1.5" />
           Nuevo Ajuste de Inventario
         </Button>
       </div>
 
       {/* Tarjetas de Métricas */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-4 space-y-1 border-l-4 border-l-sky-600 dark:border-l-sky-400  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-sky-600 dark:border-sky-400">
-          <span className="text-xs text-neutral-400">
+        <Card className="p-4 border-l-4 border-l-[#007BFF] dark:border-l-[#3D91FF] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
             Total Ajustes Registrados
           </span>
-          <div className="text-2xl font-bold font-mono text-sky-600 dark:text-sky-400">
+          <div className="text-2xl font-bold font-mono text-[#007BFF] dark:text-[#3D91FF] mt-1">
             {adjustments.length}
           </div>
-          <div className="text-[11px] text-neutral-400">Auditoría completa</div>
+          <div className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1">Auditoría completa</div>
         </Card>
 
-        <Card className="p-4 space-y-1 border-l-4 border-l-red-600 dark:border-l-red-400  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-red-600 dark:border-red-400">
-          <span className="text-xs text-neutral-400">
+        <Card className="p-4 border-l-4 border-l-red-500 dark:border-l-red-400 bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
             Ajustes por Merma / Avería
           </span>
-          <div className="text-2xl font-bold font-mono text-red-600 dark:red-400">
+          <div className="text-2xl font-bold font-mono text-red-600 dark:text-red-400 mt-1">
             {
               adjustments.filter(
                 (a) => a.type === "DAMAGE_SPOILED" || a.type === "EXPIRED",
               ).length
             }
           </div>
-          <div className="text-[11px] text-neutral-400">
+          <div className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1">
             Productos dañados o vencidos
           </div>
         </Card>
 
-        <Card className="p-4 space-y-1 border-l-4 border-l-purple-600 dark:border-l-purple-400  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-purple-600 dark:border-purple-400">
-          <span className="text-xs text-neutral-400">
+        <Card className="p-4 border-l-4 border-l-[#17A2B8] dark:border-l-[#38C9DD] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
             Ajustes por Conteo Físico
           </span>
-          <div className="text-2xl font-bold font-mono text-purple-600 dark:purple-400">
+          <div className="text-2xl font-bold font-mono text-[#17A2B8] dark:text-[#38C9DD] mt-1">
             {adjustments.filter((a) => a.type === "PHYSICAL_COUNT").length}
           </div>
-          <div className="text-[11px] text-neutral-400">
+          <div className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1">
             Cuadre de existencias
           </div>
         </Card>
 
-        <Card className="p-4 space-y-1 border-l-4 border-l-orange-600 dark:border-l-orange-400  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-orange-600 dark:border-orange-400">
-          <span className="text-xs text-neutral-400">
+        <Card className="p-4 border-l-4 border-l-[#FFC107] dark:border-l-[#FBBF24] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
             Impacto Neto en Costo
           </span>
-          <div className="text-2xl font-bold font-mono text-orange-600 dark:tex-orange-400">
+          <div className="text-2xl font-bold font-mono text-[#b28500] dark:text-[#FBBF24] mt-1">
             {formatMoneyUSD(
               adjustments.reduce(
                 (sum, a) => sum + Number(a.total_cost_impact),
@@ -415,7 +421,7 @@ export const InventoryAdjustmentsView: React.FC = () => {
               ),
             )}
           </div>
-          <div className="text-[11px] text-neutral-400">
+          <div className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1">
             Afectación neta de valor
           </div>
         </Card>

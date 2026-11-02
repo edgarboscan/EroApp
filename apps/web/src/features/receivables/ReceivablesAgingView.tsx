@@ -111,11 +111,11 @@ export const ReceivablesAgingView: React.FC = () => {
 
       {/* Grid de Baldes de Vencimiento (Buckets) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <Card className="p-3 border-l-4 border-l-sky-500 bg-white p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800 ">
-          <span className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 block">
+        <Card className="p-3 border-l-4 border-l-[#007BFF] dark:border-l-[#3D91FF] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <span className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 block uppercase tracking-wider">
             Total Cartera
           </span>
-          <div className="text-lg font-bold text-neutral-900 dark:text-neutral-100 mt-1">
+          <div className="text-lg font-bold font-mono text-[#007BFF] dark:text-[#3D91FF] mt-1">
             {formatMoneyUSD(grandTotal)}
           </div>
           <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono mt-0.5 block">
@@ -123,11 +123,11 @@ export const ReceivablesAgingView: React.FC = () => {
           </span>
         </Card>
 
-        <Card className="p-3 border-l-4 border-l-emerald-500 bg-white p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-emerald-200 dark:border-emerald-800 ">
-          <span className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-400 block">
+        <Card className="p-3 border-l-4 border-l-[#28A745] dark:border-l-[#4ADE80] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <span className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 block uppercase tracking-wider">
             Corriente
           </span>
-          <div className="text-lg font-bold text-emerald-700 dark:text-emerald-300 mt-1">
+          <div className="text-lg font-bold font-mono text-[#28A745] dark:text-[#4ADE80] mt-1">
             {formatMoneyUSD(currentTotal)}
           </div>
           <span className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5 block">
@@ -135,11 +135,11 @@ export const ReceivablesAgingView: React.FC = () => {
           </span>
         </Card>
 
-        <Card className="p-3 border-l-4 border-l-sky-500 bg-white p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800 ">
-          <span className="text-[11px] font-semibold text-sky-800 dark:text-sky-400 block">
+        <Card className="p-3 border-l-4 border-l-[#17A2B8] dark:border-l-[#38C9DD] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <span className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 block uppercase tracking-wider">
             1 a 30 Días
           </span>
-          <div className="text-lg font-bold text-sky-700 dark:text-sky-300 mt-1">
+          <div className="text-lg font-bold font-mono text-[#17A2B8] dark:text-[#38C9DD] mt-1">
             {formatMoneyUSD(days1_30Total)}
           </div>
           <span className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5 block">
@@ -147,11 +147,11 @@ export const ReceivablesAgingView: React.FC = () => {
           </span>
         </Card>
 
-        <Card className="p-3 border-l-4 border-l-amber-500 bg-white p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-amber-200 dark:border-amber-800 ">
-          <span className="text-[11px] font-semibold text-amber-800 dark:text-amber-400 block">
+        <Card className="p-3 border-l-4 border-l-[#FFC107] dark:border-l-[#FBBF24] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <span className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 block uppercase tracking-wider">
             31 a 60 Días
           </span>
-          <div className="text-lg font-bold text-amber-700 dark:text-amber-300 mt-1">
+          <div className="text-lg font-bold font-mono text-[#b28500] dark:text-[#FBBF24] mt-1">
             {formatMoneyUSD(days31_60Total)}
           </div>
           <span className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5 block">
@@ -159,11 +159,11 @@ export const ReceivablesAgingView: React.FC = () => {
           </span>
         </Card>
 
-        <Card className="p-3 border-l-4 border-l-orange-500 bg-white p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-orange-200 dark:border-orange-800">
-          <span className="text-[11px] font-semibold text-orange-800 dark:text-orange-400 block">
+        <Card className="p-3 border-l-4 border-l-orange-500 dark:border-l-orange-400 bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <span className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 block uppercase tracking-wider">
             61 a 90 Días
           </span>
-          <div className="text-lg font-bold text-orange-700 dark:text-orange-300 mt-1">
+          <div className="text-lg font-bold font-mono text-orange-600 dark:text-orange-400 mt-1">
             {formatMoneyUSD(days61_90Total)}
           </div>
           <span className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5 block">
@@ -171,14 +171,14 @@ export const ReceivablesAgingView: React.FC = () => {
           </span>
         </Card>
 
-        <Card className="p-3 border-l-4 border-l-red-500 bg-white p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-red-200 dark:border-red-800">
-          <span className="text-[11px] font-semibold text-red-800 dark:text-red-400 block">
+        <Card className="p-3 border-l-4 border-l-[#EF4444] dark:border-l-[#F87171] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <span className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 block uppercase tracking-wider">
             +90 Días
           </span>
-          <div className="text-lg font-bold text-red-700 dark:text-red-300 mt-1">
+          <div className="text-lg font-bold font-mono text-[#EF4444] dark:text-[#F87171] mt-1">
             {formatMoneyUSD(days90PlusTotal)}
           </div>
-          <span className="text-[10px] text-red-500 dark:text-red-400 font-semibold mt-0.5 block">
+          <span className="text-[10px] text-[#EF4444] dark:text-[#F87171] font-semibold mt-0.5 block">
             Crítico
           </span>
         </Card>
@@ -204,7 +204,7 @@ export const ReceivablesAgingView: React.FC = () => {
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm border-collapse">
-            <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase  tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10 uppercase">
+            <thead className="bg-[#F4F6F9] dark:bg-[#18191A] text-neutral-700 dark:text-neutral-300 uppercase font-semibold text-[10px] tracking-wider border-b border-gray-200 dark:border-gray-800 sticky top-0 z-10">
               <tr>
                 <th className="py-3 px-4">Cliente / RIF</th>
                 <th className="py-3 px-4">Factura</th>
@@ -268,7 +268,7 @@ export const ReceivablesAgingView: React.FC = () => {
                   return (
                     <tr
                       key={it.receivableId}
-                      className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/50"
+                      className="hover:bg-[#F4F6F9]/80 dark:hover:bg-neutral-800/50 transition-colors"
                     >
                       <td className="py-3 px-4">
                         <div className="font-semibold text-neutral-900 dark:text-neutral-100">
@@ -278,7 +278,7 @@ export const ReceivablesAgingView: React.FC = () => {
                           {it.customerDoc}
                         </div>
                       </td>
-                      <td className="py-3 px-4 font-mono font-medium text-neutral-900 dark:text-neutral-100">
+                      <td className="py-3 px-4 font-mono font-bold text-[#007BFF] dark:text-[#3D91FF]">
                         {it.invoiceNumber}
                       </td>
                       <td className="py-3 px-4 text-neutral-600 dark:text-neutral-400">

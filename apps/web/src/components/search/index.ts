@@ -3,3 +3,4 @@ export * from './CustomerSearchModal';
 export * from './SupplierSearchModal';
 export * from './InvoiceSearchModal';
 export * from './PurchaseOrderSearchModal';
+export * from './HierarchySearchModal';

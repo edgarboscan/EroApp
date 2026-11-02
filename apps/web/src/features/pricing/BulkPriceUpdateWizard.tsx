@@ -3,10 +3,11 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Skeleton } from '../../components/ui/Skeleton';
-import { Check, ArrowRight, ArrowLeft, CheckCircle, FileText, AlertCircle, RefreshCw, DollarSign, Percent } from 'lucide-react';
+import { Check, ArrowRight, ArrowLeft, CheckCircle, FileText, AlertCircle, RefreshCw, DollarSign, Percent, FolderTree } from 'lucide-react';
 import { formatMoneyUSD } from '../../utils/formatters';
 import { useAuthStore } from '../../stores/authStore';
 import { PdfViewerModal } from '../../components/ui/PdfViewerModal';
+import { HierarchySearchModal, HierarchySelection } from '../../components/search';
 import { toast } from 'sonner';
 
 interface DepartmentOption {
@@ -46,6 +47,7 @@ export const BulkPriceUpdateWizard: React.FC = () => {
   // Departamentos desde backend
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [loadingDepartments, setLoadingDepartments] = useState(false);
+  const [isHierarchyModalOpen, setIsHierarchyModalOpen] = useState(false);
 
   // Criterios de Selección
   const [criteria, setCriteria] = useState({
@@ -279,7 +281,17 @@ export const BulkPriceUpdateWizard: React.FC = () => {
         <Card title="Paso 1: Definir Criterios de Selección" subtitle="Seleccione el universo de productos a modificar">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
             <div>
-              <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Departamento</label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Departamento</label>
+                <button
+                  type="button"
+                  onClick={() => setIsHierarchyModalOpen(true)}
+                  className="text-[11px] font-medium text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <FolderTree className="w-3 h-3" />
+                  <span>Buscar Jerarquía</span>
+                </button>
+              </div>
               <select
                 value={criteria.department}
                 onChange={(e) => setCriteria({ ...criteria, department: e.target.value })}
@@ -489,17 +501,17 @@ export const BulkPriceUpdateWizard: React.FC = () => {
               )}
 
               {/* Tabla de Productos Simulados */}
-              <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-800 rounded-lg">
+              <div className="overflow-x-auto border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-[#1E1F21] shadow-xs">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-neutral-50 dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700 uppercase text-neutral-500 dark:text-neutral-400">
+                  <thead className="bg-[#F4F6F9] dark:bg-[#18191A] border-b border-gray-200 dark:border-gray-800 uppercase font-semibold text-[10px] text-neutral-700 dark:text-neutral-300 tracking-wider">
                     <tr>
                       <th className="py-2.5 px-3">SKU / Producto</th>
                       <th className="py-2.5 px-3">Costo</th>
                       <th className="py-2.5 px-3">Base Actual</th>
                       <th className="py-2.5 px-3">IVA</th>
                       <th className="py-2.5 px-3">PVP Actual</th>
-                      <th className="py-2.5 px-3 text-sky-700 dark:text-sky-400 font-bold">Nueva Base</th>
-                      <th className="py-2.5 px-3 text-sky-700 dark:text-sky-400 font-bold">Nuevo PVP</th>
+                      <th className="py-2.5 px-3 text-[#007BFF] dark:text-[#3D91FF] font-bold">Nueva Base</th>
+                      <th className="py-2.5 px-3 text-[#007BFF] dark:text-[#3D91FF] font-bold">Nuevo PVP</th>
                       <th className="py-2.5 px-3 text-right">Variación</th>
                     </tr>
                   </thead>
@@ -523,8 +535,8 @@ export const BulkPriceUpdateWizard: React.FC = () => {
                           <td className="py-2.5 px-3 text-neutral-600 dark:text-neutral-300">{formatMoneyUSD(it.oldBasePrice)}</td>
                           <td className="py-2.5 px-3 text-neutral-600 dark:text-neutral-300">{it.taxRate}%</td>
                           <td className="py-2.5 px-3 text-neutral-600 dark:text-neutral-300">{formatMoneyUSD(it.oldFinalPrice)}</td>
-                          <td className="py-2.5 px-3 font-bold text-sky-700 dark:text-sky-400">{formatMoneyUSD(it.newBasePrice)}</td>
-                          <td className="py-2.5 px-3 font-bold text-sky-700 dark:text-sky-400">{formatMoneyUSD(it.newFinalPrice)}</td>
+                          <td className="py-2.5 px-3 font-bold text-[#007BFF] dark:text-[#3D91FF]">{formatMoneyUSD(it.newBasePrice)}</td>
+                          <td className="py-2.5 px-3 font-bold text-[#007BFF] dark:text-[#3D91FF]">{formatMoneyUSD(it.newFinalPrice)}</td>
                           <td className="py-2.5 px-3 text-right font-medium text-emerald-600 dark:text-emerald-400">
                             {it.priceDifference >= 0 ? `+${it.priceDifference.toFixed(2)}$` : `${it.priceDifference.toFixed(2)}$`} ({it.percentageChange > 0 ? `+${it.percentageChange}%` : `${it.percentageChange}%`})
                           </td>
@@ -596,6 +608,23 @@ export const BulkPriceUpdateWizard: React.FC = () => {
         title={pdfModal.title}
         endpoint={pdfModal.endpoint}
         filename={pdfModal.filename}
+      />
+
+      {/* Modal de Búsqueda de Jerarquía */}
+      <HierarchySearchModal
+        isOpen={isHierarchyModalOpen}
+        onClose={() => setIsHierarchyModalOpen(false)}
+        onSelect={(sel) => {
+          if (sel.level === 'none' || !sel.departmentId) {
+            setCriteria((prev) => ({ ...prev, department: 'ALL' }));
+          } else {
+            setCriteria((prev) => ({ ...prev, department: sel.departmentId! }));
+          }
+        }}
+        initialDepartmentId={criteria.department !== 'ALL' ? criteria.department : ''}
+        selectionMode="department_only"
+        title="Buscar Departamento para Actualización Masiva"
+        subtitle="Seleccione el departamento sobre el cual aplicará el ajuste masivo de precios"
       />
     </div>
   );

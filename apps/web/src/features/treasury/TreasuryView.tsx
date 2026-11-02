@@ -22,6 +22,7 @@ import {
   Calendar,
   Filter,
   Check,
+  FileText,
 } from "lucide-react";
 import {
   formatNumber,
@@ -463,6 +464,16 @@ export const TreasuryView: React.FC = () => {
 
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate("/reports/treasury-balances")}
+            className="flex-1 sm:flex-none rounded-lg border-sky-300 dark:border-sky-800 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-950/30"
+            title="Ver y exportar Reporte Oficial de Posición Bancaria y Liquidez"
+          >
+            <FileText className="w-4 h-4 mr-1 text-sky-600" />
+            Posición Bancaria (PDF)
+          </Button>
           {canReconcile && (
             <Button
               variant="outline"
@@ -496,6 +507,7 @@ export const TreasuryView: React.FC = () => {
                 Transferir
               </Button>
               <Button
+                variant="outline"
                 size="sm"
                 onClick={() => {
                   setMovementForm({
@@ -507,9 +519,10 @@ export const TreasuryView: React.FC = () => {
                   });
                   setIsMovementModalOpen(true);
                 }}
-                className="flex-1 sm:flex-none rounded-lg bg-neutral-900 text-white hover:bg-neutral-800"
+                className="flex items-center gap-2 border-[#007BFF] dark:border-[#3D91FF] rounded-lg bg-blue-50 dark:bg-blue-600/30 hover:bg-border-blue-600 dark:hover:border-blue-500 flex-1 sm:flex-none"
+                title="Nuevo Movimiento de Tesorería"
               >
-                <Plus className="w-4 h-4 mr-1" />
+                <Plus className="w-4 h-4 text-blue-600 dark:blue-500 mr-1" />
                 Movimiento
               </Button>
             </>
@@ -518,10 +531,10 @@ export const TreasuryView: React.FC = () => {
       </div>
 
       {/* Selector de Sucursal */}
-      <div className="flex items-center justify-between gap-4 p-3 bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 ">
+      <div className="flex items-center justify-between gap-4 p-3 bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
         <div className="flex items-center gap-2">
-          <Building2 className="w-4 h-4 text-neutral-500" />
-          <span className="text-xs font-semibold text-neutral-400">
+          <Building2 className="w-4 h-4 text-[#007BFF] dark:text-[#3D91FF]" />
+          <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">
             Filtro por Sucursal:
           </span>
         </div>
@@ -529,7 +542,7 @@ export const TreasuryView: React.FC = () => {
           <select
             value={selectedBranchId}
             onChange={(e) => setSelectedBranchId(e.target.value)}
-            className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+            className="w-full text-xs bg-white dark:bg-[#1E1F21] border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-[#333333] dark:text-[#E0E0E0] focus:outline-none focus:ring-2 focus:ring-[#007BFF] dark:focus:ring-[#3D91FF]"
           >
             <option value="all">Todas las Sucursales</option>
             {branches.map((b) => (
@@ -544,82 +557,82 @@ export const TreasuryView: React.FC = () => {
       {/* KPI Cards: Saldo Real y Libros */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Disponible Divisas USD */}
-        <Card className="p-4 border-l-4 border-l-sky-600 dark:border-l-sky-400  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-sky-200 dark:border-sky-800">
+        <Card className="p-4 border-l-4 border-l-[#007BFF] dark:border-l-[#3D91FF] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+              <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
                 Saldo Real en Divisas (USD)
               </p>
-              <p className="text-2xl font-bold text-sky-600 mt-1 font-mono">
+              <p className="text-2xl font-bold text-[#007BFF] dark:text-[#3D91FF] mt-1 font-mono">
                 {formatMoneyUSD(totalUsdReal)}
               </p>
-              <div className="text-[11px] text-neutral-500 mt-1 font-mono">
+              <div className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 font-mono">
                 <span>En Libros: {formatMoneyUSD(totalUsdBook)}</span>
               </div>
             </div>
-            <div className="p-2 bg-sky-50 rounded-lg text-sky-600">
+            <div className="p-2 bg-[#007BFF]/10 text-[#007BFF] dark:bg-[#3D91FF]/15 dark:text-[#3D91FF] rounded-lg">
               <DollarSign className="w-5 h-5" />
             </div>
           </div>
         </Card>
 
         {/* Disponible Bolívares VES */}
-        <Card className="p-4 border-l-4 border-l-emerald-600 dark:border-l-emerald-400  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-emerald-200 dark:border-emerald-800">
+        <Card className="p-4 border-l-4 border-l-[#28A745] dark:border-l-[#4ADE80] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+              <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
                 Saldo Real en Bolívares (VES)
               </p>
-              <p className="text-2xl font-bold text-emerald-700 mt-1 font-mono">
+              <p className="text-2xl font-bold text-[#28A745] dark:text-[#4ADE80] mt-1 font-mono">
                 {formatMoneyVES(totalVesReal)}
               </p>
-              <div className="text-[11px] text-neutral-500 mt-1 font-mono">
+              <div className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 font-mono">
                 <span>En Libros: {formatMoneyVES(totalVesBook)}</span>
               </div>
             </div>
-            <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600">
+            <div className="p-2 bg-[#28A745]/10 text-[#28A745] dark:bg-[#4ADE80]/15 dark:text-[#4ADE80] rounded-lg">
               <Landmark className="w-5 h-5" />
             </div>
           </div>
         </Card>
 
         {/* Cuentas Operativas */}
-        <Card className="p-4 border-l-4 border-l-neutral-600 dark:border-l-neutral-400  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-800">
+        <Card className="p-4 border-l-4 border-l-neutral-400 dark:border-l-neutral-600 bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
+              <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
                 Cuentas Bancarias
               </p>
-              <p className="text-2xl font-bold text-neutral-900 mt-1">
+              <p className="text-2xl font-bold text-[#333333] dark:text-[#E0E0E0] mt-1">
                 {accounts.length}
               </p>
-              <span className="text-[11px] text-neutral-400">
+              <span className="text-[11px] text-neutral-400 dark:text-neutral-500">
                 {selectedBranchId === "all"
                   ? "Todas las sucursales"
                   : "Sucursal seleccionada"}
               </span>
             </div>
-            <div className="p-2 bg-neutral-100 rounded-lg text-neutral-300">
+            <div className="p-2 bg-gray-100 dark:bg-neutral-800 rounded-lg text-neutral-500 dark:text-neutral-400">
               <CreditCard className="w-5 h-5" />
             </div>
           </div>
         </Card>
 
         {/* Movimientos por Conciliar */}
-        <Card className="p-4 border-l-4 border-l-orange-600 dark:border-l-orange-400  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-orange-200 dark:border-orange-800">
+        <Card className="p-4 border-l-4 border-l-[#FFC107] dark:border-l-[#FBBF24] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
+              <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
                 Partidas Flotantes
               </p>
-              <p className="text-2xl font-bold text-amber-700 mt-1">
+              <p className="text-2xl font-bold text-[#b28500] dark:text-[#FBBF24] mt-1">
                 {totalPendingRec}
               </p>
-              <span className="text-[11px] text-neutral-400">
+              <span className="text-[11px] text-neutral-400 dark:text-neutral-500">
                 Movimientos en tránsito
               </span>
             </div>
-            <div className="p-2 bg-amber-50 rounded-lg text-amber-600">
+            <div className="p-2 bg-[#FFC107]/15 text-[#b28500] dark:bg-[#FBBF24]/15 dark:text-[#FBBF24] rounded-lg">
               <AlertCircle className="w-5 h-5" />
             </div>
           </div>
@@ -697,25 +710,25 @@ export const TreasuryView: React.FC = () => {
 
                   {/* Sucursal y Descripción */}
                   <div className="mt-2 flex items-center justify-between text-xs">
-                    <p className="text-neutral-400 font-medium truncate">
+                    <p className="text-neutral-400 dark:text-neutral-500 font-medium truncate">
                       {acc.description}
                     </p>
-                    <span className="text-[10px] bg-sky-50/60 dark:bg-sky-950/30  border border-sky-200 dark:border-sky-800  px-1.5 py-0.5 rounded font-medium">
+                    <span className="text-[10px] bg-[#007BFF]/10 dark:bg-[#3D91FF]/15 border border-[#007BFF]/25 dark:border-[#3D91FF]/30 text-[#007BFF] dark:text-[#3D91FF] px-1.5 py-0.5 rounded font-medium">
                       {acc.branchName || "Global"}
                     </span>
                   </div>
 
                   {/* Saldo Real vs Libros */}
-                  <div className="mt-3 p-2.5 bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800  space-y-1">
+                  <div className="mt-3 p-2.5 bg-[#007BFF]/10 dark:bg-[#3D91FF]/15 rounded-lg border border-[#007BFF]/25 dark:border-[#3D91FF]/30 space-y-1">
                     <div className="flex justify-between items-baseline">
-                      <span className="text-[11px] font-semibold text-sky-500">
+                      <span className="text-[11px] font-semibold text-[#007BFF] dark:text-[#3D91FF]">
                         Saldo Real Bancario:
                       </span>
-                      <span className="text-base font-bold font-mono text-sky-500">
+                      <span className="text-base font-bold font-mono text-[#007BFF] dark:text-[#3D91FF]">
                         {formatCurrency(acc.realBalance, acc.currency)}
                       </span>
                     </div>
-                    <div className="flex justify-between items-baseline text-xs text-neutral-500 font-mono pt-1 border-t border-neutral-200">
+                    <div className="flex justify-between items-baseline text-xs text-neutral-500 dark:text-neutral-400 font-mono pt-1 border-t border-gray-200 dark:border-gray-800">
                       <span className="text-[10px] font-sans">
                         Saldo en Libros:
                       </span>
@@ -728,17 +741,15 @@ export const TreasuryView: React.FC = () => {
                   {/* Desglose de Tránsito */}
                   {(acc.unclearedDeposits > 0 ||
                     acc.unclearedWithdrawals > 0) && (
-                    <div className="mt-2 text-[10px] font-mono flex justify-between text-neutral-500">
+                    <div className="mt-2 text-[10px] font-mono flex justify-between text-neutral-500 dark:text-neutral-400">
                       {acc.unclearedDeposits > 0 && (
-                        <span className="text-emerald-400">
-                          +{formatNumber(acc.unclearedDeposits)} cobros
-                          flotantes
+                        <span className="text-[#28A745] dark:text-[#4ADE80]">
+                          +{formatNumber(acc.unclearedDeposits)} cobros flotantes
                         </span>
                       )}
                       {acc.unclearedWithdrawals > 0 && (
-                        <span className="text-red-700">
-                          -{formatNumber(acc.unclearedWithdrawals)} pagos
-                          flotantes
+                        <span className="text-red-600 dark:text-red-400">
+                          -{formatNumber(acc.unclearedWithdrawals)} pagos flotantes
                         </span>
                       )}
                     </div>
@@ -746,22 +757,35 @@ export const TreasuryView: React.FC = () => {
                 </div>
 
                 {/* Footer Acciones */}
-                <div className="mt-4 pt-3 border-t border-neutral-100 flex items-center justify-between">
-                  <span className="text-[10px] text-amber-600 font-medium">
+                <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
+                  <span className="text-[10px] text-[#b28500] dark:text-[#FBBF24] font-medium">
                     {acc.pendingReconciliationsCount > 0
                       ? `${acc.pendingReconciliationsCount} sin conciliar`
                       : "Cuadrada"}
                   </span>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      navigate(`/treasury/reconcile?accountId=${acc.id}`)
-                    }
-                    className="text-xs text-sky-600 hover:text-sky-800 font-semibold inline-flex items-center gap-1"
-                  >
-                    Conciliar &rarr;
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        navigate(`/reports/bank-movements?accountId=${acc.id}`)
+                      }
+                      className="text-xs text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 font-medium inline-flex items-center gap-1 cursor-pointer"
+                      title="Ver cartola y movimientos en PDF"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-neutral-400" />
+                      Cartola
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        navigate(`/treasury/reconcile?accountId=${acc.id}`)
+                      }
+                      className="text-xs text-[#007BFF] hover:text-[#0069d9] dark:text-[#3D91FF] dark:hover:text-[#297be6] font-semibold inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      Conciliar &rarr;
+                    </button>
+                  </div>
                 </div>
               </Card>
             ))
@@ -815,7 +839,7 @@ export const TreasuryView: React.FC = () => {
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm border-collapse">
-            <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-300 dark:text-neutral-400 uppercase  tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
+            <thead className="bg-[#F4F6F9] dark:bg-[#18191A] text-neutral-700 dark:text-neutral-300 uppercase font-semibold text-[10px] tracking-wider border-b border-gray-200 dark:border-gray-800 sticky top-0 z-10">
               <tr>
                 <th className="py-2.5 px-3">Fecha y Hora</th>
                 <th className="py-2.5 px-3">Tipo Movimiento</th>
@@ -852,10 +876,9 @@ export const TreasuryView: React.FC = () => {
                   return (
                     <tr
                       key={m.id}
-                      className="border-b border-neutral-100 dark:border-neutral-800 hover:bg-neutral-600 animate-pulse
-                      "
+                      className="border-b border-gray-100 dark:border-gray-800/80 hover:bg-[#F4F6F9] dark:hover:bg-neutral-800/50 transition-colors"
                     >
-                      <td className="py-2.5 px-3 font-mono text-neutral-300">
+                      <td className="py-2.5 px-3 font-mono text-[#333333] dark:text-[#E0E0E0]">
                         {new Date(m.movementDate).toLocaleDateString("es-VE")}{" "}
                         <span className="text-neutral-400">
                           {new Date(m.movementDate).toLocaleTimeString(
@@ -872,10 +895,10 @@ export const TreasuryView: React.FC = () => {
                           {m.movementType}
                         </span>
                       </td>
-                      <td className="py-2.5 px-3 font-mono font-semibold text-neutral-400">
+                      <td className="py-2.5 px-3 font-mono font-semibold text-neutral-700 dark:text-neutral-300">
                         {m.referenceNumber || "—"}
                       </td>
-                      <td className="py-2.5 px-3 text-neutral-400 truncate max-w-xs">
+                      <td className="py-2.5 px-3 text-[#333333] dark:text-[#E0E0E0] truncate max-w-xs">
                         {m.concept}
                       </td>
                       <td
@@ -886,7 +909,7 @@ export const TreasuryView: React.FC = () => {
                         {isPositive ? "+" : ""}
                         {formatNumber(m.amount)}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono text-neutral-400">
+                      <td className="py-2.5 px-3 text-right font-mono text-[#333333] dark:text-[#E0E0E0]">
                         {formatNumber(m.balanceAfter)}
                       </td>
                       <td className="py-2.5 px-3 text-center">

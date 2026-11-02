@@ -642,11 +642,13 @@ export const PhysicalLocationsView: React.FC = () => {
             Exportar CSV
           </Button>
           <Button
+            variant="outline"
             size="sm"
             onClick={handleOpenCreateModal}
-            className="rounded-lg"
+            className="flex items-center gap-2 border-[#007BFF] dark:border-[#3D91FF] rounded-lg bg-blue-50 dark:bg-blue-600/30 hover:bg-border-blue-600 dark:hover:border-blue-500"
+            title="Nueva Ubicación Física"
           >
-            <Plus className="w-4 h-4 mr-1.5" />
+            <Plus className="w-4 h-4 text-blue-600 dark:blue-500 mr-1.5" />
             Nueva Ubicación
           </Button>
         </div>
@@ -654,39 +656,39 @@ export const PhysicalLocationsView: React.FC = () => {
 
       {/* Tarjetas KPI de Resumen */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="p-3 border-l-4 border-l-sky-600 dark:border-l-sky-400  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-sky-600 dark:border-sky-400 shadow-sm">
-          <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium">
+        <Card className="p-4 border-l-4 border-l-[#007BFF] dark:border-l-[#3D91FF] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
             Total Ubicaciones
           </span>
-          <div className="text-xl font-bold text-sky-600 dark:text-sky-400 mt-1">
+          <div className="text-2xl font-bold font-mono text-[#007BFF] dark:text-[#3D91FF] mt-1">
             {stats.total}
           </div>
-        </div>
-        <div className="p-3 border-l-4 border-l-emerald-600 dark:border-l-emerald-400  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-emerald-600 dark:border-emerald-400 shadow-sm">
-          <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium">
+        </Card>
+        <Card className="p-4 border-l-4 border-l-[#28A745] dark:border-l-[#4ADE80] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
             Ubicaciones Asignadas
           </span>
-          <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+          <div className="text-2xl font-bold font-mono text-[#28A745] dark:text-[#4ADE80] mt-1">
             {stats.assigned}
           </div>
-        </div>
-        <div className="p-3 border-l-4 border-l-purple-600 dark:border-l-purple-400  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-purple-600 dark:border-purple-400 shadow-sm">
-          <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium">
+        </Card>
+        <Card className="p-4 border-l-4 border-l-[#17A2B8] dark:border-l-[#38C9DD] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
             Ubicaciones Libres
           </span>
-          <div className="text-xl font-bold text-purple-600 dark:text-purple-400 mt-1">
+          <div className="text-2xl font-bold font-mono text-[#17A2B8] dark:text-[#38C9DD] mt-1">
             {stats.unassigned}
           </div>
-        </div>
-        <div className="p-3 border-l-4 border-l-amber-600 dark:border-l-amber-400  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-amber-600 dark:border-amber-400 shadow-sm">
-          <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium">
+        </Card>
+        <Card className="p-4 border-l-4 border-l-[#FFC107] dark:border-l-[#FBBF24] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
             Stock en Ubicaciones
           </span>
-          <div className="text-xl font-bold text-amber-600 dark:text-amber-400 mt-1">
+          <div className="text-2xl font-bold font-mono text-[#b28500] dark:text-[#FBBF24] mt-1">
             {formatNumber(stats.totalStock, { maximumFractionDigits: 2 })}{" "}
             <span className="text-xs font-normal text-neutral-500">UND</span>
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* Barra de Filtros */}

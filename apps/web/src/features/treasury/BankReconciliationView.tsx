@@ -708,14 +708,14 @@ export const BankReconciliationView: React.FC = () => {
 
         {/* Tab Switcher & Actions */}
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center bg-sky-50/60 dark:bg-sky-950/30 p-1 rounded-lg border border-sky-200 dark:border-sky-800 font-medium ">
+          <div className="flex items-center bg-[#007BFF]/10 dark:bg-[#3D91FF]/15 p-1 rounded-lg border border-[#007BFF]/25 dark:border-[#3D91FF]/30 font-medium">
             <button
               type="button"
               onClick={() => setActiveTab("RECONCILIATION")}
               className={`px-3 py-1.5 rounded-md transition-colors ${
                 activeTab === "RECONCILIATION"
-                  ? "bg-white text-sky-600 dark:bg-sky-950 dark:text-sky-300 shadow-sm font-semibold"
-                  : "text-neutral-500 hover:text-neutral-400"
+                  ? "bg-white text-[#007BFF] dark:bg-[#1E1F21] dark:text-[#3D91FF] shadow-xs font-semibold"
+                  : "text-neutral-500 dark:text-neutral-400 hover:text-[#007BFF] dark:hover:text-[#3D91FF]"
               }`}
             >
               Conciliación Activa
@@ -725,8 +725,8 @@ export const BankReconciliationView: React.FC = () => {
               onClick={() => setActiveTab("HISTORY")}
               className={`px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 ${
                 activeTab === "HISTORY"
-                  ? "bg-white text-sky-600 dark:bg-sky-950 dark:text-sky-300 shadow-sm font-semibold"
-                  : "text-neutral-500 hover:text-neutral-400"
+                  ? "bg-white text-[#007BFF] dark:bg-[#1E1F21] dark:text-[#3D91FF] shadow-xs font-semibold"
+                  : "text-neutral-500 dark:text-neutral-400 hover:text-[#007BFF] dark:hover:text-[#3D91FF]"
               }`}
             >
               <History className="w-3.5 h-3.5" />
@@ -734,13 +734,29 @@ export const BankReconciliationView: React.FC = () => {
             </button>
           </div>
 
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              navigate(
+                `/reports/bank-reconciliation?accountId=${selectedAccountId}&endDate=${periodEnd}`
+              )
+            }
+            disabled={!selectedAccountId}
+            className="rounded-lg border-sky-300 dark:border-sky-800 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-950/30 font-semibold"
+            title="Generar e imprimir Acta Oficial de Conciliación Bancaria (PDF)"
+          >
+            <FileText className="w-4 h-4 mr-1 text-sky-600" />
+            Acta Oficial (PDF)
+          </Button>
+
           {activeTab === "RECONCILIATION" && (
             <Button
               size="sm"
               onClick={handleReconcile}
               isLoading={submitting}
               disabled={parsedLines.length === 0}
-              className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="rounded-lg bg-[#28A745] hover:bg-[#218838] dark:bg-[#4ADE80] dark:hover:bg-[#38b869] text-white dark:text-neutral-950 font-semibold"
             >
               <Check className="w-4 h-4 mr-1" />
               Asentar Conciliación
@@ -828,28 +844,28 @@ export const BankReconciliationView: React.FC = () => {
           <button
             type="button"
             onClick={() => setQuickDateRange("THIS_MONTH")}
-            className="text-[11px] px-2 py-0.5 rounded bg-sky-50/60 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 hover:bg-sky-100 dark:hover:bg-sky-950 transition-colors"
+            className="text-[11px] px-2 py-0.5 rounded bg-[#007BFF]/10 dark:bg-[#3D91FF]/15 border border-[#007BFF]/25 dark:border-[#3D91FF]/30 hover:bg-[#007BFF]/20 dark:hover:bg-[#3D91FF]/25 text-[#007BFF] dark:text-[#3D91FF] transition-colors"
           >
             Este Mes
           </button>
           <button
             type="button"
             onClick={() => setQuickDateRange("LAST_MONTH")}
-            className="text-[11px] px-2 py-0.5 rounded bg-sky-50/60 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 hover:bg-sky-100 dark:hover:bg-sky-950 transition-colors"
+            className="text-[11px] px-2 py-0.5 rounded bg-[#007BFF]/10 dark:bg-[#3D91FF]/15 border border-[#007BFF]/25 dark:border-[#3D91FF]/30 hover:bg-[#007BFF]/20 dark:hover:bg-[#3D91FF]/25 text-[#007BFF] dark:text-[#3D91FF] transition-colors"
           >
             Mes Anterior
           </button>
           <button
             type="button"
             onClick={() => setQuickDateRange("LAST_30_DAYS")}
-            className="text-[11px] px-2 py-0.5 rounded bg-sky-50/60 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 hover:bg-sky-100 dark:hover:bg-sky-950 transition-colors"
+            className="text-[11px] px-2 py-0.5 rounded bg-[#007BFF]/10 dark:bg-[#3D91FF]/15 border border-[#007BFF]/25 dark:border-[#3D91FF]/30 hover:bg-[#007BFF]/20 dark:hover:bg-[#3D91FF]/25 text-[#007BFF] dark:text-[#3D91FF] transition-colors"
           >
             Últimos 30 días
           </button>
           <button
             type="button"
             onClick={() => setQuickDateRange("THIS_YEAR")}
-            className="text-[11px] px-2 py-0.5 rounded bg-sky-50/60 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 hover:bg-sky-100 dark:hover:bg-sky-950 transition-colors"
+            className="text-[11px] px-2 py-0.5 rounded bg-[#007BFF]/10 dark:bg-[#3D91FF]/15 border border-[#007BFF]/25 dark:border-[#3D91FF]/30 hover:bg-[#007BFF]/20 dark:hover:bg-[#3D91FF]/25 text-[#007BFF] dark:text-[#3D91FF] transition-colors"
           >
             Año Actual
           </button>
@@ -859,37 +875,37 @@ export const BankReconciliationView: React.FC = () => {
       {/* Financial Health & Real Balance Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Saldo en Libros */}
-        <Card className="p-4 p-3 border-l-4 border-l-netural-600 dark:border-l-netural-400  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-netural-200 dark:border-neutral-800">
-          <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider block">
+        <Card className="p-4 border-l-4 border-l-neutral-400 dark:border-l-neutral-600 bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
             Saldo en Libros ERP
           </span>
-          <p className="text-2xl font-bold font-mono text-neutral-400 mt-1">
+          <p className="text-2xl font-bold font-mono text-[#333333] dark:text-[#E0E0E0] mt-1">
             {formatCurrency(bookBalance, activeAccount?.currency || "VES")}
           </p>
-          <span className="text-[11px] text-neutral-400">
+          <span className="text-[11px] text-neutral-400 dark:text-neutral-500">
             Contabilidad registrada
           </span>
         </Card>
 
         {/* Partidas en Tránsito */}
-        <Card className="p-4 p-3 border-l-4 border-l-amber-600 dark:border-l-amber-600  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-amber-200 dark:border-amber-600">
+        <Card className="p-4 border-l-4 border-l-[#FFC107] dark:border-l-[#FBBF24] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-amber-500 uppercase tracking-wider block">
+            <span className="text-xs font-semibold text-[#b28500] dark:text-[#FBBF24] uppercase tracking-wider block">
               En Tránsito (Flotante)
             </span>
-            <Badge variant="neutral" className="text-[10px]">
+            <Badge variant="warning" className="text-[10px]">
               {activeAccount?.pendingReconciliationsCount || 0} pendientes
             </Badge>
           </div>
           <div className="mt-2 space-y-1 text-xs font-mono">
-            <div className="flex justify-between text-emerald-700">
-              <span className="text-[11px] font-sans text-neutral-500">
+            <div className="flex justify-between text-[#28A745] dark:text-[#4ADE80]">
+              <span className="text-[11px] font-sans text-neutral-500 dark:text-neutral-400">
                 (+) Depósitos flotantes:
               </span>
               <span>+{formatNumber(unclearedDeposits)}</span>
             </div>
-            <div className="flex justify-between text-red-700">
-              <span className="text-[11px] font-sans text-neutral-500">
+            <div className="flex justify-between text-red-600 dark:text-red-400">
+              <span className="text-[11px] font-sans text-neutral-500 dark:text-neutral-400">
                 (-) Egresos no cobrados:
               </span>
               <span>-{formatNumber(unclearedWithdrawals)}</span>
@@ -898,39 +914,39 @@ export const BankReconciliationView: React.FC = () => {
         </Card>
 
         {/* Saldo Real Bancario */}
-        <Card className="p-4 p-3 border-l-4 border-l-sky-600 dark:border-l-sky-600  bg-neutral-50 dark:bg-neutral-800 rounded-lg border border-sky-200 dark:border-sky-800">
-          <span className="text-xs font-semibold text-sky-600 uppercase tracking-wider block">
+        <Card className="p-4 border-l-4 border-l-[#007BFF] dark:border-l-[#3D91FF] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <span className="text-xs font-semibold text-[#007BFF] dark:text-[#3D91FF] uppercase tracking-wider block">
             Saldo Real Bancario (Disponible)
           </span>
-          <p className="text-2xl font-bold font-mono text-sky-700 mt-1">
+          <p className="text-2xl font-bold font-mono text-[#007BFF] dark:text-[#3D91FF] mt-1">
             {formatCurrency(realBalance, activeAccount?.currency || "VES")}
           </p>
-          <span className="text-[11px] text-sky-600">
+          <span className="text-[11px] text-[#007BFF]/80 dark:text-[#3D91FF]/80">
             Disponibilidad compensada estimada
           </span>
         </Card>
 
         {/* Saldo según Extracto y Diferencia */}
         <Card
-          className={`p-4 border rounded-lg ${
+          className={`p-4 border rounded-lg bg-white dark:bg-[#1E1F21] border-gray-200 dark:border-gray-800 shadow-xs ${
             isBalanced
-              ? "border-l-4 border-l-emerald-600 dark:border-l-emerald-600  bg-neutral-50 border-emerald-200 bg-emerald-50/20"
-              : "border-l-4 border-l-red-600 dark:border-l-red-600 bg-neutral-50 border-red-200 bg-red-50/20 "
+              ? "border-l-4 border-l-[#28A745] dark:border-l-[#4ADE80] bg-[#28A745]/5 dark:bg-[#4ADE80]/5"
+              : "border-l-4 border-l-red-500 bg-red-50/20 dark:bg-red-950/20"
           }`}
         >
           <div className="flex items-center justify-between">
             <div>
-              <span className="text-xs font-semibold uppercase tracking-wider text-emerald-500 block">
+              <span className={`text-xs font-semibold uppercase tracking-wider block ${isBalanced ? 'text-[#28A745] dark:text-[#4ADE80]' : 'text-red-600 dark:text-red-400'}`}>
                 Diferencia de Cuadre
               </span>
               <p
                 className={`text-2xl font-bold font-mono mt-1 ${
-                  isBalanced ? "text-emerald-700" : "text-red-700"
+                  isBalanced ? "text-[#28A745] dark:text-[#4ADE80]" : "text-red-600 dark:text-red-400"
                 }`}
               >
                 {formatCurrency(difference, activeAccount?.currency || "VES")}
               </p>
-              <span className="text-[11px] text-neutral-500">
+              <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
                 {isBalanced
                   ? "Conciliación exacta"
                   : "Partidas pendientes o discrepancia"}
@@ -939,8 +955,8 @@ export const BankReconciliationView: React.FC = () => {
             <div
               className={`p-2 rounded-lg ${
                 isBalanced
-                  ? "bg-emerald-100 text-emerald-700"
-                  : "bg-red-100 text-red-700"
+                  ? "bg-[#28A745]/15 text-[#28A745] dark:bg-[#4ADE80]/20 dark:text-[#4ADE80]"
+                  : "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300"
               }`}
             >
               {isBalanced ? (
@@ -993,13 +1009,14 @@ export const BankReconciliationView: React.FC = () => {
                   <th className="py-2.5 px-3 text-right">Diferencia</th>
                   <th className="py-2.5 px-3 text-center">Estado</th>
                   <th className="py-2.5 px-3">Observaciones</th>
+                  <th className="py-2.5 px-3 text-center">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800 ">
                 {historyRecords.length === 0 ? (
                   <tr className="transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800/60 animate-pulse text-neutral-700 dark:text-neutral-300">
                     <td
-                      colSpan={8}
+                      colSpan={9}
                       className="text-center py-8 text-neutral-400"
                     >
                       No se han registrado conciliaciones históricas para esta
@@ -1049,6 +1066,21 @@ export const BankReconciliationView: React.FC = () => {
                       </td>
                       <td className="py-2.5 px-3 font-semibold uppercase text-neutral-600 break-words bdark:text-neutral-400 max-w-xs">
                         {h.notes || "—"}
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigate(
+                              `/reports/bank-reconciliation?accountId=${selectedAccountId}&reconciliationId=${h.id}`
+                            )
+                          }
+                          className="inline-flex items-center gap-1 text-xs text-sky-600 dark:text-sky-400 hover:underline font-semibold cursor-pointer"
+                          title="Ver e imprimir Acta Oficial de esta conciliación"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          Acta (PDF)
+                        </button>
                       </td>
                     </tr>
                   ))

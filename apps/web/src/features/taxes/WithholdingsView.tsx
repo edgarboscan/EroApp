@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -15,6 +16,7 @@ import {
   X,
   CheckCircle2,
   Filter,
+  FileCheck,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { showDestructiveConfirm } from '../../lib/sweetalert';
@@ -77,10 +79,22 @@ interface PendingInvoice {
   hasIslrWithholding: boolean;
 }
 
+interface CompanyTaxStatus {
+  id: string;
+  rif: string;
+  legalName: string;
+  tradeName: string | null;
+  isSpecialTaxpayer: boolean;
+  ivaRetentionRate: number;
+  taxpayerCondition: string;
+}
+
 export const WithholdingsView: React.FC = () => {
-  const { activeBranchId } = useAuthStore();
+  const navigate = useNavigate();
+  const { token, activeBranchId } = useAuthStore();
   const [withholdings, setWithholdings] = useState<WithholdingItem[]>([]);
   const [pendingInvoices, setPendingInvoices] = useState<PendingInvoice[]>([]);
+  const [companyTaxStatus, setCompanyTaxStatus] = useState<CompanyTaxStatus | null>(null);
   const [loading, setLoading] = useState(false);
 
   // Filters
@@ -131,10 +145,18 @@ export const WithholdingsView: React.FC = () => {
       if (period) params.append('period', period);
       if (activeBranchId) params.append('branchId', activeBranchId);
 
-      const res = await fetch(`/api/taxes/withholdings?${params.toString()}`);
+      const res = await fetch(`/api/taxes/withholdings?${params.toString()}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.data) {
+          if (json.data.companyTaxStatus) {
+            setCompanyTaxStatus(json.data.companyTaxStatus);
+            if (json.data.companyTaxStatus.isSpecialTaxpayer && json.data.companyTaxStatus.ivaRetentionRate) {
+              setRetainedPercentage(json.data.companyTaxStatus.ivaRetentionRate);
+            }
+          }
           const combined = [
             ...(json.data.ivaWithholdings || []),
             ...(json.data.islrWithholdings || []),
@@ -157,7 +179,9 @@ export const WithholdingsView: React.FC = () => {
     try {
       const params = new URLSearchParams();
       if (activeBranchId) params.append('branchId', activeBranchId);
-      const res = await fetch(`/api/taxes/pending-invoices?${params.toString()}`);
+      const res = await fetch(`/api/taxes/pending-invoices?${params.toString()}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       if (res.ok) {
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
@@ -187,6 +211,10 @@ export const WithholdingsView: React.FC = () => {
 
   const handleEmitWithholding = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (companyTaxStatus && !companyTaxStatus.isSpecialTaxpayer) {
+      toast.error('Operación no permitida: La empresa es Contribuyente Ordinario. No actúa como Agente de Retención según normativa SENIAT.');
+      return;
+    }
     if (!selectedInvoiceId) {
       toast.error('Debe seleccionar una factura de compra');
       return;
@@ -198,7 +226,10 @@ export const WithholdingsView: React.FC = () => {
       if (emitType === 'IVA') {
         const res = await fetch('/api/taxes/withholdings/iva', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
           body: JSON.stringify({
             purchaseInvoiceId: selectedInvoiceId,
             retainedPercentage,
@@ -215,7 +246,10 @@ export const WithholdingsView: React.FC = () => {
         const concept = STANDARD_ISLR_CONCEPTS.find((c) => c.code === conceptCode);
         const res = await fetch('/api/taxes/withholdings/islr', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
           body: JSON.stringify({
             purchaseInvoiceId: selectedInvoiceId,
             conceptCode,
@@ -257,8 +291,14 @@ export const WithholdingsView: React.FC = () => {
   };
 
   const handleExportSENIAT = async (type: 'ISLR' | 'IVA') => {
+    if (companyTaxStatus && !companyTaxStatus.isSpecialTaxpayer) {
+      toast.error('Operación no permitida: Los Contribuyentes Ordinarios no generan ni presentan Declaraciones Informativas de Retenciones (SENIAT).');
+      return;
+    }
     try {
-      const res = await fetch(`/api/taxes/export/seniat?period=${period}&type=${type}`);
+      const res = await fetch(`/api/taxes/export/seniat?period=${period}&type=${type}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       if (!res.ok) throw new Error('Error al descargar archivo SENIAT');
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
@@ -287,7 +327,10 @@ export const WithholdingsView: React.FC = () => {
     try {
       const res = await fetch('/api/taxes/withholdings/annul', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ type: item.type, id: item.id }),
       });
       const json = await res.json();
@@ -328,11 +371,20 @@ export const WithholdingsView: React.FC = () => {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-xl font-bold text-neutral-900 tracking-tight flex items-center gap-2">
-            <FileText className="w-5 h-5 text-sky-600" />
-            Retenciones Tributarias SENIAT (IVA e ISLR)
-          </h1>
-          <p className="text-sm text-neutral-500">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl font-bold text-neutral-400 dark:text-neutral-100 tracking-tight flex items-center gap-2">
+              <FileText className="w-5 h-5 text-sky-600" />
+              Retenciones Tributarias SENIAT (IVA e ISLR)
+            </h1>
+            {companyTaxStatus && (
+              <Badge variant={companyTaxStatus.isSpecialTaxpayer ? 'success' : 'warning'}>
+                {companyTaxStatus.isSpecialTaxpayer
+                  ? `Agente de Retención (IVA: ${companyTaxStatus.ivaRetentionRate}%)`
+                  : 'Contribuyente Ordinario'}
+              </Badge>
+            )}
+          </div>
+          <p className="text-sm text-neutral-500 mt-0.5">
             Control de comprobantes fiscales, retenciones a proveedores y declaraciones oficiales
           </p>
         </div>
@@ -340,8 +392,10 @@ export const WithholdingsView: React.FC = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => handleExportSENIAT('IVA')}
-            className="flex-1 sm:flex-none"
+            onClick={() => handleExportSENIAT("IVA")}
+            disabled={companyTaxStatus !== null && !companyTaxStatus.isSpecialTaxpayer}
+            className="flex-1 sm:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
+            title={companyTaxStatus && !companyTaxStatus.isSpecialTaxpayer ? 'No habilitado: La empresa es Contribuyente Ordinario' : 'Exportar TXT Oficial SENIAT IVA'}
           >
             <Download className="w-4 h-4 mr-1 text-neutral-600" />
             TXT IVA
@@ -349,73 +403,135 @@ export const WithholdingsView: React.FC = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => handleExportSENIAT('ISLR')}
-            className="flex-1 sm:flex-none"
+            onClick={() => handleExportSENIAT("ISLR")}
+            disabled={companyTaxStatus !== null && !companyTaxStatus.isSpecialTaxpayer}
+            className="flex-1 sm:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
+            title={companyTaxStatus && !companyTaxStatus.isSpecialTaxpayer ? 'No habilitado: La empresa es Contribuyente Ordinario' : 'Exportar XML Oficial SENIAT ISLR'}
           >
             <Download className="w-4 h-4 mr-1 text-neutral-600" />
             XML ISLR
           </Button>
           <Button
+            variant="outline"
             size="sm"
-            onClick={() => setShowEmitModal(true)}
-            className="flex-1 sm:flex-none"
+            onClick={() => {
+              if (companyTaxStatus && !companyTaxStatus.isSpecialTaxpayer) {
+                toast.error('La empresa es Contribuyente Ordinario. No está autorizada a realizar retenciones a proveedores según normativa SENIAT.');
+                return;
+              }
+              setShowEmitModal(true);
+            }}
+            disabled={companyTaxStatus !== null && !companyTaxStatus.isSpecialTaxpayer}
+            className={`flex items-center gap-2 border-[#007BFF] dark:border-[#3D91FF] rounded-lg ${
+              companyTaxStatus && !companyTaxStatus.isSpecialTaxpayer
+                ? 'opacity-50 cursor-not-allowed bg-neutral-100 dark:bg-neutral-800'
+                : 'bg-blue-50 dark:bg-blue-600/30 hover:bg-border-blue-600 dark:hover:border-blue-500'
+            } flex-1 sm:flex-none`}
+            title={
+              companyTaxStatus && !companyTaxStatus.isSpecialTaxpayer
+                ? 'No habilitado: La empresa no es Agente de Retención SENIAT'
+                : 'Emitir Comprobante de Retención'
+            }
           >
-            <Plus className="w-4 h-4 mr-1" />
+            <Plus className="w-4 h-4 text-blue-600 dark:blue-500 mr-1" />
             Emitir Retención
           </Button>
         </div>
       </div>
 
+      {/* Alerta Informativa para Contribuyentes Ordinarios */}
+      {companyTaxStatus && !companyTaxStatus.isSpecialTaxpayer && (
+        <Card className="p-4 border-l-4 border-l-amber-500 bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-amber-900 dark:text-amber-200">
+                  Empresa calificada como Contribuyente Ordinario (No Agente de Retención)
+                </h3>
+                <Badge variant="warning">0% Retención a Proveedores</Badge>
+              </div>
+              <p className="text-xs text-amber-800 dark:text-amber-300 mt-1 leading-relaxed">
+                Conforme al <strong>Artículo 11 de la Ley del IVA</strong>, la <strong>Providencia Administrativa SENIAT SNAT/2015/0049</strong> y el <strong>Decreto 1808 de ISLR</strong>, las retenciones tributarias en compras son practicadas <strong>exclusivamente por Sujetos Pasivos Especiales</strong> debidamente designados por el SENIAT. Al ser Contribuyente Ordinario, esta empresa debe cancelar a sus proveedores el 100% del monto facturado (Base + IVA) y no emite comprobantes de retención. Solo los clientes que sean Agentes de Retención le retendrán a usted en sus ventas.
+              </p>
+              <div className="mt-2.5 flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => navigate('/config/company')}
+                  className="text-xs h-7 py-0.5 px-2.5 rounded-lg border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-100 hover:bg-amber-100/60"
+                  title="Ir a Configuración de la Empresa"
+                >
+                  Consultar Configuración Fiscal de la Empresa
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-4 border-neutral-200">
+        <Card className="p-4 border-l-4 border-l-[#007BFF] dark:border-l-[#3D91FF] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+            <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
               Retenciones IVA
             </p>
-            <Badge variant="info">
-              IVA 75%/100%
-            </Badge>
+            <Badge variant="info">IVA 75%/100%</Badge>
           </div>
-          <p className="text-2xl font-bold text-neutral-900 mt-2 font-mono">
+          <p className="text-2xl font-bold text-[#007BFF] dark:text-[#3D91FF] mt-2 font-mono">
             {formatMoneyUSD(totalIvaRetained)}
           </p>
-          <p className="text-xs text-neutral-500 mt-1">Acumulado en período seleccionado</p>
+          <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1">
+            Acumulado en período seleccionado
+          </p>
         </Card>
 
-        <Card className="p-4 border-neutral-200">
+        <Card className="p-4 border-l-4 border-l-[#28A745] dark:border-l-[#4ADE80] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+            <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
               Retenciones ISLR
             </p>
-            <Badge variant="success">
-              Dec. 1808
-            </Badge>
+            <Badge variant="success">Dec. 1808</Badge>
           </div>
-          <p className="text-2xl font-bold text-neutral-900 mt-2 font-mono">
+          <p className="text-2xl font-bold text-[#28A745] dark:text-[#4ADE80] mt-2 font-mono">
             {formatMoneyUSD(totalIslrRetained)}
           </p>
-          <p className="text-xs text-neutral-500 mt-1">Servicios, fletes y honorarios</p>
+          <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1">
+            Servicios, fletes y honorarios
+          </p>
         </Card>
 
-        <Card className="p-4 border-neutral-200 bg-neutral-900 text-white">
-          <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">
-            Total Retenido SENIAT
-          </p>
-          <p className="text-2xl font-bold text-white mt-2 font-mono">
+        <Card className="p-4 border-l-4 border-l-red-500 dark:border-l-red-400 bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+              Total Retenido SENIAT
+            </p>
+            <div className="p-2 bg-red-500/10 text-red-600 dark:bg-red-500/15 dark:text-red-400 rounded-lg">
+              <DollarSign className="w-4 h-4" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-2 font-mono">
             {formatMoneyUSD(totalRetained)}
           </p>
-          <p className="text-xs text-neutral-400 mt-1">Pasivo fiscal por enterar al fisco</p>
+          <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1">
+            Pasivo fiscal por enterar al fisco
+          </p>
         </Card>
 
-        <Card className="p-4 border-neutral-200">
-          <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
-            Comprobantes Emitidos
-          </p>
-          <p className="text-2xl font-bold text-neutral-900 mt-2 font-mono">
+        <Card className="p-4 border-l-4 border-l-[#17A2B8] dark:border-l-[#38C9DD] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+              Comprobantes Emitidos
+            </p>
+            <div className="p-2 bg-[#17A2B8]/10 text-[#17A2B8] dark:bg-[#38C9DD]/15 dark:text-[#38C9DD] rounded-lg">
+              <FileCheck className="w-4 h-4" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-[#17A2B8] dark:text-[#38C9DD] mt-2 font-mono">
             {activeItems.length}
           </p>
-          <p className="text-xs text-neutral-500 mt-1">
+          <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1">
             {pendingInvoices.length} facturas con retención pendiente
           </p>
         </Card>
@@ -424,39 +540,39 @@ export const WithholdingsView: React.FC = () => {
       {/* Main Table Card */}
       <Card className="border-neutral-200 overflow-hidden">
         {/* Filter Controls Bar */}
-        <div className="p-4 border-b border-neutral-200 bg-neutral-50/50 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        <div className="p-4 border-b border-sky-200 dark:border-sky-800 bg-sky-50/60 dark:bg-sky-950/30 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
             {/* Type Filter Buttons */}
-            <div className="inline-flex rounded-lg border border-neutral-200 bg-white p-1">
+            <div className="inline-flex rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50/60 dark:bg-sky-950/30 p-2">
               <button
                 type="button"
-                onClick={() => setTypeFilter('ALL')}
+                onClick={() => setTypeFilter("ALL")}
                 className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                  typeFilter === 'ALL'
-                    ? 'bg-neutral-900 text-white'
-                    : 'text-neutral-600 hover:text-neutral-900'
+                  typeFilter === "ALL"
+                    ? "bg-neutral-900 text-white"
+                    : "text-neutral-300 hover:text-neutral-900"
                 }`}
               >
                 Todos
               </button>
               <button
                 type="button"
-                onClick={() => setTypeFilter('IVA')}
+                onClick={() => setTypeFilter("IVA")}
                 className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                  typeFilter === 'IVA'
-                    ? 'bg-sky-600 text-white'
-                    : 'text-neutral-600 hover:text-neutral-900'
+                  typeFilter === "IVA"
+                    ? "bg-sky-600 text-white"
+                    : "text-neutral-300 hover:text-neutral-900"
                 }`}
               >
                 IVA
               </button>
               <button
                 type="button"
-                onClick={() => setTypeFilter('ISLR')}
+                onClick={() => setTypeFilter("ISLR")}
                 className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                  typeFilter === 'ISLR'
-                    ? 'bg-emerald-600 text-white'
-                    : 'text-neutral-600 hover:text-neutral-900'
+                  typeFilter === "ISLR"
+                    ? "bg-emerald-600 text-white"
+                    : "text-neutral-300 hover:text-neutral-900"
                 }`}
               >
                 ISLR
@@ -464,14 +580,14 @@ export const WithholdingsView: React.FC = () => {
             </div>
 
             {/* Period Selector */}
-            <div className="flex items-center gap-1.5 bg-white border border-neutral-200 rounded-lg px-2.5 py-1 text-xs text-neutral-600">
-              <Calendar className="w-3.5 h-3.5 text-neutral-400" />
+            <div className="flex items-center gap-1.5  rounded-lg px-2.5 py-1 text-xs text-neutral-600 dark:text-neutral-100">
+              <Calendar className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
               <span>Período:</span>
               <input
                 type="month"
                 value={period}
                 onChange={(e) => setPeriod(e.target.value)}
-                className="bg-transparent font-medium text-neutral-900 focus:outline-none"
+                className="border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:outline-none p-1.5"
               />
             </div>
           </div>
@@ -492,7 +608,7 @@ export const WithholdingsView: React.FC = () => {
         {/* Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-neutral-600">
-            <thead className="bg-neutral-50 border-b border-neutral-200 font-semibold text-neutral-500 uppercase tracking-wider">
+            <thead className="bg-[#F4F6F9] dark:bg-[#18191A] border-b border-gray-200 dark:border-gray-800 font-semibold text-[10px] text-neutral-700 dark:text-neutral-300 uppercase tracking-wider sticky top-0 z-10">
               <tr>
                 <th className="py-3 px-4">N° Comprobante</th>
                 <th className="py-3 px-4">Tipo</th>
@@ -506,27 +622,52 @@ export const WithholdingsView: React.FC = () => {
                 <th className="py-3 px-4 text-right">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-100">
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800/80">
               {loading ? (
                 Array.from({ length: 4 }).map((_, i) => (
                   <tr key={i} className="animate-pulse">
-                    <td className="py-3 px-4"><div className="h-4 bg-neutral-200 rounded w-24"></div></td>
-                    <td className="py-3 px-4"><div className="h-4 bg-neutral-200 rounded w-12"></div></td>
-                    <td className="py-3 px-4"><div className="h-4 bg-neutral-200 rounded w-16"></div></td>
-                    <td className="py-3 px-4"><div className="h-4 bg-neutral-200 rounded w-36"></div></td>
-                    <td className="py-3 px-4"><div className="h-4 bg-neutral-200 rounded w-20"></div></td>
-                    <td className="py-3 px-4"><div className="h-4 bg-neutral-200 rounded w-16 ml-auto"></div></td>
-                    <td className="py-3 px-4"><div className="h-4 bg-neutral-200 rounded w-12 ml-auto"></div></td>
-                    <td className="py-3 px-4"><div className="h-4 bg-neutral-200 rounded w-16 ml-auto"></div></td>
-                    <td className="py-3 px-4"><div className="h-4 bg-neutral-200 rounded w-16 mx-auto"></div></td>
-                    <td className="py-3 px-4"><div className="h-4 bg-neutral-200 rounded w-16 ml-auto"></div></td>
+                    <td className="py-3 px-4">
+                      <div className="h-4 bg-neutral-200 rounded w-24"></div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="h-4 bg-neutral-200 rounded w-12"></div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="h-4 bg-neutral-200 rounded w-16"></div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="h-4 bg-neutral-200 rounded w-36"></div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="h-4 bg-neutral-200 rounded w-20"></div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="h-4 bg-neutral-200 rounded w-16 ml-auto"></div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="h-4 bg-neutral-200 rounded w-12 ml-auto"></div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="h-4 bg-neutral-200 rounded w-16 ml-auto"></div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="h-4 bg-neutral-200 rounded w-16 mx-auto"></div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="h-4 bg-neutral-200 rounded w-16 ml-auto"></div>
+                    </td>
                   </tr>
                 ))
               ) : filteredWithholdings.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-neutral-400">
+                  <td
+                    colSpan={10}
+                    className="py-12 text-center text-neutral-400"
+                  >
                     <AlertCircle className="w-8 h-8 mx-auto mb-2 text-neutral-300" />
-                    <p className="text-sm font-medium text-neutral-600">No se encontraron comprobantes</p>
+                    <p className="text-sm font-medium text-neutral-600">
+                      No se encontraron comprobantes
+                    </p>
                     <p className="text-xs text-neutral-400 mt-1">
                       No hay retenciones registradas en el período seleccionado
                     </p>
@@ -534,18 +675,23 @@ export const WithholdingsView: React.FC = () => {
                 </tr>
               ) : (
                 filteredWithholdings.map((item) => (
-                  <tr key={`${item.type}-${item.id}`} className="hover:bg-neutral-50/70 transition-colors">
-                    <td className="py-3 px-4 font-mono font-medium text-neutral-900">
+                  <tr
+                    key={`${item.type}-${item.id}`}
+                    className="hover:bg-[#F4F6F9]/80 dark:hover:bg-neutral-800/50 transition-colors"
+                  >
+                    <td className="py-3 px-4 font-mono font-medium text-neutral-400">
                       <button
                         type="button"
-                        onClick={() => setVoucherModalData(item as WithholdingVoucherData)}
+                        onClick={() =>
+                          setVoucherModalData(item as WithholdingVoucherData)
+                        }
                         className="hover:underline text-sky-600 text-left font-semibold"
                       >
                         {item.voucherNumber}
                       </button>
                     </td>
                     <td className="py-3 px-4">
-                      {item.type === 'IVA' ? (
+                      {item.type === "IVA" ? (
                         <Badge variant="info" className="text-[10px]">
                           IVA {item.retainedPercentage}%
                         </Badge>
@@ -555,33 +701,43 @@ export const WithholdingsView: React.FC = () => {
                         </Badge>
                       )}
                     </td>
-                    <td className="py-3 px-4 font-mono text-neutral-600">
+                    <td className="py-3 px-4 font-mono text-neutral-400">
                       {item.taxPeriod}
                       {item.fortnight && (
                         <span className="block text-[10px] text-neutral-400">
-                          {item.fortnight === 'FIRST' ? '1ra Q' : '2da Q'}
+                          {item.fortnight === "FIRST" ? "1ra Q" : "2da Q"}
                         </span>
                       )}
                     </td>
                     <td className="py-3 px-4">
-                      <p className="font-medium text-neutral-900">{item.supplierName}</p>
-                      <p className="text-[10px] font-mono text-neutral-400">{item.supplierRif}</p>
+                      <p className="font-medium text-neutral-400">
+                        {item.supplierName}
+                      </p>
+                      <p className="text-[10px] font-mono text-neutral-400">
+                        {item.supplierRif}
+                      </p>
                     </td>
                     <td className="py-3 px-4">
-                      <p className="font-mono text-neutral-900">{item.invoiceNumber}</p>
-                      <p className="text-[10px] text-neutral-400">Ctrl: {item.controlNumber}</p>
+                      <p className="font-mono text-neutral-400">
+                        {item.invoiceNumber}
+                      </p>
+                      <p className="text-[10px] text-neutral-400">
+                        Ctrl: {item.controlNumber}
+                      </p>
                     </td>
-                    <td className="py-3 px-4 text-right font-mono text-neutral-900">
+                    <td className="py-3 px-4 text-right font-mono text-neutral-400">
                       {formatMoneyUSD(item.taxableBaseAmount)}
                     </td>
-                    <td className="py-3 px-4 text-right font-mono text-neutral-600">
-                      {item.type === 'IVA' ? `${item.retainedPercentage}%` : `${item.ratePercentage}%`}
+                    <td className="py-3 px-4 text-right font-mono text-neutral-400">
+                      {item.type === "IVA"
+                        ? `${item.retainedPercentage}%`
+                        : `${item.ratePercentage}%`}
                     </td>
-                    <td className="py-3 px-4 text-right font-mono font-semibold text-neutral-900">
+                    <td className="py-3 px-4 text-right font-mono font-semibold text-neutral-400">
                       {formatMoneyUSD(item.retainedAmount)}
                     </td>
                     <td className="py-3 px-4 text-center">
-                      {item.status === 'ANNULLED' ? (
+                      {item.status === "ANNULLED" ? (
                         <Badge variant="danger" className="text-[10px]">
                           Anulado
                         </Badge>
@@ -612,13 +768,15 @@ export const WithholdingsView: React.FC = () => {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => setVoucherModalData(item as WithholdingVoucherData)}
+                          onClick={() =>
+                            setVoucherModalData(item as WithholdingVoucherData)
+                          }
                           className="h-7 px-2 text-xs"
                           title="Ver / Imprimir Comprobante"
                         >
                           <Printer className="w-3.5 h-3.5 text-neutral-600" />
                         </Button>
-                        {item.status !== 'ANNULLED' && (
+                        {item.status !== "ANNULLED" && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -656,14 +814,23 @@ export const WithholdingsView: React.FC = () => {
             >
               Cancelar
             </Button>
-            <Button form="emitWithholdingForm" type="submit" size="sm" disabled={isSubmitting}>
+            <Button
+              form="emitWithholdingForm"
+              type="submit"
+              size="sm"
+              disabled={isSubmitting}
+            >
               <CheckCircle2 className="w-4 h-4 mr-1" />
-              {isSubmitting ? 'Emitiendo...' : 'Confirmar y Emitir Comprobante'}
+              {isSubmitting ? "Emitiendo..." : "Confirmar y Emitir Comprobante"}
             </Button>
           </div>
         }
       >
-        <form id="emitWithholdingForm" onSubmit={handleEmitWithholding} className="space-y-4 text-xs">
+        <form
+          id="emitWithholdingForm"
+          onSubmit={handleEmitWithholding}
+          className="space-y-4 text-xs"
+        >
           {/* Type Switcher */}
           <div>
             <label className="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">
@@ -672,22 +839,22 @@ export const WithholdingsView: React.FC = () => {
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setEmitType('IVA')}
+                onClick={() => setEmitType("IVA")}
                 className={`py-2 px-3 rounded-lg border text-center font-medium transition-colors cursor-pointer ${
-                  emitType === 'IVA'
-                    ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300'
-                    : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800'
+                  emitType === "IVA"
+                    ? "border-sky-600 bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300"
+                    : "border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800"
                 }`}
               >
                 Retención de IVA (75% / 100%)
               </button>
               <button
                 type="button"
-                onClick={() => setEmitType('ISLR')}
+                onClick={() => setEmitType("ISLR")}
                 className={`py-2 px-3 rounded-lg border text-center font-medium transition-colors cursor-pointer ${
-                  emitType === 'ISLR'
-                    ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300'
-                    : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800'
+                  emitType === "ISLR"
+                    ? "border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300"
+                    : "border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800"
                 }`}
               >
                 Retención de ISLR (Dec. 1808)
@@ -717,12 +884,19 @@ export const WithholdingsView: React.FC = () => {
                 className="flex-1 py-2 px-3 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
                 required
               >
-                <option value="">-- Seleccionar factura de compra pendiente --</option>
+                <option value="">
+                  -- Seleccionar factura de compra pendiente --
+                </option>
                 {pendingInvoices
-                  .filter((inv) => (emitType === 'IVA' ? !inv.hasIvaWithholding : !inv.hasIslrWithholding))
+                  .filter((inv) =>
+                    emitType === "IVA"
+                      ? !inv.hasIvaWithholding
+                      : !inv.hasIslrWithholding,
+                  )
                   .map((inv) => (
                     <option key={inv.id} value={inv.id}>
-                      {inv.invoiceNumber} - {inv.supplierName} ({inv.supplierRif}) - Total: ${inv.totalAmount}
+                      {inv.invoiceNumber} - {inv.supplierName} (
+                      {inv.supplierRif}) - Total: ${inv.totalAmount}
                     </option>
                   ))}
               </select>
@@ -744,21 +918,33 @@ export const WithholdingsView: React.FC = () => {
           {selectedInvoice && (
             <div className="bg-neutral-50 dark:bg-neutral-800/50 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700 grid grid-cols-2 gap-2 text-[11px]">
               <div>
-                <span className="text-neutral-500 dark:text-neutral-400">Proveedor:</span>{' '}
-                <span className="font-semibold text-neutral-800 dark:text-neutral-200">{selectedInvoice.supplierName}</span>
+                <span className="text-neutral-500 dark:text-neutral-400">
+                  Proveedor:
+                </span>{" "}
+                <span className="font-semibold text-neutral-800 dark:text-neutral-200">
+                  {selectedInvoice.supplierName}
+                </span>
               </div>
               <div>
-                <span className="text-neutral-500 dark:text-neutral-400">RIF:</span>{' '}
-                <span className="font-mono text-neutral-800 dark:text-neutral-200">{selectedInvoice.supplierRif}</span>
+                <span className="text-neutral-500 dark:text-neutral-400">
+                  RIF:
+                </span>{" "}
+                <span className="font-mono text-neutral-800 dark:text-neutral-200">
+                  {selectedInvoice.supplierRif}
+                </span>
               </div>
               <div>
-                <span className="text-neutral-500 dark:text-neutral-400">Base Imponible:</span>{' '}
+                <span className="text-neutral-500 dark:text-neutral-400">
+                  Base Imponible:
+                </span>{" "}
                 <span className="font-mono font-semibold text-neutral-800 dark:text-neutral-200">
                   {formatMoneyUSD(selectedInvoice.baseTaxableAmount)}
                 </span>
               </div>
               <div>
-                <span className="text-neutral-500 dark:text-neutral-400">Monto IVA:</span>{' '}
+                <span className="text-neutral-500 dark:text-neutral-400">
+                  Monto IVA:
+                </span>{" "}
                 <span className="font-mono font-semibold text-neutral-800 dark:text-neutral-200">
                   {formatMoneyUSD(selectedInvoice.taxAmount)}
                 </span>
@@ -767,7 +953,7 @@ export const WithholdingsView: React.FC = () => {
           )}
 
           {/* IVA specific fields */}
-          {emitType === 'IVA' && (
+          {emitType === "IVA" && (
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">
@@ -775,11 +961,15 @@ export const WithholdingsView: React.FC = () => {
                 </label>
                 <select
                   value={retainedPercentage}
-                  onChange={(e) => setRetainedPercentage(Number(e.target.value))}
+                  onChange={(e) =>
+                    setRetainedPercentage(Number(e.target.value))
+                  }
                   className="w-full py-2 px-3 border border-neutral-300 dark:border-neutral-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
                 >
                   <option value={75}>75% (General Sujetos Especiales)</option>
-                  <option value={100}>100% (Designación Especial / Contribuyente Sin RIF)</option>
+                  <option value={100}>
+                    100% (Designación Especial / Contribuyente Sin RIF)
+                  </option>
                 </select>
               </div>
               <div>
@@ -788,18 +978,22 @@ export const WithholdingsView: React.FC = () => {
                 </label>
                 <select
                   value={fortnight}
-                  onChange={(e) => setFortnight(e.target.value as 'FIRST' | 'SECOND')}
+                  onChange={(e) =>
+                    setFortnight(e.target.value as "FIRST" | "SECOND")
+                  }
                   className="w-full py-2 px-3 border border-neutral-300 dark:border-neutral-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
                 >
                   <option value="FIRST">1ra Quincena (Días 1 al 15)</option>
-                  <option value="SECOND">2da Quincena (Días 16 al último)</option>
+                  <option value="SECOND">
+                    2da Quincena (Días 16 al último)
+                  </option>
                 </select>
               </div>
             </div>
           )}
 
           {/* ISLR specific fields */}
-          {emitType === 'ISLR' && (
+          {emitType === "ISLR" && (
             <div className="space-y-3">
               <div>
                 <label className="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">
@@ -809,9 +1003,15 @@ export const WithholdingsView: React.FC = () => {
                   value={conceptCode}
                   onChange={(e) => {
                     setConceptCode(e.target.value);
-                    const c = STANDARD_ISLR_CONCEPTS.find((item) => item.code === e.target.value);
+                    const c = STANDARD_ISLR_CONCEPTS.find(
+                      (item) => item.code === e.target.value,
+                    );
                     if (c) {
-                      setRatePercentage(personType === 'PJD' ? c.defaultRatePJD : c.defaultRatePNR);
+                      setRatePercentage(
+                        personType === "PJD"
+                          ? c.defaultRatePJD
+                          : c.defaultRatePNR,
+                      );
                     }
                   }}
                   className="w-full py-2 px-3 border border-neutral-300 dark:border-neutral-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
@@ -866,7 +1066,9 @@ export const WithholdingsView: React.FC = () => {
                     step="0.01"
                     min="0"
                     value={subtractingFactor}
-                    onChange={(e) => setSubtractingFactor(Number(e.target.value))}
+                    onChange={(e) =>
+                      setSubtractingFactor(Number(e.target.value))
+                    }
                     className="w-full py-2 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg font-mono text-xs bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
                   />
                 </div>
@@ -877,9 +1079,11 @@ export const WithholdingsView: React.FC = () => {
           {/* Total Retained Preview Box */}
           <div className="p-3 bg-neutral-900 dark:bg-neutral-950 text-white rounded-lg flex items-center justify-between border border-neutral-800">
             <div>
-              <p className="text-[11px] text-neutral-400">Total Impuesto a Retener</p>
+              <p className="text-[11px] text-neutral-400">
+                Total Impuesto a Retener
+              </p>
               <p className="text-lg font-bold font-mono">
-                {emitType === 'IVA'
+                {emitType === "IVA"
                   ? formatMoneyUSD(previewIvaRetained)
                   : formatMoneyUSD(previewIslrRetained)}
               </p>
@@ -906,7 +1110,11 @@ export const WithholdingsView: React.FC = () => {
           setShowInvoiceSearch(false);
         }}
         invoices={pendingInvoices
-          .filter((inv) => (emitType === 'IVA' ? !inv.hasIvaWithholding : !inv.hasIslrWithholding))
+          .filter((inv) =>
+            emitType === "IVA"
+              ? !inv.hasIvaWithholding
+              : !inv.hasIslrWithholding,
+          )
           .map((inv) => ({
             id: inv.id,
             documentNumber: inv.invoiceNumber,

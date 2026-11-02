@@ -136,7 +136,7 @@ export const TableClosuresModal: React.FC<TableClosuresModalProps> = ({
           </div>
 
           {/* Metric cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+          <div className="bg-sky-50/60 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-lg grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
             <div className="bg-neutral-50 dark:bg-neutral-800/50 p-3 rounded-lg border border-neutral-200 dark:border-neutral-800">
               <span className="text-xs text-neutral-500 dark:text-neutral-400 block">Mesas Cerradas</span>
               <span className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">{filteredClosures.length}</span>

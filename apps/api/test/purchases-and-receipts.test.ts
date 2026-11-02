@@ -100,7 +100,7 @@ describe('Módulo de Compras & Abastecimiento Completo (Paso 8)', () => {
     it('debe rechazar una recepción sin depósito destino o sin ítems', () => {
       const withoutWh = createGoodsReceiptSchema.safeParse({
         branchId: validBranchId,
-        warehouseId: 'not-a-uuid',
+        warehouseId: '',
         supplierId: validSupplierId,
         items: [
           {

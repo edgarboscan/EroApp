@@ -35,7 +35,20 @@ configRouter.put(
   '/company',
   authenticate,
   authorize('config', 'update'),
-  zValidator('json', updateCompanySchema),
+  zValidator('json', updateCompanySchema, (result, c) => {
+    if (!result.success) {
+      const firstIssue = result.error.issues[0];
+      const message = firstIssue ? `${firstIssue.path.join('.')}: ${firstIssue.message}` : 'Error de validación en datos de empresa';
+      return c.json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message,
+          issues: result.error.issues,
+        },
+      }, 400);
+    }
+  }),
   async (c) => {
     const user = c.get('user');
     const input = c.req.valid('json');
@@ -277,8 +290,9 @@ configRouter.get('/roles', authenticate, authorize('config', 'read'), async (c) 
 });
 
 configRouter.get('/permissions', authenticate, authorize('config', 'read'), async (c) => {
+  const user = c.get('user');
   try {
-    const permissions = await ConfigService.getPermissions();
+    const permissions = await ConfigService.getPermissions(user.companyId);
     return c.json({ success: true, data: permissions });
   } catch (error: any) {
     return c.json({ success: false, error: { code: 'PERMISSIONS_FETCH_ERROR', message: error.message } }, 500);

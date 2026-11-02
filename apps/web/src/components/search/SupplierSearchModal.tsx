@@ -169,9 +169,9 @@ export const SupplierSearchModal: React.FC<SupplierSearchModalProps> = ({
             </span>
           </div>
         ) : (
-          <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-700 rounded-lg">
+          <div className="overflow-x-auto border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-[#1E1F21] shadow-xs">
             <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 font-semibold border-b border-neutral-200 dark:border-neutral-700 text-[11px] uppercase tracking-wider sticky top-0 z-10">
+              <thead className="bg-[#F4F6F9] dark:bg-[#18191A] text-neutral-700 dark:text-neutral-300 font-semibold border-b border-gray-200 dark:border-gray-800 text-[10px] uppercase tracking-wider sticky top-0 z-10">
                 <tr>
                   <th className="py-2.5 px-3 w-36">RIF Fiscal</th>
                   <th className="py-2.5 px-3">Razón Social / Proveedor</th>
@@ -180,7 +180,7 @@ export const SupplierSearchModal: React.FC<SupplierSearchModalProps> = ({
                   <th className="py-2.5 px-3 w-24 text-right">Acción</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800/80">
                 {filteredSuppliers.map((s) => {
                   const rifNumber = s.rif || 'S/D';
                   const contact = s.contactPerson || s.contactName;
@@ -189,7 +189,7 @@ export const SupplierSearchModal: React.FC<SupplierSearchModalProps> = ({
                     <tr
                       key={s.id}
                       onClick={() => handleSelectItem(s)}
-                      className="hover:bg-neutral-50 dark:hover:bg-neutral-800/60 cursor-pointer transition-colors group"
+                      className="hover:bg-[#F4F6F9]/80 dark:hover:bg-neutral-800/50 cursor-pointer transition-colors group"
                     >
                       <td className="py-2.5 px-3 font-mono font-medium text-neutral-800 dark:text-neutral-200">
                         <span className="bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 px-1.5 py-0.5 rounded text-[11px]">
@@ -197,7 +197,7 @@ export const SupplierSearchModal: React.FC<SupplierSearchModalProps> = ({
                         </span>
                       </td>
                       <td className="py-2.5 px-3">
-                        <div className="font-semibold text-neutral-900 dark:text-neutral-100 group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors">
+                        <div className="font-semibold text-neutral-900 dark:text-neutral-100 group-hover:text-[#007BFF] dark:group-hover:text-[#3D91FF] transition-colors">
                           {s.name}
                         </div>
                         {s.address && (
@@ -247,7 +247,7 @@ export const SupplierSearchModal: React.FC<SupplierSearchModalProps> = ({
                             e.stopPropagation();
                             handleSelectItem(s);
                           }}
-                          className="text-xs py-1 px-2.5 group-hover:bg-sky-50 dark:group-hover:bg-sky-950/40 group-hover:border-sky-300 dark:group-hover:border-sky-700 group-hover:text-sky-700 dark:group-hover:text-sky-300"
+                          className="text-xs py-1 px-2.5 group-hover:bg-[#007BFF]/10 dark:group-hover:bg-[#3D91FF]/15 group-hover:border-[#007BFF] dark:group-hover:border-[#3D91FF] group-hover:text-[#007BFF] dark:group-hover:text-[#3D91FF]"
                         >
                           <Check className="w-3.5 h-3.5 mr-1" />
                           Elegir

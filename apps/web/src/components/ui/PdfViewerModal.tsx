@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Button } from './Button';
-import { FileText, Printer, FileDown, ExternalLink, Loader2, AlertCircle } from 'lucide-react';
+import { FileText, Printer, FileDown, ExternalLink, Loader2, AlertCircle, Share2, Mail } from 'lucide-react';
 import { Modal } from './Modal';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/authStore';
+import { ShareReportModal } from '../reports/ShareReportModal';
+import { EmailReportModal } from '../reports/EmailReportModal';
 
 export interface PdfViewerModalProps {
   isOpen: boolean;
@@ -30,6 +32,8 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const activeBlobUrl = externalBlobUrl || internalBlobUrl;
@@ -146,18 +150,44 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
       onClose={handleClose}
       title={title}
       subtitle={subtitle}
-      icon={<FileText className="w-5 h-5 text-sky-600 dark:text-sky-400" />}
+      icon={<FileText className="w-5 h-5 text-[#007BFF] dark:text-[#3D91FF]" />}
       maxWidth="max-w-5xl"
       className="h-[92vh]"
-      contentClassName="p-2 sm:p-3 overflow-hidden relative flex flex-col flex-1 bg-neutral-100 dark:bg-neutral-950"
+      contentClassName="p-2 sm:p-3 overflow-hidden relative flex flex-col flex-1 bg-[#F4F6F9] dark:bg-[#242526]"
       headerActions={
         <div className="flex items-center gap-2">
+          {endpoint && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowShareModal(true)}
+                disabled={loading}
+                title="Compartir reporte con usuarios del sistema"
+              >
+                <Share2 className="w-3.5 h-3.5 sm:mr-1.5 text-sky-600 dark:text-sky-400" />
+                <span className="hidden sm:inline">Compartir</span>
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowEmailModal(true)}
+                disabled={loading}
+                title="Enviar reporte por correo electrónico"
+              >
+                <Mail className="w-3.5 h-3.5 sm:mr-1.5 text-neutral-600 dark:text-neutral-400" />
+                <span className="hidden sm:inline">Enviar Correo</span>
+              </Button>
+            </>
+          )}
+
           {activeBlobUrl && (
             <a
               href={activeBlobUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-700 focus-visible:ring-2 focus-visible:ring-sky-500 cursor-pointer transition-colors"
+              className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-[#333333] dark:text-[#E0E0E0] bg-white dark:bg-[#1E1F21] border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 focus-visible:ring-2 focus-visible:ring-[#007BFF] dark:focus-visible:ring-[#3D91FF] cursor-pointer transition-colors"
               title="Abrir en pestaña nueva"
             >
               <ExternalLink className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
@@ -191,7 +221,7 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
       footer={
         <div className="flex items-center justify-between w-full text-xs text-neutral-500 dark:text-neutral-400">
           <span className="flex items-center gap-1.5 text-[11px]">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+            <span className="w-2 h-2 rounded-full bg-[#28A745] dark:bg-[#4ADE80] shrink-0" />
             <span>Documento Oficial Certificado ERO ERP VE</span>
           </span>
           <Button variant="outline" size="sm" onClick={handleClose}>
@@ -202,9 +232,9 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
     >
       <div className="w-full h-full flex flex-col">
         {loading ? (
-          <div className="h-full w-full flex flex-col items-center justify-center gap-3 bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 p-6">
-            <Loader2 className="w-8 h-8 text-sky-600 dark:text-sky-400 animate-spin" />
-            <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">
+          <div className="h-full w-full flex flex-col items-center justify-center gap-3 bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 p-6">
+            <Loader2 className="w-8 h-8 text-[#007BFF] dark:text-[#3D91FF] animate-spin" />
+            <p className="text-sm font-semibold text-[#333333] dark:text-[#E0E0E0]">
               Generando documento oficial en formato PDF...
             </p>
             <p className="text-xs text-neutral-500 dark:text-neutral-400 max-w-sm text-center">
@@ -212,7 +242,7 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
             </p>
           </div>
         ) : error ? (
-          <div className="h-full w-full flex flex-col items-center justify-center gap-3 bg-white dark:bg-neutral-900 rounded-lg border border-red-200 dark:border-red-900/50 p-6 text-center">
+          <div className="h-full w-full flex flex-col items-center justify-center gap-3 bg-white dark:bg-[#1E1F21] rounded-lg border border-red-200 dark:border-red-900/50 p-6 text-center">
             <AlertCircle className="w-10 h-10 text-red-500" />
             <p className="text-sm font-bold text-red-700 dark:text-red-400">No se pudo generar el documento</p>
             <p className="text-xs text-neutral-600 dark:text-neutral-400 max-w-md">{error}</p>
@@ -224,16 +254,33 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
           <iframe
             ref={iframeRef}
             src={activeBlobUrl}
-            className="w-full h-full rounded-lg border border-neutral-300 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-xs"
+            className="w-full h-full rounded-lg border border-gray-300 dark:border-gray-800 bg-white dark:bg-[#1E1F21] shadow-xs"
             title={title}
           />
         ) : (
-          <div className="h-full w-full flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-500 bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800">
+          <div className="h-full w-full flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-500 bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800">
             <FileText className="w-10 h-10 mb-2 opacity-50" />
             <p className="text-sm font-medium">Documento no disponible</p>
           </div>
         )}
       </div>
+
+      {endpoint && (
+        <>
+          <ShareReportModal
+            isOpen={showShareModal}
+            onClose={() => setShowShareModal(false)}
+            reportTitle={title}
+            reportEndpoint={endpoint}
+          />
+          <EmailReportModal
+            isOpen={showEmailModal}
+            onClose={() => setShowEmailModal(false)}
+            reportTitle={title}
+            reportEndpoint={endpoint}
+          />
+        </>
+      )}
     </Modal>
   );
 };

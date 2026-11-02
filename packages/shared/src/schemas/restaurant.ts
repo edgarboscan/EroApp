@@ -192,6 +192,7 @@ export const RestaurantOrderSchema = z.object({
   company_id: z.string().max(64),
   branch_id: z.string().max(64),
   table_id: z.string().max(64),
+  cash_register_id: z.string().max(64).nullable().optional(),
   table_number: z.string().optional(),
   table_name: z.string().optional(),
   zone: z.string().optional(),
@@ -217,6 +218,7 @@ export type RestaurantOrder = z.infer<typeof RestaurantOrderSchema>;
 
 export const OpenOrderSchema = z.object({
   table_id: z.string().min(1, 'ID de mesa requerido').max(64),
+  cash_register_id: z.string().max(64).nullable().optional(),
   waiter_id: z.string().max(64).nullable().optional(),
   waiter_name: z.string().max(150).nullable().optional(),
   customer_id: z.string().max(64).nullable().optional(),
@@ -332,3 +334,27 @@ export const RestaurantTipsReportSchema = z.object({
   orders: z.array(RestaurantTipItemSchema),
 });
 export type RestaurantTipsReport = z.infer<typeof RestaurantTipsReportSchema>;
+
+// ==========================================
+// CONFIGURACIÓN GENERAL DE RESTAURANTE
+// ==========================================
+export const RestaurantSettingsSchema = z.object({
+  company_id: z.string().optional(),
+  branch_id: z.string().nullable().optional(),
+  print_order_ticket: z.boolean().default(true),      // Imprimir recibo para la comanda (ticket de consumo / precuenta)
+  print_waiter_copy: z.boolean().default(true),       // Imprimir copia de comanda para el salonero/mozo
+  print_kitchen_ticket: z.boolean().default(true),    // Imprimir ticket de comanda para cocina/barra
+  ticket_print_mode: z.enum(['direct', 'prompt']).default('prompt'), // 'direct' = directo sin confirmación, 'prompt' = preguntar al usuario
+  ticket_header: z.string().max(255).nullable().optional(),
+  ticket_footer: z.string().max(255).nullable().optional(),
+  created_at: z.string().optional(),
+  updated_at: z.string().optional(),
+});
+export type RestaurantSettings = z.infer<typeof RestaurantSettingsSchema>;
+
+export const UpdateRestaurantSettingsSchema = RestaurantSettingsSchema.omit({
+  company_id: true,
+  created_at: true,
+  updated_at: true,
+});
+export type UpdateRestaurantSettingsInput = z.infer<typeof UpdateRestaurantSettingsSchema>;

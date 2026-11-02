@@ -4,18 +4,66 @@
 
 @layer base {
   :root {
+    --color-primary: #007BFF;
+    --color-primary-hover: #0069d9;
+    --color-primary-ring: rgba(0, 123, 255, 0.25);
+    --color-secondary: #17A2B8;
+    --color-secondary-hover: #138496;
+    --color-success: #28A745;
+    --color-warning: #FFC107;
+    --color-text: #333333;
+    --color-text-muted: #666666;
+    --color-background: #F4F6F9;
+    --color-card: #FFFFFF;
+    --color-border: #E5E7EB;
+
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 0 0% 20%;
     --radius: 0.5rem;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    --color-primary: #3D91FF;
+    --color-primary-hover: #297be6;
+    --color-primary-ring: rgba(61, 145, 255, 0.35);
+    --color-secondary: #38C9DD;
+    --color-secondary-hover: #26b3c7;
+    --color-success: #4ADE80;
+    --color-warning: #FBBF24;
+    --color-text: #E0E0E0;
+    --color-text-muted: #A3A3A3;
+    --color-background: #242526;
+    --color-card: #1E1F21;
+    --color-border: #374151;
+
+    --background: 220 3% 15%;
+    --foreground: 0 0% 88%;
+  }
+
+  html,
+  body {
+    background-color: var(--color-background);
+    color: var(--color-text);
   }
 
   body {
-    @apply bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 selection:bg-sky-500 selection:text-white;
+    @apply bg-[#F4F6F9] dark:bg-[#242526] text-[#333333] dark:text-[#E0E0E0] selection:bg-[#007BFF] selection:text-white dark:selection:bg-[#3D91FF];
+    min-height: 100vh;
+  }
+
+  /* Estandarización de inputs y selects nativos para enfoque limpio en color Primary */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]),
+  select,
+  textarea {
+    color: var(--color-text);
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    border-color: var(--color-primary) !important;
+    outline: none;
+    box-shadow: 0 0 0 2px var(--color-primary-ring) !important;
   }
 }
 
@@ -36,8 +84,8 @@
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #374151;
 }
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #4b5563;
 }

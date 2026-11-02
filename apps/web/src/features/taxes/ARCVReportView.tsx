@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Card } from '../../components/ui/Card';
-import { Button } from '../../components/ui/Button';
-import { Badge } from '../../components/ui/Badge';
+import React, { useState, useEffect } from "react";
+import { Card } from "../../components/ui/Card";
+import { Button } from "../../components/ui/Button";
+import { Badge } from "../../components/ui/Badge";
 import {
   FileCheck,
   Calendar,
@@ -15,12 +15,12 @@ import {
   DollarSign,
   X,
   FileText,
-} from 'lucide-react';
-import { toast } from 'sonner';
-import { useAuthStore } from '../../stores/authStore';
-import { formatMoneyUSD } from '../../utils/formatters';
-import { Modal } from '../../components/ui/Modal';
-import { PdfViewerModal } from '../../components/ui/PdfViewerModal';
+} from "lucide-react";
+import { toast } from "sonner";
+import { useAuthStore } from "../../stores/authStore";
+import { formatMoneyUSD } from "../../utils/formatters";
+import { Modal } from "../../components/ui/Modal";
+import { PdfViewerModal } from "../../components/ui/PdfViewerModal";
 
 interface ARCVVoucher {
   id: string;
@@ -51,15 +51,21 @@ interface ARCVSupplier {
 }
 
 export const ARCVReportView: React.FC = () => {
+  const { token } = useAuthStore();
   const currentYear = new Date().getFullYear();
   const [taxYear, setTaxYear] = useState<number>(currentYear);
+  const [availableYears, setAvailableYears] = useState<number[]>([]);
+  const [loadingYears, setLoadingYears] = useState<boolean>(true);
   const [suppliers, setSuppliers] = useState<ARCVSupplier[]>([]);
   const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState('');
-  const [expandedSupplierId, setExpandedSupplierId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [expandedSupplierId, setExpandedSupplierId] = useState<string | null>(
+    null,
+  );
 
   // Print Modal
-  const [selectedSupplierForPrint, setSelectedSupplierForPrint] = useState<ARCVSupplier | null>(null);
+  const [selectedSupplierForPrint, setSelectedSupplierForPrint] =
+    useState<ARCVSupplier | null>(null);
   const [pdfModal, setPdfModal] = useState<{
     isOpen: boolean;
     endpoint: string | null;
@@ -68,8 +74,41 @@ export const ARCVReportView: React.FC = () => {
   }>({
     isOpen: false,
     endpoint: null,
-    title: '',
+    title: "",
   });
+
+  // Cargar años gravables registrados en base de datos
+  useEffect(() => {
+    const fetchAvailableYears = async () => {
+      setLoadingYears(true);
+      try {
+        const res = await fetch("/api/taxes/arcv/years", {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (
+            json.success &&
+            Array.isArray(json.data) &&
+            json.data.length > 0
+          ) {
+            setAvailableYears(json.data);
+            setTaxYear((prev) =>
+              json.data.includes(prev) ? prev : json.data[0],
+            );
+            return;
+          }
+        }
+      } catch {
+        // En caso de fallo de red
+      } finally {
+        setLoadingYears(false);
+      }
+      setAvailableYears([currentYear]);
+    };
+
+    fetchAvailableYears();
+  }, [token]);
 
   useEffect(() => {
     fetchARCVReport();
@@ -78,7 +117,9 @@ export const ARCVReportView: React.FC = () => {
   const fetchARCVReport = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/taxes/arcv?year=${taxYear}`);
+      const res = await fetch(`/api/taxes/arcv?year=${taxYear}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.data && Array.isArray(json.data.suppliers)) {
@@ -99,11 +140,14 @@ export const ARCVReportView: React.FC = () => {
   const handleDownloadXML = async () => {
     try {
       const currentPeriod = `${taxYear}-09`;
-      const res = await fetch(`/api/taxes/export/seniat?period=${currentPeriod}&type=ISLR`);
-      if (!res.ok) throw new Error('Error al descargar archivo XML');
+      const res = await fetch(
+        `/api/taxes/export/seniat?period=${currentPeriod}&type=ISLR`,
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+      );
+      if (!res.ok) throw new Error("Error al descargar archivo XML");
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
       a.download = `ISLR_ARCV_${taxYear}.xml`;
       document.body.appendChild(a);
@@ -111,7 +155,7 @@ export const ARCVReportView: React.FC = () => {
       a.remove();
       toast.success(`Archivo XML SENIAT (${taxYear}) descargado exitosamente`);
     } catch {
-      toast.error('Error al generar XML SENIAT');
+      toast.error("Error al generar XML SENIAT");
     }
   };
 
@@ -121,14 +165,23 @@ export const ARCVReportView: React.FC = () => {
 
   // KPIs
   const totalSuppliersCount = suppliers.length;
-  const totalAccumulatedBase = suppliers.reduce((sum, s) => sum + s.totalTaxableBase, 0);
-  const totalAccumulatedRetained = suppliers.reduce((sum, s) => sum + s.totalIslrRetained, 0);
-  const totalVouchersCount = suppliers.reduce((sum, s) => sum + s.vouchersCount, 0);
+  const totalAccumulatedBase = suppliers.reduce(
+    (sum, s) => sum + s.totalTaxableBase,
+    0,
+  );
+  const totalAccumulatedRetained = suppliers.reduce(
+    (sum, s) => sum + s.totalIslrRetained,
+    0,
+  );
+  const totalVouchersCount = suppliers.reduce(
+    (sum, s) => sum + s.vouchersCount,
+    0,
+  );
 
   const filteredSuppliers = suppliers.filter(
     (s) =>
       s.supplierName.toLowerCase().includes(search.toLowerCase()) ||
-      s.supplierRif.toLowerCase().includes(search.toLowerCase())
+      s.supplierRif.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
@@ -136,12 +189,13 @@ export const ARCVReportView: React.FC = () => {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-xl font-bold text-neutral-900 tracking-tight flex items-center gap-2">
+          <h1 className="text-xl font-bold text-neutral-400 dark:text-neutral-100 tracking-tight flex items-center gap-2">
             <FileCheck className="w-5 h-5 text-sky-600" />
             Certificado Anual de Retenciones ISLR (Comprobante ARCV)
           </h1>
           <p className="text-sm text-neutral-500">
-            Relación consolidada anual de retenciones de Impuesto Sobre la Renta (Decreto 1808 - Art. 24)
+            Relación consolidada anual de retenciones de Impuesto Sobre la Renta
+            (Decreto 1808 - Art. 24)
           </p>
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -174,67 +228,83 @@ export const ARCVReportView: React.FC = () => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card className="p-4 border-neutral-200">
-          <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+        <Card className="p-4 border-l-4 border-l-[#007BFF] dark:border-l-[#3D91FF] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
             Proveedores Retenidos
           </p>
-          <p className="text-2xl font-bold text-neutral-900 mt-2 font-mono">
+          <p className="text-2xl font-bold text-[#007BFF] dark:text-[#3D91FF] mt-2 font-mono">
             {totalSuppliersCount}
           </p>
-          <p className="text-xs text-neutral-500 mt-1">En el ejercicio fiscal {taxYear}</p>
+          <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1">
+            En el ejercicio fiscal {taxYear}
+          </p>
         </Card>
 
-        <Card className="p-4 border-neutral-200">
-          <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+        <Card className="p-4 border-l-4 border-l-[#17A2B8] dark:border-l-[#38C9DD] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
             Base Imponible Acumulada
           </p>
-          <p className="text-2xl font-bold text-sky-800 mt-2 font-mono">
+          <p className="text-2xl font-bold text-[#17A2B8] dark:text-[#38C9DD] mt-2 font-mono">
             {formatMoneyUSD(totalAccumulatedBase)}
           </p>
-          <p className="text-xs text-neutral-500 mt-1">Servicios y honorarios</p>
+          <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1">
+            Servicios y honorarios
+          </p>
         </Card>
 
-        <Card className="p-4 border-neutral-200 bg-neutral-900 text-white">
-          <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">
+        <Card className="p-4 border-l-4 border-l-[#28A745] dark:border-l-[#4ADE80] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
             Total ISLR Retenido Anual
           </p>
-          <p className="text-2xl font-bold text-white mt-2 font-mono">
+          <p className="text-2xl font-bold text-[#28A745] dark:text-[#4ADE80] mt-2 font-mono">
             {formatMoneyUSD(totalAccumulatedRetained)}
           </p>
-          <p className="text-xs text-neutral-400 mt-1">Enterado al SENIAT</p>
+          <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1">
+            Enterado al SENIAT
+          </p>
         </Card>
 
-        <Card className="p-4 border-neutral-200">
-          <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+        <Card className="p-4 border-l-4 border-l-neutral-400 dark:border-l-neutral-600 bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
             Total Comprobantes Emitidos
           </p>
-          <p className="text-2xl font-bold text-neutral-900 mt-2 font-mono">
+          <p className="text-2xl font-bold text-[#333333] dark:text-[#E0E0E0] mt-2 font-mono">
             {totalVouchersCount}
           </p>
-          <p className="text-xs text-neutral-500 mt-1">En {taxYear}</p>
+          <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1">
+            En {taxYear}
+          </p>
         </Card>
       </div>
 
       {/* Main List Card */}
       <Card className="border-neutral-200 overflow-hidden">
         {/* Controls Bar */}
-        <div className="p-4 border-b border-neutral-200 bg-neutral-50/50 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        <div className="p-4 border-b border-gray-200 dark:border-gray-800 bg-[#F4F6F9] dark:bg-[#18191A] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 bg-white border border-neutral-200 rounded-lg px-2.5 py-1 text-xs text-neutral-600">
-              <Calendar className="w-3.5 h-3.5 text-neutral-400" />
-              <span>Año Gravable:</span>
+            <div className="flex items-center gap-1.5  rounded-lg px-2.5 py-1 text-xs text-neutral-600 dark:text-neutral-100">
+                          <Calendar className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+              <span className="font-medium">Año Gravable:</span>
               <select
                 value={taxYear}
                 onChange={(e) => setTaxYear(Number(e.target.value))}
-                className="bg-transparent font-medium text-neutral-900 focus:outline-none"
+                disabled={loadingYears}
+                className="p-1.5 text-xs bg-white dark:bg-[#1E1F21] text-neutral-900 dark:text-neutral-100 border border-neutral-300 dark:border-neutral-700 rounded-lg focus-visible:ring-2 focus-visible:ring-[#007BFF] dark:focus-visible:ring-[#3D91FF] cursor-pointer"
               >
-                <option value={2026}>2026</option>
-                <option value={2025}>2025</option>
-                <option value={2024}>2024</option>
-                <option value={2023}>2023</option>
+                {loadingYears ? (
+                  <option value={taxYear}>Cargando...</option>
+                ) : availableYears.length === 0 ? (
+                  <option value={taxYear}>{taxYear}</option>
+                ) : (
+                  availableYears.map((yr) => (
+                    <option key={yr} value={yr}>
+                      {yr}
+                    </option>
+                  ))
+                )}
               </select>
             </div>
-            <span className="text-xs text-neutral-500">
+            <span className="text-xs text-neutral-500 dark:text-neutral-400">
               {filteredSuppliers.length} proveedores registrados
             </span>
           </div>
@@ -246,7 +316,7 @@ export const ARCVReportView: React.FC = () => {
               placeholder="Buscar proveedor o RIF..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="w-full pl-9 pr-3 py-1.5 text-xs bg-white dark:bg-[#1E1F21] text-neutral-900 dark:text-neutral-100 border border-neutral-300 dark:border-neutral-700 rounded-lg focus-visible:ring-2 focus-visible:ring-[#007BFF] dark:focus-visible:ring-[#3D91FF]"
             />
           </div>
         </div>
@@ -263,7 +333,9 @@ export const ARCVReportView: React.FC = () => {
           ) : filteredSuppliers.length === 0 ? (
             <div className="py-12 text-center text-neutral-400">
               <AlertCircle className="w-8 h-8 mx-auto mb-2 text-neutral-300" />
-              <p className="text-sm font-medium text-neutral-600">No se encontraron retenciones de ISLR</p>
+              <p className="text-sm font-medium text-neutral-600">
+                No se encontraron retenciones de ISLR
+              </p>
               <p className="text-xs text-neutral-400 mt-1">
                 No hay comprobantes de retención emitidos en el año {taxYear}
               </p>
@@ -272,31 +344,44 @@ export const ARCVReportView: React.FC = () => {
             filteredSuppliers.map((sup) => {
               const isExpanded = expandedSupplierId === sup.supplierId;
               return (
-                <div key={sup.supplierId} className="transition-colors hover:bg-neutral-50/50">
+                <div
+                  key={sup.supplierId}
+                  className="transition-colors hover:bg-neutral-50/50"
+                >
                   {/* Supplier Summary Row */}
                   <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-sm text-neutral-900">{sup.supplierName}</span>
-                        <Badge variant="neutral" className="font-mono text-[10px]">
+                        <span className="font-semibold text-sm text-neutral-900">
+                          {sup.supplierName}
+                        </span>
+                        <Badge
+                          variant="neutral"
+                          className="font-mono text-[10px]"
+                        >
                           {sup.supplierRif}
                         </Badge>
                       </div>
                       <p className="text-xs text-neutral-500">
-                        {sup.vouchersCount} comprobante(s) emitido(s) en el año {taxYear}
+                        {sup.vouchersCount} comprobante(s) emitido(s) en el año{" "}
+                        {taxYear}
                       </p>
                     </div>
 
                     <div className="flex items-center gap-6">
                       <div className="text-right">
-                        <p className="text-[10px] text-neutral-500 uppercase font-semibold">Base Acumulada</p>
+                        <p className="text-[10px] text-neutral-500 uppercase font-semibold">
+                          Base Acumulada
+                        </p>
                         <p className="text-sm font-mono font-medium text-neutral-800">
                           {formatMoneyUSD(sup.totalTaxableBase)}
                         </p>
                       </div>
 
                       <div className="text-right">
-                        <p className="text-[10px] text-neutral-500 uppercase font-semibold">ISLR Retenido</p>
+                        <p className="text-[10px] text-neutral-500 uppercase font-semibold">
+                          ISLR Retenido
+                        </p>
                         <p className="text-sm font-mono font-bold text-sky-800">
                           {formatMoneyUSD(sup.totalIslrRetained)}
                         </p>
@@ -335,9 +420,13 @@ export const ARCVReportView: React.FC = () => {
                           size="sm"
                           onClick={() => toggleExpand(sup.supplierId)}
                           className="h-8 w-8 p-0"
-                          title={isExpanded ? 'Contraer' : 'Expandir detalle'}
+                          title={isExpanded ? "Contraer" : "Expandir detalle"}
                         >
-                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          {isExpanded ? (
+                            <ChevronUp className="w-4 h-4" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4" />
+                          )}
                         </Button>
                       </div>
                     </div>
@@ -358,27 +447,41 @@ export const ARCVReportView: React.FC = () => {
                               <th className="py-2 px-3">Fecha Factura</th>
                               <th className="py-2 px-3">N° Factura</th>
                               <th className="py-2 px-3">Concepto ISLR</th>
-                              <th className="py-2 px-3 text-right">Base Imponible</th>
+                              <th className="py-2 px-3 text-right">
+                                Base Imponible
+                              </th>
                               <th className="py-2 px-3 text-right">Tarifa %</th>
-                              <th className="py-2 px-3 text-right">Monto Retenido</th>
+                              <th className="py-2 px-3 text-right">
+                                Monto Retenido
+                              </th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-neutral-100">
                             {sup.vouchers.map((v) => (
                               <tr key={v.id}>
-                                <td className="py-2 px-3 font-mono font-medium text-neutral-900">{v.voucherNumber}</td>
-                                <td className="py-2 px-3 font-mono">{v.taxPeriod}</td>
-                                <td className="py-2 px-3 text-neutral-700">
-                                  {new Date(v.invoiceDate).toLocaleDateString('es-VE')}
+                                <td className="py-2 px-3 font-mono font-medium text-neutral-500">
+                                  {v.voucherNumber}
                                 </td>
-                                <td className="py-2 px-3 font-mono">{v.invoiceNumber}</td>
+                                <td className="py-2 px-3 font-mono">
+                                  {v.taxPeriod}
+                                </td>
+                                <td className="py-2 px-3 text-neutral-700">
+                                  {new Date(v.invoiceDate).toLocaleDateString(
+                                    "es-VE",
+                                  )}
+                                </td>
+                                <td className="py-2 px-3 font-mono">
+                                  {v.invoiceNumber}
+                                </td>
                                 <td className="py-2 px-3">
                                   {v.conceptCode} - {v.conceptDescription}
                                 </td>
                                 <td className="py-2 px-3 text-right font-mono">
                                   {formatMoneyUSD(v.taxableBaseAmount)}
                                 </td>
-                                <td className="py-2 px-3 text-right font-mono">{v.ratePercentage}%</td>
+                                <td className="py-2 px-3 text-right font-mono">
+                                  {v.ratePercentage}%
+                                </td>
                                 <td className="py-2 px-3 text-right font-mono font-semibold text-sky-800">
                                   {formatMoneyUSD(v.islrRetainedAmount)}
                                 </td>
@@ -406,7 +509,11 @@ export const ARCVReportView: React.FC = () => {
           size="3xl"
           footer={
             <div className="flex justify-end gap-2 w-full print:hidden">
-              <Button variant="outline" size="sm" onClick={() => setSelectedSupplierForPrint(null)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedSupplierForPrint(null)}
+              >
                 Cerrar
               </Button>
               <Button size="sm" onClick={() => window.print()}>
@@ -419,7 +526,7 @@ export const ARCVReportView: React.FC = () => {
           {/* Official Formato AR-CV Document */}
           <div className="p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded-lg text-neutral-800 dark:text-neutral-200 space-y-4 text-xs font-sans print:border-none print:p-0 print:bg-white print:text-black">
             <div className="text-center border-b border-neutral-200 dark:border-neutral-800 pb-3">
-              <h1 className="text-sm sm:text-base font-bold uppercase tracking-wide text-neutral-900 dark:text-neutral-100 print:text-black">
+              <h1 className="text-xl font-bold text-neutral-400 dark:text-neutral-100 tracking-tight flex items-center gap-2">
                 COMPROBANTE DE RETENCIÓN DE IMPUESTO SOBRE LA RENTA
               </h1>
               <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 mt-0.5 print:text-neutral-700">
@@ -433,16 +540,32 @@ export const ARCVReportView: React.FC = () => {
             {/* Data Table Agent and Subject */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-neutral-50 dark:bg-neutral-800/50 p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 print:bg-neutral-50">
               <div>
-                <p className="font-bold text-[11px] text-neutral-900 dark:text-neutral-100 mb-1">AGENTE DE RETENCIÓN</p>
-                <p className="font-semibold text-neutral-800 dark:text-neutral-200">DISTRIBUIDORA ERO VE, C.A.</p>
-                <p className="text-neutral-600 dark:text-neutral-400">RIF: J-40123456-7</p>
-                <p className="text-neutral-600 dark:text-neutral-400">Caracas, Venezuela</p>
+                <p className="font-bold text-[11px] text-neutral-900 dark:text-neutral-100 mb-1">
+                  AGENTE DE RETENCIÓN
+                </p>
+                <p className="font-semibold text-neutral-800 dark:text-neutral-200">
+                  DISTRIBUIDORA ERO VE, C.A.
+                </p>
+                <p className="text-neutral-600 dark:text-neutral-400">
+                  RIF: J-40123456-7
+                </p>
+                <p className="text-neutral-600 dark:text-neutral-400">
+                  Caracas, Venezuela
+                </p>
               </div>
               <div>
-                <p className="font-bold text-[11px] text-neutral-900 dark:text-neutral-100 mb-1">BENEFICIARIO (SUJETO RETENIDO)</p>
-                <p className="font-semibold text-neutral-800 dark:text-neutral-200">{selectedSupplierForPrint.supplierName}</p>
-                <p className="text-neutral-600 dark:text-neutral-400">RIF: {selectedSupplierForPrint.supplierRif}</p>
-                <p className="text-neutral-600 dark:text-neutral-400">Período Fiscal: 01/01/{taxYear} al 31/12/{taxYear}</p>
+                <p className="font-bold text-[11px] text-neutral-900 dark:text-neutral-100 mb-1">
+                  BENEFICIARIO (SUJETO RETENIDO)
+                </p>
+                <p className="font-semibold text-neutral-800 dark:text-neutral-200">
+                  {selectedSupplierForPrint.supplierName}
+                </p>
+                <p className="text-neutral-600 dark:text-neutral-400">
+                  RIF: {selectedSupplierForPrint.supplierRif}
+                </p>
+                <p className="text-neutral-600 dark:text-neutral-400">
+                  Período Fiscal: 01/01/{taxYear} al 31/12/{taxYear}
+                </p>
               </div>
             </div>
 
@@ -451,28 +574,50 @@ export const ARCVReportView: React.FC = () => {
               <table className="w-full border-collapse text-[11px]">
                 <thead className="bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 font-semibold border-b border-neutral-200 dark:border-neutral-700">
                   <tr>
-                    <th className="p-2 text-left border-r border-neutral-200 dark:border-neutral-700">N° Comprobante</th>
-                    <th className="p-2 text-left border-r border-neutral-200 dark:border-neutral-700">Factura</th>
-                    <th className="p-2 text-center border-r border-neutral-200 dark:border-neutral-700">Fecha</th>
-                    <th className="p-2 text-left border-r border-neutral-200 dark:border-neutral-700">Concepto</th>
-                    <th className="p-2 text-right border-r border-neutral-200 dark:border-neutral-700">Base Imponible</th>
-                    <th className="p-2 text-right border-r border-neutral-200 dark:border-neutral-700">%</th>
-                    <th className="p-2 text-right bg-neutral-200/80 dark:bg-neutral-700 font-bold text-neutral-900 dark:text-neutral-100">ISLR Retenido</th>
+                    <th className="p-2 text-left border-r border-neutral-200 dark:border-neutral-700">
+                      N° Comprobante
+                    </th>
+                    <th className="p-2 text-left border-r border-neutral-200 dark:border-neutral-700">
+                      Factura
+                    </th>
+                    <th className="p-2 text-center border-r border-neutral-200 dark:border-neutral-700">
+                      Fecha
+                    </th>
+                    <th className="p-2 text-left border-r border-neutral-200 dark:border-neutral-700">
+                      Concepto
+                    </th>
+                    <th className="p-2 text-right border-r border-neutral-200 dark:border-neutral-700">
+                      Base Imponible
+                    </th>
+                    <th className="p-2 text-right border-r border-neutral-200 dark:border-neutral-700">
+                      %
+                    </th>
+                    <th className="p-2 text-right bg-neutral-200/80 dark:bg-neutral-700 font-bold text-neutral-900 dark:text-neutral-100">
+                      ISLR Retenido
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-200 dark:divide-neutral-700">
                   {selectedSupplierForPrint.vouchers.map((v) => (
                     <tr key={v.id}>
-                      <td className="p-2 font-mono border-r border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100">{v.voucherNumber}</td>
-                      <td className="p-2 font-mono border-r border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300">{v.invoiceNumber}</td>
-                      <td className="p-2 text-center border-r border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300">
-                        {new Date(v.invoiceDate).toLocaleDateString('es-VE')}
+                      <td className="p-2 font-mono border-r border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100">
+                        {v.voucherNumber}
                       </td>
-                      <td className="p-2 border-r border-neutral-200 dark:border-neutral-700 text-neutral-800 dark:text-neutral-200">{v.conceptDescription}</td>
+                      <td className="p-2 font-mono border-r border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300">
+                        {v.invoiceNumber}
+                      </td>
+                      <td className="p-2 text-center border-r border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300">
+                        {new Date(v.invoiceDate).toLocaleDateString("es-VE")}
+                      </td>
+                      <td className="p-2 border-r border-neutral-200 dark:border-neutral-700 text-neutral-800 dark:text-neutral-200">
+                        {v.conceptDescription}
+                      </td>
                       <td className="p-2 text-right font-mono border-r border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100">
                         {formatMoneyUSD(v.taxableBaseAmount)}
                       </td>
-                      <td className="p-2 text-right font-mono border-r border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300">{v.ratePercentage}%</td>
+                      <td className="p-2 text-right font-mono border-r border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300">
+                        {v.ratePercentage}%
+                      </td>
                       <td className="p-2 text-right font-mono font-bold bg-neutral-50 dark:bg-neutral-800/80 text-emerald-600 dark:text-emerald-400">
                         {formatMoneyUSD(v.islrRetainedAmount)}
                       </td>
@@ -481,15 +626,22 @@ export const ARCVReportView: React.FC = () => {
                 </tbody>
                 <tfoot className="bg-neutral-100 dark:bg-neutral-800 font-bold border-t border-neutral-200 dark:border-neutral-700">
                   <tr>
-                    <td colSpan={4} className="p-2 text-right uppercase border-r border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300">
+                    <td
+                      colSpan={4}
+                      className="p-2 text-right uppercase border-r border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300"
+                    >
                       Totales Anuales Acumulados:
                     </td>
                     <td className="p-2 text-right font-mono text-sky-800 dark:text-sky-300 border-r border-neutral-200 dark:border-neutral-700">
-                      {formatMoneyUSD(selectedSupplierForPrint.totalTaxableBase)}
+                      {formatMoneyUSD(
+                        selectedSupplierForPrint.totalTaxableBase,
+                      )}
                     </td>
                     <td className="p-2 border-r border-neutral-200 dark:border-neutral-700"></td>
                     <td className="p-2 text-right font-mono font-bold text-sky-900 dark:text-emerald-400 bg-neutral-200/80 dark:bg-neutral-700">
-                      {formatMoneyUSD(selectedSupplierForPrint.totalIslrRetained)}
+                      {formatMoneyUSD(
+                        selectedSupplierForPrint.totalIslrRetained,
+                      )}
                     </td>
                   </tr>
                 </tfoot>
@@ -500,14 +652,22 @@ export const ARCVReportView: React.FC = () => {
             <div className="grid grid-cols-2 gap-8 pt-10 text-center text-xs">
               <div>
                 <div className="border-t border-neutral-400 dark:border-neutral-600 mx-auto w-48 pt-1">
-                  <p className="font-bold text-neutral-800 dark:text-neutral-200">AGENTE DE RETENCIÓN</p>
-                  <p className="text-[10px] text-neutral-500 dark:text-neutral-400">Firma y Sello del Pagador</p>
+                  <p className="font-bold text-neutral-800 dark:text-neutral-200">
+                    AGENTE DE RETENCIÓN
+                  </p>
+                  <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                    Firma y Sello del Pagador
+                  </p>
                 </div>
               </div>
               <div>
                 <div className="border-t border-neutral-400 dark:border-neutral-600 mx-auto w-48 pt-1">
-                  <p className="font-bold text-neutral-800 dark:text-neutral-200">SUJETO RETENIDO</p>
-                  <p className="text-[10px] text-neutral-500 dark:text-neutral-400">Firma y C.I. del Beneficiario</p>
+                  <p className="font-bold text-neutral-800 dark:text-neutral-200">
+                    SUJETO RETENIDO
+                  </p>
+                  <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                    Firma y C.I. del Beneficiario
+                  </p>
                 </div>
               </div>
             </div>

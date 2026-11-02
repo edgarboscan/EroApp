@@ -6,6 +6,13 @@ const autoTable = (typeof autoTableImport === 'function'
   ? autoTableImport
   : (autoTableImport as any).default || autoTableImport) as typeof autoTableImport;
 
+/**
+ * Logotipo oficial predeterminado del sistema ERO ERP en formato WebP optimizado de alta resolución.
+ * Idéntico al mostrado en la configuración y navegador.
+ */
+export const ERO_SYSTEM_LOGO_WEBP =
+  'data:image/webp;base64,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';
+
 export interface CompanyPdfInfo {
   legalName?: string;
   tradeName?: string;
@@ -15,6 +22,10 @@ export interface CompanyPdfInfo {
   phone?: string;
   email?: string;
   isSpecialTaxpayer?: boolean;
+  reportCurrency?: 'VES' | 'USD' | 'BOTH';
+  showLogoInReports?: boolean;
+  reportLogoType?: 'default' | 'custom';
+  customLogoUrl?: string | null;
 }
 
 export interface BasePdfOptions {
@@ -25,6 +36,7 @@ export interface BasePdfOptions {
   userName: string;
   orientation: 'portrait' | 'landscape';
   auditId?: string;
+  currency?: 'VES' | 'USD' | 'BOTH';
 }
 
 export interface KpiCardItem {
@@ -67,35 +79,69 @@ export class ReportsPdfEngine {
     doc.setFillColor(this.COLOR_ACCENT[0], this.COLOR_ACCENT[1], this.COLOR_ACCENT[2]);
     doc.rect(0, 0, pageWidth, 2.8, 'F');
 
-    // 2. Insignia / Logo corporativo moderno "ERO"
-    doc.setFillColor(this.COLOR_PRIMARY[0], this.COLOR_PRIMARY[1], this.COLOR_PRIMARY[2]);
-    doc.roundedRect(marginX, 7.5, 17, 11, 1.5, 1.5, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9.5);
-    doc.text('ERO', marginX + 3.2, 15);
-    // Punto azul cielo característico
-    doc.setFillColor(14, 165, 233);
-    doc.circle(marginX + 13.8, 11.2, 1.1, 'F');
+    // 2. Insignia / Logo corporativo moderno
+    const showLogo = company.showLogoInReports !== false;
+    let headerTextX = marginX;
+
+    if (showLogo) {
+      const isCustom = company.reportLogoType === 'custom' && !!company.customLogoUrl;
+      let logoRendered = false;
+
+      if (isCustom && company.customLogoUrl) {
+        try {
+          const isWebP = company.customLogoUrl.includes('image/webp');
+          const isPng = company.customLogoUrl.includes('image/png');
+          const format = isWebP ? 'WEBP' : (isPng ? 'PNG' : 'JPEG');
+          doc.addImage(company.customLogoUrl, format, marginX, 5.5, 14, 14, undefined, 'FAST');
+          logoRendered = true;
+          headerTextX = marginX + 18;
+        } catch {}
+      }
+
+      if (!logoRendered && (!isCustom || !company.customLogoUrl)) {
+        // Logo oficial WebP del sistema (exactamente el mismo de la configuración)
+        try {
+          doc.addImage(ERO_SYSTEM_LOGO_WEBP, 'WEBP', marginX, 5.5, 14, 14, undefined, 'FAST');
+          logoRendered = true;
+          headerTextX = marginX + 18;
+        } catch {}
+      }
+
+      if (!logoRendered) {
+        // Insignia geométrica estilizada ERO como fallback visual premium
+        doc.setFillColor(this.COLOR_PRIMARY[0], this.COLOR_PRIMARY[1], this.COLOR_PRIMARY[2]);
+        doc.roundedRect(marginX, 7.5, 17, 11, 1.5, 1.5, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9.5);
+        doc.text('ERO', marginX + 3.2, 15);
+        // Punto azul cielo característico
+        doc.setFillColor(14, 165, 233);
+        doc.circle(marginX + 13.8, 11.2, 1.1, 'F');
+        headerTextX = marginX + 21;
+      }
+    }
 
     // 3. Razón Social y Datos Fiscales
     const displayName = (company.tradeName || company.legalName || 'ERO DISTRIBUCION C.A.').toUpperCase();
     doc.setTextColor(this.COLOR_PRIMARY[0], this.COLOR_PRIMARY[1], this.COLOR_PRIMARY[2]);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10.5);
-    doc.text(displayName, marginX + 21, 11.5);
+    doc.text(displayName, headerTextX, 11.5);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(this.COLOR_MUTED[0], this.COLOR_MUTED[1], this.COLOR_MUTED[2]);
     const rifText = company.rif ? `RIF: ${company.rif}` : 'RIF: J-00000000-0';
-    const contribText = company.isSpecialTaxpayer ? '  •  Contribuyente Especial SENIAT' : '';
-    doc.text(`${rifText}${contribText}`, marginX + 21, 15.5);
+    const contribText = company.isSpecialTaxpayer
+      ? '  •  Contribuyente Especial (Agente de Retención SENIAT)'
+      : '  •  Contribuyente Ordinario (No Agente de Retención)';
+    doc.text(`${rifText}${contribText}`, headerTextX, 15.5);
 
     const addressText = company.fiscalAddress || 'Caracas, Venezuela';
     const phoneText = company.phone ? `  •  Tel: ${company.phone}` : '';
     const cleanAddress = addressText.length > 55 ? `${addressText.slice(0, 52)}...` : addressText;
-    doc.text(`${cleanAddress}${phoneText}`, marginX + 21, 19);
+    doc.text(`${cleanAddress}${phoneText}`, headerTextX, 19);
 
     // 4. Bloque lateral derecho de metadatos (Fecha, Usuario, Auditoría)
     const rightColX = pageWidth - marginX;
@@ -144,11 +190,18 @@ export class ReportsPdfEngine {
     doc.text(options.title.toUpperCase(), marginX, 29);
 
     let startY = 32.5;
-    if (options.subtitle || options.periodText) {
+    const activeCurrency = options.currency || company.reportCurrency || 'BOTH';
+    const currencyBadge = activeCurrency === 'VES'
+      ? 'Moneda: Bolívares (VES)'
+      : activeCurrency === 'USD'
+      ? 'Moneda: Dólares Americanos (USD)'
+      : 'Moneda: Bimonetario (VES / USD)';
+
+    if (options.subtitle || options.periodText || currencyBadge) {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
       doc.setTextColor(this.COLOR_MUTED[0], this.COLOR_MUTED[1], this.COLOR_MUTED[2]);
-      const fullSub = [options.subtitle, options.periodText].filter(Boolean).join('  •  ');
+      const fullSub = [options.subtitle, options.periodText, currencyBadge].filter(Boolean).join('  •  ');
       doc.text(fullSub, marginX, startY);
       startY += 4.5;
     }
@@ -254,6 +307,7 @@ export class ReportsPdfEngine {
       startDate?: string;
       endDate?: string;
       branchName?: string;
+      currency?: 'VES' | 'USD' | 'BOTH';
     }
   ): Buffer {
     const isDetailed = !!options.detailed;
@@ -267,6 +321,7 @@ export class ReportsPdfEngine {
       branchName: options.branchName,
       userName,
       orientation,
+      currency: options.currency,
       auditId: `RPT-VTA-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
     });
 
@@ -519,6 +574,7 @@ export class ReportsPdfEngine {
       startDate?: string;
       endDate?: string;
       branchName?: string;
+      currency?: 'VES' | 'USD' | 'BOTH';
     }
   ): Buffer {
     const isDetailed = !!options.detailed;
@@ -532,6 +588,7 @@ export class ReportsPdfEngine {
       branchName: options.branchName,
       userName,
       orientation,
+      currency: options.currency,
       auditId: `RPT-CRRE-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
     });
 
@@ -757,6 +814,7 @@ export class ReportsPdfEngine {
       startDate?: string;
       endDate?: string;
       branchName?: string;
+      currency?: 'VES' | 'USD' | 'BOTH';
     }
   ): Buffer {
     const periodText = options.startDate && options.endDate ? `Período: ${options.startDate} al ${options.endDate}` : undefined;
@@ -768,6 +826,7 @@ export class ReportsPdfEngine {
       branchName: options.branchName,
       userName,
       orientation: 'portrait',
+      currency: options.currency,
       auditId: `RPT-PROD-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
     });
 
@@ -883,6 +942,7 @@ export class ReportsPdfEngine {
       startDate?: string;
       endDate?: string;
       branchName?: string;
+      currency?: 'VES' | 'USD' | 'BOTH';
     }
   ): Buffer {
     const periodText = options.startDate && options.endDate ? `Período: ${options.startDate} al ${options.endDate}` : undefined;
@@ -894,6 +954,7 @@ export class ReportsPdfEngine {
       branchName: options.branchName,
       userName,
       orientation: 'portrait',
+      currency: options.currency,
       auditId: `RPT-CAJ-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
     });
 
@@ -1162,6 +1223,7 @@ export class ReportsPdfEngine {
       endDate?: string;
       branchName?: string;
       waiterName?: string;
+      currency?: 'VES' | 'USD' | 'BOTH';
     }
   ): Buffer {
     const periodText = options.startDate && options.endDate ? `Período: ${options.startDate} al ${options.endDate}` : undefined;
@@ -1174,6 +1236,7 @@ export class ReportsPdfEngine {
       branchName: options.branchName,
       userName,
       orientation: 'landscape',
+      currency: options.currency,
       auditId: `RPT-PROP-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
     });
 
@@ -1374,13 +1437,17 @@ export class ReportsPdfEngine {
   static generateInventoryHierarchyReportPDF(
     data: any[],
     company: CompanyPdfInfo,
-    userName: string
+    userName: string,
+    options?: {
+      currency?: 'VES' | 'USD' | 'BOTH';
+    }
   ): Buffer {
     const { doc, startY, pageWidth } = this.initDocument(company, {
       title: 'Reporte de Inventario por Jerarquía y Ubicación Física',
       subtitle: 'Estructura por Departamentos, Grupos, Stock y Valoración',
       userName,
       orientation: 'landscape',
+      currency: options?.currency,
       auditId: `RPT-INV-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
     });
 
@@ -3093,7 +3160,7 @@ export class ReportsPdfEngine {
   }
 
   /**
-   * 17. REPORTE DE KARDEX DE INVENTARIO VALORIZADO (HORIZONTAL / LANDSCAPE)
+   * 17. REPORTE DE KARDEX DE INVENTARIO (FÍSICO O VALORADO/MONETIZADO) (HORIZONTAL / LANDSCAPE)
    */
   static generateKardexReportPDF(
     data: any,
@@ -3102,110 +3169,388 @@ export class ReportsPdfEngine {
     options: {
       productName?: string;
       warehouseName?: string;
+      branchName?: string;
+      departmentName?: string;
+      groupName?: string;
+      subgroupName?: string;
       startDate?: string;
       endDate?: string;
+      movementType?: string;
+      model?: 'physical' | 'valued';
+      currency?: 'VES' | 'USD' | 'BOTH';
+      bcvRate?: number;
     }
   ): Buffer {
-    const periodText = [
+    const isValued = options.model === 'valued';
+    const curr = options.currency || 'BOTH';
+    const bcvRate = Number(options.bcvRate) || 1;
+
+    const periodParts = [
       options.startDate && options.endDate ? `Período: ${options.startDate} al ${options.endDate}` : undefined,
+      options.branchName ? `Sucursal: ${options.branchName}` : undefined,
       options.warehouseName ? `Almacén: ${options.warehouseName}` : undefined,
+      options.departmentName ? `Depto: ${options.departmentName}` : undefined,
+      options.groupName ? `Grupo: ${options.groupName}` : undefined,
+      options.subgroupName ? `Subgrupo: ${options.subgroupName}` : undefined,
       options.productName ? `Producto: ${options.productName}` : undefined,
+      options.movementType ? `Tipo: ${options.movementType}` : undefined,
+      isValued ? `Moneda: ${curr === 'VES' ? 'Bolívares (VES)' : curr === 'USD' ? 'Dólares (USD)' : 'Bimonetario (USD / VES)'}` : undefined,
+      isValued && (curr === 'VES' || curr === 'BOTH') ? `Tasa BCV: Bs. ${bcvRate.toFixed(2)}` : undefined,
     ].filter(Boolean).join('  •  ');
 
     const { doc, startY, pageWidth } = this.initDocument(company, {
-      title: 'KARDEX DE INVENTARIO VALORIZADO',
-      subtitle: 'Trazabilidad Cronológica de Entradas, Salidas y Existencias Físicas',
-      periodText,
+      title: isValued ? 'KARDEX DE INVENTARIO VALORADO Y MONETIZADO' : 'KARDEX DE INVENTARIO FÍSICO (MOVIMIENTOS)',
+      subtitle: isValued
+        ? 'Control Cronológico de Entradas, Salidas, Costos Ponderados y Precios de Venta'
+        : 'Control Cronológico de Entradas, Salidas y Existencias en Unidades Físicas (Sin Valoración)',
+      periodText: periodParts,
       userName,
       orientation: 'landscape',
-      auditId: `KDX-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
+      auditId: `KDX-${isValued ? 'VAL' : 'FIS'}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
     });
 
-    const summary = data.summary || {};
-    const cards: KpiCardItem[] = [
-      {
-        label: 'Movimientos Auditados',
-        value: `${summary.totalMovements || data.movements?.length || 0} oper.`,
-        sub: 'Transacciones registradas',
-      },
-      {
-        label: 'Unidades Ingresadas',
-        value: this.fmtQty(summary.totalInQty),
-        sub: `Valor: ${this.fmtUSD(summary.totalInValue)}`,
-      },
-      {
-        label: 'Unidades Egresadas',
-        value: this.fmtQty(summary.totalOutQty),
-        sub: `Valor: ${this.fmtUSD(summary.totalOutValue)}`,
-      },
-      {
-        label: 'Saldo Neto Unidades',
-        value: this.fmtQty(Number(summary.totalInQty || 0) - Number(summary.totalOutQty || 0)),
-        sub: 'Flujo neto de inventario',
-      },
-    ];
+    const movements = data.movements || [];
+
+    let totalInQty = 0;
+    let totalOutQty = 0;
+    let totalInCostUSD = 0;
+    let totalInCostVES = 0;
+    let totalOutCostUSD = 0;
+    let totalOutCostVES = 0;
+
+    for (const m of movements) {
+      const qty = Number(m.quantity || 0);
+      const isInput = ['IN', 'ADJUST_IN', 'TRANSFER_IN', 'PURCHASE'].includes(m.movementType);
+      const costUSD = Number(m.totalCostUSD ?? m.totalCost ?? 0);
+      const costVES = Number(m.totalCostVES ?? (costUSD * bcvRate));
+
+      if (isInput) {
+        totalInQty += qty;
+        totalInCostUSD += costUSD;
+        totalInCostVES += costVES;
+      } else {
+        totalOutQty += qty;
+        totalOutCostUSD += costUSD;
+        totalOutCostVES += costVES;
+      }
+    }
+
+    const netQty = totalInQty - totalOutQty;
+    const netCostUSD = totalInCostUSD - totalOutCostUSD;
+    const netCostVES = totalInCostVES - totalOutCostVES;
+
+    let cards: KpiCardItem[] = [];
+
+    if (!isValued) {
+      // Modelo Físico: Únicamente cantidades físicas, sin costos ni precios
+      cards = [
+        {
+          label: 'Movimientos Auditados',
+          value: `${movements.length} oper.`,
+          sub: 'Transacciones registradas',
+        },
+        {
+          label: 'Unidades Ingresadas',
+          value: `+${this.fmtQty(totalInQty)}`,
+          sub: 'Compras, traslados y ajustes +',
+        },
+        {
+          label: 'Unidades Egresadas',
+          value: `-${this.fmtQty(totalOutQty)}`,
+          sub: 'Ventas, mermas y traslados -',
+        },
+        {
+          label: 'Saldo Neto Unidades',
+          value: this.fmtQty(netQty),
+          sub: 'Flujo neto del período',
+        },
+      ];
+    } else {
+      // Modelo Valorado: Incluye unidades y valoración monetaria según la moneda seleccionada
+      const inValText = curr === 'VES'
+        ? this.fmtVES(totalInCostVES)
+        : curr === 'USD'
+          ? this.fmtUSD(totalInCostUSD)
+          : `${this.fmtUSD(totalInCostUSD)} / ${this.fmtVES(totalInCostVES)}`;
+
+      const outValText = curr === 'VES'
+        ? this.fmtVES(totalOutCostVES)
+        : curr === 'USD'
+          ? this.fmtUSD(totalOutCostUSD)
+          : `${this.fmtUSD(totalOutCostUSD)} / ${this.fmtVES(totalOutCostVES)}`;
+
+      const netValText = curr === 'VES'
+        ? this.fmtVES(netCostVES)
+        : curr === 'USD'
+          ? this.fmtUSD(netCostUSD)
+          : `${this.fmtUSD(netCostUSD)} / ${this.fmtVES(netCostVES)}`;
+
+      cards = [
+        {
+          label: 'Movimientos Auditados',
+          value: `${movements.length} oper.`,
+          sub: `Tasa BCV: Bs. ${bcvRate.toFixed(2)}`,
+        },
+        {
+          label: 'Total Costo Ingresos',
+          value: curr === 'VES' ? this.fmtVES(totalInCostVES) : this.fmtUSD(totalInCostUSD),
+          sub: `+${this.fmtQty(totalInQty)} und. • ${inValText}`,
+        },
+        {
+          label: 'Total Costo Egresos',
+          value: curr === 'VES' ? this.fmtVES(totalOutCostVES) : this.fmtUSD(totalOutCostUSD),
+          sub: `-${this.fmtQty(totalOutQty)} und. • ${outValText}`,
+        },
+        {
+          label: 'Valoración Neta Flujo',
+          value: curr === 'VES' ? this.fmtVES(netCostVES) : this.fmtUSD(netCostUSD),
+          sub: `Neto: ${this.fmtQty(netQty)} und. • ${netValText}`,
+        },
+      ];
+    }
 
     const currentY = this.drawKpiCards(doc, startY, cards, pageWidth);
 
-    const headers = [
-      'Fecha',
-      'Almacén',
-      'SKU',
-      'Producto',
-      'Tipo Mov.',
-      'Doc. Referencia',
-      'Entrada',
-      'Salida',
-      'Stock Ant.',
-      'Stock Nvo.',
-      'Costo Unit. ($)',
-      'Total ($)',
-      'Operador',
-    ];
+    let headers: string[] = [];
+    let rows: any[][] = [];
+    let columnStyles: Record<number, any> = {};
 
-    const movements = data.movements || [];
-    const rows = movements.map((m: any) => {
-      const isInput = ['IN', 'ADJUST_IN', 'TRANSFER_IN', 'PURCHASE'].includes(m.movementType);
-      return [
-        m.createdAt ? String(m.createdAt).slice(0, 16).replace('T', ' ') : '-',
-        (m.warehouseName || 'Central').slice(0, 14),
-        m.sku || '-',
-        (m.productName || '').slice(0, 24),
-        m.movementType,
-        m.referenceDocument || '-',
-        isInput ? this.fmtQty(m.quantity) : '-',
-        !isInput ? this.fmtQty(m.quantity) : '-',
-        this.fmtQty(m.previousStock),
-        this.fmtQty(m.newStock),
-        this.fmtUSD(m.unitCost),
-        this.fmtUSD(m.totalCost),
-        (m.userName || '').slice(0, 14),
+    if (!isValued) {
+      // Columnas del Modelo Físico (Sin precios ni costos)
+      headers = [
+        'Fecha',
+        'Almacén',
+        'SKU',
+        'Producto',
+        'Depto / Grupo',
+        'Tipo Mov.',
+        'Doc. Referencia',
+        'Entrada',
+        'Salida',
+        'Stock Ant.',
+        'Stock Nvo.',
+        'Operador',
       ];
-    });
+
+      rows = movements.map((m: any) => {
+        const isInput = ['IN', 'ADJUST_IN', 'TRANSFER_IN', 'PURCHASE'].includes(m.movementType);
+        const hierarchyText = [m.departmentName, m.groupName].filter(Boolean).join(' / ') || '-';
+        return [
+          m.createdAt || m.date ? String(m.createdAt || m.date).slice(0, 16).replace('T', ' ') : '-',
+          (m.warehouseName || 'Central').slice(0, 14),
+          m.productSku || m.sku || '-',
+          (m.productName || '').slice(0, 26),
+          hierarchyText.slice(0, 22),
+          m.movementType,
+          m.referenceDocument || '-',
+          isInput ? this.fmtQty(m.quantity) : '-',
+          !isInput ? this.fmtQty(m.quantity) : '-',
+          this.fmtQty(m.previousStock),
+          this.fmtQty(m.newStock),
+          (m.userName || '').slice(0, 14),
+        ];
+      });
+
+      columnStyles = {
+        0: { halign: 'center', cellWidth: 20 },
+        1: { halign: 'left', cellWidth: 20 },
+        2: { halign: 'center', cellWidth: 16 },
+        3: { halign: 'left', cellWidth: 42 },
+        4: { halign: 'left', cellWidth: 32 },
+        5: { halign: 'center', cellWidth: 18 },
+        6: { halign: 'center', cellWidth: 24 },
+        7: { halign: 'right', cellWidth: 16, fontStyle: 'bold' },
+        8: { halign: 'right', cellWidth: 16, fontStyle: 'bold' },
+        9: { halign: 'right', cellWidth: 16 },
+        10: { halign: 'right', cellWidth: 16 },
+        11: { halign: 'left', cellWidth: 20 },
+      };
+    } else {
+      // Columnas del Modelo Valorado y Monetizado
+      if (curr === 'USD') {
+        headers = [
+          'Fecha',
+          'Almacén',
+          'SKU',
+          'Producto',
+          'Tipo Mov.',
+          'Entrada',
+          'Salida',
+          'Stock Nvo.',
+          'Costo Unit. ($)',
+          'Total Costo ($)',
+          'Precio Unit. ($)',
+          'Total Precio ($)',
+          'Doc. / Ref.',
+        ];
+
+        rows = movements.map((m: any) => {
+          const isInput = ['IN', 'ADJUST_IN', 'TRANSFER_IN', 'PURCHASE'].includes(m.movementType);
+          const uCost = Number(m.unitCostUSD ?? m.unitCost ?? 0);
+          const tCost = Number(m.totalCostUSD ?? m.totalCost ?? 0);
+          const uPrice = Number(m.unitPriceUSD ?? m.unitPrice ?? 0);
+          const tPrice = Number(m.totalPriceUSD ?? m.totalPrice ?? 0);
+
+          return [
+            m.createdAt || m.date ? String(m.createdAt || m.date).slice(0, 16).replace('T', ' ') : '-',
+            (m.warehouseName || 'Central').slice(0, 13),
+            m.productSku || m.sku || '-',
+            (m.productName || '').slice(0, 24),
+            m.movementType,
+            isInput ? this.fmtQty(m.quantity) : '-',
+            !isInput ? this.fmtQty(m.quantity) : '-',
+            this.fmtQty(m.newStock),
+            this.fmtUSD(uCost),
+            this.fmtUSD(tCost),
+            this.fmtUSD(uPrice),
+            this.fmtUSD(tPrice),
+            (m.referenceDocument || '-').slice(0, 16),
+          ];
+        });
+
+        columnStyles = {
+          0: { halign: 'center', cellWidth: 18 },
+          1: { halign: 'left', cellWidth: 18 },
+          2: { halign: 'center', cellWidth: 14 },
+          3: { halign: 'left', cellWidth: 36 },
+          4: { halign: 'center', cellWidth: 16 },
+          5: { halign: 'right', cellWidth: 14, fontStyle: 'bold' },
+          6: { halign: 'right', cellWidth: 14, fontStyle: 'bold' },
+          7: { halign: 'right', cellWidth: 14 },
+          8: { halign: 'right', cellWidth: 18 },
+          9: { halign: 'right', cellWidth: 20 },
+          10: { halign: 'right', cellWidth: 18 },
+          11: { halign: 'right', cellWidth: 20 },
+          12: { halign: 'center', cellWidth: 18 },
+        };
+      } else if (curr === 'VES') {
+        headers = [
+          'Fecha',
+          'Almacén',
+          'SKU',
+          'Producto',
+          'Tipo Mov.',
+          'Entrada',
+          'Salida',
+          'Stock Nvo.',
+          'Costo Unit. (Bs.)',
+          'Total Costo (Bs.)',
+          'Precio Unit. (Bs.)',
+          'Total Precio (Bs.)',
+          'Doc. / Ref.',
+        ];
+
+        rows = movements.map((m: any) => {
+          const isInput = ['IN', 'ADJUST_IN', 'TRANSFER_IN', 'PURCHASE'].includes(m.movementType);
+          const uCost = Number(m.unitCostVES ?? ((m.unitCostUSD ?? m.unitCost ?? 0) * bcvRate));
+          const tCost = Number(m.totalCostVES ?? ((m.totalCostUSD ?? m.totalCost ?? 0) * bcvRate));
+          const uPrice = Number(m.unitPriceVES ?? ((m.unitPriceUSD ?? m.unitPrice ?? 0) * bcvRate));
+          const tPrice = Number(m.totalPriceVES ?? ((m.totalPriceUSD ?? m.totalPrice ?? 0) * bcvRate));
+
+          return [
+            m.createdAt || m.date ? String(m.createdAt || m.date).slice(0, 16).replace('T', ' ') : '-',
+            (m.warehouseName || 'Central').slice(0, 13),
+            m.productSku || m.sku || '-',
+            (m.productName || '').slice(0, 24),
+            m.movementType,
+            isInput ? this.fmtQty(m.quantity) : '-',
+            !isInput ? this.fmtQty(m.quantity) : '-',
+            this.fmtQty(m.newStock),
+            this.fmtVES(uCost),
+            this.fmtVES(tCost),
+            this.fmtVES(uPrice),
+            this.fmtVES(tPrice),
+            (m.referenceDocument || '-').slice(0, 16),
+          ];
+        });
+
+        columnStyles = {
+          0: { halign: 'center', cellWidth: 18 },
+          1: { halign: 'left', cellWidth: 18 },
+          2: { halign: 'center', cellWidth: 14 },
+          3: { halign: 'left', cellWidth: 36 },
+          4: { halign: 'center', cellWidth: 16 },
+          5: { halign: 'right', cellWidth: 14, fontStyle: 'bold' },
+          6: { halign: 'right', cellWidth: 14, fontStyle: 'bold' },
+          7: { halign: 'right', cellWidth: 14 },
+          8: { halign: 'right', cellWidth: 20 },
+          9: { halign: 'right', cellWidth: 22 },
+          10: { halign: 'right', cellWidth: 20 },
+          11: { halign: 'right', cellWidth: 22 },
+          12: { halign: 'center', cellWidth: 18 },
+        };
+      } else {
+        // Modo Bimonetario (BOTH): visualización conjunta de USD y VES
+        headers = [
+          'Fecha',
+          'Almacén',
+          'SKU',
+          'Producto',
+          'Tipo Mov.',
+          'Cantidad',
+          'Stock Nvo.',
+          'Costo ($)',
+          'Costo (Bs.)',
+          'Precio ($)',
+          'Precio (Bs.)',
+          'Total Costo ($)',
+          'Total Costo (Bs.)',
+        ];
+
+        rows = movements.map((m: any) => {
+          const isInput = ['IN', 'ADJUST_IN', 'TRANSFER_IN', 'PURCHASE'].includes(m.movementType);
+          const qtySign = isInput ? `+${this.fmtQty(m.quantity)}` : `-${this.fmtQty(m.quantity)}`;
+          const uCostUSD = Number(m.unitCostUSD ?? m.unitCost ?? 0);
+          const uCostVES = Number(m.unitCostVES ?? (uCostUSD * bcvRate));
+          const uPriceUSD = Number(m.unitPriceUSD ?? m.unitPrice ?? 0);
+          const uPriceVES = Number(m.unitPriceVES ?? (uPriceUSD * bcvRate));
+          const tCostUSD = Number(m.totalCostUSD ?? m.totalCost ?? 0);
+          const tCostVES = Number(m.totalCostVES ?? (tCostUSD * bcvRate));
+
+          return [
+            m.createdAt || m.date ? String(m.createdAt || m.date).slice(0, 16).replace('T', ' ') : '-',
+            (m.warehouseName || 'Central').slice(0, 12),
+            m.productSku || m.sku || '-',
+            (m.productName || '').slice(0, 22),
+            m.movementType,
+            qtySign,
+            this.fmtQty(m.newStock),
+            this.fmtUSD(uCostUSD),
+            this.fmtVES(uCostVES),
+            this.fmtUSD(uPriceUSD),
+            this.fmtVES(uPriceVES),
+            this.fmtUSD(tCostUSD),
+            this.fmtVES(tCostVES),
+          ];
+        });
+
+        columnStyles = {
+          0: { halign: 'center', cellWidth: 17 },
+          1: { halign: 'left', cellWidth: 16 },
+          2: { halign: 'center', cellWidth: 14 },
+          3: { halign: 'left', cellWidth: 32 },
+          4: { halign: 'center', cellWidth: 15 },
+          5: { halign: 'right', cellWidth: 16, fontStyle: 'bold' },
+          6: { halign: 'right', cellWidth: 14 },
+          7: { halign: 'right', cellWidth: 17 },
+          8: { halign: 'right', cellWidth: 20 },
+          9: { halign: 'right', cellWidth: 17 },
+          10: { halign: 'right', cellWidth: 20 },
+          11: { halign: 'right', cellWidth: 19 },
+          12: { halign: 'right', cellWidth: 22 },
+        };
+      }
+    }
 
     autoTable(doc, {
       head: [headers],
       body: rows,
       startY: currentY,
       theme: 'striped',
-      headStyles: { fillColor: this.COLOR_HEADER, textColor: 255, fontSize: 6.5, fontStyle: 'bold', halign: 'center', cellPadding: 1.8 },
-      bodyStyles: { fontSize: 6.1, cellPadding: 1.3, textColor: this.COLOR_PRIMARY },
-      columnStyles: {
-        0: { halign: 'center', cellWidth: 20 },
-        1: { halign: 'left', cellWidth: 20 },
-        2: { halign: 'center', cellWidth: 16 },
-        3: { halign: 'left', cellWidth: 38 },
-        4: { halign: 'center', cellWidth: 18 },
-        5: { halign: 'center', cellWidth: 22 },
-        6: { halign: 'right', cellWidth: 15, fontStyle: 'bold' },
-        7: { halign: 'right', cellWidth: 15, fontStyle: 'bold' },
-        8: { halign: 'right', cellWidth: 16 },
-        9: { halign: 'right', cellWidth: 16 },
-        10: { halign: 'right', cellWidth: 18 },
-        11: { halign: 'right', cellWidth: 20 },
-        12: { halign: 'left', cellWidth: 20 },
-      },
-      margin: { left: 14, right: 14, bottom: 12 },
+      headStyles: { fillColor: this.COLOR_HEADER, textColor: 255, fontSize: 6.2, fontStyle: 'bold', halign: 'center', cellPadding: 1.6 },
+      bodyStyles: { fontSize: 5.8, cellPadding: 1.2, textColor: this.COLOR_PRIMARY },
+      columnStyles,
+      margin: { left: 12, right: 12, bottom: 12 },
     });
 
     return this.finalize(doc);
@@ -3833,6 +4178,826 @@ export class ReportsPdfEngine {
     return this.finalize(doc);
   }
 
+  /**
+   * REPORTE DE ANTIGÜEDAD DE SALDOS (AGING CxC / CxP)
+   */
+  static generateAgingReportPDF(
+    data: any,
+    company: CompanyPdfInfo,
+    userName: string,
+    options: {
+      type: 'receivables' | 'payables';
+      branchName?: string;
+      currency?: 'VES' | 'USD' | 'BOTH';
+    }
+  ): Buffer {
+    const isReceivables = options.type === 'receivables';
+    const title = isReceivables
+      ? 'Reporte de Antigüedad de Cuentas por Cobrar (CxC)'
+      : 'Reporte de Antigüedad de Cuentas por Pagar (CxP)';
+    const subtitle = isReceivables
+      ? 'Cartera de Clientes, Vencimientos y Saldos por Cobrar'
+      : 'Obligaciones con Proveedores, Vencimientos y Saldos por Pagar';
+
+    const { doc, startY, pageWidth } = this.initDocument(company, {
+      title,
+      subtitle,
+      branchName: options.branchName,
+      userName,
+      orientation: 'landscape',
+      currency: options.currency,
+      auditId: `RPT-AGE-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
+    });
+
+    const summary = data.summary || {};
+    const cards: KpiCardItem[] = [
+      {
+        label: 'Saldo Total Deuda',
+        value: this.fmtUSD(summary.grandTotalUSD || summary.grandTotal || 0),
+        sub: 'Saldo consolidado pendiente',
+      },
+      {
+        label: 'Corriente (Por Vencer)',
+        value: this.fmtUSD(summary.totalCurrentUSD || summary.totalCurrent || 0),
+        sub: 'Dentro del plazo pactado',
+      },
+      {
+        label: 'Vencido 1 - 30 Días',
+        value: this.fmtUSD(summary.totalDays1_30USD || summary.totalDays1_30 || 0),
+        sub: 'Vencimiento a corto plazo',
+      },
+      {
+        label: 'Vencido > 30 Días',
+        value: this.fmtUSD(
+          Number(summary.totalDays31_60 || 0) + Number(summary.totalDays61_90 || 0) + Number(summary.totalDays90Plus || 0)
+        ),
+        sub: 'Vencimiento crítico mora',
+      },
+    ];
+
+    let currentY = this.drawKpiCards(doc, startY, cards, pageWidth);
+
+    const headers = [
+      isReceivables ? 'Cliente' : 'Proveedor',
+      'Documento',
+      'N° Factura',
+      'F. Emisión',
+      'F. Vencimiento',
+      'Días Mora',
+      'Saldo Total ($)',
+      'Corriente ($)',
+      '1 - 30 Días ($)',
+      '31 - 60 Días ($)',
+      '61 - 90 Días ($)',
+      '+90 Días ($)',
+    ];
+
+    const rows = (data.items || []).map((r: any) => [
+      isReceivables ? r.customer_name || r.customerName || 'Cliente' : r.supplier_name || r.supplierName || 'Proveedor',
+      isReceivables ? `${r.doc_type || ''}-${r.doc_number || ''}` : `${r.rif || ''}`,
+      r.invoice_number || r.invoiceNumber || '-',
+      r.invoice_date ? String(r.invoice_date).slice(0, 10) : '-',
+      r.due_date ? String(r.due_date).slice(0, 10) : '-',
+      String(r.days_overdue || r.daysOverdue || 0),
+      this.fmtUSD(r.amount_balance ?? r.amountBalance),
+      this.fmtUSD(r.current_due ?? r.currentDue),
+      this.fmtUSD(r.days_1_30 ?? r.days1_30),
+      this.fmtUSD(r.days_31_60 ?? r.days31_60),
+      this.fmtUSD(r.days_61_90 ?? r.days61_90),
+      this.fmtUSD(r.days_90_plus ?? r.days90Plus),
+    ]);
+
+    const footRow = [
+      { content: 'TOTALES CONSOLIDADOS:', colSpan: 6, styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
+      this.fmtUSD(summary.grandTotalUSD || summary.grandTotal || 0),
+      this.fmtUSD(summary.totalCurrentUSD || summary.totalCurrent || 0),
+      this.fmtUSD(summary.totalDays1_30USD || summary.totalDays1_30 || 0),
+      this.fmtUSD(summary.totalDays31_60USD || summary.totalDays31_60 || 0),
+      this.fmtUSD(summary.totalDays61_90USD || summary.totalDays61_90 || 0),
+      this.fmtUSD(summary.totalDays90PlusUSD || summary.totalDays90Plus || 0),
+    ];
+
+    autoTable(doc, {
+      head: [headers],
+      body: rows,
+      foot: [footRow],
+      startY: currentY,
+      theme: 'striped',
+      headStyles: {
+        fillColor: this.COLOR_PRIMARY,
+        textColor: [255, 255, 255],
+        fontSize: 7,
+        fontStyle: 'bold',
+      },
+      footStyles: {
+        fillColor: this.COLOR_BG_LIGHT,
+        textColor: this.COLOR_PRIMARY,
+        fontSize: 7,
+        fontStyle: 'bold',
+      },
+      bodyStyles: {
+        fontSize: 6.5,
+        textColor: this.COLOR_PRIMARY,
+      },
+      columnStyles: {
+        0: { cellWidth: 40 },
+        1: { cellWidth: 22 },
+        2: { cellWidth: 20 },
+        3: { cellWidth: 18 },
+        4: { cellWidth: 18 },
+        5: { cellWidth: 15, halign: 'center' },
+        6: { halign: 'right', fontStyle: 'bold' },
+        7: { halign: 'right' },
+        8: { halign: 'right' },
+        9: { halign: 'right' },
+        10: { halign: 'right' },
+        11: { halign: 'right' },
+      },
+      margin: { left: 14, right: 14, bottom: 12 },
+    });
+
+    return this.finalize(doc);
+  }
+
+  /**
+   * 24. REPORTE DE POSICIÓN GLOBAL DE SALDOS Y LIQUIDEZ BANCARIA
+   */
+  static generateTreasuryBalancesPDF(
+    data: any,
+    company: CompanyPdfInfo,
+    userName: string,
+    options: {
+      branchName?: string;
+      currency?: 'VES' | 'USD' | 'BOTH';
+    } = {}
+  ): Buffer {
+    const title = 'Posición Global de Saldos y Liquidez Bancaria';
+    const subtitle = 'Consolidación de Cuentas Bancarias Operativas, Partidas en Tránsito y Disponibilidad Financiera';
+
+    const { doc, startY, pageWidth } = this.initDocument(company, {
+      title,
+      subtitle,
+      branchName: options.branchName,
+      userName,
+      orientation: 'landscape',
+      currency: options.currency,
+      auditId: `RPT-TRS-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
+    });
+
+    const summary = data.summary || {};
+    const bcvRate = data.bcvRate || summary.bcvRate || 1;
+
+    const cards: KpiCardItem[] = [
+      {
+        label: 'Total Liquidez ($ USD)',
+        value: this.fmtUSD(summary.grandTotalUSD || 0),
+        sub: `Tasa oficial BCV: Bs. ${Number(bcvRate).toFixed(4)}`,
+      },
+      {
+        label: 'Total Liquidez (Bs. VES)',
+        value: this.fmtVES(summary.grandTotalVES || 0),
+        sub: 'Equivalente consolidado en moneda nacional',
+      },
+      {
+        label: 'Saldos Libros Bolívares',
+        value: this.fmtVES(summary.totalVesBook || 0),
+        sub: `En tránsito: ${this.fmtVES(summary.totalVesTransit || 0)}`,
+      },
+      {
+        label: 'Saldos Libros Dólares',
+        value: this.fmtUSD(summary.totalUsdBook || 0),
+        sub: `En tránsito: ${this.fmtUSD(summary.totalUsdTransit || 0)}`,
+      },
+    ];
+
+    let currentY = this.drawKpiCards(doc, startY, cards, pageWidth);
+
+    const headers = [
+      'Entidad Bancaria',
+      'N° de Cuenta',
+      'Tipo de Cuenta',
+      'Sucursal',
+      'Moneda',
+      'Saldo en Libros',
+      'Partidas Tránsito',
+      'Saldo Real Banco',
+      'Equivalente BCV',
+    ];
+
+    const rows = (data.accounts || []).map((acc: any) => {
+      const typeLabel =
+        acc.accountType === 'CUSTODY_USD'
+          ? 'Custodia USD'
+          : acc.accountType === 'SAVINGS'
+          ? 'Ahorro'
+          : 'Corriente';
+
+      const isVES = acc.currency === 'VES';
+      const bookStr = isVES ? this.fmtVES(acc.currentBalance) : this.fmtUSD(acc.currentBalance);
+      const transitStr = isVES ? this.fmtVES(acc.transitBalance) : this.fmtUSD(acc.transitBalance);
+      const realStr = isVES ? this.fmtVES(acc.realBalance) : this.fmtUSD(acc.realBalance);
+      const equivStr = isVES ? this.fmtUSD(acc.equivalentUSD) : this.fmtVES(acc.equivalentVES);
+
+      return [
+        `[${acc.bankCode}] ${acc.bankName}`,
+        acc.accountNumber,
+        typeLabel,
+        acc.branchName || 'Principal',
+        acc.currency,
+        bookStr,
+        transitStr,
+        realStr,
+        equivStr,
+      ];
+    });
+
+    const footRow = [
+      { content: 'TOTAL CONSOLIDADO:', colSpan: 5, styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
+      `$ ${Number(summary.grandTotalUSD || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+      '-',
+      '-',
+      `Bs. ${Number(summary.grandTotalVES || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`,
+    ];
+
+    autoTable(doc, {
+      head: [headers],
+      body: rows,
+      foot: [footRow],
+      startY: currentY,
+      theme: 'striped',
+      headStyles: {
+        fillColor: this.COLOR_PRIMARY,
+        textColor: [255, 255, 255],
+        fontSize: 7.5,
+        fontStyle: 'bold',
+      },
+      footStyles: {
+        fillColor: this.COLOR_BG_LIGHT,
+        textColor: this.COLOR_PRIMARY,
+        fontSize: 7.5,
+        fontStyle: 'bold',
+      },
+      bodyStyles: {
+        fontSize: 7,
+        textColor: this.COLOR_PRIMARY,
+      },
+      columnStyles: {
+        0: { cellWidth: 48 },
+        1: { cellWidth: 42, fontStyle: 'bold' },
+        2: { cellWidth: 26 },
+        3: { cellWidth: 26 },
+        4: { cellWidth: 16, halign: 'center' },
+        5: { halign: 'right', fontStyle: 'bold' },
+        6: { halign: 'right' },
+        7: { halign: 'right', fontStyle: 'bold' },
+        8: { halign: 'right', fontStyle: 'bold' },
+      },
+      margin: { left: 14, right: 14, bottom: 12 },
+    });
+
+    const signY = (doc as any).lastAutoTable.finalY + 14;
+
+    this.drawSignatureBoxes(
+      doc,
+      signY,
+      [
+        { title: 'ELABORADO POR (TESORERÍA)', subtitle: `${userName} - Responsable` },
+        { title: 'REVISADO POR (CONTABILIDAD)', subtitle: 'Contador General / Auditor' },
+        { title: 'APROBADO POR (GERENCIA)', subtitle: 'Dirección de Administración y Finanzas' },
+      ],
+      pageWidth
+    );
+
+    return this.finalize(doc);
+  }
+
+  /**
+   * 25. REPORTE DE MOVIMIENTOS Y CARTOLA DE CUENTA BANCARIA
+   */
+  static generateBankMovementsPDF(
+    data: any,
+    company: CompanyPdfInfo,
+    userName: string,
+    options: {
+      startDate?: string;
+      endDate?: string;
+      branchName?: string;
+      currency?: 'VES' | 'USD' | 'BOTH';
+    } = {}
+  ): Buffer {
+    const acc = data.account || {};
+    const title = 'Libro Auxiliar y Cartola de Movimientos Bancarios';
+    const subtitle = `Cuenta: [${acc.bankCode || ''}] ${acc.bankName || ''} • N° ${acc.accountNumber || ''} (${acc.currency || 'VES'})`;
+    const periodText = options.startDate || options.endDate
+      ? `Período: ${options.startDate || 'Inicio'} al ${options.endDate || 'Actualidad'}`
+      : undefined;
+
+    const { doc, startY, pageWidth } = this.initDocument(company, {
+      title,
+      subtitle,
+      periodText,
+      branchName: options.branchName,
+      userName,
+      orientation: 'landscape',
+      currency: options.currency,
+      auditId: `RPT-MOV-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
+    });
+
+    const summary = data.summary || {};
+    const isVES = acc.currency === 'VES';
+
+    const cards: KpiCardItem[] = [
+      {
+        label: 'Saldo Inicial',
+        value: isVES ? this.fmtVES(summary.openingBalance) : this.fmtUSD(summary.openingBalance),
+        sub: 'Saldo anterior al período',
+      },
+      {
+        label: 'Total Ingresos (+)',
+        value: isVES ? this.fmtVES(summary.totalDebits) : this.fmtUSD(summary.totalDebits),
+        sub: 'Créditos y depósitos bancarios',
+      },
+      {
+        label: 'Total Egresos (-)',
+        value: isVES ? this.fmtVES(summary.totalCredits) : this.fmtUSD(summary.totalCredits),
+        sub: 'Débitos, pagos y comisiones',
+      },
+      {
+        label: 'Saldo Final en Libros',
+        value: isVES ? this.fmtVES(summary.closingBalance) : this.fmtUSD(summary.closingBalance),
+        sub: `${summary.reconciledCount || 0} Conciliados • ${summary.unreconciledCount || 0} En Tránsito`,
+      },
+    ];
+
+    let currentY = this.drawKpiCards(doc, startY, cards, pageWidth);
+
+    const headers = [
+      'Fecha / Hora',
+      'Referencia',
+      'Operación',
+      'Concepto / Detalle Operativo',
+      'Ingresos (+)',
+      'Egresos (-)',
+      'Conciliado',
+      'Saldo Progresivo',
+    ];
+
+    const rows = (data.movements || []).map((m: any) => [
+      m.date || '-',
+      m.reference || '-',
+      m.type || '-',
+      m.concept || '-',
+      m.debit > 0 ? (isVES ? this.fmtVES(m.debit) : this.fmtUSD(m.debit)) : '-',
+      m.credit > 0 ? (isVES ? this.fmtVES(m.credit) : this.fmtUSD(m.credit)) : '-',
+      m.isReconciled ? 'Conciliado' : 'En Tránsito',
+      isVES ? this.fmtVES(m.balanceAfter) : this.fmtUSD(m.balanceAfter),
+    ]);
+
+    const footRow = [
+      { content: 'TOTALES DEL PERÍODO:', colSpan: 4, styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
+      isVES ? this.fmtVES(summary.totalDebits) : this.fmtUSD(summary.totalDebits),
+      isVES ? this.fmtVES(summary.totalCredits) : this.fmtUSD(summary.totalCredits),
+      '-',
+      isVES ? this.fmtVES(summary.closingBalance) : this.fmtUSD(summary.closingBalance),
+    ];
+
+    autoTable(doc, {
+      head: [headers],
+      body: rows,
+      foot: [footRow],
+      startY: currentY,
+      theme: 'striped',
+      headStyles: {
+        fillColor: this.COLOR_PRIMARY,
+        textColor: [255, 255, 255],
+        fontSize: 7.5,
+        fontStyle: 'bold',
+      },
+      footStyles: {
+        fillColor: this.COLOR_BG_LIGHT,
+        textColor: this.COLOR_PRIMARY,
+        fontSize: 7.5,
+        fontStyle: 'bold',
+      },
+      bodyStyles: {
+        fontSize: 7,
+        textColor: this.COLOR_PRIMARY,
+      },
+      columnStyles: {
+        0: { cellWidth: 32 },
+        1: { cellWidth: 28 },
+        2: { cellWidth: 26 },
+        3: { cellWidth: 70 },
+        4: { halign: 'right' },
+        5: { halign: 'right' },
+        6: { halign: 'center', cellWidth: 22 },
+        7: { halign: 'right', fontStyle: 'bold' },
+      },
+      margin: { left: 14, right: 14, bottom: 12 },
+    });
+
+    const signY = (doc as any).lastAutoTable.finalY + 14;
+
+    this.drawSignatureBoxes(
+      doc,
+      signY,
+      [
+        { title: 'ELABORADO POR (TESORERO)', subtitle: `${userName} - Analista` },
+        { title: 'REVISADO POR (CONTABILIDAD)', subtitle: 'Firma y Sello de Validación' },
+      ],
+      pageWidth
+    );
+
+    return this.finalize(doc);
+  }
+
+  /**
+   * 26. ACTA OFICIAL DE CONCILIACIÓN BANCARIA CERTIFICADA
+   */
+  static generateBankReconciliationPDF(
+    data: any,
+    company: CompanyPdfInfo,
+    userName: string,
+    options: {
+      branchName?: string;
+      currency?: 'VES' | 'USD' | 'BOTH';
+    } = {}
+  ): Buffer {
+    const acc = data.account || {};
+    const rec = data.reconciliation || {};
+    const title = 'Acta Oficial de Conciliación Bancaria';
+    const subtitle = `Dictamen de Cuadre entre Extracto Bancario y Contabilidad ERP • ${acc.bankName || ''}`;
+    const periodText = `Período: ${rec.periodStart || ''} al ${rec.periodEnd || ''}`;
+
+    const { doc, startY, pageWidth } = this.initDocument(company, {
+      title,
+      subtitle,
+      periodText,
+      branchName: options.branchName,
+      userName,
+      orientation: 'portrait',
+      currency: options.currency,
+      auditId: `ACTA-CONC-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
+    });
+
+    const isVES = acc.currency === 'VES';
+    const fmt = (v: number) => (isVES ? this.fmtVES(v) : this.fmtUSD(v));
+
+    const marginX = 14;
+    const contentWidth = pageWidth - marginX * 2;
+
+    // Tarjeta de Identificación Bancaria
+    doc.setFillColor(this.COLOR_BG_LIGHT[0], this.COLOR_BG_LIGHT[1], this.COLOR_BG_LIGHT[2]);
+    doc.setDrawColor(this.COLOR_BORDER[0], this.COLOR_BORDER[1], this.COLOR_BORDER[2]);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(marginX, startY, contentWidth, 24, 1.5, 1.5, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(this.COLOR_PRIMARY[0], this.COLOR_PRIMARY[1], this.COLOR_PRIMARY[2]);
+    doc.text('DATOS DE LA CUENTA Y ENTIDAD FINANCIERA:', marginX + 3, startY + 5);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(this.COLOR_MUTED[0], this.COLOR_MUTED[1], this.COLOR_MUTED[2]);
+
+    doc.text(`Entidad Bancaria: ${acc.bankName} (Código ${acc.bankCode})`, marginX + 3, startY + 10);
+    doc.text(`Número de Cuenta: ${acc.accountNumber}`, marginX + 3, startY + 14.5);
+    doc.text(`Moneda Operativa: ${acc.currency}  •  Sucursal: ${acc.branchName || 'Principal'}`, marginX + 3, startY + 19);
+
+    doc.text(`Fecha de Corte: ${rec.periodEnd || '-'}`, marginX + 100, startY + 10);
+    doc.text(`Estado Dictamen: ${data.isBalanced ? 'CUADRADO Y CERTIFICADO' : 'CON DIFERENCIA PENDIENTE'}`, marginX + 100, startY + 14.5);
+    doc.text(`Auditor Responsable: ${rec.auditorName || userName}`, marginX + 100, startY + 19);
+
+    let currentY = startY + 28;
+
+    // Tabla de Ecuación de Conciliación Bancaria Oficial
+    const formulaRows = [
+      ['1. SALDO SEGÚN ESTADO DE CUENTA BANCARIO', fmt(rec.statementBalance)],
+      ['   (+) Depósitos y Cobranzas en Tránsito (no registrados en banco)', fmt(data.unclearedDeposits?.total || 0)],
+      ['   (-) Cheques Girados y Egresos en Tránsito (no debitados por banco)', `(${fmt(data.unclearedWithdrawals?.total || 0)})`],
+      ['(=) SALDO BANCARIO CONCILIADO / AJUSTADO', fmt(rec.adjustedBankBalance)],
+      ['2. SALDO SEGÚN LIBROS DE CONTABILIDAD ERP', fmt(rec.finalBookBalance)],
+      ['(=) DIFERENCIA DE CONCILIACIÓN', fmt(rec.difference)],
+    ];
+
+    autoTable(doc, {
+      head: [['Concepto de la Conciliación Bancaria', 'Importe']],
+      body: formulaRows,
+      startY: currentY,
+      theme: 'grid',
+      headStyles: {
+        fillColor: this.COLOR_PRIMARY,
+        textColor: [255, 255, 255],
+        fontSize: 8,
+        fontStyle: 'bold',
+      },
+      bodyStyles: {
+        fontSize: 7.5,
+        textColor: this.COLOR_PRIMARY,
+      },
+      columnStyles: {
+        0: { fontStyle: 'bold' },
+        1: { halign: 'right', fontStyle: 'bold', cellWidth: 45 },
+      },
+      margin: { left: 14, right: 14, bottom: 12 },
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 6;
+
+    // Dictamen de Conformidad
+    const isBalanced = data.isBalanced;
+    doc.setFillColor(isBalanced ? 240 : 254, isBalanced ? 253 : 242, isBalanced ? 244 : 242);
+    doc.setDrawColor(isBalanced ? 34 : 239, isBalanced ? 197 : 68, isBalanced ? 94 : 68);
+    doc.roundedRect(marginX, currentY, contentWidth, 11, 1.2, 1.2, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(isBalanced ? 21 : 185, isBalanced ? 128 : 28, isBalanced ? 61 : 28);
+    const resultText = isBalanced
+      ? 'DICTAMEN: LA CONCILIACIÓN BANCARIA SE ENCUENTRA CUADRADA AL 100% SIN DISCREPANCIA (DIFERENCIA 0.00).'
+      : `ADVERTENCIA: EXISTE UNA DISCREPANCIA DE ${fmt(rec.difference)} PENDIENTE DE REVISIÓN Y AJUSTE.`;
+    doc.text(resultText, marginX + 3, currentY + 7);
+
+    currentY += 15;
+
+    // Detalle de Partidas en Tránsito si existen
+    const transitItems = [
+      ...(data.unclearedDeposits?.items || []).map((d: any) => ({
+        tipo: 'Depósito en Tránsito',
+        ref: d.reference,
+        fecha: d.date,
+        concepto: d.concept,
+        monto: `+ ${fmt(d.amount)}`,
+      })),
+      ...(data.unclearedWithdrawals?.items || []).map((w: any) => ({
+        tipo: 'Egreso / Cheque en Tránsito',
+        ref: w.reference,
+        fecha: w.date,
+        concepto: w.concept,
+        monto: `- ${fmt(w.amount)}`,
+      })),
+    ];
+
+    if (transitItems.length > 0) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(this.COLOR_PRIMARY[0], this.COLOR_PRIMARY[1], this.COLOR_PRIMARY[2]);
+      doc.text('ANEXO: DETALLE DE PARTIDAS EN TRÁNSITO AL CIERRE DEL PERÍODO', marginX, currentY);
+
+      currentY += 3;
+
+      const transitTableRows = transitItems.map((item) => [
+        item.fecha,
+        item.tipo,
+        item.ref,
+        item.concepto,
+        item.monto,
+      ]);
+
+      autoTable(doc, {
+        head: [['Fecha', 'Clasificación', 'Referencia', 'Concepto / Operación', 'Importe']],
+        body: transitTableRows,
+        startY: currentY,
+        theme: 'striped',
+        headStyles: {
+          fillColor: this.COLOR_HEADER,
+          textColor: [255, 255, 255],
+          fontSize: 7,
+          fontStyle: 'bold',
+        },
+        bodyStyles: {
+          fontSize: 6.5,
+          textColor: this.COLOR_PRIMARY,
+        },
+        columnStyles: {
+          0: { cellWidth: 22 },
+          1: { cellWidth: 38 },
+          2: { cellWidth: 26 },
+          3: { cellWidth: 62 },
+          4: { halign: 'right', fontStyle: 'bold' },
+        },
+        margin: { left: 14, right: 14, bottom: 12 },
+      });
+
+      currentY = (doc as any).lastAutoTable.finalY + 12;
+    }
+
+    this.drawSignatureBoxes(
+      doc,
+      currentY,
+      [
+        { title: 'ELABORADO POR (TESORERO)', subtitle: `${rec.auditorName || userName}` },
+        { title: 'REVISADO POR (CONTADOR)', subtitle: 'Colegio de Contadores Públicos' },
+        { title: 'CONFORME (GERENCIA GENERAL)', subtitle: 'Firma y Sello Oficial' },
+      ],
+      pageWidth
+    );
+
+    return this.finalize(doc);
+  }
+
+  /**
+   * 27. REPORTE DE FLUJO DE CAJA OPERATIVO DE TESORERÍA
+   */
+  static generateCashFlowPDF(
+    data: any,
+    company: CompanyPdfInfo,
+    userName: string,
+    options: {
+      startDate?: string;
+      endDate?: string;
+      branchName?: string;
+      currency?: 'VES' | 'USD' | 'BOTH';
+    } = {}
+  ): Buffer {
+    const title = 'Reporte de Flujo de Caja Operativo de Tesorería';
+    const subtitle = 'Ingresos, Egresos y Flujo Neto de Fondos por Conceptos y Diarios';
+    const periodText = `Período: ${data.startDate || options.startDate || 'Inicio'} al ${data.endDate || options.endDate || 'Actualidad'}`;
+
+    const { doc, startY, pageWidth } = this.initDocument(company, {
+      title,
+      subtitle,
+      periodText,
+      branchName: options.branchName,
+      userName,
+      orientation: 'landscape',
+      currency: options.currency,
+      auditId: `RPT-CFL-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
+    });
+
+    const summary = data.summary || {};
+    const bcvRate = data.bcvRate || summary.bcvRate || 1;
+
+    const cards: KpiCardItem[] = [
+      {
+        label: 'Ingresos Operativos ($)',
+        value: this.fmtUSD(summary.grandTotalInflowsUSD || 0),
+        sub: `Bolívares: ${this.fmtVES(summary.totalInflowsVES || 0)}`,
+      },
+      {
+        label: 'Egresos Operativos ($)',
+        value: this.fmtUSD(summary.grandTotalOutflowsUSD || 0),
+        sub: `Bolívares: ${this.fmtVES(summary.totalOutflowsVES || 0)}`,
+      },
+      {
+        label: 'Flujo Neto Consolidado ($)',
+        value: this.fmtUSD(summary.grandNetFlowUSD || 0),
+        sub: Number(summary.grandNetFlowUSD || 0) >= 0 ? 'Superávit Operativo Neto' : 'Déficit Financiero',
+      },
+      {
+        label: 'Tasa Oficial BCV',
+        value: `Bs. ${Number(bcvRate).toFixed(4)}`,
+        sub: 'Tasa para consolidación bimonetaria',
+      },
+    ];
+
+    let currentY = this.drawKpiCards(doc, startY, cards, pageWidth);
+
+    // Tabla 1: Desglose por Categoría y Concepto
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(this.COLOR_PRIMARY[0], this.COLOR_PRIMARY[1], this.COLOR_PRIMARY[2]);
+    doc.text('RESUMEN POR CATEGORÍAS Y CONCEPTOS DE FLUJO:', 14, currentY);
+    currentY += 3;
+
+    const catHeaders = [
+      'Concepto / Categoría Operativa',
+      'Naturaleza',
+      'Total Bolívares (VES)',
+      'Total Dólares (USD)',
+      'Total Consolidado ($ USD)',
+    ];
+
+    const catRows = (data.categories || []).map((cat: any) => [
+      cat.label,
+      cat.isOutflow ? 'Egreso (-)' : 'Ingreso (+)',
+      this.fmtVES(cat.ves),
+      this.fmtUSD(cat.usd),
+      this.fmtUSD(cat.consolidatedUSD),
+    ]);
+
+    const catFoot = [
+      { content: 'FLUJO NETO CONSOLIDADO:', colSpan: 2, styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
+      this.fmtVES(summary.netVES || 0),
+      this.fmtUSD(summary.netUSD || 0),
+      this.fmtUSD(summary.grandNetFlowUSD || 0),
+    ];
+
+    autoTable(doc, {
+      head: [catHeaders],
+      body: catRows,
+      foot: [catFoot],
+      startY: currentY,
+      theme: 'striped',
+      headStyles: {
+        fillColor: this.COLOR_PRIMARY,
+        textColor: [255, 255, 255],
+        fontSize: 7.5,
+        fontStyle: 'bold',
+      },
+      footStyles: {
+        fillColor: this.COLOR_BG_LIGHT,
+        textColor: this.COLOR_PRIMARY,
+        fontSize: 7.5,
+        fontStyle: 'bold',
+      },
+      bodyStyles: {
+        fontSize: 7,
+        textColor: this.COLOR_PRIMARY,
+      },
+      columnStyles: {
+        0: { cellWidth: 100 },
+        1: { cellWidth: 32, halign: 'center' },
+        2: { halign: 'right' },
+        3: { halign: 'right' },
+        4: { halign: 'right', fontStyle: 'bold' },
+      },
+      margin: { left: 14, right: 14, bottom: 12 },
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 8;
+
+    // Tabla 2: Desglose Cronológico Diario si hay espacio o en nueva página
+    if (data.dailyBreakdown && data.dailyBreakdown.length > 0) {
+      if (currentY + 40 > doc.internal.pageSize.getHeight()) {
+        doc.addPage();
+        currentY = 22;
+      }
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(this.COLOR_PRIMARY[0], this.COLOR_PRIMARY[1], this.COLOR_PRIMARY[2]);
+      doc.text('EVOLUCIÓN DIARIA DEL FLUJO DE CAJA:', 14, currentY);
+      currentY += 3;
+
+      const dailyHeaders = [
+        'Fecha',
+        'Ingresos (Bs)',
+        'Egresos (Bs)',
+        'Neto Diario (Bs)',
+        'Ingresos ($)',
+        'Egresos ($)',
+        'Neto Diario ($)',
+        'Neto Consolidado ($)',
+      ];
+
+      const dailyRows = (data.dailyBreakdown || []).map((d: any) => [
+        d.date,
+        this.fmtVES(d.inflowsVES),
+        this.fmtVES(d.outflowsVES),
+        this.fmtVES(d.netVES),
+        this.fmtUSD(d.inflowsUSD),
+        this.fmtUSD(d.outflowsUSD),
+        this.fmtUSD(d.netUSD),
+        this.fmtUSD(d.netConsolidatedUSD),
+      ]);
+
+      autoTable(doc, {
+        head: [dailyHeaders],
+        body: dailyRows,
+        startY: currentY,
+        theme: 'striped',
+        headStyles: {
+          fillColor: this.COLOR_HEADER,
+          textColor: [255, 255, 255],
+          fontSize: 7,
+          fontStyle: 'bold',
+        },
+        bodyStyles: {
+          fontSize: 6.5,
+          textColor: this.COLOR_PRIMARY,
+        },
+        columnStyles: {
+          0: { cellWidth: 26, fontStyle: 'bold' },
+          1: { halign: 'right' },
+          2: { halign: 'right' },
+          3: { halign: 'right', fontStyle: 'bold' },
+          4: { halign: 'right' },
+          5: { halign: 'right' },
+          6: { halign: 'right', fontStyle: 'bold' },
+          7: { halign: 'right', fontStyle: 'bold' },
+        },
+        margin: { left: 14, right: 14, bottom: 12 },
+      });
+
+      currentY = (doc as any).lastAutoTable.finalY + 12;
+    }
+
+    this.drawSignatureBoxes(
+      doc,
+      currentY,
+      [
+        { title: 'ELABORADO POR (TESORERO)', subtitle: `${userName} - Analista` },
+        { title: 'REVISADO POR (AUDITORÍA)', subtitle: 'Firma y Sello' },
+        { title: 'APROBADO POR (GERENCIA)', subtitle: 'Gerencia de Administración y Finanzas' },
+      ],
+      pageWidth
+    );
+
+    return this.finalize(doc);
+  }
+
   // ==========================================
   // UTILIDADES DE FORMATEO NUMÉRICO
   // ==========================================
@@ -3963,8 +5128,14 @@ export async function generateKardexReportPDF(data: {
     endDate?: string;
     warehouseName?: string;
     branchName?: string;
+    departmentName?: string;
+    groupName?: string;
+    subgroupName?: string;
     productName?: string;
     movementType?: string;
+    model?: 'physical' | 'valued';
+    currency?: 'VES' | 'USD' | 'BOTH';
+    bcvRate?: number;
   };
   movements: any[];
   userName?: string;
@@ -4017,4 +5188,41 @@ export async function generateCustomerNotePDF(data: {
 }): Promise<Buffer> {
   return ReportsPdfEngine.generateCustomerNotePDF(data.note, data.company, data.userName || 'Administración de Ventas');
 }
+
+export async function generateTreasuryBalancesPDF(data: {
+  company: CompanyPdfInfo;
+  report: any;
+  userName?: string;
+  options?: any;
+}): Promise<Buffer> {
+  return ReportsPdfEngine.generateTreasuryBalancesPDF(data.report, data.company, data.userName || 'Tesorería', data.options || {});
+}
+
+export async function generateBankMovementsPDF(data: {
+  company: CompanyPdfInfo;
+  report: any;
+  userName?: string;
+  options?: any;
+}): Promise<Buffer> {
+  return ReportsPdfEngine.generateBankMovementsPDF(data.report, data.company, data.userName || 'Tesorería', data.options || {});
+}
+
+export async function generateBankReconciliationPDF(data: {
+  company: CompanyPdfInfo;
+  report: any;
+  userName?: string;
+  options?: any;
+}): Promise<Buffer> {
+  return ReportsPdfEngine.generateBankReconciliationPDF(data.report, data.company, data.userName || 'Auditoría Bancaria', data.options || {});
+}
+
+export async function generateCashFlowPDF(data: {
+  company: CompanyPdfInfo;
+  report: any;
+  userName?: string;
+  options?: any;
+}): Promise<Buffer> {
+  return ReportsPdfEngine.generateCashFlowPDF(data.report, data.company, data.userName || 'Finanzas', data.options || {});
+}
+
 

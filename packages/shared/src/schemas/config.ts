@@ -4,16 +4,23 @@ import { z } from 'zod';
 // 1. Configuración de Empresa (Company Profile)
 // ==========================================
 export const updateCompanySchema = z.object({
-  legalName: z.string().min(2, 'La razón social debe tener al menos 2 caracteres').max(150),
-  tradeName: z.string().max(150).optional().nullable(),
-  rif: z.string().regex(/^[JVEGjveg]-[0-9]{8}-[0-9]$/, 'El formato del RIF debe ser válido (ej. J-12345678-9)'),
-  fiscalAddress: z.string().min(5, 'La dirección fiscal es obligatoria'),
-  phone: z.string().max(30).optional().nullable(),
-  email: z.string().email('Correo electrónico no válido').optional().nullable(),
-  isSpecialTaxpayer: z.boolean().default(true),
-  ivaRetentionRate: z.number().min(0).max(100).default(75.0),
+  legalName: z.string().trim().min(2, 'La razón social debe tener al menos 2 caracteres').max(150),
+  tradeName: z.string().trim().max(150).optional().nullable().or(z.literal('')),
+  rif: z.string().trim().regex(
+    /^[JVEGPCjvegpc]-?[0-9]{6,9}-?[0-9]$/,
+    'El formato del RIF debe ser válido (ej. J-12345678-9, J-123456-7 o V-12345678-9)'
+  ),
+  fiscalAddress: z.string().trim().min(5, 'La dirección fiscal es obligatoria'),
+  phone: z.string().trim().max(30).optional().nullable().or(z.literal('')),
+  email: z.string().trim().email('Correo electrónico no válido').optional().nullable().or(z.literal('')),
+  isSpecialTaxpayer: z.coerce.boolean().default(true),
+  ivaRetentionRate: z.coerce.number().min(0).max(100).default(75.0),
   currencyBase: z.enum(['USD', 'VES']).default('USD'),
   currencySecondary: z.enum(['USD', 'VES']).default('VES'),
+  reportCurrency: z.enum(['VES', 'USD', 'BOTH']).default('BOTH'),
+  showLogoInReports: z.coerce.boolean().default(true),
+  reportLogoType: z.enum(['default', 'custom']).default('default'),
+  customLogoUrl: z.string().optional().nullable().or(z.literal('')),
 });
 
 export type UpdateCompanyInput = z.infer<typeof updateCompanySchema>;
@@ -89,8 +96,8 @@ export const generateLicenseSchema = z.object({
   hardwareFingerprint: z.string().min(8, 'Identificador de hardware requerido'),
   type: z.enum(['trial', 'temporal', 'perpetua']),
   durationMonths: z.number().int().min(1).max(120).optional(),
-  maxUsers: z.number().int().min(1, 'Mínimo 1 usuario').max(10000),
-  maxBranches: z.number().int().min(1, 'Mínimo 1 sucursal').max(1000),
+  maxUsers: z.number().int().min(0, 'Cantidad de usuarios no puede ser negativa (0 = Ilimitado)').max(100000),
+  maxBranches: z.number().int().min(0, 'Cantidad de sucursales no puede ser negativa (0 = Ilimitado)').max(10000),
   hasSupport: z.boolean().default(true),
   modulesAllowed: z.array(z.string()).min(1, 'Debe incluir al menos un módulo'),
 });

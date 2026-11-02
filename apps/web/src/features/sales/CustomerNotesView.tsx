@@ -816,8 +816,13 @@ export const CustomerNotesView: React.FC = () => {
         </div>
 
         {canManageNotes && (
-          <Button onClick={() => setIsCreateModalOpen(true)}>
-            <Plus className="w-4 h-4 mr-1.5" />
+          <Button
+            variant="outline"
+            onClick={() => setIsCreateModalOpen(true)}
+            className="flex items-center gap-2 border-[#007BFF] dark:border-[#3D91FF] rounded-lg bg-blue-50 dark:bg-blue-600/30 hover:bg-border-blue-600 dark:hover:border-blue-500"
+            title="Nueva Nota de Crédito o Débito"
+          >
+            <Plus className="w-4 h-4 text-blue-600 dark:blue-500 mr-1.5" />
             Nueva Nota
           </Button>
         )}
@@ -825,52 +830,60 @@ export const CustomerNotesView: React.FC = () => {
 
       {/* Tarjetas KPI Resumen */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-4 border-l-4 border-l-emerald-500  bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-emerald-200 dark:border-emerald-500">
+        <Card className="p-4 border-l-4 border-l-[#28A745] dark:border-l-[#4ADE80] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-emerald-500">Notas de Crédito (Total)</span>
-            <TrendingDown className="w-4 h-4 text-emerald-600" />
+            <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Notas de Crédito</span>
+            <div className="w-8 h-8 rounded-lg bg-[#28A745]/10 text-[#28A745] dark:bg-[#4ADE80]/15 dark:text-[#4ADE80] flex items-center justify-center">
+              <TrendingDown className="w-4 h-4" />
+            </div>
           </div>
-          <div className="text-xl font-bold text-emerald-500  mt-2">
+          <div className="text-2xl font-bold font-mono text-[#28A745] dark:text-[#4ADE80] mt-2">
             {formatMoneyUSD(totalCreditNotesUSD)}
           </div>
-          <span className="text-[11px] text-neutral-400 mt-1 block">
+          <span className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1 block">
             Ajustes y devoluciones concedidas
           </span>
         </Card>
 
-        <Card className="p-4 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
+        <Card className="p-4 border-l-4 border-l-[#17A2B8] dark:border-l-[#38C9DD] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-teal-800">Saldo a Favor Disponible</span>
-            <RotateCcw className="w-4 h-4 text-teal-600" />
+            <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Saldo a Favor Disp.</span>
+            <div className="w-8 h-8 rounded-lg bg-[#17A2B8]/10 text-[#17A2B8] dark:bg-[#38C9DD]/15 dark:text-[#38C9DD] flex items-center justify-center">
+              <RotateCcw className="w-4 h-4" />
+            </div>
           </div>
-          <div className="text-xl font-bold text-teal-700 mt-2">
+          <div className="text-2xl font-bold font-mono text-[#17A2B8] dark:text-[#38C9DD] mt-2">
             {formatMoneyUSD(availableCreditUSD)}
           </div>
-          <span className="text-[11px] text-neutral-400 mt-1 block">
+          <span className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1 block">
             Crédito disponible para aplicar a CxC
           </span>
         </Card>
 
-        <Card className="p-4 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
+        <Card className="p-4 border-l-4 border-l-[#007BFF] dark:border-l-[#3D91FF] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-blue-800">Notas de Débito (Total)</span>
-            <TrendingUp className="w-4 h-4 text-blue-600" />
+            <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Notas de Débito</span>
+            <div className="w-8 h-8 rounded-lg bg-[#007BFF]/10 text-[#007BFF] dark:bg-[#3D91FF]/15 dark:text-[#3D91FF] flex items-center justify-center">
+              <TrendingUp className="w-4 h-4" />
+            </div>
           </div>
-          <div className="text-xl font-bold text-neutral-500  mt-2">
+          <div className="text-2xl font-bold font-mono text-[#007BFF] dark:text-[#3D91FF] mt-2">
             {formatMoneyUSD(totalDebitNotesUSD)}
           </div>
-          <span className="text-[11px] text-neutral-400 mt-1 block">
+          <span className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1 block">
             Recargos e intereses generados
           </span>
         </Card>
 
-        <Card className="p-4 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
+        <Card className="p-4 border-l-4 border-l-neutral-400 dark:border-l-neutral-600 bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-neutral-400 ">Documentos Emitidos</span>
-            <Receipt className="w-4 h-4 text-neutral-600" />
+            <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Documentos Emitidos</span>
+            <div className="w-8 h-8 rounded-lg bg-neutral-500/10 text-neutral-600 dark:bg-neutral-500/20 dark:text-neutral-300 flex items-center justify-center">
+              <Receipt className="w-4 h-4" />
+            </div>
           </div>
-          <div className="text-xl font-bold text-neutral-500  mt-2">{notes.length}</div>
-          <span className="text-[11px] text-neutral-400 mt-1 block">
+          <div className="text-2xl font-bold font-mono text-[#333333] dark:text-[#E0E0E0] mt-2">{notes.length}</div>
+          <span className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1 block">
             En sucursal activa
           </span>
         </Card>
@@ -942,7 +955,7 @@ export const CustomerNotesView: React.FC = () => {
       </div>
 
       {/* Tabla de Documentos */}
-      <div className="border border-neutral-200 rounded-lg overflow-hidden">
+      <div className="border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden bg-white dark:bg-[#1E1F21] shadow-xs">
         {isLoading ? (
           <div className="p-8 space-y-4">
             {Array.from({ length: 5 }).map((_, idx) => (
@@ -1629,7 +1642,7 @@ export const CustomerNotesView: React.FC = () => {
 
               {/* Renglones */}
               <div>
-                <h4 className="font-bold text-neutral-400  mb-2">DETALLE DE RENGLONES</h4>
+                <h4 className="font-bold text-[#333333] dark:text-[#E0E0E0] mb-2 text-xs">DETALLE DE RENGLONES</h4>
                 <div className="border border-neutral-200 rounded-lg overflow-hidden">
                   <table className="w-full text-left text-sm border-collapse">
                     <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase  tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
@@ -1706,7 +1719,7 @@ export const CustomerNotesView: React.FC = () => {
                   </h4>
                   <div className="border border-neutral-200 rounded-lg overflow-hidden">
                     <table className="w-full text-left text-xs">
-                      <thead className="bg-neutral-100 text-neutral-400  font-semibold border-b border-neutral-200">
+                      <thead className="bg-[#F4F6F9] dark:bg-[#18191A] text-neutral-700 dark:text-neutral-300 font-semibold border-b border-gray-200 dark:border-gray-800 text-[10px] uppercase tracking-wider">
                         <tr>
                           <th className="py-2 px-3">Fecha</th>
                           <th className="py-2 px-3">Factura Compensada</th>

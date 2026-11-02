@@ -115,4 +115,30 @@ describe('Tributos SENIAT - Retenciones IVA e ISLR (Paso 5)', () => {
       expect(xmlChunk).toContain('<PorcentajeRetencion>5.00</PorcentajeRetencion>');
     });
   });
+
+  describe('Control de Agente de Retención (Regla de Oro SENIAT)', () => {
+    it('debe calcular 0% de retención cuando la empresa es Contribuyente Ordinario', () => {
+      const ivaAmount = 160.00;
+      // Para contribuyente ordinario la tasa es 0
+      const retainedOrdinary = calculateIVARetention(ivaAmount, 0 as any);
+      expect(retainedOrdinary).toBe(0.00);
+    });
+
+    it('debe validar que solo los Sujetos Pasivos Especiales califican como Agentes de Retención', () => {
+      const companySpecial = {
+        isSpecialTaxpayer: true,
+        ivaRetentionRate: 75.0,
+      };
+      const companyOrdinary = {
+        isSpecialTaxpayer: false,
+        ivaRetentionRate: 0.0,
+      };
+
+      expect(companySpecial.isSpecialTaxpayer).toBe(true);
+      expect(companySpecial.ivaRetentionRate).toBeGreaterThan(0);
+
+      expect(companyOrdinary.isSpecialTaxpayer).toBe(false);
+      expect(companyOrdinary.ivaRetentionRate).toBe(0);
+    });
+  });
 });

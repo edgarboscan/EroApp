@@ -24,6 +24,8 @@ import {
   Store,
   Receipt,
   Coins,
+  Printer,
+  FolderTree,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/authStore';
@@ -31,20 +33,25 @@ import { useExchangeRateStore } from '../../stores/exchangeRateStore';
 import { TableManagementModal } from './TableManagementModal';
 import { TableClosuresModal } from './TableClosuresModal';
 import { RestaurantTipsReportModal } from './RestaurantTipsReportModal';
+import { RestaurantSettingsModal } from './RestaurantSettingsModal';
+import { RestaurantTicketModal } from './RestaurantTicketModal';
+import { HierarchySearchModal, HierarchySelection } from '../../components/search';
 import type {
   RestaurantTable,
   RestaurantOrder,
   RestaurantOrderItem,
   PreparationStation,
+  RestaurantSettings,
 } from '@ero/shared';
 
 interface RestaurantCashRegister {
   id: string;
   code: string;
   name: string;
-  status: 'OPEN' | 'CLOSED' | 'MAINTENANCE' | 'open' | 'closed';
+  status?: 'OPEN' | 'CLOSED' | 'MAINTENANCE' | 'open' | 'closed';
   allowedDepartmentIds?: string[];
   acceptsOrders?: boolean;
+  hasActiveShift?: boolean;
 }
 
 interface RestaurantProduct {
@@ -126,6 +133,13 @@ export const RestaurantOrdersView: React.FC = () => {
   const [showTableClosuresModal, setShowTableClosuresModal] = useState<boolean>(false);
   const [showTipsReportModal, setShowTipsReportModal] = useState<boolean>(false);
   const [showCloseOrderPromptModal, setShowCloseOrderPromptModal] = useState<boolean>(false);
+  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
+  const [showTicketModal, setShowTicketModal] = useState<boolean>(false);
+  const [ticketModalType, setTicketModalType] = useState<'order_ticket' | 'waiter_copy' | 'kitchen_ticket'>('order_ticket');
+  const [restaurantSettings, setRestaurantSettings] = useState<RestaurantSettings | null>(null);
+  const [showPrintConfirmModal, setShowPrintConfirmModal] = useState<boolean>(false);
+  const [pendingPrintOrder, setPendingPrintOrder] = useState<{ order: RestaurantOrder; table: RestaurantTable } | null>(null);
+  const [isHierarchyModalOpen, setIsHierarchyModalOpen] = useState<boolean>(false);
 
   // Estados para abrir mesa y búsqueda / creación de cliente
   const [openWaiterName, setOpenWaiterName] = useState<string>(user?.fullName || user?.username || '');
@@ -199,16 +213,22 @@ export const RestaurantOrdersView: React.FC = () => {
     }
   }, [getHeaders]);
 
-  // Carga de cajas registradoras para filtro de departamentos (sólo cajas que aceptan comandas)
+  // Carga de cajas registradoras para filtro de departamentos
   const fetchCashRegisters = useCallback(async () => {
     try {
       const branchParam = activeBranchId
         ? `?branch_id=${activeBranchId}&accepts_orders=true`
         : '?accepts_orders=true';
-      const res = await fetch(`/api/pos/registers${branchParam}`, { headers: getHeaders() });
-      const data = await res.json();
-      if (data.success && Array.isArray(data.data)) {
-        const orderRegisters = data.data.filter((r: any) => r.acceptsOrders !== false);
+      let res = await fetch(`/api/pos/registers${branchParam}`, { headers: getHeaders() });
+      let data = await res.json();
+      let orderRegisters = data.success && Array.isArray(data.data) ? data.data : [];
+      if (orderRegisters.length === 0) {
+        const fallbackParam = activeBranchId ? `?branch_id=${activeBranchId}` : '';
+        res = await fetch(`/api/pos/registers${fallbackParam}`, { headers: getHeaders() });
+        data = await res.json();
+        orderRegisters = data.success && Array.isArray(data.data) ? data.data : [];
+      }
+      if (orderRegisters.length > 0) {
         setCashRegisters(orderRegisters);
         setSelectedCashRegisterId((prev) => {
           const authRegId = useAuthStore.getState().activeCashRegisterId;
@@ -218,7 +238,7 @@ export const RestaurantOrdersView: React.FC = () => {
           if (prev && orderRegisters.some((r: any) => r.id === prev)) return prev;
           const openReg = orderRegisters.find(
             (r: any) =>
-              r.status?.toUpperCase() === 'OPEN' || r.status?.toLowerCase() === 'open',
+              r.status?.toUpperCase() === 'OPEN' || r.status?.toLowerCase() === 'open' || r.hasActiveShift,
           );
           return openReg ? openReg.id : (orderRegisters[0]?.id || '');
         });
@@ -260,10 +280,23 @@ export const RestaurantOrdersView: React.FC = () => {
     }
   }, [getHeaders, selectedCashRegisterId]);
 
+  const fetchSettings = useCallback(async () => {
+    try {
+      const res = await fetch('/api/restaurant/settings', { headers: getHeaders() });
+      const json = await res.json();
+      if (json.success && json.data) {
+        setRestaurantSettings(json.data);
+      }
+    } catch {
+      // ignore
+    }
+  }, [getHeaders]);
+
   useEffect(() => {
     fetchTables();
     fetchCashRegisters();
-  }, [fetchTables, fetchCashRegisters]);
+    fetchSettings();
+  }, [fetchTables, fetchCashRegisters, fetchSettings]);
 
   useEffect(() => {
     setSelectedDeptId('ALL');
@@ -280,6 +313,9 @@ export const RestaurantOrdersView: React.FC = () => {
         const data = await res.json();
         if (data.success && data.data) {
           setActiveOrder(data.data);
+          if (data.data.cash_register_id) {
+            setSelectedCashRegisterId(data.data.cash_register_id);
+          }
           // Por defecto seleccionar el primer cliente si no hay uno activo
           if (data.data.customers && data.data.customers.length > 0) {
             setSelectedCustomerId(data.data.customers[0].id);
@@ -409,6 +445,7 @@ export const RestaurantOrdersView: React.FC = () => {
         headers: getHeaders(),
         body: JSON.stringify({
           table_id: selectedTable.id,
+          cash_register_id: selectedCashRegisterId || null,
           waiter_name: openWaiterName,
           customer_id: selectedErpCustomer?.id || null,
           customer_name: selectedErpCustomer?.name || null,
@@ -632,11 +669,28 @@ export const RestaurantOrdersView: React.FC = () => {
       if (data.success) {
         showNotification('Comanda cerrada y mesa liberada con éxito. Lista para facturar en POS.');
         setShowCloseOrderPromptModal(false);
+
+        const currentOrder = activeOrder;
+        const currentTable = selectedTable;
+
         setSelectedTable(null);
         setActiveOrder(null);
         setClosureTipUsd('0');
         setClosureNotes('');
         await fetchTables();
+
+        // Evaluar políticas de impresión para comanda / saloneros
+        const shouldPrintOrder = restaurantSettings?.print_order_ticket;
+        const shouldPrintWaiter = restaurantSettings?.print_waiter_copy;
+        if ((shouldPrintOrder || shouldPrintWaiter) && currentOrder && currentTable) {
+          setPendingPrintOrder({ order: currentOrder, table: currentTable });
+          if (restaurantSettings?.ticket_print_mode === 'direct') {
+            setTicketModalType(shouldPrintOrder ? 'order_ticket' : 'waiter_copy');
+            setShowTicketModal(true);
+          } else {
+            setShowPrintConfirmModal(true);
+          }
+        }
       } else {
         showNotification(data.error?.message || 'Error al cerrar comanda', 'error');
       }
@@ -697,9 +751,9 @@ export const RestaurantOrdersView: React.FC = () => {
       {statusMessage && (
         <div
           className={`fixed top-4 right-4 z-[99999] px-4 py-3 rounded-lg text-sm font-medium shadow-2xl transition-all ${
-            statusMessage.type === 'success'
-              ? 'bg-emerald-600 text-white'
-              : 'bg-red-600 text-white'
+            statusMessage.type === "success"
+              ? "bg-emerald-600 text-white"
+              : "bg-red-600 text-white"
           }`}
         >
           {statusMessage.text}
@@ -713,16 +767,21 @@ export const RestaurantOrdersView: React.FC = () => {
             <Utensils className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-lg font-bold">Módulo de Restaurante & Toma de Pedidos</h1>
+            <h1 className="text-lg font-bold">
+              Módulo de Restaurante & Toma de Pedidos
+            </h1>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              Gestión de mesas, comanda por clientes, separación de cuentas y KDS
+              Gestión de mesas, comanda por clientes, separación de cuentas y
+              KDS
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <div className="text-xs bg-gray-100 dark:bg-gray-700 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 hidden">
-            <span className="text-gray-500 dark:text-gray-400 mr-1">Tasa BCV:</span>
+            <span className="text-gray-500 dark:text-gray-400 mr-1">
+              Tasa BCV:
+            </span>
             <span className="font-semibold text-indigo-600 dark:text-indigo-400">
               {rate.toFixed(4)} VES/USD
             </span>
@@ -747,8 +806,13 @@ export const RestaurantOrdersView: React.FC = () => {
                 </option>
               ) : (
                 cashRegisters.map((reg) => (
-                  <option key={reg.id} value={reg.id} className="bg-slate-800 text-slate-200">
-                    {reg.name} {reg.status?.toUpperCase() === 'OPEN' ? '(Abierta)' : ''}
+                  <option
+                    key={reg.id}
+                    value={reg.id}
+                    className="bg-slate-800 text-slate-200"
+                  >
+                    {reg.name}{" "}
+                    {reg.status?.toUpperCase() === "OPEN" || reg.hasActiveShift ? "(Abierta)" : ""}
                   </option>
                 ))
               )}
@@ -786,6 +850,17 @@ export const RestaurantOrdersView: React.FC = () => {
             <span>Propinas</span>
           </button>
 
+          {/* Botón Configuración de Impresión & Pedidos */}
+          <button
+            type="button"
+            onClick={() => setShowSettingsModal(true)}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg focus-visible:ring-2 focus-visible:ring-slate-500 transition-colors"
+            title="Configuración de impresión de comanda, recibo y saloneros"
+          >
+            <Printer className="w-4 h-4 text-sky-400" />
+            <span>Impresión & Pedidos</span>
+          </button>
+
           <a
             href="/restaurant/kds"
             target="_blank"
@@ -807,11 +882,11 @@ export const RestaurantOrdersView: React.FC = () => {
             <div className="flex items-center gap-2 flex-wrap">
               <button
                 type="button"
-                onClick={() => setSelectedZone('ALL')}
+                onClick={() => setSelectedZone("ALL")}
                 className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                  selectedZone === 'ALL'
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-750'
+                  selectedZone === "ALL"
+                    ? "bg-indigo-600 text-white"
+                    : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-750"
                 }`}
               >
                 Todas las Zonas
@@ -823,8 +898,8 @@ export const RestaurantOrdersView: React.FC = () => {
                   onClick={() => setSelectedZone(zone)}
                   className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
                     selectedZone === zone
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-750'
+                      ? "bg-indigo-600 text-white"
+                      : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-750"
                   }`}
                 >
                   {zone}
@@ -848,20 +923,25 @@ export const RestaurantOrdersView: React.FC = () => {
           {isLoading ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 animate-pulse">
               {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-                <div key={i} className="h-32 bg-gray-200 dark:bg-gray-800 rounded-lg" />
+                <div
+                  key={i}
+                  className="h-32 bg-gray-200 dark:bg-gray-800 rounded-lg"
+                />
               ))}
             </div>
           ) : filteredTables.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-white dark:bg-gray-800 rounded-lg border border-dashed border-gray-200 dark:border-gray-700">
               <Utensils className="w-8 h-8 text-gray-400 mb-2" />
-              <p className="text-sm font-medium">No se encontraron mesas para los filtros seleccionados</p>
+              <p className="text-sm font-medium">
+                No se encontraron mesas para los filtros seleccionados
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
               {filteredTables.map((table) => {
                 const isSelected = selectedTable?.id === table.id;
-                const isOccupied = table.status === 'OCCUPIED';
-                const isBillReq = table.status === 'BILL_REQUESTED';
+                const isOccupied = table.status === "OCCUPIED";
+                const isBillReq = table.status === "BILL_REQUESTED";
 
                 return (
                   <button
@@ -870,12 +950,12 @@ export const RestaurantOrdersView: React.FC = () => {
                     onClick={() => handleSelectTable(table)}
                     className={`p-4 text-left rounded-lg border transition-all flex flex-col justify-between focus-visible:ring-2 focus-visible:ring-indigo-500 ${
                       isSelected
-                        ? 'border-indigo-600 ring-2 ring-indigo-600/20 bg-indigo-50/30 dark:bg-indigo-950/20'
+                        ? "border-indigo-600 ring-2 ring-indigo-600/20 bg-indigo-50/30 dark:bg-indigo-950/20"
                         : isOccupied
-                        ? 'border-blue-300 dark:border-blue-900 bg-white dark:bg-gray-800 hover:border-blue-400 shadow-xs'
-                        : isBillReq
-                        ? 'border-amber-400 dark:border-amber-700 bg-amber-50/20 dark:bg-amber-950/20 hover:border-amber-500'
-                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-emerald-500'
+                          ? "border-blue-300 dark:border-blue-900 bg-white dark:bg-gray-800 hover:border-blue-400 shadow-xs"
+                          : isBillReq
+                            ? "border-amber-400 dark:border-amber-700 bg-amber-50/20 dark:bg-amber-950/20 hover:border-amber-500"
+                            : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-emerald-500"
                     }`}
                   >
                     <div>
@@ -886,24 +966,34 @@ export const RestaurantOrdersView: React.FC = () => {
                         <span
                           className={`text-[10px] font-semibold px-2 py-0.5 rounded-lg uppercase ${
                             isOccupied
-                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300'
+                              ? "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300"
                               : isBillReq
-                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
-                              : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                                : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
                           }`}
                         >
-                          {isOccupied ? 'Ocupada' : isBillReq ? 'Cuenta' : 'Disponible'}
+                          {isOccupied
+                            ? "Ocupada"
+                            : isBillReq
+                              ? "Cuenta"
+                              : "Disponible"}
                         </span>
                       </div>
-                      <h2 className="text-sm font-semibold truncate">{table.name}</h2>
-                      <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">{table.zone}</p>
+                      <h2 className="text-sm font-semibold truncate">
+                        {table.name}
+                      </h2>
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
+                        {table.zone}
+                      </p>
                     </div>
 
                     <div className="mt-3 pt-2 border-t border-gray-100 dark:border-gray-700/60 flex flex-col gap-1 text-[11px]">
                       {isOccupied ? (
                         <>
                           <div className="flex items-center justify-between text-gray-600 dark:text-gray-400">
-                            <span>Mozo: {table.current_waiter_name || 'N/A'}</span>
+                            <span>
+                              Mozo: {table.current_waiter_name || "N/A"}
+                            </span>
                             <span>{table.customer_count} pers.</span>
                           </div>
                           <div className="flex items-center justify-between font-bold text-indigo-600 dark:text-indigo-400">
@@ -914,9 +1004,12 @@ export const RestaurantOrdersView: React.FC = () => {
                       ) : (
                         <div className="flex items-center justify-between text-gray-400">
                           <span className="flex items-center gap-1">
-                            <Users className="w-3.5 h-3.5" /> Cap. {table.capacity}
+                            <Users className="w-3.5 h-3.5" /> Cap.{" "}
+                            {table.capacity}
                           </span>
-                          <span className="text-emerald-600 dark:text-emerald-400 font-medium">Libre</span>
+                          <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                            Libre
+                          </span>
                         </div>
                       )}
                     </div>
@@ -935,7 +1028,7 @@ export const RestaurantOrdersView: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/60 backdrop-blur-xs">
           <div className="bg-white dark:bg-gray-800 w-full max-w-6xl h-[92vh] max-h-[920px] rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
             {/* Cabecera del modal */}
-            <div className="p-3.5 bg-gray-50 dark:bg-gray-850 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
+            <div className="p-3.5  border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 rounded-lg">
                   <Utensils className="w-5 h-5" />
@@ -948,10 +1041,15 @@ export const RestaurantOrdersView: React.FC = () => {
                     <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">
                       Comanda: {activeOrder.order_number}
                     </span>
-                    <span className="text-xs text-gray-400">({selectedTable.zone})</span>
+                    <span className="text-xs text-gray-400">
+                      ({selectedTable.zone})
+                    </span>
                   </div>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    Atendido por: <strong className="text-gray-700 dark:text-gray-300">{activeOrder.waiter_name}</strong>
+                    Atendido por:{" "}
+                    <strong className="text-gray-700 dark:text-gray-300">
+                      {activeOrder.waiter_name}
+                    </strong>
                   </p>
                 </div>
               </div>
@@ -966,6 +1064,19 @@ export const RestaurantOrdersView: React.FC = () => {
                 >
                   <Eye className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                   <span className="hidden sm:inline">Detalle Consolidado</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTicketModalType("order_ticket");
+                    setShowTicketModal(true);
+                  }}
+                  className="px-3 py-2 text-xs font-medium text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 hover:bg-sky-100 dark:hover:bg-sky-900/40 rounded-lg flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-sky-500"
+                  title="Imprimir comanda o precuenta para cliente y salonero"
+                >
+                  <Printer className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                  <span className="hidden sm:inline">Imprimir</span>
                 </button>
 
                 <button
@@ -1001,8 +1112,8 @@ export const RestaurantOrdersView: React.FC = () => {
                   onClick={() => setSelectedCustomerId(null)}
                   className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-colors ${
                     selectedCustomerId === null
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                      ? "bg-indigo-600 text-white shadow-xs"
+                      : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200"
                   }`}
                 >
                   Mesa Consolidada
@@ -1015,12 +1126,14 @@ export const RestaurantOrdersView: React.FC = () => {
                     onClick={() => setSelectedCustomerId(cust.id)}
                     className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-colors flex items-center gap-1.5 ${
                       selectedCustomerId === cust.id
-                        ? 'bg-indigo-600 text-white shadow-xs'
-                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                        ? "bg-indigo-600 text-white shadow-xs"
+                        : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200"
                     }`}
                   >
                     <span>{cust.customer_name}</span>
-                    <span className="text-[10px] opacity-80">(${(cust.total_usd || 0).toFixed(2)})</span>
+                    <span className="text-[10px] opacity-80">
+                      (${(cust.total_usd || 0).toFixed(2)})
+                    </span>
                   </button>
                 ))}
               </div>
@@ -1047,11 +1160,12 @@ export const RestaurantOrdersView: React.FC = () => {
                     <p className="text-[11px] text-gray-400">
                       {selectedCustomerId
                         ? `Comensal: ${activeOrder.customers?.find((c) => c.id === selectedCustomerId)?.customer_name}`
-                        : 'Mesa Consolidada (Todos)'}
+                        : "Mesa Consolidada (Todos)"}
                     </p>
                   </div>
                   <span className="text-xs font-semibold px-2 py-0.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-                    {activeCustomerItems.length} {activeCustomerItems.length === 1 ? 'ítem' : 'ítems'}
+                    {activeCustomerItems.length}{" "}
+                    {activeCustomerItems.length === 1 ? "ítem" : "ítems"}
                   </span>
                 </div>
 
@@ -1064,7 +1178,8 @@ export const RestaurantOrdersView: React.FC = () => {
                         No hay productos en esta selección
                       </p>
                       <p className="text-[11px] text-gray-400 mt-1">
-                        Haga clic en un producto del catálogo para añadirlo inmediatamente a la comanda.
+                        Haga clic en un producto del catálogo para añadirlo
+                        inmediatamente a la comanda.
                       </p>
                     </div>
                   ) : (
@@ -1078,17 +1193,22 @@ export const RestaurantOrdersView: React.FC = () => {
                             <div className="flex items-center gap-1.5">
                               <span
                                 className={`text-[9px] font-bold px-1.5 py-0.5 rounded-lg uppercase ${
-                                  item.station === 'BAR'
-                                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300'
-                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                                  item.station === "BAR"
+                                    ? "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300"
+                                    : "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
                                 }`}
                               >
-                                {item.station === 'BAR' ? 'Barra' : 'Cocina'}
+                                {item.station === "BAR" ? "Barra" : "Cocina"}
                               </span>
-                              <span className="text-xs font-semibold truncate">{item.product_name}</span>
+                              <span className="text-xs font-semibold truncate">
+                                {item.product_name}
+                              </span>
                             </div>
                             <span className="text-[10px] text-gray-500 dark:text-gray-400">
-                              {item.customer_name ? `${item.customer_name} • ` : ''}${item.unit_price_usd.toFixed(2)} c/u
+                              {item.customer_name
+                                ? `${item.customer_name} • `
+                                : ""}
+                              ${item.unit_price_usd.toFixed(2)} c/u
                             </span>
                           </div>
 
@@ -1101,7 +1221,9 @@ export const RestaurantOrdersView: React.FC = () => {
                             >
                               -
                             </button>
-                            <span className="w-6 text-center text-xs font-bold">{item.quantity}</span>
+                            <span className="w-6 text-center text-xs font-bold">
+                              {item.quantity}
+                            </span>
                             <button
                               type="button"
                               onClick={() => handleUpdateItemQuantity(item, 1)}
@@ -1135,7 +1257,9 @@ export const RestaurantOrdersView: React.FC = () => {
                                 Obs: {item.notes}
                               </span>
                             ) : (
-                              <span className="text-gray-400 italic">Sin observaciones</span>
+                              <span className="text-gray-400 italic">
+                                Sin observaciones
+                              </span>
                             )}
                           </div>
 
@@ -1143,7 +1267,7 @@ export const RestaurantOrdersView: React.FC = () => {
                             type="button"
                             onClick={() => {
                               setEditingItem(item);
-                              setItemNoteText(item.notes || '');
+                              setItemNoteText(item.notes || "");
                               setShowItemNotesModal(true);
                             }}
                             className="text-indigo-600 dark:text-indigo-400 hover:underline text-[10px] font-medium flex items-center gap-0.5"
@@ -1160,7 +1284,9 @@ export const RestaurantOrdersView: React.FC = () => {
                 {/* Pie con totales de la mesa */}
                 <div className="p-3.5 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex flex-col gap-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">Total Consolidado Mesa:</span>
+                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">
+                      Total Consolidado Mesa:
+                    </span>
                     <div className="text-right">
                       <span className="text-xl font-extrabold text-indigo-600 dark:text-indigo-400">
                         ${activeOrder.total_usd.toFixed(2)}
@@ -1176,19 +1302,28 @@ export const RestaurantOrdersView: React.FC = () => {
               {/* PANEL 2: Catálogo de Productos y Filtros (col-span-7) */}
               <div className="md:col-span-7 flex flex-col h-full overflow-hidden bg-white dark:bg-gray-800">
                 {/* Filtros de Departamentos, Grupos y Buscador */}
-                <div className="p-3 border-b border-gray-200 dark:border-gray-700 space-y-2 bg-gray-50/50 dark:bg-gray-850/50">
+                <div className="p-3 mx-3 mt-4 bg-sky-50/60 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-lg">
                   {/* Departamentos */}
                   <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
                     <button
                       type="button"
+                      onClick={() => setIsHierarchyModalOpen(true)}
+                      className="px-2.5 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-colors bg-sky-50 dark:bg-sky-950/40 border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/50 flex items-center gap-1 cursor-pointer"
+                      title="Buscar en la jerarquía completa"
+                    >
+                      <FolderTree className="w-3.5 h-3.5" />
+                      <span>Buscar Jerarquía</span>
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => {
-                        setSelectedDeptId('ALL');
-                        setSelectedGroupId('ALL');
+                        setSelectedDeptId("ALL");
+                        setSelectedGroupId("ALL");
                       }}
                       className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-colors ${
-                        selectedDeptId === 'ALL'
-                          ? 'bg-indigo-600 text-white shadow-xs'
-                          : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                        selectedDeptId === "ALL"
+                          ? "bg-indigo-600 text-white shadow-xs"
+                          : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                       }`}
                     >
                       Todos
@@ -1199,12 +1334,12 @@ export const RestaurantOrdersView: React.FC = () => {
                         type="button"
                         onClick={() => {
                           setSelectedDeptId(d.id);
-                          setSelectedGroupId('ALL');
+                          setSelectedGroupId("ALL");
                         }}
                         className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-colors ${
                           selectedDeptId === d.id
-                            ? 'bg-indigo-600 text-white shadow-xs'
-                            : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                            ? "bg-indigo-600 text-white shadow-xs"
+                            : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                         }`}
                       >
                         {d.name}
@@ -1213,15 +1348,15 @@ export const RestaurantOrdersView: React.FC = () => {
                   </div>
 
                   {/* Subgrupos */}
-                  {availableGroups.length > 0 && selectedDeptId !== 'ALL' && (
+                  {availableGroups.length > 0 && selectedDeptId !== "ALL" && (
                     <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
                       <button
                         type="button"
-                        onClick={() => setSelectedGroupId('ALL')}
+                        onClick={() => setSelectedGroupId("ALL")}
                         className={`px-2.5 py-1 text-[11px] rounded-lg whitespace-nowrap transition-colors ${
-                          selectedGroupId === 'ALL'
-                            ? 'bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900'
-                            : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400'
+                          selectedGroupId === "ALL"
+                            ? "bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900"
+                            : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400"
                         }`}
                       >
                         Todos los Grupos
@@ -1233,8 +1368,8 @@ export const RestaurantOrdersView: React.FC = () => {
                           onClick={() => setSelectedGroupId(g.id)}
                           className={`px-2.5 py-1 text-[11px] rounded-lg whitespace-nowrap transition-colors ${
                             selectedGroupId === g.id
-                              ? 'bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900'
-                              : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400'
+                              ? "bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900"
+                              : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400"
                           }`}
                         >
                           {g.name}
@@ -1272,9 +1407,12 @@ export const RestaurantOrdersView: React.FC = () => {
                   {filteredProducts.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center p-8 text-center text-gray-400">
                       <Search className="w-8 h-8 mb-2 opacity-40" />
-                      <p className="text-sm font-medium">No se encontraron productos disponibles</p>
+                      <p className="text-sm font-medium">
+                        No se encontraron productos disponibles
+                      </p>
                       <p className="text-xs text-gray-400 mt-1">
-                        Verifique los filtros de departamento o la caja registradora activa.
+                        Verifique los filtros de departamento o la caja
+                        registradora activa.
                       </p>
                     </div>
                   ) : (
@@ -1290,7 +1428,9 @@ export const RestaurantOrdersView: React.FC = () => {
                             <span className="text-xs font-semibold line-clamp-2 text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                               {p.name}
                             </span>
-                            <span className="text-[10px] text-gray-400 block mt-0.5">{p.sku}</span>
+                            <span className="text-[10px] text-gray-400 block mt-0.5">
+                              {p.sku}
+                            </span>
                           </div>
                           <div className="flex items-center justify-between text-xs mt-2 pt-2 border-t border-gray-100 dark:border-gray-700/60">
                             <span className="font-extrabold text-indigo-600 dark:text-indigo-400">
@@ -1298,12 +1438,14 @@ export const RestaurantOrdersView: React.FC = () => {
                             </span>
                             <span
                               className={`text-[9px] font-bold px-1.5 py-0.5 rounded-lg uppercase ${
-                                p.suggested_station === 'BAR'
-                                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300'
-                                  : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                                p.suggested_station === "BAR"
+                                  ? "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300"
+                                  : "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
                               }`}
                             >
-                              {p.suggested_station === 'BAR' ? 'Barra' : 'Cocina'}
+                              {p.suggested_station === "BAR"
+                                ? "Barra"
+                                : "Cocina"}
                             </span>
                           </div>
                         </button>
@@ -1365,8 +1507,11 @@ export const RestaurantOrdersView: React.FC = () => {
                           {selectedErpCustomer.name}
                         </span>
                         <span className="text-[10px] text-gray-500">
-                          {selectedErpCustomer.doc_type || 'V'}-{selectedErpCustomer.doc_number}{' '}
-                          {selectedErpCustomer.phone ? `• Tel: ${selectedErpCustomer.phone}` : ''}
+                          {selectedErpCustomer.doc_type || "V"}-
+                          {selectedErpCustomer.doc_number}{" "}
+                          {selectedErpCustomer.phone
+                            ? `• Tel: ${selectedErpCustomer.phone}`
+                            : ""}
                         </span>
                       </div>
                     </div>
@@ -1374,7 +1519,7 @@ export const RestaurantOrdersView: React.FC = () => {
                       type="button"
                       onClick={() => {
                         setSelectedErpCustomer(null);
-                        setInitialCustomerInput('Cliente 1, Cliente 2');
+                        setInitialCustomerInput("Cliente 1, Cliente 2");
                       }}
                       className="text-xs text-red-500 hover:text-red-700 p-1 cursor-pointer"
                       title="Quitar cliente asignado"
@@ -1384,7 +1529,7 @@ export const RestaurantOrdersView: React.FC = () => {
                   </div>
                 ) : showQuickNewCustomer ? (
                   /* Formulario de creación rápida de cliente */
-                  <div className="p-3 bg-gray-50 dark:bg-gray-750 border border-indigo-200 dark:border-indigo-800 rounded-lg space-y-2.5 text-xs">
+                  <div className="p-3 bg-sky-50/60 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-lg space-y-2.5 text-xs">
                     <div className="flex items-center justify-between font-semibold text-indigo-600 dark:text-indigo-400">
                       <span>Registrar Nuevo Cliente en ERP</span>
                       <button
@@ -1398,10 +1543,14 @@ export const RestaurantOrdersView: React.FC = () => {
 
                     <div className="grid grid-cols-3 gap-2">
                       <div>
-                        <label className="block text-[10px] text-gray-500 mb-0.5">Tipo</label>
+                        <label className="block text-[10px] text-gray-500 mb-0.5">
+                          Tipo
+                        </label>
                         <select
                           value={quickCustomerDocType}
-                          onChange={(e) => setQuickCustomerDocType(e.target.value as any)}
+                          onChange={(e) =>
+                            setQuickCustomerDocType(e.target.value as any)
+                          }
                           className="w-full px-2 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-xs"
                         >
                           <option value="V">V - Venezolano</option>
@@ -1411,12 +1560,16 @@ export const RestaurantOrdersView: React.FC = () => {
                         </select>
                       </div>
                       <div className="col-span-2">
-                        <label className="block text-[10px] text-gray-500 mb-0.5">Cédula / RIF *</label>
+                        <label className="block text-[10px] text-gray-500 mb-0.5">
+                          Cédula / RIF *
+                        </label>
                         <input
                           type="text"
                           required
                           value={quickCustomerDocNumber}
-                          onChange={(e) => setQuickCustomerDocNumber(e.target.value)}
+                          onChange={(e) =>
+                            setQuickCustomerDocNumber(e.target.value)
+                          }
                           placeholder="Ej. 18234567"
                           className="w-full px-2 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-xs"
                         />
@@ -1424,7 +1577,9 @@ export const RestaurantOrdersView: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="block text-[10px] text-gray-500 mb-0.5">Nombre / Razón Social *</label>
+                      <label className="block text-[10px] text-gray-500 mb-0.5">
+                        Nombre / Razón Social *
+                      </label>
                       <input
                         type="text"
                         required
@@ -1437,21 +1592,29 @@ export const RestaurantOrdersView: React.FC = () => {
 
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-[10px] text-gray-500 mb-0.5">Teléfono</label>
+                        <label className="block text-[10px] text-gray-500 mb-0.5">
+                          Teléfono
+                        </label>
                         <input
                           type="text"
                           value={quickCustomerPhone}
-                          onChange={(e) => setQuickCustomerPhone(e.target.value)}
+                          onChange={(e) =>
+                            setQuickCustomerPhone(e.target.value)
+                          }
                           placeholder="0414-1234567"
                           className="w-full px-2 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-xs"
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] text-gray-500 mb-0.5">Email</label>
+                        <label className="block text-[10px] text-gray-500 mb-0.5">
+                          Email
+                        </label>
                         <input
                           type="email"
                           value={quickCustomerEmail}
-                          onChange={(e) => setQuickCustomerEmail(e.target.value)}
+                          onChange={(e) =>
+                            setQuickCustomerEmail(e.target.value)
+                          }
                           placeholder="correo@ejemplo.com"
                           className="w-full px-2 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-xs"
                         />
@@ -1472,7 +1635,9 @@ export const RestaurantOrdersView: React.FC = () => {
                         disabled={isCreatingQuickCustomer}
                         className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold cursor-pointer"
                       >
-                        {isCreatingQuickCustomer ? 'Guardando...' : 'Crear y Asignar'}
+                        {isCreatingQuickCustomer
+                          ? "Guardando..."
+                          : "Crear y Asignar"}
                       </button>
                     </div>
                   </div>
@@ -1507,7 +1672,8 @@ export const RestaurantOrdersView: React.FC = () => {
                               {c.name}
                             </span>
                             <span className="text-[10px] text-gray-500">
-                              {c.doc_type || 'V'}-{c.doc_number} {c.phone ? `• Tel: ${c.phone}` : ''}
+                              {c.doc_type || "V"}-{c.doc_number}{" "}
+                              {c.phone ? `• Tel: ${c.phone}` : ""}
                             </span>
                           </div>
                         ))}
@@ -1542,7 +1708,8 @@ export const RestaurantOrdersView: React.FC = () => {
                   placeholder="Ej: Juan, Maria, Pedro"
                 />
                 <p className="text-[11px] text-gray-500 mt-1">
-                  Cada comensal tendrá su propia comanda y total para separar la cuenta.
+                  Cada comensal tendrá su propia comanda y total para separar la
+                  cuenta.
                 </p>
               </div>
 
@@ -1593,7 +1760,9 @@ export const RestaurantOrdersView: React.FC = () => {
 
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold mb-1">Nombre o Alias del Cliente</label>
+                <label className="block text-xs font-semibold mb-1">
+                  Nombre o Alias del Cliente
+                </label>
                 <input
                   type="text"
                   value={newCustomerName}
@@ -1604,7 +1773,9 @@ export const RestaurantOrdersView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold mb-1">Observaciones</label>
+                <label className="block text-xs font-semibold mb-1">
+                  Observaciones
+                </label>
                 <input
                   type="text"
                   value={newCustomerNotes}
@@ -1646,7 +1817,9 @@ export const RestaurantOrdersView: React.FC = () => {
 
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold mb-1">Nombre del Producto / Plato</label>
+                <label className="block text-xs font-semibold mb-1">
+                  Nombre del Producto / Plato
+                </label>
                 <input
                   type="text"
                   value={adHocName}
@@ -1658,7 +1831,9 @@ export const RestaurantOrdersView: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold mb-1">Precio Unitario ($ USD)</label>
+                  <label className="block text-xs font-semibold mb-1">
+                    Precio Unitario ($ USD)
+                  </label>
                   <input
                     type="number"
                     step="0.01"
@@ -1670,10 +1845,14 @@ export const RestaurantOrdersView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold mb-1">Área de Preparación</label>
+                  <label className="block text-xs font-semibold mb-1">
+                    Área de Preparación
+                  </label>
                   <select
                     value={adHocStation}
-                    onChange={(e) => setAdHocStation(e.target.value as PreparationStation)}
+                    onChange={(e) =>
+                      setAdHocStation(e.target.value as PreparationStation)
+                    }
                     className="w-full px-3 py-2 text-xs bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg"
                   >
                     <option value="KITCHEN">Cocina</option>
@@ -1683,7 +1862,9 @@ export const RestaurantOrdersView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold mb-1">Observaciones</label>
+                <label className="block text-xs font-semibold mb-1">
+                  Observaciones
+                </label>
                 <input
                   type="text"
                   value={adHocNotes}
@@ -1750,7 +1931,9 @@ export const RestaurantOrdersView: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold mb-1">Observación Personalizada</label>
+              <label className="block text-xs font-semibold mb-1">
+                Observación Personalizada
+              </label>
               <textarea
                 rows={2}
                 value={itemNoteText}
@@ -1768,7 +1951,10 @@ export const RestaurantOrdersView: React.FC = () => {
                 onChange={(e) => setSaveAsPreset(e.target.checked)}
                 className="w-4 h-4 text-indigo-600 rounded-lg"
               />
-              <label htmlFor="savePreset" className="text-xs text-gray-700 dark:text-gray-300">
+              <label
+                htmlFor="savePreset"
+                className="text-xs text-gray-700 dark:text-gray-300"
+              >
                 Guardar también en catálogo de notas preestablecidas
               </label>
             </div>
@@ -1804,29 +1990,33 @@ export const RestaurantOrdersView: React.FC = () => {
               <div>
                 <h2 className="text-base font-bold flex items-center gap-2">
                   <Eye className="w-5 h-5 text-indigo-600" />
-                  <span>Detalle de Comanda - Mesa {activeOrder.table_number}</span>
+                  <span>
+                    Detalle de Comanda - Mesa {activeOrder.table_number}
+                  </span>
                 </h2>
-                <p className="text-xs text-gray-500">Orden: {activeOrder.order_number}</p>
+                <p className="text-xs text-gray-500">
+                  Orden: {activeOrder.order_number}
+                </p>
               </div>
 
               {/* Selector de modo: Por Cliente vs Por Mesa */}
               <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 p-0.5 rounded-lg">
                 <button
-                  onClick={() => setDetailViewMode('BY_CUSTOMER')}
+                  onClick={() => setDetailViewMode("BY_CUSTOMER")}
                   className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
-                    detailViewMode === 'BY_CUSTOMER'
-                      ? 'bg-white dark:bg-gray-800 shadow-xs text-indigo-600 font-bold'
-                      : 'text-gray-600 dark:text-gray-400'
+                    detailViewMode === "BY_CUSTOMER"
+                      ? "bg-white dark:bg-gray-800 shadow-xs text-indigo-300 font-bold"
+                      : "text-gray-600 dark:text-gray-400"
                   }`}
                 >
                   Por Cliente
                 </button>
                 <button
-                  onClick={() => setDetailViewMode('BY_TABLE')}
+                  onClick={() => setDetailViewMode("BY_TABLE")}
                   className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
-                    detailViewMode === 'BY_TABLE'
-                      ? 'bg-white dark:bg-gray-800 shadow-xs text-indigo-600 font-bold'
-                      : 'text-gray-600 dark:text-gray-400'
+                    detailViewMode === "BY_TABLE"
+                      ? "bg-white dark:bg-gray-800 shadow-xs text-indigo-600 font-bold"
+                      : "text-gray-600 dark:text-gray-400"
                   }`}
                 >
                   Por Mesa (Consolidada)
@@ -1835,14 +2025,17 @@ export const RestaurantOrdersView: React.FC = () => {
             </div>
 
             <div className="flex-1 overflow-y-auto py-4">
-              {detailViewMode === 'BY_CUSTOMER' ? (
+              {detailViewMode === "BY_CUSTOMER" ? (
                 <div className="space-y-4">
                   {activeOrder.customers?.map((cust) => {
-                    const custItems = activeOrder.items?.filter((i) => i.order_customer_id === cust.id) || [];
+                    const custItems =
+                      activeOrder.items?.filter(
+                        (i) => i.order_customer_id === cust.id,
+                      ) || [];
                     return (
                       <div
                         key={cust.id}
-                        className="p-3 bg-gray-50 dark:bg-gray-850 border border-gray-200 dark:border-gray-700 rounded-lg"
+                        className="p-3 bg-sky-50/60 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-lg"
                       >
                         <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 pb-2 mb-2">
                           <span className="font-bold text-sm text-indigo-600 dark:text-indigo-400">
@@ -1855,7 +2048,9 @@ export const RestaurantOrdersView: React.FC = () => {
                         </div>
 
                         {custItems.length === 0 ? (
-                          <p className="text-xs text-gray-400 italic">No ha agregado productos</p>
+                          <p className="text-xs text-gray-400 italic">
+                            No ha agregado productos
+                          </p>
                         ) : (
                           <table className="w-full text-xs">
                             <thead>
@@ -1869,20 +2064,31 @@ export const RestaurantOrdersView: React.FC = () => {
                             </thead>
                             <tbody>
                               {custItems.map((item) => (
-                                <tr key={item.id} className="border-b border-gray-100 dark:border-gray-800">
-                                  <td className="py-1 font-bold">{item.quantity}x</td>
+                                <tr
+                                  key={item.id}
+                                  className="border-b border-gray-100 dark:border-gray-800"
+                                >
+                                  <td className="py-1 font-bold">
+                                    {item.quantity}x
+                                  </td>
                                   <td className="py-1">
                                     <div>{item.product_name}</div>
                                     {item.notes && (
-                                      <div className="text-[10px] text-amber-600">Nota: {item.notes}</div>
+                                      <div className="text-[10px] text-amber-600">
+                                        Nota: {item.notes}
+                                      </div>
                                     )}
                                   </td>
                                   <td className="py-1">
                                     <span className="text-[10px] uppercase font-semibold">
-                                      {item.station === 'BAR' ? 'Barra' : 'Cocina'}
+                                      {item.station === "BAR"
+                                        ? "Barra"
+                                        : "Cocina"}
                                     </span>
                                   </td>
-                                  <td className="py-1 text-right">${item.unit_price_usd.toFixed(2)}</td>
+                                  <td className="py-1 text-right">
+                                    ${item.unit_price_usd.toFixed(2)}
+                                  </td>
                                   <td className="py-1 text-right font-semibold">
                                     ${item.subtotal_usd.toFixed(2)}
                                   </td>
@@ -1911,22 +2117,31 @@ export const RestaurantOrdersView: React.FC = () => {
                     </thead>
                     <tbody>
                       {activeOrder.items?.map((item) => (
-                        <tr key={item.id} className="border-b border-gray-100 dark:border-gray-800">
+                        <tr
+                          key={item.id}
+                          className="border-b border-gray-100 dark:border-gray-800"
+                        >
                           <td className="py-2 text-indigo-600 font-medium">
-                            {item.customer_name || 'General'}
+                            {item.customer_name || "General"}
                           </td>
                           <td className="py-2 font-bold">{item.quantity}x</td>
                           <td className="py-2">
                             <div>{item.product_name}</div>
                             {item.notes && (
-                              <div className="text-[10px] text-amber-600">Nota: {item.notes}</div>
+                              <div className="text-[10px] text-amber-600">
+                                Nota: {item.notes}
+                              </div>
                             )}
                           </td>
                           <td className="py-2 uppercase font-semibold text-[10px]">
-                            {item.station === 'BAR' ? 'Barra' : 'Cocina'}
+                            {item.station === "BAR" ? "Barra" : "Cocina"}
                           </td>
-                          <td className="py-2 text-right">${item.unit_price_usd.toFixed(2)}</td>
-                          <td className="py-2 text-right font-bold">${item.subtotal_usd.toFixed(2)}</td>
+                          <td className="py-2 text-right">
+                            ${item.unit_price_usd.toFixed(2)}
+                          </td>
+                          <td className="py-2 text-right font-bold">
+                            ${item.subtotal_usd.toFixed(2)}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1938,7 +2153,9 @@ export const RestaurantOrdersView: React.FC = () => {
             <div className="pt-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
               <div className="text-sm">
                 <span className="text-gray-500 mr-2">Total Mesa:</span>
-                <strong className="text-indigo-600 text-base">${activeOrder.total_usd.toFixed(2)} USD</strong>
+                <strong className="text-indigo-600 text-base">
+                  ${activeOrder.total_usd.toFixed(2)} USD
+                </strong>
               </div>
               <button
                 onClick={() => setShowProductDetailModal(false)}
@@ -1976,21 +2193,36 @@ export const RestaurantOrdersView: React.FC = () => {
               {/* Resumen de consumo */}
               <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg border border-gray-200 dark:border-gray-700 space-y-1.5">
                 <div className="flex justify-between">
-                  <span className="text-gray-500 dark:text-gray-400">Mesa:</span>
-                  <span className="font-semibold text-gray-800 dark:text-gray-200">{selectedTable.name} ({selectedTable.zone})</span>
+                  <span className="text-gray-500 dark:text-gray-400">
+                    Mesa:
+                  </span>
+                  <span className="font-semibold text-gray-800 dark:text-gray-200">
+                    {selectedTable.name} ({selectedTable.zone})
+                  </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500 dark:text-gray-400">Mozo responsable:</span>
-                  <span className="font-semibold text-gray-800 dark:text-gray-200">{activeOrder.waiter_name || 'Sin asignar'}</span>
+                  <span className="text-gray-500 dark:text-gray-400">
+                    Mozo responsable:
+                  </span>
+                  <span className="font-semibold text-gray-800 dark:text-gray-200">
+                    {activeOrder.waiter_name || "Sin asignar"}
+                  </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500 dark:text-gray-400">Comensales registrados:</span>
-                  <span className="font-semibold text-gray-800 dark:text-gray-200">{activeOrder.customers?.length || 1} personas</span>
+                  <span className="text-gray-500 dark:text-gray-400">
+                    Comensales registrados:
+                  </span>
+                  <span className="font-semibold text-gray-800 dark:text-gray-200">
+                    {activeOrder.customers?.length || 1} personas
+                  </span>
                 </div>
                 <div className="flex justify-between pt-1 border-t border-gray-200 dark:border-gray-700">
-                  <span className="text-gray-500 dark:text-gray-400">Subtotal Consumo Mesa:</span>
+                  <span className="text-gray-500 dark:text-gray-400">
+                    Subtotal Consumo Mesa:
+                  </span>
                   <span className="font-bold text-indigo-600 dark:text-indigo-400 text-sm">
-                    ${activeOrder.total_usd.toFixed(2)} USD ({(activeOrder.total_usd * rate).toFixed(2)} Bs)
+                    ${activeOrder.total_usd.toFixed(2)} USD (
+                    {(activeOrder.total_usd * rate).toFixed(2)} Bs)
                   </span>
                 </div>
               </div>
@@ -2002,7 +2234,10 @@ export const RestaurantOrdersView: React.FC = () => {
                 </label>
                 <div className="flex gap-2 mb-2">
                   {[0, 5, 10, 15].map((pct) => {
-                    const tipVal = pct === 0 ? '0' : ((activeOrder.total_usd * pct) / 100).toFixed(2);
+                    const tipVal =
+                      pct === 0
+                        ? "0"
+                        : ((activeOrder.total_usd * pct) / 100).toFixed(2);
                     return (
                       <button
                         key={pct}
@@ -2010,18 +2245,20 @@ export const RestaurantOrdersView: React.FC = () => {
                         onClick={() => setClosureTipUsd(tipVal)}
                         className={`flex-1 py-1.5 px-2 text-xs font-medium rounded-lg border transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 ${
                           Number(closureTipUsd) === Number(tipVal)
-                            ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-700 dark:text-emerald-300 font-bold'
-                            : 'border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                            ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-700 dark:text-emerald-300 font-bold"
+                            : "border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
                         }`}
                       >
-                        {pct === 0 ? 'Sin propina' : `${pct}% ($${tipVal})`}
+                        {pct === 0 ? "Sin propina" : `${pct}% ($${tipVal})`}
                       </button>
                     );
                   })}
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="relative flex-1">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium">$</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium">
+                      $
+                    </span>
                     <input
                       type="number"
                       step="0.01"
@@ -2049,15 +2286,24 @@ export const RestaurantOrdersView: React.FC = () => {
                       Total a Transferir al POS:
                     </span>
                     <span className="text-[11px] text-emerald-700 dark:text-emerald-400">
-                      Consumo: ${activeOrder.total_usd.toFixed(2)} + Propina: ${Number(closureTipUsd || 0).toFixed(2)}
+                      Consumo: ${activeOrder.total_usd.toFixed(2)} + Propina: $
+                      {Number(closureTipUsd || 0).toFixed(2)}
                     </span>
                   </div>
                   <div className="text-right">
                     <span className="font-mono font-bold text-base text-emerald-600 dark:text-emerald-400 block">
-                      ${(activeOrder.total_usd + Number(closureTipUsd || 0)).toFixed(2)} USD
+                      $
+                      {(
+                        activeOrder.total_usd + Number(closureTipUsd || 0)
+                      ).toFixed(2)}{" "}
+                      USD
                     </span>
                     <span className="font-mono text-[11px] text-neutral-500 dark:text-neutral-400">
-                      Bs. {((activeOrder.total_usd + Number(closureTipUsd || 0)) * rate).toFixed(2)}
+                      Bs.{" "}
+                      {(
+                        (activeOrder.total_usd + Number(closureTipUsd || 0)) *
+                        rate
+                      ).toFixed(2)}
                     </span>
                   </div>
                 </div>
@@ -2067,7 +2313,9 @@ export const RestaurantOrdersView: React.FC = () => {
               <div className="flex items-start gap-2 p-2.5 rounded-lg bg-sky-50/60 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 text-[11px] text-sky-800 dark:text-sky-300">
                 <AlertCircle className="w-4 h-4 shrink-0 text-sky-600 dark:text-sky-400 mt-0.5" />
                 <span>
-                  Las formas de pago (efectivo, débito, tarjeta, pago móvil, etc.) se procesarán en la caja POS cuando el cajero importe esta comanda para emitir la factura.
+                  Las formas de pago (efectivo, débito, tarjeta, pago móvil,
+                  etc.) se procesarán en la caja POS cuando el cajero importe
+                  esta comanda para emitir la factura.
                 </span>
               </div>
 
@@ -2130,6 +2378,105 @@ export const RestaurantOrdersView: React.FC = () => {
         onClose={() => setShowTipsReportModal(false)}
         token={token}
         activeBranchId={activeBranchId}
+      />
+
+      {/* Modal Configuración de Impresión & Pedidos de Restaurante */}
+      <RestaurantSettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        token={token}
+        activeBranchId={activeBranchId}
+        onSettingsUpdated={(updated) => setRestaurantSettings(updated)}
+      />
+
+      {/* Modal Visor / Impresión de Ticket Térmico de Comanda */}
+      <RestaurantTicketModal
+        isOpen={showTicketModal}
+        onClose={() => {
+          setShowTicketModal(false);
+          setPendingPrintOrder(null);
+        }}
+        order={activeOrder || pendingPrintOrder?.order || null}
+        table={selectedTable || pendingPrintOrder?.table || null}
+        settings={restaurantSettings}
+        defaultType={ticketModalType}
+      />
+
+      {/* Modal Confirmación de Impresión al Cerrar Comanda (Modo Preguntar) */}
+      {showPrintConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-5 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-sky-50 dark:bg-sky-950/50 flex items-center justify-center text-sky-600 dark:text-sky-400">
+                <Printer className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                  ¿Imprimir Comanda / Recibo?
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Comanda #{pendingPrintOrder?.order.order_number} cerrada con
+                  éxito
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-600 dark:text-gray-300">
+              Según las preferencias configuradas, ¿desea imprimir el recibo de
+              comanda para el cliente o la copia para el salonero?
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPrintConfirmModal(false);
+                  setPendingPrintOrder(null);
+                }}
+                className="px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+              >
+                No Imprimir
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPrintConfirmModal(false);
+                  setTicketModalType(
+                    restaurantSettings?.print_order_ticket
+                      ? "order_ticket"
+                      : "waiter_copy",
+                  );
+                  setShowTicketModal(true);
+                }}
+                className="px-3.5 py-2 text-xs font-semibold bg-sky-600 hover:bg-sky-700 text-white rounded-lg flex items-center gap-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-sky-500"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Imprimir Ticket</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Búsqueda de Jerarquía */}
+      <HierarchySearchModal
+        isOpen={isHierarchyModalOpen}
+        onClose={() => setIsHierarchyModalOpen(false)}
+        onSelect={(sel) => {
+          if (sel.level === 'none') {
+            setSelectedDeptId('ALL');
+            setSelectedGroupId('ALL');
+          } else {
+            if (sel.departmentId) setSelectedDeptId(sel.departmentId);
+            if (sel.groupId) setSelectedGroupId(sel.groupId);
+            else setSelectedGroupId('ALL');
+          }
+        }}
+        initialDepartmentId={selectedDeptId !== 'ALL' ? selectedDeptId : ''}
+        initialGroupId={selectedGroupId !== 'ALL' ? selectedGroupId : ''}
+        selectionMode="any"
+        title="Buscar Categoría en Comandas de Restaurante"
+        subtitle="Seleccione el departamento o grupo para filtrar los productos del menú"
       />
     </div>
   );

@@ -156,64 +156,64 @@ export const PayablesAgingView: React.FC = () => {
 
       {/* 6  Buckets KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <Card className="p-3 border-l-4 border-l-neutral-500  bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-neutral-200 dark:border-neutral-800">
-          <p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
+        <Card className="p-3.5 border-l-4 border-l-[#007BFF] dark:border-l-[#3D91FF] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
             Total Deuda CxP
           </p>
-          <p className="text-lg font-bold text-neutral-900 mt-1 font-mono">
+          <p className="text-lg font-bold text-[#007BFF] dark:text-[#3D91FF] mt-1 font-mono">
             {formatMoneyUSD(totals.grandTotal)}
           </p>
-          <span className="text-[10px] text-neutral-400">Compromisos vigentes</span>
+          <span className="text-[11px] text-neutral-400 dark:text-neutral-500">Compromisos vigentes</span>
         </Card>
 
-        <Card className="p-3 border-l-4 border-l-emerald-600  bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-emerald-200 dark:border-emerald-600">
-          <p className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wider">
+        <Card className="p-3.5 border-l-4 border-l-[#28A745] dark:border-l-[#4ADE80] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
             Corriente (Al Día)
           </p>
-          <p className="text-lg font-bold text-emerald-700 mt-1 font-mono">
+          <p className="text-lg font-bold text-[#28A745] dark:text-[#4ADE80] mt-1 font-mono">
             {formatMoneyUSD(totals.current)}
           </p>
-          <span className="text-[10px] text-neutral-400">Por vencer</span>
+          <span className="text-[11px] text-neutral-400 dark:text-neutral-500">Por vencer</span>
         </Card>
 
-        <Card className="p-3 border-l-4 border-l-amber-600  bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-amber-200 dark:border-amber-600 ">
-          <p className="text-[11px] font-semibold text-amber-600 uppercase tracking-wider">
+        <Card className="p-3.5 border-l-4 border-l-[#17A2B8] dark:border-l-[#38C9DD] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
             1 - 30 Días
           </p>
-          <p className="text-lg font-bold text-amber-700 mt-1 font-mono">
+          <p className="text-lg font-bold text-[#17A2B8] dark:text-[#38C9DD] mt-1 font-mono">
             {formatMoneyUSD(totals.days1_30)}
           </p>
-          <span className="text-[10px] text-neutral-400">Vencimiento reciente</span>
+          <span className="text-[11px] text-neutral-400 dark:text-neutral-500">Vencimiento reciente</span>
         </Card>
 
-        <Card className="p-3 border-l-4 border-l-orange-600  bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-orange-200 dark:border-orange-600 ">
-          <p className="text-[11px] font-semibold text-orange-600 uppercase tracking-wider">
+        <Card className="p-3.5 border-l-4 border-l-[#FFC107] dark:border-l-[#FBBF24] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
             31 - 60 Días
           </p>
-          <p className="text-lg font-bold text-orange-700 mt-1 font-mono">
+          <p className="text-lg font-bold text-[#b28500] dark:text-[#FBBF24] mt-1 font-mono">
             {formatMoneyUSD(totals.days31_60)}
           </p>
-          <span className="text-[10px] text-neutral-400">Mora moderada</span>
+          <span className="text-[11px] text-neutral-400 dark:text-neutral-500">Mora moderada</span>
         </Card>
 
-        <Card className="p-3 border-l-4 border-l-red-600  bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-red-200 dark:border-red-600 ">
-          <p className="text-[11px] font-semibold text-red-600 uppercase tracking-wider">
+        <Card className="p-3.5 border-l-4 border-l-orange-500 dark:border-l-orange-400 bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
             61 - 90 Días
           </p>
-          <p className="text-lg font-bold text-red-700 mt-1 font-mono">
+          <p className="text-lg font-bold text-orange-600 dark:text-orange-400 mt-1 font-mono">
             {formatMoneyUSD(totals.days61_90)}
           </p>
-          <span className="text-[10px] text-neutral-400">Mora crítica</span>
+          <span className="text-[11px] text-neutral-400 dark:text-neutral-500">Mora crítica</span>
         </Card>
 
-        <Card className="p-3 border-l-4 border-l-red-600  bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-red-200 dark:border-red-800 ">
-          <p className="text-[11px] font-semibold text-red-600 uppercase tracking-wider">
+        <Card className="p-3.5 border-l-4 border-l-red-500 dark:border-l-red-400 bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
             + 90 Días
           </p>
-          <p className="text-lg font-bold text-red-700 mt-1 font-mono">
+          <p className="text-lg font-bold text-red-600 dark:text-red-400 mt-1 font-mono">
             {formatMoneyUSD(totals.days90Plus)}
           </p>
-          <span className="text-[10px] text-red-500 font-semibold">Excedida</span>
+          <span className="text-[11px] text-red-500 font-semibold">Excedida</span>
         </Card>
       </div>
 
@@ -237,7 +237,7 @@ export const PayablesAgingView: React.FC = () => {
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm border-collapse">
-            <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase  tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
+            <thead className="bg-[#F4F6F9] dark:bg-[#18191A] text-neutral-700 dark:text-neutral-300 uppercase font-semibold text-[10px] tracking-wider border-b border-gray-200 dark:border-gray-800 sticky top-0 z-10">
               <tr>
                 <th className="py-3 px-4">Proveedor</th>
                 <th className="py-3 px-4">Factura Compra</th>
@@ -253,7 +253,7 @@ export const PayablesAgingView: React.FC = () => {
             <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800 ">
               {loading ? (
                 Array.from({ length: 4 }).map((_, i) => (
-                  <tr key={i} className="border-b border-neutral-100 dark:border-neutral-800 hover:bg-neutral-600 animate-pulse">
+                  <tr key={i} className="border-b border-gray-100 dark:border-gray-800/80 animate-pulse">
                     <td className="py-4 px-4">
                       <div className="h-4 bg-neutral-200 rounded w-36 mb-1" />
                       <div className="h-3 bg-neutral-100 rounded w-20" />
@@ -298,14 +298,14 @@ export const PayablesAgingView: React.FC = () => {
                 </tr>
               ) : (
                 filteredItems.map((item) => (
-                  <tr key={item.payableId} className="hover:bg-neutral-50 transition-colors">
+                  <tr key={item.payableId} className="hover:bg-[#F4F6F9]/80 dark:hover:bg-neutral-800/50 transition-colors">
                     <td className="py-3 px-4">
                       <div className="font-semibold text-neutral-900">{item.supplierName}</div>
                       <div className="text-xs text-neutral-500 font-mono mt-0.5">
                         {item.supplierRif}
                       </div>
                     </td>
-                    <td className="py-3 px-4 font-mono text-xs font-semibold text-neutral-900">
+                    <td className="py-3 px-4 font-mono text-xs font-bold text-[#007BFF] dark:text-[#3D91FF]">
                       {item.invoiceNumber}
                     </td>
                     <td className="py-3 px-4 text-xs text-neutral-600">

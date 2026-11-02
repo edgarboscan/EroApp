@@ -18,12 +18,19 @@ import {
   Printer,
   CreditCard,
   Trash2,
+  Image as ImageIcon,
+  UploadCloud,
+  FileImage,
+  RefreshCw,
+  X,
+  Eye,
 } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { Modal } from "../../components/ui/Modal";
 import { Badge } from "../../components/ui/Badge";
 import { useAuthStore, isSuperAdminRole } from "../../stores/authStore";
+import { LicenseInfo } from "@ero/shared";
 import { useExchangeRateStore } from "../../stores/exchangeRateStore";
 import {
   UpdateCompanyInput,
@@ -47,6 +54,9 @@ export interface CashRegisterConfigItem {
   name: string;
   fiscalPrinterSerial?: string | null;
   invoiceMode: "fiscal_printer" | "normal_printer";
+  ticketPrinterType?: "thermal_80mm" | "thermal_58mm" | "generic_esc_pos" | "windows_spooler" | "pdf_virtual";
+  ticketPrinterName?: string | null;
+  ticketPrintMode?: "direct" | "prompt";
   defaultBankAccountIdVES?: string | null;
   defaultBankAccountIdUSD?: string | null;
   allowedDepartmentIds?: string[];
@@ -142,7 +152,122 @@ export const CompanyConfigView: React.FC = () => {
     ivaRetentionRate: 75.0,
     currencyBase: "USD",
     currencySecondary: "VES",
+    reportCurrency: "BOTH",
+    showLogoInReports: true,
+    reportLogoType: "default",
+    customLogoUrl: null,
   });
+
+  // Procesamiento y compresión mandatoria a WebP de logos para reportes
+  const [isProcessingLogo, setIsProcessingLogo] = useState(false);
+  const [logoStats, setLogoStats] = useState<{
+    originalSize: string;
+    compressedSize: string;
+    dimensions: string;
+  } | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const handleLogoUpload = (file: File) => {
+    const validMimes = [
+      "image/png",
+      "image/jpeg",
+      "image/jpg",
+      "image/webp",
+      "image/svg+xml",
+    ];
+    if (!validMimes.includes(file.type)) {
+      toast.error(
+        "Formato no admitido. Seleccione un archivo PNG, JPG, JPEG o WebP.",
+      );
+      return;
+    }
+
+    const MAX_SIZE = 2 * 1024 * 1024; // 2 MB
+    if (file.size > MAX_SIZE) {
+      toast.error("El archivo seleccionado excede el límite máximo de 2 MB.");
+      return;
+    }
+
+    setIsProcessingLogo(true);
+    const origSizeKb = (file.size / 1024).toFixed(1) + " KB";
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const origWidth = img.naturalWidth || img.width;
+        const origHeight = img.naturalHeight || img.height;
+
+        // Limitar a máximo 800px para densidad óptima en PDFs sin sobrepeso
+        let targetWidth = origWidth;
+        let targetHeight = origHeight;
+        const MAX_DIM = 800;
+
+        if (targetWidth > MAX_DIM || targetHeight > MAX_DIM) {
+          if (targetWidth > targetHeight) {
+            targetHeight = Math.round((targetHeight * MAX_DIM) / targetWidth);
+            targetWidth = MAX_DIM;
+          } else {
+            targetWidth = Math.round((targetWidth * MAX_DIM) / targetHeight);
+            targetHeight = MAX_DIM;
+          }
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        const ctx = canvas.getContext("2d");
+
+        if (!ctx) {
+          toast.error("No se pudo inicializar el procesador de imágenes.");
+          setIsProcessingLogo(false);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+        // Compresión y conversión obligatoria a formato WebP
+        const webpDataUrl = canvas.toDataURL("image/webp", 0.85);
+
+        // Medir tamaño resultante
+        const base64Body = webpDataUrl.split(",")[1] || "";
+        const compressedBytes = Math.round((base64Body.length * 3) / 4);
+        const compSizeKb = (compressedBytes / 1024).toFixed(1) + " KB";
+
+        setCompany((prev) => ({
+          ...prev,
+          customLogoUrl: webpDataUrl,
+          reportLogoType: "custom",
+          showLogoInReports: true,
+        }));
+
+        setLogoStats({
+          originalSize: origSizeKb,
+          compressedSize: compSizeKb,
+          dimensions: `${targetWidth} × ${targetHeight} px`,
+        });
+
+        setIsProcessingLogo(false);
+        toast.success("Logo convertido a WebP y comprimido correctamente.");
+      };
+
+      img.onerror = () => {
+        toast.error("Error al decodificar la imagen.");
+        setIsProcessingLogo(false);
+      };
+
+      if (typeof e.target?.result === "string") {
+        img.src = e.target.result;
+      }
+    };
+
+    reader.onerror = () => {
+      toast.error("Error al leer el archivo.");
+      setIsProcessingLogo(false);
+    };
+
+    reader.readAsDataURL(file);
+  };
 
   const [branches, setBranches] = useState<any[]>([]);
   const [warehouses, setWarehouses] = useState<any[]>([]);
@@ -178,6 +303,9 @@ export const CompanyConfigView: React.FC = () => {
     name: "",
     isFiscal: false,
     fiscalPrinterSerial: "",
+    ticketPrinterType: "thermal_80mm" as "thermal_80mm" | "thermal_58mm" | "generic_esc_pos" | "windows_spooler" | "pdf_virtual",
+    ticketPrinterName: "",
+    ticketPrintMode: "prompt" as "direct" | "prompt",
     defaultBankAccountIdVES: "",
     defaultBankAccountIdUSD: "",
     allowedDepartmentIds: [] as string[],
@@ -209,6 +337,7 @@ export const CompanyConfigView: React.FC = () => {
     isActive: true,
   });
 
+  const [license, setLicense] = useState<LicenseInfo | null>(null);
   const [editingBranchId, setEditingBranchId] = useState<string | null>(null);
   const [editingWarehouseId, setEditingWarehouseId] = useState<string | null>(
     null,
@@ -218,7 +347,7 @@ export const CompanyConfigView: React.FC = () => {
     setLoading(true);
     try {
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const [compRes, branchRes, whRes, rulesRes, regRes, deptsRes] =
+      const [compRes, branchRes, whRes, rulesRes, regRes, deptsRes, licRes] =
         await Promise.all([
           fetch("/api/config/company", { headers }),
           fetch("/api/config/branches", { headers }),
@@ -226,6 +355,7 @@ export const CompanyConfigView: React.FC = () => {
           fetch("/api/config/business-rules", { headers }),
           fetch("/api/pos/registers", { headers }),
           fetch("/api/inventory/departments", { headers }),
+          fetch("/api/licenses/status", { headers }),
         ]);
 
       if (deptsRes && deptsRes.ok) {
@@ -234,10 +364,27 @@ export const CompanyConfigView: React.FC = () => {
           setAvailableDepartments(d.data);
         }
       }
+      if (licRes && licRes.ok) {
+        const d = await licRes.json();
+        if (d.success && d.data) {
+          setLicense(d.data);
+        }
+      }
 
       if (compRes.ok) {
         const d = await compRes.json();
-        if (d.success && d.data) setCompany(d.data);
+        if (d.success && d.data) {
+          setCompany({
+            ...d.data,
+            reportCurrency: d.data.reportCurrency || "BOTH",
+            showLogoInReports:
+              d.data.showLogoInReports !== undefined
+                ? d.data.showLogoInReports
+                : true,
+            reportLogoType: d.data.reportLogoType || "default",
+            customLogoUrl: d.data.customLogoUrl || null,
+          });
+        }
       }
       if (branchRes.ok) {
         const d = await branchRes.json();
@@ -309,6 +456,9 @@ export const CompanyConfigView: React.FC = () => {
       name: "",
       isFiscal: false,
       fiscalPrinterSerial: "",
+      ticketPrinterType: "thermal_80mm",
+      ticketPrinterName: "",
+      ticketPrintMode: "prompt",
       defaultBankAccountIdVES: "",
       defaultBankAccountIdUSD: "",
       allowedDepartmentIds: [],
@@ -327,6 +477,9 @@ export const CompanyConfigView: React.FC = () => {
       name: reg.name,
       isFiscal: reg.invoiceMode === "fiscal_printer",
       fiscalPrinterSerial: reg.fiscalPrinterSerial || "",
+      ticketPrinterType: reg.ticketPrinterType || "thermal_80mm",
+      ticketPrinterName: reg.ticketPrinterName || "",
+      ticketPrintMode: reg.ticketPrintMode || "prompt",
       defaultBankAccountIdVES: reg.defaultBankAccountIdVES || "",
       defaultBankAccountIdUSD: reg.defaultBankAccountIdUSD || "",
       allowedDepartmentIds: reg.allowedDepartmentIds || [],
@@ -366,6 +519,15 @@ export const CompanyConfigView: React.FC = () => {
         fiscalPrinterSerial: registerForm.isFiscal
           ? registerForm.fiscalPrinterSerial.trim().toUpperCase()
           : null,
+        ticketPrinterType: !registerForm.isFiscal
+          ? registerForm.ticketPrinterType
+          : "thermal_80mm",
+        ticketPrinterName: !registerForm.isFiscal
+          ? registerForm.ticketPrinterName.trim() || null
+          : null,
+        ticketPrintMode: !registerForm.isFiscal
+          ? registerForm.ticketPrintMode
+          : "prompt",
         defaultBankAccountIdVES: registerForm.defaultBankAccountIdVES || null,
         defaultBankAccountIdUSD: registerForm.defaultBankAccountIdUSD || null,
         allowedDepartmentIds: registerForm.allowedDepartmentIds,
@@ -440,19 +602,41 @@ export const CompanyConfigView: React.FC = () => {
   const handleSaveCompany = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const payload: UpdateCompanyInput = {
+        legalName: company.legalName.trim(),
+        tradeName: company.tradeName?.trim() || null,
+        rif: company.rif.trim().toUpperCase(),
+        fiscalAddress: company.fiscalAddress.trim(),
+        phone: company.phone?.trim() || null,
+        email: company.email?.trim() || null,
+        isSpecialTaxpayer: Boolean(company.isSpecialTaxpayer),
+        ivaRetentionRate: Number(company.ivaRetentionRate || 0),
+        currencyBase: company.currencyBase,
+        currencySecondary: company.currencySecondary,
+        reportCurrency: company.reportCurrency || "BOTH",
+        showLogoInReports: company.showLogoInReports !== false,
+        reportLogoType: company.reportLogoType || "default",
+        customLogoUrl: company.customLogoUrl || null,
+      };
+
       const res = await fetch("/api/config/company", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify(company),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
-      if (data.success) {
+      if (res.ok && data.success) {
         toast.success("Perfil fiscal y datos de empresa actualizados");
+        fetchConfigData();
       } else {
-        toast.error(data.error?.message || "Error al guardar empresa");
+        const errorMsg =
+          data.error?.message ||
+          (data.error?.issues && data.error.issues[0]?.message) ||
+          "Error al guardar empresa";
+        toast.error(errorMsg);
       }
     } catch {
       toast.error("Error de red al actualizar perfil de empresa");
@@ -930,6 +1114,26 @@ export const CompanyConfigView: React.FC = () => {
                   <option value="USD">USD - Dólares Americanos</option>
                 </select>
               </div>
+
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Moneda Predeterminada para Reportes
+                </label>
+                <select
+                  value={company.reportCurrency || "BOTH"}
+                  onChange={(e) =>
+                    setCompany({
+                      ...company,
+                      reportCurrency: e.target.value as "BOTH" | "VES" | "USD",
+                    })
+                  }
+                  className="w-full h-9 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-xs text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
+                >
+                  <option value="BOTH">Bimonetario (VES y USD simultáneos)</option>
+                  <option value="VES">Bolívares (VES - Moneda Fiscal)</option>
+                  <option value="USD">Dólares Americanos (USD)</option>
+                </select>
+              </div>
             </div>
 
             {/* Tasa Oficial de Cambio (BCV) */}
@@ -1009,56 +1213,367 @@ export const CompanyConfigView: React.FC = () => {
               </h3>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="flex items-center gap-3">
+                <div className="flex items-start gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/30">
                   <input
                     type="checkbox"
                     id="isSpecialTaxpayer"
                     checked={company.isSpecialTaxpayer}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const checked = e.target.checked;
                       setCompany({
                         ...company,
-                        isSpecialTaxpayer: e.target.checked,
-                      })
-                    }
-                    className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-neutral-300"
+                        isSpecialTaxpayer: checked,
+                        ivaRetentionRate: checked
+                          ? company.ivaRetentionRate || 75
+                          : 0,
+                      });
+                    }}
+                    className="w-4 h-4 mt-0.5 rounded text-sky-600 focus:ring-sky-500 border-neutral-300"
                   />
                   <label
                     htmlFor="isSpecialTaxpayer"
                     className="text-xs text-neutral-700 dark:text-neutral-300 cursor-pointer"
                   >
                     <span className="font-semibold text-neutral-900 dark:text-neutral-100 block">
-                      Contribuyente Especial SENIAT
+                      Contribuyente Especial SENIAT (Agente de Retención)
                     </span>
-                    <span className="text-neutral-500 dark:text-neutral-400">
-                      Agente de retención de IVA e ISLR calificado
+                    <span className="text-neutral-500 dark:text-neutral-400 mt-0.5 block leading-relaxed">
+                      {company.isSpecialTaxpayer
+                        ? "Designado oficialmente como Sujeto Pasivo Especial. Autorizado y obligado a retener IVA e ISLR a proveedores."
+                        : "Contribuyente Ordinario. No actúa como Agente de Retención ante proveedores según Providencia SNAT/2015/0049."}
                     </span>
                   </label>
                 </div>
 
                 <div>
                   <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-                    Porcentaje de Retención de IVA por Defecto
+                    Porcentaje de Retención de IVA a Proveedores
                   </label>
                   <select
-                    value={company.ivaRetentionRate}
+                    disabled={!company.isSpecialTaxpayer}
+                    value={
+                      company.isSpecialTaxpayer ? company.ivaRetentionRate : 0
+                    }
                     onChange={(e) =>
                       setCompany({
                         ...company,
                         ivaRetentionRate: Number(e.target.value),
                       })
                     }
-                    className="w-full h-9 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-xs text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
+                    className="w-full h-9 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 disabled:bg-neutral-100 dark:disabled:bg-neutral-900 disabled:text-neutral-400 disabled:cursor-not-allowed px-3 text-xs text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
                   >
-                    <option value={75}>
-                      75% (General Contribuyentes Especiales)
-                    </option>
-                    <option value={100}>
-                      100% (Casos especiales / Sin RIF en comprobante)
-                    </option>
-                    <option value={0}>0% (No aplica retención)</option>
+                    {company.isSpecialTaxpayer ? (
+                      <>
+                        <option value={75}>
+                          75% (General Contribuyentes Especiales)
+                        </option>
+                        <option value={100}>
+                          100% (Casos Especiales / Proveedores sin RIF formal)
+                        </option>
+                      </>
+                    ) : (
+                      <option value={0}>
+                        0% (No aplica retención - Contribuyente Ordinario)
+                      </option>
+                    )}
                   </select>
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
+                    {company.isSpecialTaxpayer
+                      ? "Porcentaje predeterminado en emisión de comprobantes de IVA a compras."
+                      : "La empresa debe estar notificada por el SENIAT como Contribuyente Especial para habilitar retenciones."}
+                  </p>
                 </div>
               </div>
+            </div>
+
+            {/* Identidad Visual & Configuración de Logo en Reportes */}
+            <div className="bg-white dark:bg-neutral-900 p-5 rounded-lg border border-neutral-200 dark:border-neutral-800 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-200 dark:border-neutral-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-sky-100 dark:bg-sky-950/60 rounded-lg text-sky-600 dark:text-sky-400">
+                    <ImageIcon className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider">
+                      Identidad & Logo para Reportes Oficiales
+                    </h3>
+                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                      Personalice la apariencia visual del encabezado en
+                      reportes PDF, libros fiscales y comprobantes.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant={company.showLogoInReports ? "info" : "neutral"}
+                  >
+                    {company.showLogoInReports
+                      ? "Logo Habilitado"
+                      : "Solo Texto Fiscal"}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Toggle Principal: Mostrar Logo en Reportes */}
+              <div className="flex items-start gap-3 bg-neutral-50 dark:bg-neutral-800/40 p-3.5 rounded-lg border border-neutral-200 dark:border-neutral-700/60">
+                <input
+                  type="checkbox"
+                  id="show_logo_in_reports"
+                  checked={company.showLogoInReports}
+                  onChange={(e) =>
+                    setCompany({
+                      ...company,
+                      showLogoInReports: e.target.checked,
+                    })
+                  }
+                  className="mt-0.5 h-4 w-4 rounded border-neutral-300 dark:border-neutral-700 text-sky-600 focus-visible:ring-2 focus-visible:ring-sky-500 cursor-pointer"
+                />
+                <label
+                  htmlFor="show_logo_in_reports"
+                  className="text-xs cursor-pointer select-none"
+                >
+                  <span className="font-semibold text-neutral-900 dark:text-neutral-100 block">
+                    Mostrar logo institucional en los reportes del sistema
+                  </span>
+                  <span className="text-neutral-500 dark:text-neutral-400 text-[11px] mt-0.5 block leading-relaxed">
+                    Si se desmarca, los reportes se generarán en formato de
+                    impresión compacto legal, sin logotipo y alineando el texto
+                    fiscal al margen izquierdo.
+                  </span>
+                </label>
+              </div>
+
+              {company.showLogoInReports && (
+                <div className="space-y-4 pt-1">
+                  <div>
+                    <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                      Selección del Logo a Utilizar en Reportes
+                    </label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {/* Opción 1: Logo Oficial del Sistema */}
+                      <label
+                        className={`relative flex items-center gap-3.5 p-3.5 rounded-lg border cursor-pointer transition-colors ${
+                          company.reportLogoType !== "custom"
+                            ? "border-sky-500 bg-sky-50/50 dark:bg-sky-950/20 ring-1 ring-sky-500/20"
+                            : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="reportLogoType"
+                          value="default"
+                          checked={company.reportLogoType !== "custom"}
+                          onChange={() =>
+                            setCompany({
+                              ...company,
+                              reportLogoType: "default",
+                            })
+                          }
+                          className="h-4 w-4 text-sky-600 border-neutral-300 dark:border-neutral-700 focus-visible:ring-2 focus-visible:ring-sky-500"
+                        />
+                        <div className="w-12 h-12 rounded-lg bg-neutral-900 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 p-1.5 flex items-center justify-center shrink-0 shadow-xs">
+                          <img
+                            src="/logo.webp"
+                            alt="Logo Predeterminado ERO"
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="block text-xs font-semibold text-neutral-900 dark:text-neutral-100">
+                            Logo Predeterminado del Sistema
+                          </span>
+                          <span className="block text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                            Insignia oficial ERO en formato WebP de alta
+                            fidelidad y máxima compresión.
+                          </span>
+                        </div>
+                      </label>
+
+                      {/* Opción 2: Logo Personalizado de la Empresa */}
+                      <label
+                        className={`relative flex items-center gap-3.5 p-3.5 rounded-lg border cursor-pointer transition-colors ${
+                          company.reportLogoType === "custom"
+                            ? "border-sky-500 bg-sky-50/50 dark:bg-sky-950/20 ring-1 ring-sky-500/20"
+                            : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="reportLogoType"
+                          value="custom"
+                          checked={company.reportLogoType === "custom"}
+                          onChange={() =>
+                            setCompany({ ...company, reportLogoType: "custom" })
+                          }
+                          className="h-4 w-4 text-sky-600 border-neutral-300 dark:border-neutral-700 focus-visible:ring-2 focus-visible:ring-sky-500"
+                        />
+                        <div className="w-12 h-12 rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 p-1.5 flex items-center justify-center shrink-0 shadow-xs overflow-hidden">
+                          {company.customLogoUrl ? (
+                            <img
+                              src={company.customLogoUrl}
+                              alt="Logo Personalizado"
+                              className="w-full h-full object-contain"
+                            />
+                          ) : (
+                            <FileImage className="w-6 h-6 text-neutral-400" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <span className="block text-xs font-semibold text-neutral-900 dark:text-neutral-100">
+                            Logo Personalizado de la Empresa
+                          </span>
+                          <span className="block text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                            {company.customLogoUrl
+                              ? "Logo personalizado configurado en formato WebP."
+                              : "Cargue su propia imagen corporativa (se convertirá a WebP)."}
+                          </span>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Subsección de Carga y Validación para Logo Personalizado */}
+                  {company.reportLogoType === "custom" && (
+                    <div className="bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800  space-y-3.5">
+                      {/* Ficha técnica y especificaciones obligatorias */}
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/30 text-xs">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 text-blue-900 dark:text-blue-300 font-semibold text-[11px] uppercase tracking-wider">
+                            <ShieldCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                            <span>Especificaciones Técnicas Requeridas</span>
+                          </div>
+                          <ul className="text-[11px] text-neutral-800 dark:text-neutral-300/80 space-y-0.5 list-disc list-inside">
+                            <li>
+                              Formatos admitidos:{" "}
+                              <strong>PNG, JPG, JPEG, WebP</strong>
+                            </li>
+                            <li>
+                              Tamaño máximo permitido: <strong>2 MB</strong>
+                            </li>
+                            <li>
+                              Resolución recomendada:{" "}
+                              <strong>
+                                Horizontal o 1:1 (hasta 800 × 600 px)
+                              </strong>
+                            </li>
+                            <li>
+                              Compresión automática:{" "}
+                              <strong>
+                                Toda imagen subida se convertirá estrictamente a
+                                formato WebP optimizado
+                              </strong>
+                            </li>
+                          </ul>
+                        </div>
+                      </div>
+
+                      {/* File input oculto */}
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        accept="image/png,image/jpeg,image/jpg,image/webp"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleLogoUpload(file);
+                          e.target.value = "";
+                        }}
+                      />
+
+                      {/* Vista previa o Dropzone */}
+                      {company.customLogoUrl ? (
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800">
+                          <div className="flex items-center gap-4">
+                            <div className="w-24 h-16 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 p-2 flex items-center justify-center shrink-0">
+                              <img
+                                src={company.customLogoUrl}
+                                alt="Logo Personalizado"
+                                className="max-h-full max-w-full object-contain"
+                              />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                                  Logo Corporativo en WebP Activo
+                                </span>
+                                <Badge variant="success">WebP Comprimido</Badge>
+                              </div>
+                              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
+                                {logoStats
+                                  ? `Original: ${logoStats.originalSize} → Comprimido: ${logoStats.compressedSize} (${logoStats.dimensions})`
+                                  : "Optimizado para renderizado ultra nítido y liviano en PDFs."}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={isProcessingLogo}
+                              onClick={() => fileInputRef.current?.click()}
+                              className="flex items-center gap-1.5"
+                            >
+                              <RefreshCw
+                                className={`w-3.5 h-3.5 ${isProcessingLogo ? "animate-spin" : ""}`}
+                              />
+                              <span>Reemplazar</span>
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setCompany({
+                                  ...company,
+                                  customLogoUrl: null,
+                                  reportLogoType: "default",
+                                });
+                                setLogoStats(null);
+                                toast.info(
+                                  "Logo personalizado removido. Se usará el logo predeterminado.",
+                                );
+                              }}
+                              className="flex items-center gap-1.5 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-950/20"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Restablecer</span>
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          onClick={() => fileInputRef.current?.click()}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            const file = e.dataTransfer.files?.[0];
+                            if (file) handleLogoUpload(file);
+                          }}
+                          className="border-2 border-dashed border-neutral-300 dark:border-neutral-700 hover:border-sky-500 dark:hover:border-sky-400 rounded-lg p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors bg-white/60 dark:bg-neutral-900/60"
+                        >
+                          <div className="p-3 bg-sky-50 dark:bg-sky-950/40 rounded-full text-sky-600 dark:text-sky-400">
+                            <UploadCloud className="w-6 h-6" />
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">
+                              {isProcessingLogo
+                                ? "Procesando y convirtiendo imagen a WebP..."
+                                : "Haga clic aquí o arrastre su imagen"}
+                            </p>
+                            <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                              PNG, JPG o WebP hasta 2 MB. Compresión y
+                              conversión inmediata a WebP.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end pt-2">
@@ -1089,14 +1604,54 @@ export const CompanyConfigView: React.FC = () => {
                   multi-sucursal
                 </p>
               </div>
-              <Button
-                variant="primary"
-                onClick={handleOpenCreateBranch}
-                className="flex items-center gap-2 text-xs"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Nueva Sucursal</span>
-              </Button>
+              <div className="flex items-center gap-2">
+                {license && (
+                  <span
+                    className={`text-xs px-2.5 py-1 rounded-lg border font-semibold ${
+                      license.maxBranches > 0 &&
+                      branches.filter((b) => b.isActive !== false).length >=
+                        license.maxBranches
+                        ? "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800"
+                        : "bg-neutral-50 text-neutral-600 border-neutral-200 dark:bg-neutral-850 dark:text-neutral-400 dark:border-neutral-700"
+                    }`}
+                  >
+                    Cupo: {branches.filter((b) => b.isActive !== false).length}{" "}
+                    /{" "}
+                    {license.maxBranches <= 0
+                      ? "∞ Ilimitadas"
+                      : license.maxBranches}
+                  </span>
+                )}
+                <Button
+                  variant="outline"
+                  onClick={handleOpenCreateBranch}
+                  disabled={Boolean(
+                    license &&
+                    license.maxBranches > 0 &&
+                    branches.filter((b) => b.isActive !== false).length >=
+                      license.maxBranches,
+                  )}
+                  className={`flex items-center gap-2 border-[#007BFF] dark:border-[#3D91FF] rounded-lg text-xs ${
+                    license &&
+                    license.maxBranches > 0 &&
+                    branches.filter((b) => b.isActive !== false).length >=
+                      license.maxBranches
+                      ? "opacity-50 cursor-not-allowed bg-neutral-100 dark:bg-neutral-800"
+                      : "bg-blue-50 dark:bg-blue-600/30 hover:bg-border-blue-600 dark:hover:border-blue-500"
+                  }`}
+                  title={
+                    license &&
+                    license.maxBranches > 0 &&
+                    branches.filter((b) => b.isActive !== false).length >=
+                      license.maxBranches
+                      ? `Límite de ${license.maxBranches} sucursales alcanzado por su licencia`
+                      : "Nueva Sucursal"
+                  }
+                >
+                  <Plus className="w-4 h-4 text-blue-600 dark:blue-500" />
+                  <span>Nueva Sucursal</span>
+                </Button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1177,11 +1732,12 @@ export const CompanyConfigView: React.FC = () => {
                 </p>
               </div>
               <Button
-                variant="primary"
+                variant="outline"
                 onClick={handleOpenCreateWarehouse}
-                className="flex items-center gap-2 text-xs"
+                className="flex items-center gap-2 border-[#007BFF] dark:border-[#3D91FF] rounded-lg bg-blue-50 dark:bg-blue-600/30 hover:bg-border-blue-600 dark:hover:border-blue-500 text-xs"
+                title="Nuevo Depósito"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-4 h-4 text-blue-600 dark:blue-500" />
                 <span>Nuevo Depósito</span>
               </Button>
             </div>
@@ -1288,11 +1844,12 @@ export const CompanyConfigView: React.FC = () => {
               </div>
               <Button
                 type="button"
-                variant="primary"
+                variant="outline"
                 onClick={handleOpenCreateRegister}
-                className="flex items-center gap-2 text-xs"
+                className="flex items-center gap-2 border-[#007BFF] dark:border-[#3D91FF] rounded-lg bg-blue-50 dark:bg-blue-600/30 hover:bg-border-blue-600 dark:hover:border-blue-500 text-xs"
+                title="Nueva Caja Registradora"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-4 h-4 text-blue-600 dark:blue-500" />
                 <span>Nueva Caja Registradora</span>
               </Button>
             </div>
@@ -1398,17 +1955,36 @@ export const CompanyConfigView: React.FC = () => {
                                 </span>
                               </div>
                             ) : (
-                              <div className="flex flex-col gap-0.5">
-                                <Badge
-                                  variant="neutral"
-                                  className="text-[10px] w-fit flex items-center gap-1"
-                                >
-                                  <Printer className="w-3 h-3" />
-                                  No Fiscal
-                                </Badge>
-                                <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
-                                  Pregunta impresión de ticket de venta
-                                </span>
+                              <div className="flex flex-col gap-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <Badge
+                                    variant="neutral"
+                                    className="text-[10px] w-fit flex items-center gap-1"
+                                  >
+                                    <Printer className="w-3 h-3" />
+                                    {r.ticketPrinterType === "thermal_58mm"
+                                      ? "Térmica 58mm"
+                                      : r.ticketPrinterType === "generic_esc_pos"
+                                      ? "ESC/POS Genérica"
+                                      : r.ticketPrinterType === "windows_spooler"
+                                      ? "Spooler Windows"
+                                      : r.ticketPrinterType === "pdf_virtual"
+                                      ? "PDF Virtual"
+                                      : "Térmica 80mm"}
+                                  </Badge>
+                                  <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${
+                                    r.ticketPrintMode === "direct"
+                                      ? "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800"
+                                      : "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800"
+                                  }`}>
+                                    {r.ticketPrintMode === "direct" ? "Impresión Directa" : "Preguntar Ticket"}
+                                  </span>
+                                </div>
+                                {r.ticketPrinterName && (
+                                  <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-mono">
+                                    Dispositivo: {r.ticketPrinterName}
+                                  </span>
+                                )}
                               </div>
                             )}
                           </td>
@@ -2422,13 +2998,120 @@ export const CompanyConfigView: React.FC = () => {
               )}
 
               {!registerForm.isFiscal && (
-                <div className="pt-2 border-t border-neutral-200 dark:border-neutral-700">
-                  <p className="text-[11px] text-neutral-600 dark:text-neutral-300 bg-sky-50/50 dark:bg-sky-950/30 p-2 rounded-lg border border-sky-100 dark:border-sky-800">
-                    <strong>Comportamiento del POS:</strong> Al finalizar cada
-                    venta en esta caja, la pantalla preguntará al cajero si
-                    desea imprimir un ticket de venta para el cliente o
-                    continuar directamente con la siguiente transacción.
-                  </p>
+                <div className="pt-3 border-t border-neutral-200 dark:border-neutral-700 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Printer className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                    <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                      Configuración de Impresora de Ticket (Modo No Fiscal)
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                        Tipo de Impresora de Ticket *
+                      </label>
+                      <select
+                        value={registerForm.ticketPrinterType}
+                        onChange={(e) =>
+                          setRegisterForm({
+                            ...registerForm,
+                            ticketPrinterType: e.target.value as any,
+                          })
+                        }
+                        className="w-full h-9 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-xs text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
+                      >
+                        <option value="thermal_80mm">Térmica 80mm (Estándar Punto de Venta)</option>
+                        <option value="thermal_58mm">Térmica 58mm (Compacta / Mini)</option>
+                        <option value="generic_esc_pos">Impresora Genérica ESC/POS</option>
+                        <option value="windows_spooler">Controlador Windows / Sistema</option>
+                        <option value="pdf_virtual">Documento Virtual / PDF</option>
+                      </select>
+                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">
+                        Formato y corte de papel para tickets y comprobantes.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                        Nombre de Impresora / Puerto (Opcional)
+                      </label>
+                      <Input
+                        placeholder="ej: EPSON TM-T20III, POS-80, COM1..."
+                        value={registerForm.ticketPrinterName}
+                        onChange={(e) =>
+                          setRegisterForm({
+                            ...registerForm,
+                            ticketPrinterName: e.target.value,
+                          })
+                        }
+                      />
+                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">
+                        Nombre en Windows, puerto serie o IP en red local.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">
+                      Modo de Impresión al Facturar en POS *
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <label
+                        className={`p-2.5 rounded-lg border cursor-pointer flex items-start gap-2.5 transition-colors ${
+                          registerForm.ticketPrintMode === "prompt"
+                            ? "border-sky-500 bg-sky-50/50 dark:bg-sky-950/40 text-neutral-900 dark:text-neutral-100 ring-1 ring-sky-500"
+                            : "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-750"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="ticketPrintModeRadio"
+                          checked={registerForm.ticketPrintMode === "prompt"}
+                          onChange={() =>
+                            setRegisterForm({
+                              ...registerForm,
+                              ticketPrintMode: "prompt",
+                            })
+                          }
+                          className="w-4 h-4 mt-0.5 text-sky-600 focus:ring-sky-500"
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-xs font-semibold">Preguntar antes de imprimir</span>
+                          <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                            Muestra confirmación al cajero para elegir si imprime o no el ticket.
+                          </span>
+                        </div>
+                      </label>
+
+                      <label
+                        className={`p-2.5 rounded-lg border cursor-pointer flex items-start gap-2.5 transition-colors ${
+                          registerForm.ticketPrintMode === "direct"
+                            ? "border-sky-500 bg-sky-50/50 dark:bg-sky-950/40 text-neutral-900 dark:text-neutral-100 ring-1 ring-sky-500"
+                            : "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-750"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="ticketPrintModeRadio"
+                          checked={registerForm.ticketPrintMode === "direct"}
+                          onChange={() =>
+                            setRegisterForm({
+                              ...registerForm,
+                              ticketPrintMode: "direct",
+                            })
+                          }
+                          className="w-4 h-4 mt-0.5 text-sky-600 focus:ring-sky-500"
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-xs font-semibold">Imprimir directamente</span>
+                          <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                            Envía de inmediato a la impresora configurada sin preguntar al cajero.
+                          </span>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -2474,7 +3157,7 @@ export const CompanyConfigView: React.FC = () => {
 
                 <div>
                   <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-                    Cuenta Predeterminada USD (Divisas Custodia)
+                    Cuenta Predeterminada USD
                   </label>
                   <select
                     value={registerForm.defaultBankAccountIdUSD}
@@ -2585,7 +3268,8 @@ export const CompanyConfigView: React.FC = () => {
                     Acepta comandas y toma de pedidos de Restaurante
                   </span>
                   <span className="text-[11px] text-neutral-500 dark:text-neutral-400 block mt-0.5">
-                    Permite que los mesoneros y mozos seleccionen esta caja y le envíen comandas para su facturación.
+                    Permite que los mesoneros y mozos seleccionen esta caja y le
+                    envíen comandas para su facturación.
                   </span>
                 </label>
               </div>

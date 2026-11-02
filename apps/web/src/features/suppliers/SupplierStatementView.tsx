@@ -145,64 +145,64 @@ export const SupplierStatementView: React.FC = () => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-4 border-neutral-200">
+        <Card className="p-4 border-l-4 border-l-[#EF4444] dark:border-l-[#F87171] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
+              <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
                 Deuda Total Pendiente
               </p>
-              <p className="text-2xl font-bold text-red-600 mt-1">
+              <p className="text-2xl font-bold font-mono text-[#EF4444] dark:text-[#F87171] mt-1">
                 {formatMoneyUSD(supplier?.currentBalance || 0)}
               </p>
             </div>
-            <div className="p-2 bg-red-50 rounded-lg text-red-600">
-              <AlertTriangle className="w-5 h-5" />
+            <div className="w-8 h-8 rounded-lg bg-[#EF4444]/10 text-[#EF4444] dark:bg-[#F87171]/15 dark:text-[#F87171] flex items-center justify-center">
+              <AlertTriangle className="w-4 h-4" />
             </div>
           </div>
         </Card>
 
-        <Card className="p-4 border-neutral-200">
+        <Card className="p-4 border-l-4 border-l-[#007BFF] dark:border-l-[#3D91FF] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
+              <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
                 Límite de Crédito Otorgado
               </p>
-              <p className="text-2xl font-bold text-neutral-900 mt-1">
+              <p className="text-2xl font-bold font-mono text-[#007BFF] dark:text-[#3D91FF] mt-1">
                 {formatMoneyUSD(supplier?.creditLimit || 0)}
               </p>
             </div>
-            <div className="p-2 bg-neutral-100 rounded-lg text-neutral-600">
-              <CreditCard className="w-5 h-5" />
+            <div className="w-8 h-8 rounded-lg bg-[#007BFF]/10 text-[#007BFF] dark:bg-[#3D91FF]/15 dark:text-[#3D91FF] flex items-center justify-center">
+              <CreditCard className="w-4 h-4" />
             </div>
           </div>
         </Card>
 
-        <Card className="p-4 border-neutral-200">
+        <Card className="p-4 border-l-4 border-l-neutral-400 dark:border-l-neutral-600 bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
+              <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
                 Plazo de Pago Acordado
               </p>
-              <p className="text-2xl font-bold text-neutral-900 mt-1">
+              <p className="text-2xl font-bold font-mono text-[#333333] dark:text-[#E0E0E0] mt-1">
                 {supplier?.paymentTermsDays || 0} días
               </p>
             </div>
-            <div className="p-2 bg-neutral-100 rounded-lg text-neutral-600">
-              <Calendar className="w-5 h-5" />
+            <div className="w-8 h-8 rounded-lg bg-neutral-500/10 text-neutral-600 dark:bg-neutral-500/20 dark:text-neutral-300 flex items-center justify-center">
+              <Calendar className="w-4 h-4" />
             </div>
           </div>
         </Card>
 
-        <Card className="p-4 border-neutral-200">
+        <Card className="p-4 border-l-4 border-l-[#17A2B8] dark:border-l-[#38C9DD] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
+              <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
                 Facturas Registradas
               </p>
-              <p className="text-2xl font-bold text-sky-700 mt-1">{invoices.length}</p>
+              <p className="text-2xl font-bold font-mono text-[#17A2B8] dark:text-[#38C9DD] mt-1">{invoices.length}</p>
             </div>
-            <div className="p-2 bg-sky-50 rounded-lg text-sky-600">
-              <FileText className="w-5 h-5" />
+            <div className="w-8 h-8 rounded-lg bg-[#17A2B8]/10 text-[#17A2B8] dark:bg-[#38C9DD]/15 dark:text-[#38C9DD] flex items-center justify-center">
+              <FileText className="w-4 h-4" />
             </div>
           </div>
         </Card>

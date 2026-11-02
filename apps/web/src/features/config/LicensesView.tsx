@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import {
+  AlertTriangle,
   Key,
   Cpu,
   CheckCircle2,
@@ -38,6 +39,8 @@ const AVAILABLE_MODULES: Array<{ key: string; label: string }> = [
   { key: 'treasury', label: 'Tesorería & Bancos' },
   { key: 'taxes', label: 'Tributos SENIAT' },
   { key: 'reports', label: 'Reportes & Exportación' },
+  { key: 'restaurant', label: 'Restaurante & KDS' },
+  { key: 'accounting', label: 'Contabilidad Senior (NIIF / VEN-NIF)' },
   { key: 'config', label: 'Configuración Central' },
   { key: 'audit', label: 'Auditoría Integral' },
 ];
@@ -72,7 +75,9 @@ export const LicensesView: React.FC = () => {
     type: 'temporal' as 'trial' | 'temporal' | 'perpetua',
     durationMonths: 12,
     maxUsers: 25,
+    isUnlimitedUsers: false,
     maxBranches: 5,
+    isUnlimitedBranches: false,
     hasSupport: true,
     modulesAllowed: AVAILABLE_MODULES.map((m) => m.key),
     applyNow: true,
@@ -127,6 +132,10 @@ export const LicensesView: React.FC = () => {
   };
 
   const handleGenerateKey = async () => {
+    if (!isSuperAdmin) {
+      toast.error('Solo el Super Administrador puede generar claves de licencia');
+      return;
+    }
     if (!license?.hardwareFingerprint) {
       toast.error('Identificador de hardware no disponible');
       return;
@@ -210,6 +219,10 @@ export const LicensesView: React.FC = () => {
   // Manejador de Emisión de Licencia (Super Administrador)
   const handleIssueLicense = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isSuperAdmin) {
+      toast.error('Solo el Super Administrador tiene autorización para emitir licencias');
+      return;
+    }
     if (!issueForm.companyName.trim()) {
       toast.error('Debe indicar la razón social o nombre de la empresa');
       return;
@@ -245,8 +258,8 @@ export const LicensesView: React.FC = () => {
           hardwareFingerprint: issueForm.hardwareFingerprint.trim(),
           type: issueForm.type,
           durationMonths: issueForm.type === 'temporal' ? Number(issueForm.durationMonths) : undefined,
-          maxUsers: Number(issueForm.maxUsers),
-          maxBranches: Number(issueForm.maxBranches),
+          maxUsers: issueForm.isUnlimitedUsers ? 0 : Number(issueForm.maxUsers),
+          maxBranches: issueForm.isUnlimitedBranches ? 0 : Number(issueForm.maxBranches),
           hasSupport: Boolean(issueForm.hasSupport),
           modulesAllowed: issueForm.modulesAllowed,
           applyNow: Boolean(issueForm.applyNow),
@@ -300,6 +313,28 @@ export const LicensesView: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Banner de alerta de sistema bloqueado */}
+      {(!license?.isActive || license?.status !== 'ACTIVE') && (
+        <div className="p-4 bg-red-50 dark:bg-red-950/40 border-2 border-red-500 dark:border-red-600 rounded-lg flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <h3 className="text-sm font-bold text-red-800 dark:text-red-300">
+              Sistema Restringido: Licencia Bloqueada o Inactiva (Estado: {license?.status || 'SIN_LICENCIA'})
+            </h3>
+            <p className="text-xs text-red-700 dark:text-red-400 mt-1">
+              Las operaciones comerciales y el acceso a los módulos se encuentran temporalmente suspendidos. Para restaurar el acceso al sistema, active una clave o paquete de licencia válido a continuación.
+            </p>
+          </div>
+          <Button
+            variant="primary"
+            onClick={() => setShowActivateModal(true)}
+            className="shrink-0 text-xs bg-red-600 hover:bg-red-700 text-white"
+          >
+            Activar Licencia Ahora
+          </Button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -314,7 +349,8 @@ export const LicensesView: React.FC = () => {
             )}
           </div>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-            Validación criptográfica, control multi-sucursal, vigencia y emisión autorizada
+            Validación criptográfica, control multi-sucursal, vigencia y emisión
+            autorizada
           </p>
         </div>
 
@@ -364,37 +400,42 @@ export const LicensesView: React.FC = () => {
                   </span>
                   <Badge
                     variant={
-                      license?.status === 'ACTIVE'
-                        ? 'success'
-                        : license?.status === 'EXPIRED'
-                        ? 'danger'
-                        : license?.status === 'INVALID_HARDWARE'
-                        ? 'warning'
-                        : 'neutral'
+                      license?.status === "ACTIVE"
+                        ? "success"
+                        : license?.status === "EXPIRED"
+                          ? "danger"
+                          : license?.status === "INVALID_HARDWARE"
+                            ? "warning"
+                            : "neutral"
                     }
                   >
-                    {license?.status === 'ACTIVE'
-                      ? 'Licencia Activa'
-                      : license?.status === 'EXPIRED'
-                      ? 'Expirada'
-                      : license?.status === 'INVALID_HARDWARE'
-                      ? 'Hardware No Coincide'
-                      : 'Sin Verificar'}
+                    {license?.status === "ACTIVE"
+                      ? "Licencia Activa"
+                      : license?.status === "EXPIRED"
+                        ? "Expirada"
+                        : license?.status === "INVALID_HARDWARE"
+                          ? "Hardware No Coincide"
+                          : "Sin Verificar"}
                   </Badge>
                 </div>
 
                 <div className="mt-3">
                   <p className="text-base font-bold text-neutral-900 dark:text-neutral-100 truncate">
-                    {license?.companyName || 'Empresa Registrada'}
+                    {license?.companyName || "Empresa Registrada"}
                   </p>
                   <p className="text-xs text-neutral-500 dark:text-neutral-400 font-mono mt-0.5">
-                    {license?.companyRif ? `RIF: ${license.companyRif}` : 'RIF no especificado'}
+                    {license?.companyRif
+                      ? `RIF: ${license.companyRif}`
+                      : "RIF no especificado"}
                   </p>
                   <p className="text-xs text-neutral-600 dark:text-neutral-300 capitalize mt-2 font-medium">
-                    Edición: <span className="font-bold text-neutral-800 dark:text-neutral-100">{license?.type || 'Enterprise'}</span>
+                    Edición:{" "}
+                    <span className="font-bold text-neutral-800 dark:text-neutral-100">
+                      {license?.type || "Enterprise"}
+                    </span>
                   </p>
                   <p className="text-[11px] text-neutral-500 dark:text-neutral-400 font-mono mt-0.5 truncate select-all">
-                    {license?.licenseKey || 'Sin clave activa'}
+                    {license?.licenseKey || "Sin clave activa"}
                   </p>
                 </div>
               </div>
@@ -402,8 +443,8 @@ export const LicensesView: React.FC = () => {
               <div className="mt-4 pt-3 border-t border-neutral-200 dark:border-neutral-800 flex justify-between items-center text-xs text-neutral-600 dark:text-neutral-400">
                 <span>Vigencia:</span>
                 <span className="font-semibold text-neutral-800 dark:text-neutral-200">
-                  {license?.type === 'perpetua'
-                    ? 'Perpetua (Sin caducidad)'
+                  {license?.type === "perpetua"
+                    ? "Perpetua (Sin caducidad)"
                     : `${license?.daysRemaining ?? 365} días restantes`}
                 </span>
               </div>
@@ -420,9 +461,12 @@ export const LicensesView: React.FC = () => {
                 </div>
 
                 <div className="mt-3">
-                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mb-1">Identificador criptográfico de este equipo:</p>
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mb-1">
+                    Identificador criptográfico de este equipo:
+                  </p>
                   <p className="text-xs font-mono font-bold text-neutral-900 dark:text-neutral-100 bg-neutral-100 dark:bg-neutral-800 p-2.5 rounded-lg border border-neutral-200 dark:border-neutral-700 break-all select-all">
-                    {license?.hardwareFingerprint || (loading ? 'Calculando...' : 'No detectado')}
+                    {license?.hardwareFingerprint ||
+                      (loading ? "Calculando..." : "No detectado")}
                   </p>
                 </div>
               </div>
@@ -456,30 +500,49 @@ export const LicensesView: React.FC = () => {
                       <Users className="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500" />
                       <span>Usuarios concurrentes:</span>
                     </span>
-                    <span className="font-bold text-neutral-900 dark:text-neutral-100">{license?.maxUsers || 50} usuarios</span>
+                    <span className="font-bold text-neutral-900 dark:text-neutral-100">
+                      {license?.maxUsers !== undefined && license.maxUsers <= 0 ? (
+                        <span className="text-emerald-600 dark:text-emerald-400 font-bold">∞ Ilimitados</span>
+                      ) : (
+                        `${license?.maxUsers || 50} usuarios`
+                      )}
+                    </span>
                   </div>
                   <div className="flex justify-between text-xs">
                     <span className="text-neutral-600 dark:text-neutral-400 flex items-center gap-1.5">
                       <GitBranch className="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500" />
                       <span>Sucursales habilitadas:</span>
                     </span>
-                    <span className="font-bold text-neutral-900 dark:text-neutral-100">{license?.maxBranches || 10} sucursales</span>
+                    <span className="font-bold text-neutral-900 dark:text-neutral-100">
+                      {license?.maxBranches !== undefined && license.maxBranches <= 0 ? (
+                        <span className="text-emerald-600 dark:text-emerald-400 font-bold">∞ Ilimitadas</span>
+                      ) : (
+                        `${license?.maxBranches || 10} sucursales`
+                      )}
+                    </span>
                   </div>
                   <div className="flex justify-between text-xs">
-                    <span className="text-neutral-600 dark:text-neutral-400">Soporte y Actualizaciones:</span>
+                    <span className="text-neutral-600 dark:text-neutral-400">
+                      Soporte y Actualizaciones:
+                    </span>
                     <span
                       className={`font-bold ${
-                        license?.hasSupport !== false ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-500 dark:text-neutral-400'
+                        license?.hasSupport !== false
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : "text-neutral-500 dark:text-neutral-400"
                       }`}
                     >
-                      {license?.hasSupport !== false ? 'Garantizado (Incluido)' : 'No incluido'}
+                      {license?.hasSupport !== false
+                        ? "Garantizado (Incluido)"
+                        : "No incluido"}
                     </span>
                   </div>
                 </div>
               </div>
 
               <div className="mt-4 pt-3 border-t border-neutral-200 dark:border-neutral-800 text-[11px] text-neutral-500 dark:text-neutral-400">
-                Restricciones validadas en tiempo real por el núcleo de seguridad.
+                Restricciones validadas en tiempo real por el núcleo de
+                seguridad.
               </div>
             </div>
           </div>
@@ -494,7 +557,8 @@ export const LicensesView: React.FC = () => {
                 </h2>
               </div>
               <span className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">
-                {license?.modulesAllowed?.length || 0} de {AVAILABLE_MODULES.length} módulos activos
+                {license?.modulesAllowed?.length || 0} de{" "}
+                {AVAILABLE_MODULES.length} módulos activos
               </span>
             </div>
 
@@ -506,16 +570,17 @@ export const LicensesView: React.FC = () => {
                     key={m.key}
                     className={`p-3 rounded-lg border text-xs flex items-center justify-between ${
                       isAllowed
-                        ? 'bg-neutral-50 dark:bg-neutral-850 border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 shrink-0 bg-white dark:bg-neutral-900'
-                        
-                        : 'bg-neutral-100/50 dark:bg-neutral-800/40 border-neutral-200 dark:border-neutral-800 text-neutral-400 dark:text-neutral-500'
+                        ? "bg-neutral-50 dark:bg-neutral-850 border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 shrink-0 bg-white dark:bg-neutral-900"
+                        : "bg-neutral-100/50 dark:bg-neutral-800/40 border-neutral-200 dark:border-neutral-800 text-neutral-400 dark:text-neutral-500"
                     }`}
                   >
                     <span className="font-medium">{m.label}</span>
                     {isAllowed ? (
                       <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                     ) : (
-                      <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-bold uppercase">No</span>
+                      <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-bold uppercase">
+                        No
+                      </span>
                     )}
                   </div>
                 );
@@ -548,7 +613,7 @@ export const LicensesView: React.FC = () => {
               </button>
             </div>
             <Input
-              value={license?.hardwareFingerprint || ''}
+              value={license?.hardwareFingerprint || ""}
               readOnly
               placeholder="Detectando identificador..."
               className="bg-neutral-100 dark:bg-neutral-800 font-mono text-neutral-700 dark:text-neutral-200 font-bold select-all"
@@ -563,15 +628,22 @@ export const LicensesView: React.FC = () => {
               <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300">
                 Clave de Licencia o Paquete Firmado *
               </label>
-              <button
-                type="button"
-                onClick={handleGenerateKey}
-                disabled={isGeneratingKey || !license?.hardwareFingerprint}
-                className="text-[11px] text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 font-semibold flex items-center gap-1 disabled:opacity-50 cursor-pointer"
-              >
-                <Key className="w-3 h-3" />
-                <span>{isGeneratingKey ? 'Generando...' : 'Generar Clave para este Hardware'}</span>
-              </button>
+              {isSuperAdmin && (
+                <button
+                  type="button"
+                  onClick={handleGenerateKey}
+                  disabled={isGeneratingKey || !license?.hardwareFingerprint}
+                  className="text-[11px] text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 font-semibold flex items-center gap-1 disabled:opacity-50 cursor-pointer"
+                  title="Generar clave (exclusivo Super Administrador)"
+                >
+                  <Key className="w-3 h-3" />
+                  <span>
+                    {isGeneratingKey
+                      ? "Generando..."
+                      : "Generar Clave para este Hardware"}
+                  </span>
+                </button>
+              )}
             </div>
             <Input
               placeholder="ERO-ENTERPRISE-XXXX-XXXX-XXXX-XX o ERO-PKG..."
@@ -581,14 +653,31 @@ export const LicensesView: React.FC = () => {
               className="font-mono text-xs"
             />
             <div className="mt-2 p-2.5 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg text-[11px] text-neutral-600 dark:text-neutral-300 space-y-1">
-              <p className="font-semibold text-neutral-800 dark:text-neutral-200">Formatos aceptados:</p>
-              <p>• Clave de fábrica estándar: <code className="font-mono text-sky-700 dark:text-sky-400 font-bold">ERO-ENTERPRISE-2026-X992-K821-V44</code></p>
-              <p>• Paquetes criptográficos emitidos por el Super Administrador (<code className="font-mono text-neutral-700 dark:text-neutral-300">ERO-PKG...</code>)</p>
+              <p className="font-semibold text-neutral-800 dark:text-neutral-200">
+                Formatos aceptados:
+              </p>
+              <p>
+                • Clave de fábrica estándar:{" "}
+                <code className="font-mono text-sky-700 dark:text-sky-400 font-bold">
+                  ERO-ENTERPRISE-2026-X992-K821-V44
+                </code>
+              </p>
+              <p>
+                • Paquetes criptográficos emitidos por el Super Administrador (
+                <code className="font-mono text-neutral-700 dark:text-neutral-300">
+                  ERO-PKG...
+                </code>
+                )
+              </p>
             </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-3 border-t border-neutral-200 dark:border-neutral-800">
-            <Button type="button" variant="outline" onClick={() => setShowActivateModal(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowActivateModal(false)}
+            >
               Cancelar
             </Button>
             <Button type="submit" variant="primary">
@@ -600,7 +689,7 @@ export const LicensesView: React.FC = () => {
 
       {/* Modal de Emisión de Licencia (Exclusivo Super Administrador) */}
       <Modal
-        isOpen={showIssueModal}
+        isOpen={showIssueModal && isSuperAdmin}
         onClose={() => setShowIssueModal(false)}
         title="Emisión de Licencia Empresarial (Super Administrador)"
       >
@@ -612,7 +701,8 @@ export const LicensesView: React.FC = () => {
                 <span>Licencia Emitida Exitosamente</span>
               </div>
               <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-1">
-                La licencia ha sido firmada criptográficamente con los parámetros establecidos.
+                La licencia ha sido firmada criptográficamente con los
+                parámetros establecidos.
               </p>
             </div>
 
@@ -632,7 +722,7 @@ export const LicensesView: React.FC = () => {
                     variant="outline"
                     onClick={() => {
                       navigator.clipboard.writeText(issueResult.licenseKey);
-                      toast.success('Clave copiada al portapapeles');
+                      toast.success("Clave copiada al portapapeles");
                     }}
                     className="shrink-0"
                   >
@@ -643,7 +733,8 @@ export const LicensesView: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
-                  Paquete Firmado Criptográfico (Para activación offline o remota)
+                  Paquete Firmado Criptográfico (Para activación offline o
+                  remota)
                 </label>
                 <div className="flex items-center gap-2">
                   <textarea
@@ -657,7 +748,7 @@ export const LicensesView: React.FC = () => {
                     variant="outline"
                     onClick={() => {
                       navigator.clipboard.writeText(issueResult.licensePackage);
-                      toast.success('Paquete copiado al portapapeles');
+                      toast.success("Paquete copiado al portapapeles");
                     }}
                     className="shrink-0"
                   >
@@ -667,45 +758,69 @@ export const LicensesView: React.FC = () => {
               </div>
 
               {/* Resumen de la Licencia Generada */}
-              <div className="p-3 bg-neutral-50 dark:bg-neutral-850 border border-neutral-200 dark:border-neutral-700 rounded-lg text-xs space-y-1.5 text-neutral-700 dark:text-neutral-300">
+              <div className="p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-lg text-xs space-y-1.5 text-neutral-700 dark:text-neutral-300">
                 <div className="flex justify-between">
-                  <span className="text-neutral-500 dark:text-neutral-400">Empresa:</span>
-                  <span className="font-bold text-neutral-900 dark:text-neutral-100">{issueResult.licenseInfo.companyName}</span>
+                  <span className="text-neutral-500 dark:text-neutral-400">
+                    Empresa:
+                  </span>
+                  <span className="font-bold text-neutral-900 dark:text-neutral-100">
+                    {issueResult.licenseInfo.companyName}
+                  </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-neutral-500 dark:text-neutral-400">RIF / Cédula:</span>
-                  <span className="font-bold text-neutral-900 dark:text-neutral-100">{issueResult.licenseInfo.companyRif}</span>
+                  <span className="text-neutral-500 dark:text-neutral-400">
+                    RIF / Cédula:
+                  </span>
+                  <span className="font-bold text-neutral-900 dark:text-neutral-100">
+                    {issueResult.licenseInfo.companyRif}
+                  </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-neutral-500 dark:text-neutral-400">Hardware Fingerprint:</span>
-                  <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100">{issueResult.licenseInfo.hardwareFingerprint}</span>
+                  <span className="text-neutral-500 dark:text-neutral-400">
+                    Hardware Fingerprint:
+                  </span>
+                  <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100">
+                    {issueResult.licenseInfo.hardwareFingerprint}
+                  </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-neutral-500 dark:text-neutral-400">Tipo & Vigencia:</span>
+                  <span className="text-neutral-500 dark:text-neutral-400">
+                    Tipo & Vigencia:
+                  </span>
                   <span className="font-semibold text-neutral-900 dark:text-neutral-100 capitalize">
-                    {issueResult.licenseInfo.type === 'perpetua'
-                      ? 'Perpetua (Sin caducidad)'
+                    {issueResult.licenseInfo.type === "perpetua"
+                      ? "Perpetua (Sin caducidad)"
                       : issueResult.licenseInfo.expiresAt
-                      ? `Hasta ${issueResult.licenseInfo.expiresAt.substring(0, 10)}`
-                      : 'Temporal'}
+                        ? `Hasta ${issueResult.licenseInfo.expiresAt.substring(0, 10)}`
+                        : "Temporal"}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-neutral-500 dark:text-neutral-400">Capacidad:</span>
+                  <span className="text-neutral-500 dark:text-neutral-400">
+                    Capacidad:
+                  </span>
                   <span className="font-semibold text-neutral-900 dark:text-neutral-100">
-                    {issueResult.licenseInfo.maxUsers} usuarios / {issueResult.licenseInfo.maxBranches} sucursales
+                    {issueResult.licenseInfo.maxUsers <= 0 ? "∞ Ilimitados" : issueResult.licenseInfo.maxUsers} usuarios /{" "}
+                    {issueResult.licenseInfo.maxBranches <= 0 ? "∞ Ilimitadas" : issueResult.licenseInfo.maxBranches} sucursales
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-neutral-500 dark:text-neutral-400">Soporte y Actualizaciones:</span>
+                  <span className="text-neutral-500 dark:text-neutral-400">
+                    Soporte y Actualizaciones:
+                  </span>
                   <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                    {issueResult.licenseInfo.hasSupport ? 'Garantizado' : 'No incluido'}
+                    {issueResult.licenseInfo.hasSupport
+                      ? "Garantizado"
+                      : "No incluido"}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-neutral-500 dark:text-neutral-400">Módulos:</span>
+                  <span className="text-neutral-500 dark:text-neutral-400">
+                    Módulos:
+                  </span>
                   <span className="font-semibold text-neutral-900 dark:text-neutral-100">
-                    {issueResult.licenseInfo.modulesAllowed.length} módulos habilitados
+                    {issueResult.licenseInfo.modulesAllowed.length} módulos
+                    habilitados
                   </span>
                 </div>
               </div>
@@ -745,7 +860,12 @@ export const LicensesView: React.FC = () => {
                   <Input
                     placeholder="Ej. CORPORACION ERO C.A."
                     value={issueForm.companyName}
-                    onChange={(e) => setIssueForm({ ...issueForm, companyName: e.target.value })}
+                    onChange={(e) =>
+                      setIssueForm({
+                        ...issueForm,
+                        companyName: e.target.value,
+                      })
+                    }
                     required
                   />
                 </div>
@@ -756,7 +876,9 @@ export const LicensesView: React.FC = () => {
                   <Input
                     placeholder="Ej. J-12345678-9 o V-12345678"
                     value={issueForm.companyRif}
-                    onChange={(e) => setIssueForm({ ...issueForm, companyRif: e.target.value })}
+                    onChange={(e) =>
+                      setIssueForm({ ...issueForm, companyRif: e.target.value })
+                    }
                     required
                   />
                 </div>
@@ -773,7 +895,10 @@ export const LicensesView: React.FC = () => {
                   <button
                     type="button"
                     onClick={() =>
-                      setIssueForm({ ...issueForm, hardwareFingerprint: license.hardwareFingerprint })
+                      setIssueForm({
+                        ...issueForm,
+                        hardwareFingerprint: license.hardwareFingerprint,
+                      })
                     }
                     className="text-[11px] text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 font-semibold cursor-pointer"
                   >
@@ -784,12 +909,18 @@ export const LicensesView: React.FC = () => {
               <Input
                 placeholder="Identificador del equipo (32 caracteres)"
                 value={issueForm.hardwareFingerprint}
-                onChange={(e) => setIssueForm({ ...issueForm, hardwareFingerprint: e.target.value })}
+                onChange={(e) =>
+                  setIssueForm({
+                    ...issueForm,
+                    hardwareFingerprint: e.target.value,
+                  })
+                }
                 required
                 className="font-mono text-xs"
               />
               <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
-                La licencia quedará bloqueada y validada contra este hardware anfitrión.
+                La licencia quedará bloqueada y validada contra este hardware
+                anfitrión.
               </p>
             </div>
 
@@ -804,18 +935,20 @@ export const LicensesView: React.FC = () => {
                   onChange={(e) =>
                     setIssueForm({
                       ...issueForm,
-                      type: e.target.value as 'trial' | 'temporal' | 'perpetua',
+                      type: e.target.value as "trial" | "temporal" | "perpetua",
                     })
                   }
                   className="w-full text-xs rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-neutral-900 dark:text-neutral-100 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 >
-                  <option value="temporal">Temporal (Suscripción por tiempo)</option>
+                  <option value="temporal">
+                    Temporal (Suscripción por tiempo)
+                  </option>
                   <option value="perpetua">Perpetua (Sin caducidad)</option>
                   <option value="trial">Demostración / Trial (30 días)</option>
                 </select>
               </div>
 
-              {issueForm.type === 'temporal' && (
+              {issueForm.type === "temporal" && (
                 <div>
                   <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                     Duración en Meses *
@@ -823,7 +956,10 @@ export const LicensesView: React.FC = () => {
                   <select
                     value={issueForm.durationMonths}
                     onChange={(e) =>
-                      setIssueForm({ ...issueForm, durationMonths: Number(e.target.value) })
+                      setIssueForm({
+                        ...issueForm,
+                        durationMonths: Number(e.target.value),
+                      })
                     }
                     className="w-full text-xs rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-neutral-900 dark:text-neutral-100 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                   >
@@ -841,30 +977,78 @@ export const LicensesView: React.FC = () => {
             {/* Sección: Capacidad y Soporte */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-                  Usuarios Concurrentes Máximos *
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                    Usuarios Concurrentes Máximos *
+                  </label>
+                  <label className="flex items-center gap-1.5 text-[11px] text-sky-600 dark:text-sky-400 font-semibold cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={issueForm.isUnlimitedUsers}
+                      onChange={(e) =>
+                        setIssueForm({
+                          ...issueForm,
+                          isUnlimitedUsers: e.target.checked,
+                          maxUsers: e.target.checked ? 0 : 25,
+                        })
+                      }
+                      className="rounded text-sky-600 focus:ring-sky-500"
+                    />
+                    <span>Ilimitados (∞)</span>
+                  </label>
+                </div>
                 <Input
                   type="number"
-                  min={1}
-                  max={5000}
-                  value={issueForm.maxUsers}
-                  onChange={(e) => setIssueForm({ ...issueForm, maxUsers: Number(e.target.value) })}
-                  required
+                  min={0}
+                  max={50000}
+                  value={issueForm.isUnlimitedUsers ? 0 : issueForm.maxUsers}
+                  disabled={issueForm.isUnlimitedUsers}
+                  onChange={(e) =>
+                    setIssueForm({
+                      ...issueForm,
+                      maxUsers: Math.max(0, Number(e.target.value)),
+                    })
+                  }
+                  required={!issueForm.isUnlimitedUsers}
+                  placeholder={issueForm.isUnlimitedUsers ? "Usuarios ilimitados (∞)" : "Cantidad de usuarios"}
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-                  Sucursales Autorizadas *
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                    Sucursales Autorizadas *
+                  </label>
+                  <label className="flex items-center gap-1.5 text-[11px] text-sky-600 dark:text-sky-400 font-semibold cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={issueForm.isUnlimitedBranches}
+                      onChange={(e) =>
+                        setIssueForm({
+                          ...issueForm,
+                          isUnlimitedBranches: e.target.checked,
+                          maxBranches: e.target.checked ? 0 : 5,
+                        })
+                      }
+                      className="rounded text-sky-600 focus:ring-sky-500"
+                    />
+                    <span>Ilimitadas (∞)</span>
+                  </label>
+                </div>
                 <Input
                   type="number"
-                  min={1}
-                  max={500}
-                  value={issueForm.maxBranches}
-                  onChange={(e) => setIssueForm({ ...issueForm, maxBranches: Number(e.target.value) })}
-                  required
+                  min={0}
+                  max={5000}
+                  value={issueForm.isUnlimitedBranches ? 0 : issueForm.maxBranches}
+                  disabled={issueForm.isUnlimitedBranches}
+                  onChange={(e) =>
+                    setIssueForm({
+                      ...issueForm,
+                      maxBranches: Math.max(0, Number(e.target.value)),
+                    })
+                  }
+                  required={!issueForm.isUnlimitedBranches}
+                  placeholder={issueForm.isUnlimitedBranches ? "Sucursales ilimitadas (∞)" : "Cantidad de sucursales"}
                 />
               </div>
             </div>
@@ -875,10 +1059,15 @@ export const LicensesView: React.FC = () => {
                 type="checkbox"
                 id="hasSupport"
                 checked={issueForm.hasSupport}
-                onChange={(e) => setIssueForm({ ...issueForm, hasSupport: e.target.checked })}
+                onChange={(e) =>
+                  setIssueForm({ ...issueForm, hasSupport: e.target.checked })
+                }
                 className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500"
               />
-              <label htmlFor="hasSupport" className="text-xs text-neutral-800 dark:text-neutral-200 font-medium select-none cursor-pointer">
+              <label
+                htmlFor="hasSupport"
+                className="text-xs text-neutral-800 dark:text-neutral-200 font-medium select-none cursor-pointer"
+              >
                 Incluye soporte técnico garantizado y actualizaciones de versión
               </label>
             </div>
@@ -887,7 +1076,8 @@ export const LicensesView: React.FC = () => {
             <div>
               <div className="flex justify-between items-center mb-1.5 ">
                 <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
-                  Módulos Autorizados ({issueForm.modulesAllowed.length}/{AVAILABLE_MODULES.length})
+                  Módulos Autorizados ({issueForm.modulesAllowed.length}/
+                  {AVAILABLE_MODULES.length})
                 </label>
                 <div className="flex items-center gap-2 text-[11px]">
                   <button
@@ -897,7 +1087,9 @@ export const LicensesView: React.FC = () => {
                   >
                     Todos
                   </button>
-                  <span className="text-neutral-300 dark:text-neutral-600">|</span>
+                  <span className="text-neutral-300 dark:text-neutral-600">
+                    |
+                  </span>
                   <button
                     type="button"
                     onClick={deselectAllModules}
@@ -918,8 +1110,8 @@ export const LicensesView: React.FC = () => {
                       onClick={() => toggleModule(m.key)}
                       className={`flex items-center gap-2 p-2 rounded-lg text-left text-xs transition-colors border cursor-pointer ${
                         isChecked
-                          ? 'bg-white dark:bg-neutral-800 border-sky-300 dark:border-sky-700 text-sky-900 dark:text-sky-200 font-semibold shadow-xs'
-                          : 'bg-transparent border-transparent text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'
+                          ? "bg-white dark:bg-neutral-800 border-sky-300 dark:border-sky-700 text-sky-900 dark:text-sky-200 font-semibold shadow-xs"
+                          : "bg-transparent border-transparent text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                       }`}
                     >
                       {isChecked ? (
@@ -940,20 +1132,32 @@ export const LicensesView: React.FC = () => {
                 type="checkbox"
                 id="applyNow"
                 checked={issueForm.applyNow}
-                onChange={(e) => setIssueForm({ ...issueForm, applyNow: e.target.checked })}
+                onChange={(e) =>
+                  setIssueForm({ ...issueForm, applyNow: e.target.checked })
+                }
                 className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500"
               />
-              <label htmlFor="applyNow" className="text-xs text-sky-900 dark:text-sky-200 font-medium select-none cursor-pointer">
-                Activar y aplicar inmediatamente esta licencia en este sistema local
+              <label
+                htmlFor="applyNow"
+                className="text-xs text-sky-900 dark:text-sky-200 font-medium select-none cursor-pointer"
+              >
+                Activar y aplicar inmediatamente esta licencia en este sistema
+                local
               </label>
             </div>
 
             <div className="flex justify-end gap-3 pt-3 border-t border-neutral-200 dark:border-neutral-800">
-              <Button type="button" variant="outline" onClick={() => setShowIssueModal(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowIssueModal(false)}
+              >
                 Cancelar
               </Button>
               <Button type="submit" variant="primary" disabled={isIssuing}>
-                {isIssuing ? 'Firmando y Emitiendo...' : 'Emitir Licencia Criptográfica'}
+                {isIssuing
+                  ? "Firmando y Emitiendo..."
+                  : "Emitir Licencia Criptográfica"}
               </Button>
             </div>
           </form>

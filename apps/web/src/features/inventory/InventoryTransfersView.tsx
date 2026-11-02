@@ -954,15 +954,16 @@ export const InventoryTransfersView: React.FC = () => {
           </Button>
 
           <Button
-            variant="primary"
+            variant="outline"
             size="sm"
             onClick={() => {
               setCreateStepTab('ROUTE');
               setShowCreateModal(true);
             }}
-            className="rounded-lg flex items-center gap-1.5"
+            className="flex items-center gap-2 border-[#007BFF] dark:border-[#3D91FF] rounded-lg bg-blue-50 dark:bg-blue-600/30 hover:bg-border-blue-600 dark:hover:border-blue-500"
+            title="Nueva Transferencia"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 text-blue-600 dark:blue-500" />
             <span>Nueva Transferencia</span>
           </Button>
         </div>
@@ -970,47 +971,56 @@ export const InventoryTransfersView: React.FC = () => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Card className="p-4 border border-neutral-200 dark:border-neutral-800 rounded-lg">
-          <span className="text-xs font-medium text-neutral-500">Total Transferencias</span>
-          <div className="mt-1 flex items-baseline justify-between">
-            <span className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
-              {statistics.total}
-            </span>
-            <ArrowRightLeft className="w-4 h-4 text-neutral-400" />
+        <Card className="p-4 border-l-4 border-l-[#007BFF] dark:border-l-[#3D91FF] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Total Transferencias</span>
+            <div className="p-2 rounded-lg bg-[#007BFF]/10 text-[#007BFF] dark:bg-[#3D91FF]/15 dark:text-[#3D91FF]">
+              <ArrowRightLeft className="w-4 h-4" />
+            </div>
           </div>
+          <p className="text-2xl font-bold font-mono text-[#007BFF] dark:text-[#3D91FF] mt-1">
+            {statistics.total}
+          </p>
+          <span className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1 block">Operaciones registradas</span>
         </Card>
 
-        <Card className="p-4 border border-neutral-200 dark:border-neutral-800 rounded-lg">
-          <span className="text-xs font-medium text-neutral-500">En Tránsito</span>
-          <div className="mt-1 flex items-baseline justify-between">
-            <span className="text-2xl font-bold text-amber-600 dark:text-amber-400">
-              {statistics.inTransit}
-            </span>
-            <Truck className="w-4 h-4 text-amber-500" />
+        <Card className="p-4 border-l-4 border-l-[#FFC107] dark:border-l-[#FBBF24] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">En Tránsito</span>
+            <div className="p-2 rounded-lg bg-[#FFC107]/15 text-[#b28500] dark:bg-[#FBBF24]/15 dark:text-[#FBBF24]">
+              <Truck className="w-4 h-4" />
+            </div>
           </div>
-          <span className="text-[11px] text-neutral-400 mt-1">Vehículos en ruta</span>
+          <p className="text-2xl font-bold font-mono text-[#b28500] dark:text-[#FBBF24] mt-1">
+            {statistics.inTransit}
+          </p>
+          <span className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1 block">Vehículos en ruta</span>
         </Card>
 
-        <Card className="p-4 border border-neutral-200 dark:border-neutral-800 rounded-lg">
-          <span className="text-xs font-medium text-neutral-500">Recibidas Conformes</span>
-          <div className="mt-1 flex items-baseline justify-between">
-            <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-              {statistics.received}
-            </span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+        <Card className="p-4 border-l-4 border-l-[#28A745] dark:border-l-[#4ADE80] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Recibidas Conformes</span>
+            <div className="p-2 rounded-lg bg-[#28A745]/10 text-[#28A745] dark:bg-[#4ADE80]/15 dark:text-[#4ADE80]">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
           </div>
-          <span className="text-[11px] text-neutral-400 mt-1">Stock asentado en destino</span>
+          <p className="text-2xl font-bold font-mono text-[#28A745] dark:text-[#4ADE80] mt-1">
+            {statistics.received}
+          </p>
+          <span className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1 block">Stock asentado en destino</span>
         </Card>
 
-        <Card className="p-4 border border-neutral-200 dark:border-neutral-800 rounded-lg">
-          <span className="text-xs font-medium text-neutral-500">Valor en Tránsito</span>
-          <div className="mt-1 flex items-baseline justify-between">
-            <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 font-mono">
-              {formatMoneyUSD(statistics.inTransitCost)}
-            </span>
-            <TrendingUp className="w-4 h-4 text-indigo-500" />
+        <Card className="p-4 border-l-4 border-l-[#17A2B8] dark:border-l-[#38C9DD] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Valor en Tránsito</span>
+            <div className="p-2 rounded-lg bg-[#17A2B8]/10 text-[#17A2B8] dark:bg-[#38C9DD]/15 dark:text-[#38C9DD]">
+              <TrendingUp className="w-4 h-4" />
+            </div>
           </div>
-          <span className="text-[11px] text-neutral-400 mt-1">Al costo de despacho</span>
+          <p className="text-2xl font-bold font-mono text-[#17A2B8] dark:text-[#38C9DD] mt-1">
+            {formatMoneyUSD(statistics.inTransitCost)}
+          </p>
+          <span className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1 block">Al costo de despacho</span>
         </Card>
       </div>
 
@@ -1565,7 +1575,7 @@ export const InventoryTransfersView: React.FC = () => {
               {/* Items Table */}
               <div className="border border-neutral-200 dark:border-neutral-800 rounded-lg overflow-hidden max-h-60 overflow-y-auto">
                 <table className="w-full text-left text-xs border-collapse">
-                  <thead className="bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 font-semibold sticky top-0">
+                  <thead className="bg-[#F4F6F9] dark:bg-[#18191A] text-neutral-700 dark:text-neutral-300 font-semibold text-[10px] uppercase tracking-wider border-b border-gray-200 dark:border-gray-800 sticky top-0 z-10">
                     <tr>
                       <th className="py-2 px-3">SKU</th>
                       <th className="py-2 px-3">Producto</th>
@@ -1599,7 +1609,7 @@ export const InventoryTransfersView: React.FC = () => {
                               </span>
                             </td>
                             <td className="py-2 px-3 text-center font-bold font-mono">
-                              <span className={isOverStock ? 'text-rose-600 dark:text-rose-400' : 'text-sky-600 dark:text-sky-400'}>
+                              <span className={isOverStock ? 'text-rose-600 dark:text-rose-400' : 'text-[#007BFF] dark:text-[#3D91FF]'}>
                                 {it.quantity}
                               </span>
                             </td>

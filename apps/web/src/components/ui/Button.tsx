@@ -15,14 +15,20 @@ export const Button: React.FC<ButtonProps> = ({
   disabled,
   ...props
 }) => {
-  const baseStyles = 'inline-flex items-center justify-center font-medium rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none';
+  const baseStyles =
+    'inline-flex items-center justify-center font-medium rounded-lg transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none cursor-pointer';
 
   const variantStyles = {
-    primary: 'bg-sky-600 text-white hover:bg-sky-700 focus-visible:ring-sky-500',
-    secondary: 'bg-neutral-800 dark:bg-neutral-700 text-white hover:bg-neutral-900 dark:hover:bg-neutral-600 focus-visible:ring-neutral-700',
-    outline: 'border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-750 focus-visible:ring-sky-500',
-    danger: 'bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500',
-    ghost: 'text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 focus-visible:ring-neutral-400',
+    primary:
+      'bg-[#007BFF] hover:bg-[#0069d9] text-white dark:bg-[#3D91FF] dark:hover:bg-[#297be6] dark:text-white focus-visible:ring-[#007BFF] dark:focus-visible:ring-[#3D91FF] shadow-xs',
+    secondary:
+      'bg-[#17A2B8] hover:bg-[#138496] text-white dark:bg-[#38C9DD] dark:hover:bg-[#26b3c7] dark:text-neutral-950 focus-visible:ring-[#17A2B8] dark:focus-visible:ring-[#38C9DD] shadow-xs',
+    outline:
+      'border border-gray-300 dark:border-gray-700 bg-white dark:bg-[#1E1F21] text-[#333333] dark:text-[#E0E0E0] hover:bg-gray-50 dark:hover:bg-neutral-800 focus-visible:ring-[#007BFF] dark:focus-visible:ring-[#3D91FF]',
+    danger:
+      'bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500 shadow-xs',
+    ghost:
+      'text-[#333333] dark:text-[#E0E0E0] hover:bg-gray-100 dark:hover:bg-neutral-800 focus-visible:ring-[#007BFF] dark:focus-visible:ring-[#3D91FF]',
   };
 
   const sizeStyles = {

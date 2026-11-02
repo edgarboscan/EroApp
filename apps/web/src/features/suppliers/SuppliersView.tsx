@@ -458,11 +458,13 @@ export const SuppliersView: React.FC = () => {
           </Button>
           {canCreate && (
             <Button
+              variant="outline"
               size="sm"
               onClick={handleOpenCreateModal}
-              className="flex-1 sm:flex-none rounded-lg bg-sky-600 hover:bg-sky-700 text-white"
+              className="flex items-center gap-2 border-[#007BFF] dark:border-[#3D91FF] rounded-lg bg-blue-50 dark:bg-blue-600/30 hover:bg-border-blue-600 dark:hover:border-blue-500 flex-1 sm:flex-none"
+              title="Nuevo Proveedor"
             >
-              <Plus className="w-4 h-4 mr-1" />
+              <Plus className="w-4 h-4 text-blue-600 dark:blue-500 mr-1" />
               Nuevo Proveedor
             </Button>
           )}
@@ -471,7 +473,7 @@ export const SuppliersView: React.FC = () => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-4 border-l-4 border-l-neutral-500 bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800">
+        <Card className="p-4 border-l-4 border-l-[#007BFF] dark:border-l-[#3D91FF] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
@@ -482,32 +484,32 @@ export const SuppliersView: React.FC = () => {
               </p>
               <span className="text-xs text-neutral-500">{activeSuppliersCount} activos</span>
             </div>
-            <div className="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-lg text-neutral-600 dark:text-neutral-400">
+            <div className="p-2 bg-[#007BFF]/10 text-[#007BFF] dark:bg-[#3D91FF]/15 dark:text-[#3D91FF] rounded-lg">
               <Building2 className="w-5 h-5" />
             </div>
           </div>
         </Card>
 
-        <Card className="p-4 border-l-4 border-l-amber-500 bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800">
+        <Card className="p-4 border-l-4 border-l-[#FFC107] dark:border-l-[#FBBF24] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
                 Con Saldo Pendiente
               </p>
-              <p className="text-2xl font-bold text-amber-600 dark:text-amber-500 mt-1">
+              <p className="text-2xl font-bold text-[#b28500] dark:text-[#FBBF24] mt-1 font-mono">
                 {withDebtCount}
               </p>
               <span className="text-xs text-neutral-500">
                 {suppliers.length - withDebtCount} solventes
               </span>
             </div>
-            <div className="p-2 bg-amber-50 dark:bg-amber-950/40 rounded-lg text-amber-600 dark:text-amber-400">
+            <div className="p-2 bg-[#FFC107]/15 text-[#b28500] dark:bg-[#FBBF24]/15 dark:text-[#FBBF24] rounded-lg">
               <Receipt className="w-5 h-5" />
             </div>
           </div>
         </Card>
 
-        <Card className="p-4 border-l-4 border-l-red-500 bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800">
+        <Card className="p-4 border-l-4 border-l-red-500 dark:border-l-red-400 bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
@@ -524,13 +526,13 @@ export const SuppliersView: React.FC = () => {
           </div>
         </Card>
 
-        <Card className="p-4 border-l-4 border-l-sky-500 bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800">
+        <Card className="p-4 border-l-4 border-l-[#17A2B8] dark:border-l-[#38C9DD] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
                 Plazo Promedio
               </p>
-              <p className="text-2xl font-bold text-sky-600 dark:text-sky-400 mt-1">
+              <p className="text-2xl font-bold text-[#17A2B8] dark:text-[#38C9DD] mt-1 font-mono">
                 {suppliers.length > 0
                   ? Math.round(
                       suppliers.reduce((a, b) => a + (b.paymentTermsDays || 0), 0) /
@@ -541,7 +543,7 @@ export const SuppliersView: React.FC = () => {
               </p>
               <span className="text-xs text-neutral-500">Término de pago comercial</span>
             </div>
-            <div className="p-2 bg-sky-50 dark:bg-sky-950/40 rounded-lg text-sky-600 dark:text-sky-400">
+            <div className="p-2 bg-[#17A2B8]/10 text-[#17A2B8] dark:bg-[#38C9DD]/15 dark:text-[#38C9DD] rounded-lg">
               <Clock className="w-5 h-5" />
             </div>
           </div>
@@ -800,10 +802,10 @@ export const SuppliersView: React.FC = () => {
 
       {/* VIEW: DETALLADO (Data Table) */}
       {viewMode === "detailed" && (
-        <Card className="border-neutral-200 dark:border-neutral-800 overflow-hidden rounded-lg bg-white dark:bg-neutral-900">
+        <Card className="border-gray-200 dark:border-gray-800 overflow-hidden rounded-lg bg-white dark:bg-[#1E1F21] shadow-xs">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm border-collapse">
-              <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 uppercase text-xs tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
+              <thead className="bg-[#F4F6F9] dark:bg-[#18191A] text-neutral-700 dark:text-neutral-300 uppercase font-semibold text-[10px] tracking-wider border-b border-gray-200 dark:border-gray-800 sticky top-0 z-10">
                 <tr>
                   <th className="py-3 px-4">RIF / Proveedor</th>
                   <th className="py-3 px-4">Contacto</th>
@@ -814,7 +816,7 @@ export const SuppliersView: React.FC = () => {
                   <th className="py-3 px-4 text-right">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800/80">
                 {loading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i} className="animate-pulse">
@@ -858,7 +860,7 @@ export const SuppliersView: React.FC = () => {
                   suppliers.map((sup) => (
                     <tr
                       key={sup.id}
-                      className="hover:bg-neutral-50 dark:hover:bg-neutral-800/60 transition-colors"
+                      className="hover:bg-[#F4F6F9]/80 dark:hover:bg-neutral-800/50 transition-colors"
                     >
                       <td className="py-3 px-4">
                         <div className="font-semibold text-neutral-900 dark:text-neutral-100">
@@ -869,7 +871,7 @@ export const SuppliersView: React.FC = () => {
                             {sup.commercialName}
                           </div>
                         )}
-                        <div className="text-xs font-mono text-sky-600 dark:text-sky-400 mt-0.5">
+                        <div className="text-xs font-mono font-bold text-[#007BFF] dark:text-[#3D91FF] mt-0.5">
                           {sup.rif}
                         </div>
                       </td>

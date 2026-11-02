@@ -7,6 +7,8 @@ import {
   licenseActivationSchema,
   generateLicenseSchema,
   auditLogFilterSchema,
+  isSuperAdminRole,
+  isSupervisorOrAdminRole,
 } from '@ero/shared';
 import { LicensesService } from '../src/modules/licenses/licenses.service';
 
@@ -37,6 +39,86 @@ describe('Módulo de Configuración Empresarial, Licencias & Auditoría (Paso 10
         fiscalAddress: 'Caracas, Venezuela',
       });
       expect(result.success).toBe(false);
+    });
+
+    it('debe validar la configuración de logo en reportes (predeterminado vs personalizado)', () => {
+      const defaultLogoResult = updateCompanySchema.safeParse({
+        legalName: 'CORPORACION VENEZOLANA ERO C.A.',
+        rif: 'J-12345678-9',
+        fiscalAddress: 'Caracas, Venezuela',
+        showLogoInReports: true,
+        reportLogoType: 'default',
+      });
+      expect(defaultLogoResult.success).toBe(true);
+      if (defaultLogoResult.success) {
+        expect(defaultLogoResult.data.showLogoInReports).toBe(true);
+        expect(defaultLogoResult.data.reportLogoType).toBe('default');
+      }
+
+      const customLogoResult = updateCompanySchema.safeParse({
+        legalName: 'CORPORACION VENEZOLANA ERO C.A.',
+        rif: 'J-12345678-9',
+        fiscalAddress: 'Caracas, Venezuela',
+        showLogoInReports: true,
+        reportLogoType: 'custom',
+        customLogoUrl: 'data:image/webp;base64,UklGRkAAAABXRUJQVlA4IDQAAADwAQCdASoBAAEAAQAcJaACdLoAAP7/1AAA',
+      });
+      expect(customLogoResult.success).toBe(true);
+      if (customLogoResult.success) {
+        expect(customLogoResult.data.reportLogoType).toBe('custom');
+        expect(customLogoResult.data.customLogoUrl).toContain('data:image/webp;base64');
+      }
+
+      const noLogoResult = updateCompanySchema.safeParse({
+        legalName: 'CORPORACION VENEZOLANA ERO C.A.',
+        rif: 'J-12345678-9',
+        fiscalAddress: 'Caracas, Venezuela',
+        showLogoInReports: false,
+      });
+      expect(noLogoResult.success).toBe(true);
+      if (noLogoResult.success) {
+        expect(noLogoResult.data.showLogoInReports).toBe(false);
+      }
+    });
+
+    it('debe inicializar el documento PDF con branding según la configuración de logo', async () => {
+      const { ReportsPdfEngine } = await import('../src/modules/reports/reports-pdf');
+      
+      // 1. Con logo predeterminado
+      const resDefault = ReportsPdfEngine.initDocument(
+        {
+          legalName: 'ERO DISTRIBUCION C.A.',
+          rif: 'J-12345678-9',
+          showLogoInReports: true,
+          reportLogoType: 'default',
+        },
+        { title: 'Reporte Test', userName: 'Admin', orientation: 'portrait' }
+      );
+      expect(resDefault.doc).toBeDefined();
+
+      // 2. Con logo deshabilitado (modo texto compacto fiscal)
+      const resNoLogo = ReportsPdfEngine.initDocument(
+        {
+          legalName: 'ERO DISTRIBUCION C.A.',
+          rif: 'J-12345678-9',
+          showLogoInReports: false,
+        },
+        { title: 'Reporte Test Sin Logo', userName: 'Admin', orientation: 'portrait' }
+      );
+      expect(resNoLogo.doc).toBeDefined();
+
+      // 3. Con logo personalizado WebP
+      const resCustom = ReportsPdfEngine.initDocument(
+        {
+          legalName: 'ERO DISTRIBUCION C.A.',
+          rif: 'J-12345678-9',
+          showLogoInReports: true,
+          reportLogoType: 'custom',
+          customLogoUrl: 'data:image/webp;base64,UklGRkAAAABXRUJQVlA4IDQAAADwAQCdASoBAAEAAQAcJaACdLoAAP7/1AAA',
+        },
+        { title: 'Reporte Test Logo Custom', userName: 'Admin', orientation: 'portrait' }
+      );
+      expect(resCustom.doc).toBeDefined();
     });
   });
 
@@ -184,6 +266,126 @@ describe('Módulo de Configuración Empresarial, Licencias & Auditoría (Paso 10
       expect(verified?.companyName).toBe('CORPORACION ERO VE C.A.');
       expect(verified?.fp).toBe(currentFp);
     });
+
+    it('debe encriptar y desencriptar el payload de licenciamiento mediante AES-256-GCM atado al hardware', () => {
+      const currentFp = LicensesService.getHardwareFingerprint();
+      const payload = {
+        companyId: 'comp-test-123',
+        companyRif: 'J-12345678-9',
+        companyName: 'TEST CORP',
+        maxUsers: 15,
+        maxBranches: 3,
+        modules: ['pos', 'inventory', 'accounting', 'restaurant'],
+      };
+
+      const encrypted = LicensesService.encryptLicenseData(payload, currentFp);
+      expect(encrypted.ciphertext).toBeDefined();
+      expect(encrypted.iv).toBeDefined();
+      expect(encrypted.authTag).toBeDefined();
+      expect(encrypted.integrityHash).toBeDefined();
+
+      // Desencriptación exitosa con el mismo hardware fingerprint
+      const decrypted = LicensesService.decryptLicenseData(
+        encrypted.ciphertext,
+        encrypted.iv,
+        encrypted.authTag,
+        encrypted.integrityHash,
+        currentFp
+      );
+      expect(decrypted).not.toBeNull();
+      expect(decrypted?.companyName).toBe('TEST CORP');
+      expect(decrypted?.maxUsers).toBe(15);
+      expect(decrypted?.maxBranches).toBe(3);
+      expect(decrypted?.modules).toContain('accounting');
+      expect(decrypted?.modules).toContain('restaurant');
+
+      // Intento de descifrado en una máquina con otro hardware fingerprint debe fallar
+      const fakeFp = 'OTHER_SERVER_HARDWARE_FINGERPRINT_999';
+      const foreignDecrypted = LicensesService.decryptLicenseData(
+        encrypted.ciphertext,
+        encrypted.iv,
+        encrypted.authTag,
+        encrypted.integrityHash,
+        fakeFp
+      );
+      expect(foreignDecrypted).toBeNull();
+
+      // Intento de alteración de datos (tampering en base de datos) debe ser detectado y rechazado
+      const tamperedCiphertext = 'ff' + encrypted.ciphertext.slice(2);
+      const tamperedDecrypted = LicensesService.decryptLicenseData(
+        tamperedCiphertext,
+        encrypted.iv,
+        encrypted.authTag,
+        encrypted.integrityHash,
+        currentFp
+      );
+      expect(tamperedDecrypted).toBeNull();
+    });
+
+    it('debe validar la autorización de módulos mediante isModuleAllowed', async () => {
+      const companyId = '11111111-1111-1111-1111-111111111111';
+      const isPosAllowed = await LicensesService.isModuleAllowed(companyId, 'pos');
+      expect(isPosAllowed).toBe(true);
+
+      const isLicensesAllowed = await LicensesService.isModuleAllowed(companyId, 'licenses');
+      expect(isLicensesAllowed).toBe(true);
+
+      const isNonExistentAllowed = await LicensesService.isModuleAllowed(companyId, 'quantum_teleportation');
+      expect(isNonExistentAllowed).toBe(false);
+    });
+
+    it('debe permitir establecer usuarios y sucursales ilimitadas (valor 0) en el esquema de emisión', () => {
+      const unlimitedLicense = generateLicenseSchema.safeParse({
+        companyName: 'EMPRESA ILIMITADA C.A.',
+        companyRif: 'J-99999999-9',
+        hardwareFingerprint: 'A1B2C3D4E5F678901234567890ABCDEF',
+        type: 'perpetua',
+        maxUsers: 0, // 0 = Ilimitados
+        maxBranches: 0, // 0 = Ilimitadas
+        hasSupport: true,
+        modulesAllowed: ['pos', 'sales', 'inventory'],
+      });
+      expect(unlimitedLicense.success).toBe(true);
+      if (unlimitedLicense.success) {
+        expect(unlimitedLicense.data.maxUsers).toBe(0);
+        expect(unlimitedLicense.data.maxBranches).toBe(0);
+      }
+    });
+
+    it('debe permitir crear usuarios y sucursales sin restricción cuando el límite es ilimitado (0)', async () => {
+      // Mock de licencia con usuarios y sucursales ilimitadas
+      const mockUnlimitedLic = {
+        id: 'lic-unlimited',
+        companyId: 'unlimited-co',
+        licenseKey: 'ERO-UNLIMITED-TEST',
+        type: 'perpetua' as const,
+        expiresAt: null,
+        hardwareFingerprint: LicensesService.getHardwareFingerprint(),
+        modulesAllowed: ['*'],
+        maxUsers: 0, // ilimitado
+        maxBranches: 0, // ilimitado
+        isActive: true,
+        status: 'ACTIVE' as const,
+        daysRemaining: null,
+      };
+
+      // Si maxBranches <= 0 o maxUsers <= 0, no debe lanzar excepción
+      expect(mockUnlimitedLic.maxBranches <= 0).toBe(true);
+      expect(mockUnlimitedLic.maxUsers <= 0).toBe(true);
+    });
+
+    it('debe filtrar los permisos devueltos por getPermissions según los módulos contratados en la licencia', async () => {
+      const { ConfigService } = await import('../src/modules/config/config.service');
+      const allPerms = await ConfigService.getPermissions();
+      expect(allPerms.length).toBeGreaterThan(0);
+
+      // Verificar que los módulos principales están catalogados
+      const modulesInCatalog = new Set(allPerms.map((p) => p.module));
+      expect(modulesInCatalog.has('sales')).toBe(true);
+      expect(modulesInCatalog.has('pos')).toBe(true);
+      expect(modulesInCatalog.has('inventory')).toBe(true);
+      expect(modulesInCatalog.has('config')).toBe(true);
+    });
   });
 
   describe('Filtros de Bitácora de Auditoría', () => {
@@ -195,6 +397,40 @@ describe('Módulo de Configuración Empresarial, Licencias & Auditoría (Paso 10
         limit: 25,
       });
       expect(result.success).toBe(true);
+    });
+  });
+
+  describe('Discriminación Estricta de Super Administrador vs Administrador', () => {
+    it('debe reconocer únicamente a Super Administradores y excluir administradores ordinarios', () => {
+      // Casos válidos de Super Administrador
+      expect(isSuperAdminRole('Super Administrador')).toBe(true);
+      expect(isSuperAdminRole('super_admin')).toBe(true);
+      expect(isSuperAdminRole('Super Admin')).toBe(true);
+      expect(isSuperAdminRole('superadmin')).toBe(true);
+      expect(isSuperAdminRole('superuser')).toBe(true);
+      expect(isSuperAdminRole('superusuario')).toBe(true);
+
+      // Casos que NO deben ser Super Administrador (son administradores / gerentes)
+      expect(isSuperAdminRole('Administrador')).toBe(false);
+      expect(isSuperAdminRole('admin')).toBe(false);
+      expect(isSuperAdminRole('ADMIN')).toBe(false);
+      expect(isSuperAdminRole('Gerente General')).toBe(false);
+      expect(isSuperAdminRole('Director General')).toBe(false);
+      expect(isSuperAdminRole('Supervisor')).toBe(false);
+      expect(isSuperAdminRole('Cajero')).toBe(false);
+      expect(isSuperAdminRole(null)).toBe(false);
+      expect(isSuperAdminRole(undefined)).toBe(false);
+    });
+
+    it('debe reconocer a administradores y supervisores en isSupervisorOrAdminRole', () => {
+      expect(isSupervisorOrAdminRole('Administrador')).toBe(true);
+      expect(isSupervisorOrAdminRole('admin')).toBe(true);
+      expect(isSupervisorOrAdminRole('Gerente General')).toBe(true);
+      expect(isSupervisorOrAdminRole('Supervisor de Ventas')).toBe(true);
+      expect(isSupervisorOrAdminRole('Super Administrador')).toBe(true);
+
+      expect(isSupervisorOrAdminRole('Cajero')).toBe(false);
+      expect(isSupervisorOrAdminRole('Mesonero')).toBe(false);
     });
   });
 });

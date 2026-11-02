@@ -46,6 +46,8 @@ import {
   PanelLeftOpen,
   Utensils,
   ChefHat,
+  Scale,
+  FolderTree,
   Sun,
   Moon,
 } from "lucide-react";
@@ -56,6 +58,10 @@ import { Modal } from "../components/ui/Modal";
 import { Button } from "../components/ui/Button";
 import { toast } from "sonner";
 import { formatExchangeRate, formatMoneyVES } from "@ero/shared";
+import { NotificationBell } from "../components/notifications/NotificationBell";
+import { useNotificationStore } from "../stores/notificationStore";
+import { PdfViewerModal } from "../components/ui/PdfViewerModal";
+import { SelectBranchModal } from "../features/auth/SelectBranchModal";
 
 interface NavSubItem {
   label: string;
@@ -63,6 +69,7 @@ interface NavSubItem {
   icon: React.ComponentType<{ className?: string }>;
   module: string;
   action: string;
+  category?: string;
 }
 
 interface NavGroup {
@@ -77,16 +84,20 @@ interface NavGroup {
 
 export const MainLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const sharedReportToView = useNotificationStore((s) => s.sharedReportToView);
+  const closeSharedReport = useNotificationStore((s) => s.closeSharedReport);
 
   // Estado para colapsar / ocultar el sidebar en pantallas grandes (Desktop)
-  const [desktopSidebarVisible, setDesktopSidebarVisible] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem("ero_desktop_sidebar_visible");
-      return saved !== null ? saved === "true" : true;
-    } catch {
-      return true;
-    }
-  });
+  const [desktopSidebarVisible, setDesktopSidebarVisible] = useState<boolean>(
+    () => {
+      try {
+        const saved = localStorage.getItem("ero_desktop_sidebar_visible");
+        return saved !== null ? saved === "true" : true;
+      } catch {
+        return true;
+      }
+    },
+  );
 
   const toggleDesktopSidebar = () => {
     setDesktopSidebarVisible((prev) => {
@@ -102,7 +113,9 @@ export const MainLayout: React.FC = () => {
 
   // Estado y listeners para el modo Pantalla Completa
   const [isFullscreen, setIsFullscreen] = useState<boolean>(
-    typeof document !== "undefined" ? Boolean(document.fullscreenElement) : false
+    typeof document !== "undefined"
+      ? Boolean(document.fullscreenElement)
+      : false,
   );
 
   useEffect(() => {
@@ -165,6 +178,7 @@ export const MainLayout: React.FC = () => {
 
   const [showRateModal, setShowRateModal] = useState(false);
   const [showBcvPromptModal, setShowBcvPromptModal] = useState(false);
+  const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
   const [activeRateTab, setActiveRateTab] = useState<"update" | "history">(
     "update",
   );
@@ -514,12 +528,156 @@ export const MainLayout: React.FC = () => {
       ],
     },
     {
+      id: "accounting",
+      title: "Contabilidad",
+      icon: Scale,
+      children: [
+        {
+          label: "Plan de Cuentas (VEN-NIF)",
+          to: "/accounting/accounts",
+          icon: FolderTree,
+          module: "accounting",
+          action: "read",
+        },
+        {
+          label: "Libro Diario Legal",
+          to: "/accounting/journal",
+          icon: FileText,
+          module: "accounting",
+          action: "read",
+        },
+        {
+          label: "Libro Mayor Analítico",
+          to: "/accounting/ledger",
+          icon: BookOpen,
+          module: "accounting",
+          action: "read",
+        },
+        {
+          label: "Balance de Comprobación",
+          to: "/accounting/trial-balance",
+          icon: FileSpreadsheet,
+          module: "accounting",
+          action: "read",
+        },
+        {
+          label: "Estados Financieros NIIF",
+          to: "/accounting/financial-statements",
+          icon: Scale,
+          module: "accounting",
+          action: "read",
+        },
+        {
+          label: "Cierres & Ajuste Inflación",
+          to: "/accounting/fiscal-closing",
+          icon: ShieldCheck,
+          module: "accounting",
+          action: "read",
+        },
+      ],
+    },
+    {
       id: "reports",
       title: "Reportes & Exportación",
       icon: FileText,
-      to: "/reports",
-      module: "reports",
-      action: "export_pdf",
+      children: [
+        {
+          label: "Ventas Generales",
+          to: "/reports/sales",
+          icon: ShoppingCart,
+          module: "reports",
+          action: "export_pdf",
+          category: "Ventas & Caja",
+        },
+        {
+          label: "Cierres de Caja & Arqueos",
+          to: "/reports/cash-shifts",
+          icon: CreditCard,
+          module: "reports",
+          action: "export_pdf",
+          category: "Ventas & Caja",
+        },
+        {
+          label: "Desempeño por Cajero",
+          to: "/reports/cashiers",
+          icon: User,
+          module: "reports",
+          action: "export_pdf",
+          category: "Ventas & Caja",
+        },
+        {
+          label: "Ventas por Producto",
+          to: "/reports/products",
+          icon: Package,
+          module: "reports",
+          action: "export_pdf",
+          category: "Inventario & Stock",
+        },
+        {
+          label: "Jerarquía & Stock Valorizado",
+          to: "/reports/inventory",
+          icon: Layers,
+          module: "reports",
+          action: "export_pdf",
+          category: "Inventario & Stock",
+        },
+        {
+          label: "Propinas de Restaurante",
+          to: "/reports/restaurant-tips",
+          icon: Coins,
+          module: "reports",
+          action: "export_pdf",
+          category: "Restaurante",
+        },
+        {
+          label: "Antigüedad Cartera (CxC)",
+          to: "/reports/receivables",
+          icon: TrendingUp,
+          module: "reports",
+          action: "export_pdf",
+          category: "Finanzas & Cartera",
+        },
+        {
+          label: "Antigüedad Deudas (CxP)",
+          to: "/reports/payables",
+          icon: ArrowRightLeft,
+          module: "reports",
+          action: "export_pdf",
+          category: "Finanzas & Cartera",
+        },
+        {
+          label: "Posición Bancaria & Liquidez",
+          to: "/reports/treasury-balances",
+          icon: Landmark,
+          module: "reports",
+          action: "export_pdf",
+          category: "Tesorería & Bancos",
+        },
+        {
+          label: "Movimientos de Cuenta",
+          to: "/reports/bank-movements",
+          icon: FileSpreadsheet,
+          module: "reports",
+          action: "export_pdf",
+          category: "Tesorería & Bancos",
+        },
+        {
+          label: "Acta de Conciliación Bancaria",
+          to: "/reports/bank-reconciliation",
+          icon: FileCheck,
+          module: "reports",
+          action: "export_pdf",
+          category: "Tesorería & Bancos",
+        },
+        {
+          label: "Flujo de Caja Operativo",
+          to: "/reports/cash-flow",
+          icon: Coins,
+          module: "reports",
+          action: "export_pdf",
+          category: "Tesorería & Bancos",
+        },
+      ],
     },
     {
       id: "config",
@@ -565,6 +723,9 @@ export const MainLayout: React.FC = () => {
     },
   ];
 
+  // Estado de licencia del sistema para bloqueo restrictivo
+  const [licenseStatus, setLicenseStatus] = useState<{ isActive: boolean; status: string } | null>(null);
+
   // Estado de grupos abiertos
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
@@ -604,32 +765,49 @@ export const MainLayout: React.FC = () => {
     }));
   };
 
-  // Filtrado por permisos
+  // Filtrado por permisos y estado de licencia
   const isSuper = isSuperAdminRole(user?.role);
+  const isLicenseLocked = licenseStatus !== null && (!licenseStatus.isActive || licenseStatus.status !== "ACTIVE");
+
+  // Regla: Cuando la licencia esté bloqueada solo se permite abrir el módulo de licenciamiento a un usuario que no sea superadministrador
+  useEffect(() => {
+    if (isLicenseLocked && !isSuper && location.pathname !== "/config/licenses") {
+      navigate("/config/licenses", { replace: true });
+    }
+  }, [isLicenseLocked, isSuper, location.pathname, navigate]);
+
   const filteredGroups = isSuper
     ? navGroups
-    : navGroups
-        .map((group) => {
-          if (group.children) {
-            const visibleChildren = group.children.filter((child) =>
-              hasPermission(child.module, child.action),
-            );
-            return {
-              ...group,
-              children: visibleChildren,
-            };
-          }
-          const isVisible =
-            group.module && group.action
-              ? hasPermission(group.module, group.action)
-              : true;
-          return isVisible ? group : null;
-        })
-        .filter((group): group is NavGroup => {
-          if (!group) return false;
-          if (group.children) return group.children.length > 0;
-          return true;
-        });
+    : isLicenseLocked
+      ? navGroups
+          .filter((g) => g.id === "config")
+          .map((g) => ({
+            ...g,
+            children: (g.children || []).filter((c) => c.to === "/config/licenses"),
+          }))
+          .filter((g) => g.children && g.children.length > 0)
+      : navGroups
+          .map((group) => {
+            if (group.children) {
+              const visibleChildren = group.children.filter((child) =>
+                hasPermission(child.module, child.action),
+              );
+              return {
+                ...group,
+                children: visibleChildren,
+              };
+            }
+            const isVisible =
+              group.module && group.action
+                ? hasPermission(group.module, group.action)
+                : true;
+            return isVisible ? group : null;
+          })
+          .filter((group): group is NavGroup => {
+            if (!group) return false;
+            if (group.children) return group.children.length > 0;
+            return true;
+          });
 
   // Sucursales y almacenes autorizados para etiquetas dinámicas
   const [branchesList, setBranchesList] = useState<any[]>([]);
@@ -637,6 +815,22 @@ export const MainLayout: React.FC = () => {
 
   useEffect(() => {
     let isMounted = true;
+    const fetchLicense = async () => {
+      if (!token) return;
+      try {
+        const res = await fetch("/api/licenses/status", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && json.data && isMounted) {
+            setLicenseStatus(json.data);
+          }
+        }
+      } catch {}
+    };
+    fetchLicense();
+
     const fetchBranches = async () => {
       if (!token) return;
       try {
@@ -678,16 +872,19 @@ export const MainLayout: React.FC = () => {
 
   const canSwitchBranch =
     isSuper ||
-    (user?.allBranches !== false ? branchesList.length > 1 : (user?.branches || []).length > 1);
+    (user?.allBranches !== false
+      ? branchesList.length > 1
+      : (user?.branches || []).length > 1);
 
   const canSwitchWarehouse =
     isSuper ||
-    (user?.canSwitchWarehouses !== false && (activeBranchObj?.warehouses || []).length > 1);
+    (user?.canSwitchWarehouses !== false &&
+      (activeBranchObj?.warehouses || []).length > 1);
 
   const canSwitchEnv = canSwitchBranch || canSwitchWarehouse;
 
   return (
-    <div className="flex h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 overflow-hidden">
+    <div className="flex h-screen bg-[#F4F6F9] dark:bg-[#242526] text-[#333333] dark:text-[#E0E0E0] overflow-hidden">
       {/* Sidebar Móvil Backdrop */}
       {sidebarOpen && (
         <div
@@ -710,7 +907,7 @@ export const MainLayout: React.FC = () => {
           {/* Brand Header */}
           <div className="flex items-center justify-between h-16 px-5 border-b border-neutral-800">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-sky-600 flex items-center justify-center text-white font-bold text-base">
+              <div className="w-8 h-8 rounded-lg bg-[#007BFF] dark:bg-[#3D91FF] flex items-center justify-center text-white font-bold text-base shadow-xs">
                 E
               </div>
               <div>
@@ -742,123 +939,135 @@ export const MainLayout: React.FC = () => {
             </button>
           </div>
 
-        {/* Navigation Links Grouped by Module */}
-        <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
-          {filteredGroups.map((group) => {
-            if (group.children) {
-              const isOpen = Boolean(openGroups[group.id]);
-              const hasActiveChild = group.children.some(
-                (child) =>
-                  location.pathname === child.to ||
-                  location.pathname.startsWith(`${child.to}/`),
-              );
+          {/* Navigation Links Grouped by Module */}
+          <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
+            {filteredGroups.map((group) => {
+              if (group.children) {
+                const isOpen = Boolean(openGroups[group.id]);
+                const hasActiveChild = group.children.some(
+                  (child) =>
+                    location.pathname === child.to ||
+                    location.pathname.startsWith(`${child.to}/`),
+                );
 
+                return (
+                  <div key={group.id} className="space-y-0.5">
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup(group.id)}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                        hasActiveChild
+                          ? "text-sky-400 bg-neutral-800/80 font-semibold"
+                          : "text-neutral-300 hover:bg-neutral-800 hover:text-white"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 overflow-hidden">
+                        <group.icon
+                          className={`w-4 h-4 shrink-0 ${hasActiveChild ? "text-sky-400" : "text-neutral-400"}`}
+                        />
+                        <span className="truncate">{group.title}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-[10px] text-neutral-500 font-mono">
+                          {group.children.length}
+                        </span>
+                        <ChevronDown
+                          className={`w-3.5 h-3.5 text-neutral-400 transition-transform duration-200 ${
+                            isOpen ? "rotate-180" : ""
+                          }`}
+                        />
+                      </div>
+                    </button>
+
+                    {/* Submenú Desplegable con Guía Visual */}
+                    {isOpen && (
+                      <div className="ml-3 pl-3 border-l border-neutral-800 my-1 space-y-1">
+                        {group.children.map((child, idx) => {
+                          const showCategoryHeader =
+                            !!child.category &&
+                            (idx === 0 || group.children![idx - 1]?.category !== child.category);
+
+                          return (
+                            <React.Fragment key={child.to}>
+                              {showCategoryHeader && (
+                                <div className="text-[9px] font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 pt-2 pb-0.5 px-2">
+                                  {child.category}
+                                </div>
+                              )}
+                              <NavLink
+                                to={child.to}
+                                onClick={() => setSidebarOpen(false)}
+                                className={({ isActive }) =>
+                                  `flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                                    isActive
+                                      ? "bg-[#007BFF] dark:bg-[#3D91FF] text-white font-semibold shadow-xs"
+                                      : "text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200"
+                                  }`
+                                }
+                              >
+                                <child.icon className="w-3.5 h-3.5 shrink-0" />
+                                <span className="truncate">{child.label}</span>
+                              </NavLink>
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              // Enlace Raíz Directo (Dashboard, Tesorería, Reportes)
               return (
-                <div key={group.id} className="space-y-0.5">
-                  <button
-                    type="button"
-                    onClick={() => toggleGroup(group.id)}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-                      hasActiveChild
-                        ? "text-sky-400 bg-neutral-800/80 font-semibold"
+                <NavLink
+                  key={group.id}
+                  to={group.to!}
+                  onClick={() => setSidebarOpen(false)}
+                  className={({ isActive }) =>
+                    `flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                      isActive
+                        ? "bg-[#007BFF] dark:bg-[#3D91FF] text-white font-semibold shadow-xs"
                         : "text-neutral-300 hover:bg-neutral-800 hover:text-white"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 overflow-hidden">
-                      <group.icon
-                        className={`w-4 h-4 shrink-0 ${hasActiveChild ? "text-sky-400" : "text-neutral-400"}`}
-                      />
-                      <span className="truncate">{group.title}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-[10px] text-neutral-500 font-mono">
-                        {group.children.length}
-                      </span>
-                      <ChevronDown
-                        className={`w-3.5 h-3.5 text-neutral-400 transition-transform duration-200 ${
-                          isOpen ? "rotate-180" : ""
-                        }`}
-                      />
-                    </div>
-                  </button>
-
-                  {/* Submenú Desplegable con Guía Visual */}
-                  {isOpen && (
-                    <div className="ml-3 pl-3 border-l border-neutral-800 my-1 space-y-1">
-                      {group.children.map((child) => (
-                        <NavLink
-                          key={child.to}
-                          to={child.to}
-                          onClick={() => setSidebarOpen(false)}
-                          className={({ isActive }) =>
-                            `flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
-                              isActive
-                                ? "bg-sky-600 text-white font-semibold shadow-xs"
-                                : "text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200"
-                            }`
-                          }
-                        >
-                          <child.icon className="w-3.5 h-3.5 shrink-0" />
-                          <span className="truncate">{child.label}</span>
-                        </NavLink>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                    }`
+                  }
+                >
+                  <group.icon className="w-4 h-4 shrink-0" />
+                  <span className="truncate">{group.title}</span>
+                </NavLink>
               );
-            }
+            })}
+          </nav>
 
-            // Enlace Raíz Directo (Dashboard, Tesorería, Reportes)
-            return (
-              <NavLink
-                key={group.id}
-                to={group.to!}
-                onClick={() => setSidebarOpen(false)}
-                className={({ isActive }) =>
-                  `flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-                    isActive
-                      ? "bg-sky-600 text-white font-semibold shadow-xs"
-                      : "text-neutral-300 hover:bg-neutral-800 hover:text-white"
-                  }`
-                }
-              >
-                <group.icon className="w-4 h-4 shrink-0" />
-                <span className="truncate">{group.title}</span>
-              </NavLink>
-            );
-          })}
-        </nav>
-
-        {/* User Info Footer */}
-        <div className="p-4 border-t border-neutral-800 flex items-center justify-between">
-          <div className="flex items-center gap-2.5 overflow-hidden">
-            <div className="w-8 h-8 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-white text-xs font-semibold shrink-0">
-              <User className="w-4 h-4" />
+          {/* User Info Footer */}
+          <div className="p-4 border-t border-neutral-800 flex items-center justify-between">
+            <div className="flex items-center gap-2.5 overflow-hidden">
+              <div className="w-8 h-8 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-white text-xs font-semibold shrink-0">
+                <User className="w-4 h-4" />
+              </div>
+              <div className="overflow-hidden">
+                <p className="text-xs font-medium text-white truncate">
+                  {user?.fullName || user?.username || "Usuario"}
+                </p>
+                <p className="text-[10px] text-neutral-400 capitalize">
+                  {user?.role || "Rol"}
+                </p>
+              </div>
             </div>
-            <div className="overflow-hidden">
-              <p className="text-xs font-medium text-white truncate">
-                {user?.fullName || user?.username || "Usuario"}
-              </p>
-              <p className="text-[10px] text-neutral-400 capitalize">
-                {user?.role || "Rol"}
-              </p>
-            </div>
+            <button
+              onClick={handleLogout}
+              title="Cerrar sesión"
+              className="text-neutral-400 hover:text-red-400 p-1.5 rounded-lg hover:bg-neutral-800 transition-colors cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
-          <button
-            onClick={handleLogout}
-            title="Cerrar sesión"
-            className="text-neutral-400 hover:text-red-400 p-1.5 rounded-lg hover:bg-neutral-800 transition-colors cursor-pointer"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
-        </div>
         </div>
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden ">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#F4F6F9] dark:bg-[#242526]">
         {/* Topbar */}
-        <header className="h-16 bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between px-4 lg:px-8 shrink-0">
+        <header className="h-16 bg-white dark:bg-[#1E1F21] border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 lg:px-8 shrink-0">
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Botón abrir menú en móvil */}
             <button
@@ -874,7 +1083,11 @@ export const MainLayout: React.FC = () => {
             <button
               type="button"
               onClick={toggleDesktopSidebar}
-              title={desktopSidebarVisible ? "Ocultar menú lateral (Ctrl+B)" : "Mostrar menú lateral (Ctrl+B)"}
+              title={
+                desktopSidebarVisible
+                  ? "Ocultar menú lateral (Ctrl+B)"
+                  : "Mostrar menú lateral (Ctrl+B)"
+              }
               className="hidden lg:flex items-center justify-center p-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-neutral-400"
             >
               {desktopSidebarVisible ? (
@@ -906,24 +1119,14 @@ export const MainLayout: React.FC = () => {
                 </span>
               </div>
 
-              {canSwitchEnv ? (
-                <button
-                  onClick={() => navigate("/select-branch")}
-                  title="Cambiar sucursal o depósito"
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-sky-700 dark:text-sky-400 font-medium transition-colors cursor-pointer"
-                >
-                  <ArrowRightLeft className="w-3 h-3" />
-                  {/* <span>Cambiar</span> */}
-                </button>
-              ) : (
-                <div
-                  title="Entorno operativo asignado a su perfil (Sin autorización para cambiar)"
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-850 text-neutral-400 font-medium"
-                >
-                  <Lock className="w-3 h-3 text-neutral-400" />
-                  <span>Fijado</span>
-                </div>
-              )}
+              <button
+                onClick={() => setIsBranchModalOpen(true)}
+                title="Cambiar sucursal, depósito o caja"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-sky-700 dark:text-sky-400 font-medium transition-colors cursor-pointer"
+              >
+                <ArrowRightLeft className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline text-xs">Cambiar</span>
+              </button>
             </div>
           </div>
 
@@ -931,7 +1134,9 @@ export const MainLayout: React.FC = () => {
             {/* Tasa Oficial BCV */}
             <div className="flex items-center gap-1.5 bg-neutral-100 dark:bg-neutral-800 px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700">
               <Coins className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
-              <span className="font-semibold text-neutral-700 dark:text-neutral-300">BCV:</span>
+              <span className="font-semibold text-neutral-700 dark:text-neutral-300">
+                BCV:
+              </span>
               <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100">
                 Bs. {formatExchangeRate(rate, 2)}
               </span>
@@ -971,11 +1176,18 @@ export const MainLayout: React.FC = () => {
               SENIAT Conectado
             </div>
 
-            {/* Botón Alternar Tema Claro / Oscuro */}
+            {/* Centro de Notificaciones */}
+            <NotificationBell />
+
+            {/* Botón  Alternar Tema Claro / Oscuro */}
             <button
               type="button"
               onClick={toggleTheme}
-              title={resolvedTheme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+              title={
+                resolvedTheme === "dark"
+                  ? "Cambiar a modo claro"
+                  : "Cambiar a modo oscuro"
+              }
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-neutral-400"
               aria-label="Alternar tema claro y oscuro"
             >
@@ -993,7 +1205,11 @@ export const MainLayout: React.FC = () => {
             <button
               type="button"
               onClick={toggleFullscreen}
-              title={isFullscreen ? "Salir de pantalla completa (Esc o F11)" : "Modo pantalla completa (F11)"}
+              title={
+                isFullscreen
+                  ? "Salir de pantalla completa (Esc o F11)"
+                  : "Modo pantalla completa (F11)"
+              }
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-neutral-400"
             >
               {isFullscreen ? (
@@ -1009,7 +1225,7 @@ export const MainLayout: React.FC = () => {
         </header>
 
         {/* Scrollable Page Content */}
-        <main className="flex-1 overflow-y-auto p-4 lg:p-8 bg-neutral-50 dark:bg-neutral-950">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-8 bg-[#F4F6F9] dark:bg-[#242526] text-[#333333] dark:text-[#E0E0E0]">
           <Outlet />
         </main>
       </div>
@@ -1119,8 +1335,8 @@ export const MainLayout: React.FC = () => {
                     />
                   </div>
                   <p className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-1">
-                    Esta tasa se guardará en base de datos con fecha efectiva
-                    y se aplicará a todas las operaciones actuales.
+                    Esta tasa se guardará en base de datos con fecha efectiva y
+                    se aplicará a todas las operaciones actuales.
                   </p>
                 </div>
 
@@ -1266,6 +1482,22 @@ export const MainLayout: React.FC = () => {
         isOpen={showBcvPromptModal}
         bcvData={bcvLiveData}
         onClose={handleDismissBcvPrompt}
+      />
+
+      {/* Visor de Reporte Compartido desde el Centro de Notificaciones */}
+      {sharedReportToView && (
+        <PdfViewerModal
+          isOpen={Boolean(sharedReportToView)}
+          onClose={closeSharedReport}
+          title={sharedReportToView.title}
+          endpoint={sharedReportToView.endpoint}
+        />
+      )}
+
+      {/* Modal de Selección de Sucursal, Depósito y Caja Registradora */}
+      <SelectBranchModal
+        isOpen={isBranchModalOpen}
+        onClose={() => setIsBranchModalOpen(false)}
       />
     </div>
   );

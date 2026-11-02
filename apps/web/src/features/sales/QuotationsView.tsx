@@ -1339,99 +1339,101 @@ export const QuotationsView: React.FC = () => {
           </p>
         </div>
         <Button
+          variant="outline"
           onClick={handleOpenCreateModal}
-          className="flex items-center gap-2 bg-sky-600 hover:bg-sky-700 text-white font-medium text-xs rounded-lg py-2 px-3 shadow-sm"
+          className="flex items-center gap-2 border-[#007BFF] dark:border-[#3D91FF] rounded-lg bg-blue-50 dark:bg-blue-600/30 hover:bg-border-blue-600 dark:hover:border-blue-500 font-medium text-xs py-2 px-3 shadow-sm"
+          title="Nueva Cotización"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-4 h-4 text-blue-600 dark:blue-500" />
           <span>Nueva Cotización</span>
         </Button>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-        <Card className="p-4 border-l-4 border-l-neutral-500 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-neutral-500 dark:border-neutral-800">
+        <Card className="p-4 border-l-4 border-l-[#007BFF] dark:border-l-[#3D91FF] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-neutral-400">
+            <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
               Cotizaciones Activas
             </span>
-            <div className="w-7 h-7 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
+            <div className="p-2 rounded-lg bg-[#007BFF]/10 text-[#007BFF] dark:bg-[#3D91FF]/15 dark:text-[#3D91FF]">
               <FileText className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-neutral-500 mt-2">
+          <p className="text-2xl font-bold font-mono text-[#007BFF] dark:text-[#3D91FF] mt-2">
             {activeQuotationsCount}
           </p>
-          <p className="text-[10px] text-neutral-400 mt-0.5">
+          <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">
             De {quotations.length} registradas
           </p>
         </Card>
 
-        <Card className="p-4 border-l-4 border-l-neutral-500 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-neutral-500 dark:border-neutral-800">
+        <Card className="p-4 border-l-4 border-l-[#17A2B8] dark:border-l-[#38C9DD] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-neutral-500">
+            <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
               Monto Total Cotizado
             </span>
-            <div className="w-7 h-7 rounded-lg bg-neutral-100 text-neutral-700 flex items-center justify-center">
+            <div className="p-2 rounded-lg bg-[#17A2B8]/10 text-[#17A2B8] dark:bg-[#38C9DD]/15 dark:text-[#38C9DD]">
               <DollarSign className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-neutral-500 mt-2 font-mono">
+          <p className="text-2xl font-bold text-[#17A2B8] dark:text-[#38C9DD] mt-2 font-mono">
             {formatMoneyUSD(totalQuotedAmount)}
           </p>
-          <p className="text-[10px] text-neutral-400 mt-0.5">
+          <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">
             Volumen presupuestado
           </p>
         </Card>
 
-        <Card className="p-4 border-l-4 border-l-orange-500 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-orange-200 dark:border-orange-800">
+        <Card className="p-4 border-l-4 border-l-[#FFC107] dark:border-l-[#FBBF24] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-neutral-500">
+            <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
               Aprobadas para Facturar
             </span>
-            <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+            <div className="p-2 rounded-lg bg-[#FFC107]/15 text-[#b28500] dark:bg-[#FBBF24]/15 dark:text-[#FBBF24]">
               <CheckCircle2 className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-amber-600 mt-2">
+          <p className="text-2xl font-bold font-mono text-[#b28500] dark:text-[#FBBF24] mt-2">
             {acceptedQuotationsCount}
           </p>
-          <p className="text-[10px] text-neutral-400 mt-0.5">
+          <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">
             Aceptadas listas para emisión
           </p>
         </Card>
 
-        <Card className="p-4 border-l-4 border-l-purple-500 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-purple-200 dark:border-purple-800">
+        <Card className="p-4 border-l-4 border-l-[#28A745] dark:border-l-[#4ADE80] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-neutral-500">
+            <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
               Cotizaciones Facturadas
             </span>
-            <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
+            <div className="p-2 rounded-lg bg-[#28A745]/10 text-[#28A745] dark:bg-[#4ADE80]/15 dark:text-[#4ADE80]">
               <Receipt className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-purple-700 mt-2">
+          <p className="text-2xl font-bold font-mono text-[#28A745] dark:text-[#4ADE80] mt-2">
             {invoicedQuotations.length}
           </p>
-          <p className="text-[10px] text-neutral-400 mt-0.5">
+          <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">
             {quotations.length > 0
               ? `${Math.round((invoicedQuotations.length / quotations.length) * 100)}% tasa de conversión`
               : "Sin cotizaciones en el ciclo"}
           </p>
         </Card>
 
-        <Card className="p-4 border-l-4 border-l-emerald-500 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-emerald-200 dark:border-emerald-500">
+        <Card className="p-4 border-l-4 border-l-[#28A745] dark:border-l-[#4ADE80] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-neutral-500">
+            <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
               Monto Total Facturado
             </span>
-            <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <div className="p-2 rounded-lg bg-[#28A745]/10 text-[#28A745] dark:bg-[#4ADE80]/15 dark:text-[#4ADE80]">
               <DollarSign className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-emerald-700 mt-2 font-mono">
+          <p className="text-2xl font-bold text-[#28A745] dark:text-[#4ADE80] mt-2 font-mono">
             {formatMoneyUSD(totalInvoicedAmount)}
           </p>
-          <p className="text-[10px] text-neutral-400 mt-0.5">
+          <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">
             Ventas cerradas y cobradas
           </p>
         </Card>
@@ -1641,9 +1643,9 @@ export const QuotationsView: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-700 rounded-lg">
+                  <div className="overflow-x-auto border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-[#1E1F21] shadow-xs">
                     <table className="w-full text-left text-xs">
-                      <thead className="bg-neutral-50 dark:bg-neutral-800/60 border-b border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 font-medium">
+                      <thead className="bg-[#F4F6F9] dark:bg-[#18191A] text-neutral-700 dark:text-neutral-300 font-semibold border-b border-gray-200 dark:border-gray-800 text-[10px] uppercase tracking-wider">
                         <tr>
                           <th className="py-2.5 px-3">Producto</th>
                           <th className="py-2.5 px-3 w-24">Cantidad</th>
@@ -2055,9 +2057,9 @@ bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border
                           )}
 
                           {/* Tabla Resumen de Ítems */}
-                          <div className="overflow-x-auto border border-neutral-200 rounded-lg bg-white">
+                          <div className="overflow-x-auto border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-[#1E1F21] shadow-xs">
                             <table className="w-full text-left text-xs">
-                              <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase text-[10px] tracking-wider border-b border-neutral-200 dark:border-neutral-700">
+                              <thead className="bg-[#F4F6F9] dark:bg-[#18191A] text-neutral-700 dark:text-neutral-300 uppercase text-[10px] font-semibold tracking-wider border-b border-gray-200 dark:border-gray-800">
                                 <tr>
                                   <th className="py-2 px-2.5">Producto</th>
                                   <th className="py-2 px-2 text-right">Cant.</th>
@@ -2810,7 +2812,7 @@ bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border
                       {viewingQuotation.invoice?.payments && viewingQuotation.invoice.payments.length > 0 ? (
                         <div className="overflow-x-auto rounded-lg border border-sky-200/80 bg-white">
                           <table className="w-full text-left text-xs">
-                            <thead className="bg-neutral-50 border-b border-neutral-200 text-[10px] uppercase text-neutral-600 font-semibold">
+                            <thead className="bg-[#F4F6F9] dark:bg-[#18191A] border-b border-gray-200 dark:border-gray-800 text-[10px] uppercase text-neutral-700 dark:text-neutral-300 font-semibold">
                               <tr>
                                 <th className="py-1.5 px-2.5">Medio de Pago</th>
                                 <th className="py-1.5 px-2.5 text-right">Monto (USD)</th>
@@ -2868,7 +2870,7 @@ bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border
                       Productos Cotizados ({viewingQuotation.items.length})
                     </span>
                   </div>
-                  <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-white">
+                  <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-[#1E1F21] shadow-xs">
                     <table className="w-full text-left text-xs">
                       <thead className="bg-neutral-50 border-b border-neutral-200 text-[10px] uppercase text-neutral-600 font-semibold">
                         <tr>
@@ -2883,7 +2885,7 @@ bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border
                         {viewingQuotation.items.map((it) => (
                           <tr key={it.id} className="hover:bg-neutral-50/50">
                             <td className="py-2 px-3">
-                              <p className="font-semibold text-neutral-500">{it.productName}</p>
+                              <p className="font-semibold text-[#333333] dark:text-[#E0E0E0]">{it.productName}</p>
                               <span className="text-[10px] font-mono text-neutral-500">
                                 SKU: {it.productSku}
                               </span>
@@ -2902,7 +2904,7 @@ bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border
                             <td className="py-2 px-2 text-right font-mono text-neutral-500 text-[11px]">
                               {it.taxRate}%
                             </td>
-                            <td className="py-2 px-3 text-right font-mono font-bold text-neutral-500">
+                            <td className="py-2 px-3 text-right font-mono font-bold text-[#333333] dark:text-[#E0E0E0]">
                               {formatMoneyUSD(it.total)}
                             </td>
                           </tr>

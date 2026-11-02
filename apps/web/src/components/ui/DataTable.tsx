@@ -61,7 +61,7 @@ export function DataTable<T extends Record<string, any>>({
               setCurrentPage(1);
             }}
             placeholder={searchPlaceholder}
-            className="w-full h-10 pl-9 pr-3 text-sm bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+            className="w-full h-10 pl-9 pr-3 text-sm bg-white dark:bg-[#1E1F21] border border-gray-300 dark:border-gray-700 rounded-lg text-[#333333] dark:text-[#E0E0E0] placeholder:text-neutral-400 dark:placeholder:text-neutral-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:border-[#007BFF] dark:focus-visible:border-[#3D91FF] focus-visible:ring-[#007BFF]/25 dark:focus-visible:ring-[#3D91FF]/35"
           />
         </div>
 
@@ -74,10 +74,10 @@ export function DataTable<T extends Record<string, any>>({
       </div>
 
       {/* Tabla con scroll horizontal */}
-      <div className="border border-neutral-200 dark:border-neutral-800 rounded-lg overflow-hidden bg-white dark:bg-neutral-900 shadow-sm">
+      <div className="border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden bg-white dark:bg-[#1E1F21] shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm border-collapse">
-            <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase  tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
+            <thead className="bg-gray-50/90 dark:bg-[#18191A] text-neutral-600 dark:text-neutral-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-800 sticky top-0 z-10">
               <tr className="py-2.5 px-3">
                 {columns.map((col, idx) => (
                   <th
@@ -89,10 +89,10 @@ export function DataTable<T extends Record<string, any>>({
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800/80">
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i} className="border-b border-neutral-100 dark:border-neutral-800">
+                  <tr key={i} className="border-b border-gray-100 dark:border-gray-800/80">
                     {columns.map((col, idx) => (
                       <td key={idx} className={`py-3 px-4 ${col.className || ''}`}>
                         <div className="h-4 bg-neutral-200/70 dark:bg-neutral-700/60 rounded animate-pulse w-3/4" />
@@ -108,9 +108,9 @@ export function DataTable<T extends Record<string, any>>({
                 </tr>
               ) : (
                 paginatedData.map((row, rowIdx) => (
-                  <tr key={rowIdx} className="hover:bg-neutral-50/80 dark:hover:bg-neutral-800/50 transition-colors">
+                  <tr key={rowIdx} className="hover:bg-[#F4F6F9]/70 dark:hover:bg-neutral-800/40 transition-colors">
                     {columns.map((col, colIdx) => (
-                      <td key={colIdx} className={`py-3 px-4 text-neutral-800 dark:text-neutral-200 ${col.className || ''}`}>
+                      <td key={colIdx} className={`py-3 px-4 text-[#333333] dark:text-[#E0E0E0] ${col.className || ''}`}>
                         {col.cell ? col.cell(row) : col.accessorKey ? String(row[col.accessorKey] ?? '') : ''}
                       </td>
                     ))}
@@ -122,7 +122,7 @@ export function DataTable<T extends Record<string, any>>({
         </div>
 
         {/* Paginación */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-neutral-200 shrink-0 bg-white dark:bg-neutral-900 text-xs text-neutral-600 dark:text-neutral-400">
+        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-800 shrink-0 bg-white dark:bg-[#1E1F21] text-xs text-neutral-600 dark:text-neutral-400">
           <span>
             Mostrando {filteredData.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} a{' '}
             {Math.min(currentPage * pageSize, filteredData.length)} de {filteredData.length} registros

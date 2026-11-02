@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Button } from '../../components/ui/Button';
-import { Badge } from '../../components/ui/Badge';
-import { Modal } from '../../components/ui/Modal';
+import React, { useState, useEffect, useMemo } from "react";
+import { Button } from "../../components/ui/Button";
+import { Card } from "../../components/ui/Card";
+import { Badge } from "../../components/ui/Badge";
+import { Modal } from "../../components/ui/Modal";
 import {
   CreditCard,
   Plus,
@@ -22,29 +23,33 @@ import {
   Smartphone,
   Wallet,
   Coins,
-} from 'lucide-react';
-import { toast } from 'sonner';
-import { useAuthStore, isSuperAdminRole } from '../../stores/authStore';
-import { PaymentMethod, PaymentMethodInput } from '@ero/shared';
+} from "lucide-react";
+import { toast } from "sonner";
+import { useAuthStore, isSuperAdminRole } from "../../stores/authStore";
+import { PaymentMethod, PaymentMethodInput } from "@ero/shared";
 
 interface PaymentMethodsConfigViewProps {
   embedded?: boolean;
 }
 
-export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> = ({
-  embedded = false,
-}) => {
+export const PaymentMethodsConfigView: React.FC<
+  PaymentMethodsConfigViewProps
+> = ({ embedded = false }) => {
   const { token, user, hasPermission } = useAuthStore();
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Filtros y Búsqueda
-  const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [currencyFilter, setCurrencyFilter] = useState<'ALL' | 'VES' | 'USD'>('ALL');
-  const [typeFilter, setTypeFilter] = useState<string>('ALL');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [currencyFilter, setCurrencyFilter] = useState<"ALL" | "VES" | "USD">(
+    "ALL",
+  );
+  const [typeFilter, setTypeFilter] = useState<string>("ALL");
+  const [statusFilter, setStatusFilter] = useState<
+    "ALL" | "ACTIVE" | "INACTIVE"
+  >("ALL");
 
   // Debounce búsqueda (300ms)
   useEffect(() => {
@@ -60,10 +65,12 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
   const [editingId, setEditingId] = useState<string | null>(null);
 
   // Form State
-  const [formCode, setFormCode] = useState('');
-  const [formName, setFormName] = useState('');
-  const [formCurrency, setFormCurrency] = useState<'USD' | 'VES'>('VES');
-  const [formType, setFormType] = useState<'CASH' | 'CARD' | 'ELECTRONIC' | 'CREDIT' | 'OTHER'>('CARD');
+  const [formCode, setFormCode] = useState("");
+  const [formName, setFormName] = useState("");
+  const [formCurrency, setFormCurrency] = useState<"USD" | "VES">("VES");
+  const [formType, setFormType] = useState<
+    "CASH" | "CARD" | "ELECTRONIC" | "CREDIT" | "OTHER"
+  >("CARD");
   const [formAppliesIGTF, setFormAppliesIGTF] = useState(false);
   const [formRequiresReference, setFormRequiresReference] = useState(true);
   const [formRequiresBankAccount, setFormRequiresBankAccount] = useState(false);
@@ -73,17 +80,19 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
 
   const canWrite =
     isSuperAdminRole(user?.role) ||
-    hasPermission('config', 'write') ||
-    hasPermission('config', 'update') ||
-    hasPermission('config', 'create');
+    hasPermission("config", "write") ||
+    hasPermission("config", "update") ||
+    hasPermission("config", "create");
 
   const fetchMethods = async () => {
     try {
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
       // Consultamos tanto /api/config/payment-methods como fallback /api/pos/payment-methods?all=true
-      let res = await fetch('/api/config/payment-methods?all=true', { headers });
+      let res = await fetch("/api/config/payment-methods?all=true", {
+        headers,
+      });
       if (!res.ok) {
-        res = await fetch('/api/pos/payment-methods?all=true', { headers });
+        res = await fetch("/api/pos/payment-methods?all=true", { headers });
       }
 
       if (res.ok) {
@@ -92,10 +101,10 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
           setMethods(json.data);
         }
       } else {
-        toast.error('No se pudo cargar la configuración de medios de pago');
+        toast.error("No se pudo cargar la configuración de medios de pago");
       }
     } catch {
-      toast.error('Error de red al consultar medios de pago');
+      toast.error("Error de red al consultar medios de pago");
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -113,10 +122,10 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
 
   const handleOpenCreate = () => {
     setEditingId(null);
-    setFormCode('');
-    setFormName('');
-    setFormCurrency('VES');
-    setFormType('CARD');
+    setFormCode("");
+    setFormName("");
+    setFormCurrency("VES");
+    setFormType("CARD");
     setFormAppliesIGTF(false);
     setFormRequiresReference(true);
     setFormRequiresBankAccount(false);
@@ -144,13 +153,14 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
   const validateForm = () => {
     const errs: { code?: string; name?: string } = {};
     if (!formCode.trim()) {
-      errs.code = 'El código interno es obligatorio';
+      errs.code = "El código interno es obligatorio";
     } else if (!/^[A-Z0-9_]+$/.test(formCode.trim().toUpperCase())) {
-      errs.code = 'Solo se permiten letras mayúsculas, números y guiones bajos (_)';
+      errs.code =
+        "Solo se permiten letras mayúsculas, números y guiones bajos (_)";
     }
 
     if (!formName.trim()) {
-      errs.name = 'El nombre descriptivo es obligatorio';
+      errs.name = "El nombre descriptivo es obligatorio";
     }
 
     setErrors(errs);
@@ -164,12 +174,12 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
     setSaving(true);
     try {
       const headers = {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       };
 
       const payload: PaymentMethodInput = {
-        code: formCode.trim().toUpperCase().replace(/\s+/g, '_'),
+        code: formCode.trim().toUpperCase().replace(/\s+/g, "_"),
         name: formName.trim(),
         currency: formCurrency,
         type: formType,
@@ -183,26 +193,26 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
       let res: Response;
       if (editingId) {
         res = await fetch(`/api/config/payment-methods/${editingId}`, {
-          method: 'PUT',
+          method: "PUT",
           headers,
           body: JSON.stringify(payload),
         });
         if (!res.ok) {
           res = await fetch(`/api/pos/payment-methods/${editingId}`, {
-            method: 'PUT',
+            method: "PUT",
             headers,
             body: JSON.stringify(payload),
           });
         }
       } else {
-        res = await fetch('/api/config/payment-methods', {
-          method: 'POST',
+        res = await fetch("/api/config/payment-methods", {
+          method: "POST",
           headers,
           body: JSON.stringify(payload),
         });
         if (!res.ok) {
-          res = await fetch('/api/pos/payment-methods', {
-            method: 'POST',
+          res = await fetch("/api/pos/payment-methods", {
+            method: "POST",
             headers,
             body: JSON.stringify(payload),
           });
@@ -211,18 +221,20 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
 
       const json = await res.json();
       if (!res.ok || !json.success) {
-        throw new Error(json.error?.message || 'Error al guardar el medio de pago');
+        throw new Error(
+          json.error?.message || "Error al guardar el medio de pago",
+        );
       }
 
       toast.success(
         editingId
-          ? 'Medio de pago actualizado correctamente'
-          : 'Medio de pago registrado exitosamente'
+          ? "Medio de pago actualizado correctamente"
+          : "Medio de pago registrado exitosamente",
       );
       setIsModalOpen(false);
       fetchMethods();
     } catch (err: any) {
-      toast.error(err.message || 'Error al procesar la solicitud');
+      toast.error(err.message || "Error al procesar la solicitud");
     } finally {
       setSaving(false);
     }
@@ -232,18 +244,18 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
     if (!m.id || !canWrite) return;
     try {
       const headers = {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       };
 
       let res = await fetch(`/api/config/payment-methods/${m.id}`, {
-        method: 'PUT',
+        method: "PUT",
         headers,
         body: JSON.stringify({ isActive: !m.isActive }),
       });
       if (!res.ok) {
         res = await fetch(`/api/pos/payment-methods/${m.id}`, {
-          method: 'PUT',
+          method: "PUT",
           headers,
           body: JSON.stringify({ isActive: !m.isActive }),
         });
@@ -251,13 +263,15 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
 
       const json = await res.json();
       if (!res.ok || !json.success) {
-        throw new Error(json.error?.message || 'Error al cambiar estado');
+        throw new Error(json.error?.message || "Error al cambiar estado");
       }
 
-      toast.success(`Medio "${m.name}" ${!m.isActive ? 'activado' : 'desactivado'}`);
+      toast.success(
+        `Medio "${m.name}" ${!m.isActive ? "activado" : "desactivado"}`,
+      );
       fetchMethods();
     } catch (err: any) {
-      toast.error(err.message || 'Error al cambiar estado del medio de pago');
+      toast.error(err.message || "Error al cambiar estado del medio de pago");
     }
   };
 
@@ -273,18 +287,18 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
       }
 
       // Moneda
-      if (currencyFilter !== 'ALL' && m.currency !== currencyFilter) {
+      if (currencyFilter !== "ALL" && m.currency !== currencyFilter) {
         return false;
       }
 
       // Tipo / Categoría
-      if (typeFilter !== 'ALL' && m.type !== typeFilter) {
+      if (typeFilter !== "ALL" && m.type !== typeFilter) {
         return false;
       }
 
       // Estado
-      if (statusFilter === 'ACTIVE' && !m.isActive) return false;
-      if (statusFilter === 'INACTIVE' && m.isActive) return false;
+      if (statusFilter === "ACTIVE" && !m.isActive) return false;
+      if (statusFilter === "INACTIVE" && m.isActive) return false;
 
       return true;
     });
@@ -293,21 +307,21 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
   // Métricas
   const totalCount = methods.length;
   const activeCount = methods.filter((m) => m.isActive).length;
-  const vesCount = methods.filter((m) => m.currency === 'VES').length;
+  const vesCount = methods.filter((m) => m.currency === "VES").length;
   const igtfCount = methods.filter((m) => m.appliesIGTF).length;
 
   const getTypeLabel = (type: string) => {
     switch (type) {
-      case 'CARD':
-        return 'Punto de Venta / Tarjeta';
-      case 'ELECTRONIC':
-        return 'Pago Móvil / Transferencia';
-      case 'CASH':
-        return 'Efectivo en Gaveta';
-      case 'CREDIT':
-        return 'Crédito / Financiamiento';
+      case "CARD":
+        return "Punto de Venta / Tarjeta";
+      case "ELECTRONIC":
+        return "Pago Móvil / Transferencia";
+      case "CASH":
+        return "Efectivo en Gaveta";
+      case "CREDIT":
+        return "Crédito / Financiamiento";
       default:
-        return 'Otro Medio';
+        return "Otro Medio";
     }
   };
 
@@ -326,7 +340,8 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
               </span>
             </div>
             <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-              Catálogo oficial de medios de cobro autorizados para Puntos de Venta (POS), Arqueos y Facturación Comercial
+              Catálogo oficial de medios de cobro autorizados para Puntos de
+              Venta (POS), Arqueos y Facturación Comercial
             </p>
           </div>
 
@@ -338,12 +353,20 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
               disabled={isRefreshing}
               className="text-xs"
             >
-              <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <RefreshCw
+                className={`w-3.5 h-3.5 mr-1.5 ${isRefreshing ? "animate-spin" : ""}`}
+              />
               Actualizar
             </Button>
             {canWrite && (
-              <Button size="sm" onClick={handleOpenCreate} className="text-xs">
-                <Plus className="w-3.5 h-3.5 mr-1.5" />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleOpenCreate}
+                className="flex items-center gap-2 border-[#007BFF] dark:border-[#3D91FF] rounded-lg bg-blue-50 dark:bg-blue-600/30 hover:bg-border-blue-600 dark:hover:border-blue-500 text-xs"
+                title="Nuevo Medio de Pago"
+              >
+                <Plus className="w-3.5 h-3.5 mr-1.5 text-blue-600 dark:blue-500" />
                 Nuevo Medio de Pago
               </Button>
             )}
@@ -360,7 +383,8 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
               Catálogo de Medios de Cobro & Pagos
             </h2>
             <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-              Administración centralizada de tarjetas, pago móvil, transferencias, divisas y recargo IGTF
+              Administración centralizada de tarjetas, pago móvil,
+              transferencias, divisas y recargo IGTF
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -371,12 +395,20 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
               disabled={isRefreshing}
               className="text-xs"
             >
-              <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <RefreshCw
+                className={`w-3.5 h-3.5 mr-1.5 ${isRefreshing ? "animate-spin" : ""}`}
+              />
               Actualizar
             </Button>
             {canWrite && (
-              <Button size="sm" onClick={handleOpenCreate} className="text-xs">
-                <Plus className="w-3.5 h-3.5 mr-1.5" />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleOpenCreate}
+                className="flex items-center gap-2 border-[#007BFF] dark:border-[#3D91FF] rounded-lg bg-blue-50 dark:bg-blue-600/30 hover:bg-border-blue-600 dark:hover:border-blue-500 text-xs"
+                title="Nuevo Medio de Pago"
+              >
+                <Plus className="w-3.5 h-3.5 mr-1.5 text-blue-600 dark:blue-500" />
                 Nuevo Medio de Pago
               </Button>
             )}
@@ -386,7 +418,7 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
 
       {/* Tarjetas de Métricas Resumen */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-3.5 shadow-xs">
+        <Card className="border-l-4 border-l-[#007BFF] dark:border-l-[#3D91FF] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 p-3.5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
               Total Medios
@@ -398,10 +430,12 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
           <div className="mt-2 text-xl font-bold font-mono text-neutral-900 dark:text-neutral-100">
             {totalCount}
           </div>
-          <span className="text-[10px] text-neutral-400 dark:text-neutral-500">Registrados en el sistema</span>
-        </div>
+          <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
+            Registrados en el sistema
+          </span>
+        </Card>
 
-        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-3.5 shadow-xs">
+        <Card className="border-l-4 border-l-[#17A2B8] dark:border-l-[#38C9DD] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800  p-3.5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
               Habilitados
@@ -413,10 +447,12 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
           <div className="mt-2 text-xl font-bold font-mono text-emerald-700 dark:text-emerald-400">
             {activeCount}
           </div>
-          <span className="text-[10px] text-neutral-400 dark:text-neutral-500">Disponibles en el POS</span>
-        </div>
+          <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
+            Disponibles en el POS
+          </span>
+        </Card>
 
-        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-3.5 shadow-xs">
+        <Card className="border-l-4 border-l-[#28A745] dark:border-l-[#4ADE80] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 p-3.5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
               Bolívares (VES)
@@ -428,10 +464,12 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
           <div className="mt-2 text-xl font-bold font-mono text-sky-700 dark:text-sky-400">
             {vesCount}
           </div>
-          <span className="text-[10px] text-neutral-400 dark:text-neutral-500">Moneda nacional</span>
-        </div>
+          <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
+            Moneda nacional
+          </span>
+        </Card>
 
-        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-3.5 shadow-xs">
+        <Card className="border-l-4 border-l-neutral-400 dark:border-l-neutral-600 bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 p-3.5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
               Con IGTF (3%)
@@ -443,8 +481,10 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
           <div className="mt-2 text-xl font-bold font-mono text-indigo-700 dark:text-indigo-400">
             {igtfCount}
           </div>
-          <span className="text-[10px] text-neutral-400 dark:text-neutral-500">Aplica recargo fiscal</span>
-        </div>
+          <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
+            Aplica recargo fiscal
+          </span>
+        </Card>
       </div>
 
       {/* Barra de Filtros y Búsqueda */}
@@ -463,7 +503,7 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
             {searchTerm && (
               <button
                 type="button"
-                onClick={() => setSearchTerm('')}
+                onClick={() => setSearchTerm("")}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
               >
                 <X className="w-3.5 h-3.5" />
@@ -500,14 +540,16 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
 
         {/* Filtros Rápidos por Categoría Operativa */}
         <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-neutral-100 dark:border-neutral-800 text-[11px]">
-          <span className="text-neutral-400 dark:text-neutral-500 font-medium mr-1">Categoría:</span>
+          <span className="text-neutral-400 dark:text-neutral-500 font-medium mr-1">
+            Categoría:
+          </span>
           {[
-            { id: 'ALL', label: 'Todos' },
-            { id: 'CARD', label: 'Tarjetas / POS' },
-            { id: 'ELECTRONIC', label: 'Electrónico' },
-            { id: 'CASH', label: 'Efectivo' },
-            { id: 'CREDIT', label: 'Crédito' },
-            { id: 'OTHER', label: 'Otros' },
+            { id: "ALL", label: "Todos" },
+            { id: "CARD", label: "Tarjetas / POS" },
+            { id: "ELECTRONIC", label: "Electrónico" },
+            { id: "CASH", label: "Efectivo" },
+            { id: "CREDIT", label: "Crédito" },
+            { id: "OTHER", label: "Otros" },
           ].map((cat) => (
             <button
               key={cat.id}
@@ -515,21 +557,24 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
               onClick={() => setTypeFilter(cat.id)}
               className={`px-2 py-0.5 rounded-lg border transition-colors cursor-pointer ${
                 typeFilter === cat.id
-                  ? 'bg-sky-600 text-white border-sky-600 font-bold'
-                  : 'bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-700'
+                  ? "bg-sky-600 text-white border-sky-600 font-bold"
+                  : "bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-700"
               }`}
             >
               {cat.label}
             </button>
           ))}
-          {(searchTerm || currencyFilter !== 'ALL' || typeFilter !== 'ALL' || statusFilter !== 'ALL') && (
+          {(searchTerm ||
+            currencyFilter !== "ALL" ||
+            typeFilter !== "ALL" ||
+            statusFilter !== "ALL") && (
             <button
               type="button"
               onClick={() => {
-                setSearchTerm('');
-                setCurrencyFilter('ALL');
-                setTypeFilter('ALL');
-                setStatusFilter('ALL');
+                setSearchTerm("");
+                setCurrencyFilter("ALL");
+                setTypeFilter("ALL");
+                setStatusFilter("ALL");
               }}
               className="ml-auto text-sky-600 dark:text-sky-400 hover:text-sky-800 dark:hover:text-sky-300 text-[11px] font-medium underline cursor-pointer"
             >
@@ -545,7 +590,10 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
           /* Skeletons para carga sin Layout Shift */
           <div className="p-4 space-y-3">
             {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="h-10 bg-neutral-100 dark:bg-neutral-800 rounded-lg animate-pulse" />
+              <div
+                key={i}
+                className="h-10 bg-neutral-100 dark:bg-neutral-800 rounded-lg animate-pulse"
+              />
             ))}
           </div>
         ) : filteredMethods.length === 0 ? (
@@ -559,17 +607,27 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
                 No se encontraron medios de pago
               </h3>
               <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-sm mx-auto">
-                {searchTerm || currencyFilter !== 'ALL' || typeFilter !== 'ALL' || statusFilter !== 'ALL'
-                  ? 'No hay registros que coincidan con los criterios de búsqueda o filtros seleccionados.'
-                  : 'Aún no se han configurado medios de pago en la empresa.'}
+                {searchTerm ||
+                currencyFilter !== "ALL" ||
+                typeFilter !== "ALL" ||
+                statusFilter !== "ALL"
+                  ? "No hay registros que coincidan con los criterios de búsqueda o filtros seleccionados."
+                  : "Aún no se han configurado medios de pago en la empresa."}
               </p>
             </div>
-            {canWrite && !searchTerm && currencyFilter === 'ALL' && typeFilter === 'ALL' && (
-              <Button size="sm" onClick={handleOpenCreate} className="mt-2 text-xs">
-                <Plus className="w-3.5 h-3.5 mr-1" />
-                Registrar Primer Medio
-              </Button>
-            )}
+            {canWrite &&
+              !searchTerm &&
+              currencyFilter === "ALL" &&
+              typeFilter === "ALL" && (
+                <Button
+                  size="sm"
+                  onClick={handleOpenCreate}
+                  className="mt-2 text-xs"
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  Registrar Primer Medio
+                </Button>
+              )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -589,7 +647,10 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
               </thead>
               <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
                 {filteredMethods.map((m) => (
-                  <tr key={m.id || m.code} className="hover:bg-neutral-50/70 dark:hover:bg-neutral-800/50 transition-colors">
+                  <tr
+                    key={m.id || m.code}
+                    className="hover:bg-neutral-50/70 dark:hover:bg-neutral-800/50 transition-colors"
+                  >
                     <td className="py-2.5 px-3 text-center font-mono text-neutral-500 dark:text-neutral-400">
                       {m.displayOrder ?? 0}
                     </td>
@@ -602,9 +663,9 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
                     <td className="py-2.5 px-3">
                       <span
                         className={`inline-flex items-center px-1.5 py-0.5 rounded-lg text-[10px] font-bold border ${
-                          m.currency === 'USD'
-                            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
-                            : 'bg-sky-50 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300 border-sky-200 dark:border-sky-800'
+                          m.currency === "USD"
+                            ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800"
+                            : "bg-sky-50 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300 border-sky-200 dark:border-sky-800"
                         }`}
                       >
                         {m.currency}
@@ -628,7 +689,9 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
                           Obligatoria
                         </span>
                       ) : (
-                        <span className="text-neutral-400 text-[11px]">Opcional</span>
+                        <span className="text-neutral-400 text-[11px]">
+                          Opcional
+                        </span>
                       )}
                     </td>
                     <td className="py-2.5 px-3 text-center">
@@ -636,17 +699,17 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
                         type="button"
                         onClick={() => handleToggleActive(m)}
                         disabled={!canWrite}
-                        className={`cursor-pointer transition-opacity ${!canWrite ? 'opacity-70 cursor-not-allowed' : ''}`}
+                        className={`cursor-pointer transition-opacity ${!canWrite ? "opacity-70 cursor-not-allowed" : ""}`}
                         title={
                           !canWrite
-                            ? 'Sin permisos de edición'
+                            ? "Sin permisos de edición"
                             : m.isActive
-                            ? 'Clic para desactivar método en el POS'
-                            : 'Clic para activar método en el POS'
+                              ? "Clic para desactivar método en el POS"
+                              : "Clic para activar método en el POS"
                         }
                       >
-                        <Badge variant={m.isActive ? 'success' : 'neutral'}>
-                          {m.isActive ? 'Activo' : 'Inactivo'}
+                        <Badge variant={m.isActive ? "success" : "neutral"}>
+                          {m.isActive ? "Activo" : "Inactivo"}
                         </Badge>
                       </button>
                     </td>
@@ -677,7 +740,7 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingId ? 'Editar Medio de Pago' : 'Nuevo Medio de Pago'}
+        title={editingId ? "Editar Medio de Pago" : "Nuevo Medio de Pago"}
         subtitle="Configure los parámetros fiscales, tipo de divisa y reglas operativas para cobros"
         icon={<CreditCard className="w-5 h-5 text-sky-600 dark:text-sky-400" />}
         maxWidth="max-w-xl"
@@ -691,7 +754,12 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
             >
               Cancelar
             </Button>
-            <Button form="paymentMethodConfigForm" type="submit" size="sm" disabled={saving}>
+            <Button
+              form="paymentMethodConfigForm"
+              type="submit"
+              size="sm"
+              disabled={saving}
+            >
               {saving ? (
                 <>
                   <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
@@ -707,7 +775,11 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
           </div>
         }
       >
-        <form id="paymentMethodConfigForm" onSubmit={handleSave} className="space-y-4 text-xs">
+        <form
+          id="paymentMethodConfigForm"
+          onSubmit={handleSave}
+          className="space-y-4 text-xs"
+        >
           {/* Identificación */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
@@ -719,16 +791,23 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
                 value={formCode}
                 onChange={(e) => {
                   setFormCode(e.target.value.toUpperCase());
-                  if (errors.code) setErrors((prev) => ({ ...prev, code: undefined }));
+                  if (errors.code)
+                    setErrors((prev) => ({ ...prev, code: undefined }));
                 }}
                 placeholder="Ej: CASHEA, PAGO_MOVIL, BIOPAGO"
                 className={`w-full h-8 px-2.5 border rounded-lg font-mono font-bold text-xs focus-visible:ring-2 focus-visible:ring-sky-500 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 ${
-                  errors.code ? 'border-red-500 ring-1 ring-red-500' : 'border-neutral-300 dark:border-neutral-700'
+                  errors.code
+                    ? "border-red-500 ring-1 ring-red-500"
+                    : "border-neutral-300 dark:border-neutral-700"
                 }`}
-                disabled={Boolean(editingId && ['CASH_USD', 'CASH_VES'].includes(formCode))}
+                disabled={Boolean(
+                  editingId && ["CASH_USD", "CASH_VES"].includes(formCode),
+                )}
               />
               {errors.code ? (
-                <span className="text-[10px] text-red-600 mt-0.5 block">{errors.code}</span>
+                <span className="text-[10px] text-red-600 mt-0.5 block">
+                  {errors.code}
+                </span>
               ) : (
                 <span className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5 block">
                   Identificador único en mayúsculas sin espacios
@@ -745,15 +824,20 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
                 value={formName}
                 onChange={(e) => {
                   setFormName(e.target.value);
-                  if (errors.name) setErrors((prev) => ({ ...prev, name: undefined }));
+                  if (errors.name)
+                    setErrors((prev) => ({ ...prev, name: undefined }));
                 }}
                 placeholder="Ej: Tarjeta de Débito / POS"
                 className={`w-full h-8 px-2.5 border rounded-lg text-xs focus-visible:ring-2 focus-visible:ring-sky-500 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 ${
-                  errors.name ? 'border-red-500 ring-1 ring-red-500' : 'border-neutral-300 dark:border-neutral-700'
+                  errors.name
+                    ? "border-red-500 ring-1 ring-red-500"
+                    : "border-neutral-300 dark:border-neutral-700"
                 }`}
               />
               {errors.name ? (
-                <span className="text-[10px] text-red-600 mt-0.5 block">{errors.name}</span>
+                <span className="text-[10px] text-red-600 mt-0.5 block">
+                  {errors.name}
+                </span>
               ) : (
                 <span className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5 block">
                   Etiqueta visual mostrada al cajero y en reportes
@@ -765,13 +849,15 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
           {/* Moneda y Categoría */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Moneda Base</label>
+              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                Moneda Base
+              </label>
               <select
                 value={formCurrency}
                 onChange={(e) => {
-                  const curr = e.target.value as 'USD' | 'VES';
+                  const curr = e.target.value as "USD" | "VES";
                   setFormCurrency(curr);
-                  if (curr === 'USD') setFormAppliesIGTF(true);
+                  if (curr === "USD") setFormAppliesIGTF(true);
                   else setFormAppliesIGTF(false);
                 }}
                 className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
@@ -790,10 +876,16 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
                 onChange={(e) => setFormType(e.target.value as any)}
                 className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
               >
-                <option value="CARD">Tarjeta (Punto de Venta Débito/Crédito)</option>
-                <option value="ELECTRONIC">Electrónico (Pago Móvil / Transferencia)</option>
+                <option value="CARD">
+                  Tarjeta (Punto de Venta Débito/Crédito)
+                </option>
+                <option value="ELECTRONIC">
+                  Electrónico (Pago Móvil / Transferencia)
+                </option>
                 <option value="CASH">Efectivo Físico en Gaveta</option>
-                <option value="CREDIT">Crédito / Financiamiento (Cashea, Cuotas)</option>
+                <option value="CREDIT">
+                  Crédito / Financiamiento (Cashea, Cuotas)
+                </option>
                 <option value="OTHER">Otro Medio Especial</option>
               </select>
             </div>
@@ -808,7 +900,9 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
               type="number"
               min="0"
               value={formDisplayOrder}
-              onChange={(e) => setFormDisplayOrder(parseInt(e.target.value) || 0)}
+              onChange={(e) =>
+                setFormDisplayOrder(parseInt(e.target.value) || 0)
+              }
               className="w-full sm:w-32 h-8 px-2.5 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs font-mono focus-visible:ring-2 focus-visible:ring-sky-500 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
             />
             <span className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5 block">
@@ -835,7 +929,9 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
                     Aplica Alícuota IGTF (3%)
                   </span>
                   <span className="text-[10px] text-neutral-500 dark:text-neutral-400 block">
-                    Grava con el 3% de IGTF cuando se efectúe el pago en divisas según la Ley del Impuesto a las Grandes Transacciones Financieras.
+                    Grava con el 3% de IGTF cuando se efectúe el pago en divisas
+                    según la Ley del Impuesto a las Grandes Transacciones
+                    Financieras.
                   </span>
                 </div>
               </label>
@@ -852,7 +948,8 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
                     Exigir Referencia Bancaria / Lote Obligatorio
                   </span>
                   <span className="text-[10px] text-neutral-500 dark:text-neutral-400 block">
-                    Obliga al cajero a capturar el número de comprobante o aprobación antes de asentar el cobro.
+                    Obliga al cajero a capturar el número de comprobante o
+                    aprobación antes de asentar el cobro.
                   </span>
                 </div>
               </label>
@@ -869,7 +966,8 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
                     Vincular a Cuenta Bancaria de Tesorería
                   </span>
                   <span className="text-[10px] text-neutral-500 dark:text-neutral-400 block">
-                    Asocia los ingresos de este medio de cobro al módulo de Tesorería y Conciliación Bancaria.
+                    Asocia los ingresos de este medio de cobro al módulo de
+                    Tesorería y Conciliación Bancaria.
                   </span>
                 </div>
               </label>
@@ -886,7 +984,8 @@ export const PaymentMethodsConfigView: React.FC<PaymentMethodsConfigViewProps> =
                     Método Activo y Disponible
                   </span>
                   <span className="text-[10px] text-neutral-500 dark:text-neutral-400 block">
-                    Si se desactiva, no se mostrará como opción de cobro en terminales de caja.
+                    Si se desactiva, no se mostrará como opción de cobro en
+                    terminales de caja.
                   </span>
                 </div>
               </label>

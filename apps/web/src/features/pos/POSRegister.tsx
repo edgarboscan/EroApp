@@ -61,6 +61,7 @@ import {
 export interface ProductPresentationPOS {
   id: string;
   name: string;
+  departmentId?: string;
   sku?: string | null;
   barcode?: string | null;
   multiplier: number;
@@ -74,6 +75,7 @@ interface ProductItem {
   id: string;
   sku: string;
   name: string;
+  departmentId?: string;
   description?: string | null;
   priceUSD: number;
   taxRatePercent: number;
@@ -88,6 +90,7 @@ interface CartItem {
   productId: string;
   sku: string;
   name: string;
+  departmentId?: string;
   quantity: number;
   unitPrice: number;
   taxRatePercent: number;
@@ -532,9 +535,7 @@ export const POSRegister: React.FC = () => {
         const json = await res.json();
         if (json.success && json.data) {
           setActiveShift(json.data);
-          if (json.data.warehouseId) {
-            fetchProducts(json.data.warehouseId);
-          }
+          fetchProducts(json.data.warehouseId, json.data.cashRegisterId);
         } else {
           setActiveShift(null);
         }
@@ -615,12 +616,24 @@ export const POSRegister: React.FC = () => {
     }
   };
 
-  const fetchProducts = async (warehouseIdOverride?: string) => {
+  const fetchProducts = async (warehouseIdOverride?: string, cashRegisterIdOverride?: string) => {
     try {
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
       const targetWh = warehouseIdOverride || activeShift?.warehouseId || activeWarehouseId;
-      const queryParam = targetWh ? `?warehouseId=${encodeURIComponent(targetWh)}` : '?warehouseScope=pos';
-      const res = await fetch(`/api/inventory/products${queryParam}`, { headers });
+      const targetCR = cashRegisterIdOverride || activeShift?.cashRegisterId;
+      const params = new URLSearchParams();
+      if (targetWh) {
+        params.append('warehouseId', targetWh);
+      } else {
+        params.append('warehouseScope', 'pos');
+      }
+      if (targetCR) {
+        params.append('cashRegisterId', targetCR);
+      }
+      if (activeBranchId) {
+        params.append('branchId', activeBranchId);
+      }
+      const res = await fetch(`/api/inventory/products?${params.toString()}`, { headers });
       if (res.ok) {
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
@@ -634,6 +647,7 @@ export const POSRegister: React.FC = () => {
               id: p.id,
               sku: p.sku,
               name: p.name,
+              departmentId: p.departmentId,
               description: p.description || null,
               priceUSD: isNaN(price) || price <= 0 ? 0 : price,
               taxRatePercent: isNaN(parsedTax) ? 16.0 : parsedTax,
@@ -775,11 +789,22 @@ export const POSRegister: React.FC = () => {
     }
   };
 
+  // Departamentos permitidos para la caja registradora activa
+  const allowedDepartmentIds = useMemo<string[]>(() => {
+    return Array.isArray(activeShift?.allowedDepartmentIds) ? activeShift.allowedDepartmentIds : [];
+  }, [activeShift]);
+
+  // Productos visibles en la caja (si no tiene departamentos configurados, muestra todos)
+  const visibleProducts = useMemo(() => {
+    if (allowedDepartmentIds.length === 0) return products;
+    return products.filter((p) => p.departmentId && allowedDepartmentIds.includes(p.departmentId));
+  }, [products, allowedDepartmentIds]);
+
   // Filtrado de productos (búsqueda por nombre, SKU principal, código de barras o SKUs/códigos de presentaciones)
   const filteredProducts = useMemo(() => {
-    if (!searchTerm.trim()) return products;
+    if (!searchTerm.trim()) return visibleProducts;
     const term = searchTerm.toLowerCase();
-    return products.filter(
+    return visibleProducts.filter(
       (p) =>
         p.name.toLowerCase().includes(term) ||
         p.sku.toLowerCase().includes(term) ||
@@ -792,7 +817,7 @@ export const POSRegister: React.FC = () => {
               (pr.name && pr.name.toLowerCase().includes(term))
           ))
     );
-  }, [products, searchTerm]);
+  }, [visibleProducts, searchTerm]);
 
   // Escaneo o ingreso de SKU / Código de barras (Reconocimiento de presentaciones)
   const handleBarcodeOrSkuScan = (query: string) => {
@@ -800,7 +825,7 @@ export const POSRegister: React.FC = () => {
     if (!term) return;
 
     // 1. Prioridad: Verificar si coincide exactamente con el SKU o Código de Barras de una Presentación
-    for (const p of products) {
+    for (const p of visibleProducts) {
       if (p.presentations && p.presentations.length > 0) {
         const matchedPres = p.presentations.find(
           (pr) =>
@@ -816,7 +841,7 @@ export const POSRegister: React.FC = () => {
     }
 
     // 2. Verificar si coincide exactamente con el SKU o Código de Barras de un Producto Base
-    const exactProduct = products.find(
+    const exactProduct = visibleProducts.find(
       (p) =>
         (p.barcode && p.barcode.trim().toLowerCase() === term.toLowerCase()) ||
         p.sku.trim().toLowerCase() === term.toLowerCase()
@@ -1705,7 +1730,12 @@ export const POSRegister: React.FC = () => {
       if (isFiscal) {
         setIsInvoiceModalOpen(true);
       } else {
-        setShowPrintPromptModal(true);
+        const printMode = activeShift?.ticketPrintMode || 'prompt';
+        if (printMode === 'direct') {
+          setIsInvoiceModalOpen(true);
+        } else {
+          setShowPrintPromptModal(true);
+        }
       }
     } catch (err: any) {
       toast.error(err.message || 'Error al procesar venta');
@@ -1914,10 +1944,27 @@ export const POSRegister: React.FC = () => {
                   Impresora Fiscal {activeShift.fiscalPrinterSerial ? `[${activeShift.fiscalPrinterSerial}]` : 'Conectada'}
                 </Badge>
               ) : (
-                <Badge variant="neutral" className="text-[10px] flex items-center gap-1">
-                  <Printer className="w-3 h-3" />
-                  Modo No Fiscal (Ticket Estándar)
-                </Badge>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <Badge variant="neutral" className="text-[10px] flex items-center gap-1">
+                    <Printer className="w-3 h-3" />
+                    {activeShift.ticketPrinterType === 'thermal_58mm'
+                      ? 'Térmica 58mm'
+                      : activeShift.ticketPrinterType === 'generic_esc_pos'
+                      ? 'ESC/POS'
+                      : activeShift.ticketPrinterType === 'windows_spooler'
+                      ? 'Spooler'
+                      : activeShift.ticketPrinterType === 'pdf_virtual'
+                      ? 'PDF'
+                      : 'Térmica 80mm'}
+                  </Badge>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${
+                    activeShift.ticketPrintMode === 'direct'
+                      ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800'
+                      : 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800'
+                  }`}>
+                    {activeShift.ticketPrintMode === 'direct' ? 'Impresión Directa' : 'Preguntar Ticket'}
+                  </span>
+                </div>
               )}
             </div>
           </div>
@@ -3343,6 +3390,8 @@ export const POSRegister: React.FC = () => {
         data={invoiceTicketData}
         onClose={() => setIsInvoiceModalOpen(false)}
         isFiscal={isFiscal}
+        printerType={activeShift?.ticketPrinterType}
+        printerName={activeShift?.ticketPrinterName}
       />
 
       {/* Modal de Pregunta: ¿Desea imprimir un ticket de venta? (Modo No Fiscal) */}
@@ -4147,11 +4196,13 @@ export const POSRegister: React.FC = () => {
         isOpen={isProductSearchModalOpen}
         onClose={() => setIsProductSearchModalOpen(false)}
         mode="pos"
+        cashRegisterId={activeShift?.cashRegisterId}
+        allowedDepartmentIds={allowedDepartmentIds}
         warehouseId={activeShift?.warehouseId || activeWarehouseId || undefined}
         warehouseName={activeShift?.warehouseName || 'Almacén de Ventas'}
         onSelect={(prod) => {
           setIsProductSearchModalOpen(false);
-          const found = products.find((p) => p.id === prod.id);
+          const found = visibleProducts.find((p) => p.id === prod.id);
           if (found) {
             handleSelectProduct(found);
           } else {

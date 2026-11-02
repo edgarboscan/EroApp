@@ -140,58 +140,58 @@ export const CustomerStatementView: React.FC = () => {
 
       {/* KPI Cards Financieros */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <Card className="p-4 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
-          <div className="text-xs text-neutral-500 font-medium">
+        <Card className="p-4 border-l-4 border-l-[#007BFF] dark:border-l-[#3D91FF] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <div className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
             Límite de Crédito
           </div>
-          <div className="text-2xl font-bold text-neutral-400  mt-1">
+          <div className="text-2xl font-bold font-mono text-[#007BFF] dark:text-[#3D91FF] mt-1">
             {formatMoneyUSD(customer.creditLimit)}
           </div>
-          <div className="text-[11px] text-neutral-400 mt-1">
+          <div className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1">
             Plazo de pago: {customer.paymentTermsDays} días
           </div>
         </Card>
 
-        <Card className="p-4 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
-          <div className="text-xs text-neutral-500 font-medium">
+        <Card className="p-4 border-l-4 border-l-[#FFC107] dark:border-l-[#FBBF24] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <div className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
             Saldo Deudor Actual
           </div>
-          <div className="text-2xl font-bold text-amber-700 mt-1">
+          <div className="text-2xl font-bold font-mono text-[#b28500] dark:text-[#FBBF24] mt-1">
             {formatMoneyUSD(customer.currentBalance)}
           </div>
-          <div className="text-[11px] text-neutral-400 mt-1">
+          <div className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1">
             {customer.currentBalance > 0
               ? "Facturas y débitos por cobrar"
               : "Al día"}
           </div>
         </Card>
 
-        <Card className="p-4 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
-          <div className="text-xs text-neutral-500 font-medium">
+        <Card className="p-4 border-l-4 border-l-[#28A745] dark:border-l-[#4ADE80] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <div className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
             Saldo a Favor (NC)
           </div>
-          <div className="text-2xl font-bold text-emerald-700 mt-1">
+          <div className="text-2xl font-bold font-mono text-[#28A745] dark:text-[#4ADE80] mt-1">
             {formatMoneyUSD(totalCreditAvailableUSD)}
           </div>
-          <div className="text-[11px] text-neutral-400 mt-1">
+          <div className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1">
             Disponible para compensar
           </div>
         </Card>
 
-        <Card className="p-4 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
-          <div className="text-xs text-neutral-500 font-medium">
-            Crédito Comercial Libre
+        <Card className="p-4 border-l-4 border-l-[#17A2B8] dark:border-l-[#38C9DD] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <div className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+            Crédito Libre
           </div>
-          <div className="text-2xl font-bold text-sky-700 mt-1">
+          <div className="text-2xl font-bold font-mono text-[#17A2B8] dark:text-[#38C9DD] mt-1">
             {formatMoneyUSD(Math.max(0, customer.availableCredit))}
           </div>
-          <div className="text-[11px] text-neutral-400 mt-1">
-            Margen para compras a crédito
+          <div className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1">
+            Margen para compras
           </div>
         </Card>
 
-        <Card className="p-4 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
-          <div className="text-xs text-neutral-500 font-medium">
+        <Card className="p-4 border-l-4 border-l-neutral-400 dark:border-l-neutral-600 bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+          <div className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
             Condición Fiscal
           </div>
           <div className="mt-2">
@@ -201,7 +201,7 @@ export const CustomerStatementView: React.FC = () => {
                 : "Contribuyente Ordinario"}
             </Badge>
           </div>
-          <div className="text-[11px] text-neutral-400 mt-2 truncate">
+          <div className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-2 truncate">
             {customer.email || "Sin correo registrado"}
           </div>
         </Card>

@@ -1049,10 +1049,12 @@ export const DeliveryNotesView: React.FC = () => {
             <span>Importar Cotización</span>
           </Button>
           <Button
+            variant="outline"
             onClick={handleOpenCreateModal}
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs rounded-lg py-2 px-3 shadow-xs"
+            className="flex items-center gap-2 border-[#007BFF] dark:border-[#3D91FF] rounded-lg bg-blue-50 dark:bg-blue-600/30 hover:bg-border-blue-600 dark:hover:border-blue-500 font-medium text-xs py-2 px-3 shadow-xs"
+            title="Nueva Nota de Entrega"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 text-blue-600 dark:blue-500" />
             <span>Nueva Nota de Entrega</span>
           </Button>
         </div>
@@ -1060,55 +1062,55 @@ export const DeliveryNotesView: React.FC = () => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="p-4 border-l-4 border-l-emerald-500  bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-emerald-200 dark:border-emerald-500">
+        <Card className="p-4 border-l-4 border-l-[#007BFF] dark:border-l-[#3D91FF] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-neutral-500">
+            <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
               Total Despachos
             </span>
-            <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-[#007BFF]/10 text-[#007BFF] dark:bg-[#3D91FF]/15 dark:text-[#3D91FF] flex items-center justify-center">
               <Truck className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-emerald-400 mt-2">
+          <p className="text-2xl font-bold font-mono text-[#007BFF] dark:text-[#3D91FF] mt-2">
             {deliveries.length}
           </p>
-          <p className="text-[10px] text-neutral-400 mt-0.5">
+          <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">
             Notas emitidas en el ciclo
           </p>
         </Card>
 
-        <Card className="p-4 border-l-4 border-l-amber-500  bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-amber-200 dark:border-amber-500">
+        <Card className="p-4 border-l-4 border-l-[#FFC107] dark:border-l-[#FBBF24] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-neutral-500">
+            <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
               Pendientes por Facturar
             </span>
-            <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-[#FFC107]/15 text-[#b28500] dark:bg-[#FBBF24]/15 dark:text-[#FBBF24] flex items-center justify-center">
               <Receipt className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-amber-600 mt-2">
+          <p className="text-2xl font-bold font-mono text-[#b28500] dark:text-[#FBBF24] mt-2">
             {deliveries.filter((d) => d.status === "DELIVERED").length}
           </p>
-          <p className="text-[10px] text-neutral-400 mt-0.5">
+          <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">
             Mercancía entregada sin factura fiscal
           </p>
         </Card>
 
-        <Card className="p-4 border-l-4 border-l-sky-500  bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
+        <Card className="p-4 border-l-4 border-l-[#28A745] dark:border-l-[#4ADE80] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-neutral-500">
+            <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
               Valor Despachado ($)
             </span>
-            <div className="w-7 h-7 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-[#28A745]/10 text-[#28A745] dark:bg-[#4ADE80]/15 dark:text-[#4ADE80] flex items-center justify-center">
               <DollarSign className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-sky-700 mt-2 font-mono">
+          <p className="text-2xl font-bold font-mono text-[#28A745] dark:text-[#4ADE80] mt-2">
             {formatMoneyUSD(
               deliveries.reduce((acc, d) => acc + d.totalAmount, 0),
             )}
           </p>
-          <p className="text-[10px] text-neutral-400 mt-0.5">
+          <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">
             Mercancía salida del inventario
           </p>
         </Card>
@@ -1158,7 +1160,7 @@ export const DeliveryNotesView: React.FC = () => {
             <label className="text-[11px] font-medium text-neutral-500">
               Tipo de Clientes:
             </label>
-            <div className="flex bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border-b border-neutral-200 dark:border-neutral-700 items-center gap-1 p-1 rounded-lg p-2">
+            <div className="flex bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 items-center gap-1 p-1 rounded-lg">
               <button
                 type="button"
                 title="Todas"
@@ -1168,8 +1170,8 @@ export const DeliveryNotesView: React.FC = () => {
                 }}
                 className={`flex-1 py-1 text-[11px] rounded-lg font-medium transition-colors cursor-pointer ${
                   customerFilterType === "ALL"
-                    ? "bg-white text-neutral-400 shadow-xs"
-                    : "text-neutral-300 hover:text-neutral-400"
+                    ? "bg-white dark:bg-[#242526] text-[#007BFF] dark:text-[#3D91FF] font-semibold shadow-xs"
+                    : "text-neutral-600 dark:text-neutral-400 hover:text-[#333333] dark:hover:text-[#E0E0E0]"
                 }`}
               >
                 Todos
@@ -1182,8 +1184,8 @@ export const DeliveryNotesView: React.FC = () => {
                 }}
                 className={`flex-1 py-1 text-[11px] rounded-lg font-medium transition-colors cursor-pointer ${
                   customerFilterType === "WITH_DELIVERIES"
-                    ? "bg-white text-neutral-400 shadow-xs"
-                    : "text-neutral-300 hover:text-neutral-400"
+                    ? "bg-white dark:bg-[#242526] text-[#007BFF] dark:text-[#3D91FF] font-semibold shadow-xs"
+                    : "text-neutral-600 dark:text-neutral-400 hover:text-[#333333] dark:hover:text-[#E0E0E0]"
                 }`}
                 title="Clientes con Notas de Entrega emitidas"
               >
@@ -1197,8 +1199,8 @@ export const DeliveryNotesView: React.FC = () => {
                 }}
                 className={`flex-1 py-1 text-[11px] rounded-lg font-medium transition-colors cursor-pointer ${
                   customerFilterType === "WITH_QUOTATIONS"
-                    ? "bg-white text-neutral-400 shadow-xs"
-                    : "text-neutral-300 hover:text-neutral-400"
+                    ? "bg-white dark:bg-[#242526] text-[#007BFF] dark:text-[#3D91FF] font-semibold shadow-xs"
+                    : "text-neutral-600 dark:text-neutral-400 hover:text-[#333333] dark:hover:text-[#E0E0E0]"
                 }`}
                 title="Clientes con Cotizaciones o Presupuestos registrados"
               >
@@ -1587,7 +1589,7 @@ export const DeliveryNotesView: React.FC = () => {
                                 className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                               />
                             </td>
-                            <td className="py-2 px-3 text-right font-medium text-neutral-300 font-mono">
+                            <td className="py-2 px-3 text-right font-medium text-[#333333] dark:text-[#E0E0E0] font-mono">
                               {formatMoneyUSD(item.total)}
                             </td>
                             <td className="py-2 px-3 text-center">
@@ -1644,32 +1646,32 @@ export const DeliveryNotesView: React.FC = () => {
         <div className="space-y-4 text-xs">
 
             {/* Search & Notice */}
-            <div className="p-4  space-y-3 bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800">
-              <div className="flex items-center gap-2  shadow-2xs">
+            <div className="p-4 space-y-3 bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+              <div className="flex items-center gap-2 shadow-2xs">
                 <Search className="w-4 h-4 text-neutral-400 shrink-0" />
                 <input
                   type="text"
                   placeholder="Buscar cotización por número o nombre de cliente..."
                   value={quotationSearch}
                   onChange={(e) => setQuotationSearch(e.target.value)}
-                  className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  className="w-full text-xs bg-white dark:bg-[#242526] border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-[#333333] dark:text-[#E0E0E0] placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-[#007BFF] dark:focus:ring-[#3D91FF] focus:border-[#007BFF]"
                   autoFocus
                 />
                 {quotationSearch && (
                   <button
                     type="button"
                     onClick={() => setQuotationSearch("")}
-                    className="text-neutral-400 hover:text-neutral-600"
+                    className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
                 )}
               </div>
 
-              <div className="flex items-start gap-2 text-xs text-sky-800 bg-sky-50/80 p-2.5 rounded-lg border border-sky-200">
-                <Info className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
+              <div className="flex items-start gap-2 text-xs text-[#007BFF] dark:text-[#3D91FF] bg-[#007BFF]/10 dark:bg-[#3D91FF]/15 p-2.5 rounded-lg border border-[#007BFF]/25 dark:border-[#3D91FF]/30">
+                <Info className="w-4 h-4 text-[#007BFF] dark:text-[#3D91FF] shrink-0 mt-0.5" />
                 <p>
-                  <strong>Regla de Despacho:</strong> Únicamente se permite importar cotizaciones previamente <strong>Facturadas</strong> y que cuenten con mercancía pendiente por despachar. Las cotizaciones entregadas al 100% no se muestran.
+                  <strong className="font-semibold">Regla de Despacho:</strong> Únicamente se permite importar cotizaciones previamente <strong>Facturadas</strong> y que cuenten con mercancía pendiente por despachar. Las cotizaciones entregadas al 100% no se muestran.
                 </p>
               </div>
             </div>
@@ -1683,17 +1685,17 @@ export const DeliveryNotesView: React.FC = () => {
               ) : filteredQuotationsForImport.length === 0 ? (
                 <div className="py-12 text-center text-xs text-neutral-500 space-y-1">
                   <FileText className="w-8 h-8 text-neutral-300 mx-auto" />
-                  <p className="font-medium text-neutral-700">
+                  <p className="font-medium text-neutral-700 dark:text-neutral-300">
                     No se encontraron cotizaciones facturadas pendientes
                   </p>
-                  <p className="text-[11px] text-neutral-400">
+                  <p className="text-[11px] text-neutral-400 dark:text-neutral-500">
                     No hay propuestas comerciales facturadas con mercancía pendiente por despachar
                   </p>
                 </div>
               ) : (
-                <div className="overflow-x-auto border border-neutral-200 rounded-lg">
+                <div className="overflow-x-auto border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-[#1E1F21] shadow-xs">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase text-[10px] tracking-wider border-b border-neutral-200 dark:border-neutral-700">
+                    <thead className="bg-[#F4F6F9] dark:bg-[#18191A] text-neutral-700 dark:text-neutral-300 uppercase text-[10px] font-semibold tracking-wider border-b border-gray-200 dark:border-gray-800">
                       <tr>
                         <th className="py-2.5 px-3">Nº Cotización</th>
                         <th className="py-2.5 px-3">Fecha</th>
@@ -1704,7 +1706,7 @@ export const DeliveryNotesView: React.FC = () => {
                         <th className="py-2.5 px-3 text-right">Acción</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-neutral-100">
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800/80">
                       {filteredQuotationsForImport.map((q) => {
                         const totalQuotQty = Number(q.totalQuotedQuantity || 0);
                         const totalDelivQty = Number(q.totalDeliveredQuantity || 0);
@@ -1715,40 +1717,40 @@ export const DeliveryNotesView: React.FC = () => {
                             : 0;
 
                         return (
-                          <tr key={q.id} className="hover:bg-neutral-50/50">
-                            <td className="py-2.5 px-3 font-mono font-semibold text-sky-300">
+                          <tr key={q.id} className="hover:bg-[#F4F6F9]/80 dark:hover:bg-neutral-800/50 transition-colors">
+                            <td className="py-2.5 px-3 font-mono font-bold text-[#007BFF] dark:text-[#3D91FF]">
                               {q.quotationNumber}
                             </td>
-                            <td className="py-2.5 px-3 text-neutral-300">
+                            <td className="py-2.5 px-3 text-[#333333] dark:text-[#E0E0E0]">
                               {new Date(q.quotationDate).toLocaleDateString(
                                 "es-VE",
                               )}
                             </td>
                             <td className="py-2.5 px-3">
-                              <p className="font-medium text-neutral-300">
+                              <p className="font-semibold text-[#333333] dark:text-[#E0E0E0]">
                                 {q.customerName}
                               </p>
-                              <span className="font-mono text-[10px] text-neutral-400">
+                              <span className="font-mono text-[10px] text-neutral-500 dark:text-neutral-400">
                                 {q.customerDoc}
                               </span>
                             </td>
-                            <td className="py-2.5 px-3 text-right font-mono font-semibold text-neutral-300">
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-[#333333] dark:text-[#E0E0E0]">
                               {formatMoneyUSD(q.totalAmount)}
                             </td>
                             <td className="py-2.5 px-3 text-center">
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-purple-50 text-purple-700 border border-purple-200">
-                                <CheckCircle2 className="w-3 h-3 text-purple-600" />
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#28A745]/15 dark:bg-[#4ADE80]/20 text-[#28A745] dark:text-[#4ADE80] border border-[#28A745]/30 dark:border-[#4ADE80]/35">
+                                <CheckCircle2 className="w-3 h-3 text-[#28A745] dark:text-[#4ADE80]" />
                                 <span>Facturada</span>
                               </span>
                             </td>
                             <td className="py-2.5 px-3 text-center">
                               {totalQuotQty > 0 ? (
                                 <div className="inline-flex flex-col items-center">
-                                  <span className="text-[11px] font-semibold text-neutral-300">
+                                  <span className="text-[11px] font-semibold text-[#333333] dark:text-[#E0E0E0]">
                                     {pendingQty} pend. / {totalQuotQty} total
                                   </span>
                                   {pctDelivered > 0 && (
-                                    <span className="text-[10px] text-amber-600 font-medium">
+                                    <span className="text-[10px] text-[#b28500] dark:text-[#FBBF24] font-medium">
                                       ({pctDelivered}% ya despachado)
                                     </span>
                                   )}
@@ -1766,7 +1768,7 @@ export const DeliveryNotesView: React.FC = () => {
                                 onClick={() =>
                                   handleSelectQuotationToImport(q)
                                 }
-                                className="text-xs bg-sky-600 hover:bg-sky-700 text-white rounded-lg py-1 px-2.5 shadow-2xs flex items-center gap-1 ml-auto cursor-pointer"
+                                className="text-xs bg-[#007BFF] hover:bg-[#0069d9] text-white dark:bg-[#3D91FF] dark:hover:bg-[#297be6] dark:text-white rounded-lg py-1 px-2.5 shadow-xs flex items-center gap-1 ml-auto cursor-pointer"
                               >
                                 <span>Importar</span>
                                 <ArrowRight className="w-3.5 h-3.5" />

@@ -19,12 +19,15 @@ import {
   Check,
   Building2,
   Warehouse,
+  Bell,
 } from "lucide-react";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { useAuthStore, isSuperAdminRole } from "../../stores/authStore";
+import { LicenseInfo } from "@ero/shared";
 import { Modal } from "../../components/ui/Modal";
 import { showDestructiveConfirm } from "../../lib/sweetalert";
+import { NotificationPreferencesModal } from "../../components/notifications/NotificationPreferencesModal";
 
 export interface BranchWithWarehouses {
   id: string;
@@ -128,9 +131,21 @@ export const MODULE_METADATA: Record<
     label: "Dashboards e Indicadores",
     badgeColor: "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800",
   },
+  restaurant: {
+    label: "Restaurante & Comandas (KDS)",
+    badgeColor: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800",
+  },
+  accounting: {
+    label: "Contabilidad Senior VEN-NIF",
+    badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800",
+  },
   audit: {
     label: "Auditoría y Bitácora",
     badgeColor: "bg-stone-50 text-stone-700 border-stone-200 dark:bg-stone-900/60 dark:text-stone-300 dark:border-stone-800",
+  },
+  notifications: {
+    label: "Notificaciones y Alertas",
+    badgeColor: "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800",
   },
 };
 
@@ -493,6 +508,110 @@ export const DEFAULT_PERMISSIONS: PermissionItem[] = [
     key: "audit.read",
     description: "Consultar bitácora y registros de auditoría",
   },
+
+  // Restaurante & Comandas (KDS)
+  {
+    id: "p_restaurant_read",
+    module: "restaurant",
+    action: "read",
+    key: "restaurant.read",
+    description: "Consultar mesas, comandas, consumo y catálogo de restaurante",
+  },
+  {
+    id: "p_restaurant_write",
+    module: "restaurant",
+    action: "write",
+    key: "restaurant.write",
+    description: "Abrir comandas, asignar meseros y tomar pedidos de mesa",
+  },
+  {
+    id: "p_restaurant_items",
+    module: "restaurant",
+    action: "items",
+    key: "restaurant.items",
+    description: "Agregar, modificar observaciones y anular ítems de comanda",
+  },
+  {
+    id: "p_restaurant_payments",
+    module: "restaurant",
+    action: "payments",
+    key: "restaurant.payments",
+    description: "Registrar pagos y división de cuenta (Split bill) por cliente",
+  },
+  {
+    id: "p_restaurant_close",
+    module: "restaurant",
+    action: "close",
+    key: "restaurant.close",
+    description: "Cerrar mesa, emitir cuenta, liberar mesa y reporte de propinas",
+  },
+  {
+    id: "p_restaurant_tables",
+    module: "restaurant",
+    action: "tables",
+    key: "restaurant.tables",
+    description: "Administrar plano de mesas, capacidades y zonas de salón",
+  },
+  {
+    id: "p_restaurant_kds",
+    module: "restaurant",
+    action: "kds",
+    key: "restaurant.kds",
+    description: "Monitoreo y despacho de comandas en Cocina y Barra (KDS)",
+  },
+  {
+    id: "p_restaurant_settings",
+    module: "restaurant",
+    action: "settings",
+    key: "restaurant.settings",
+    description: "Configurar tickets, comanderas y parámetros de restaurante",
+  },
+
+  // Contabilidad Senior VEN-NIF
+  {
+    id: "p_accounting_read",
+    module: "accounting",
+    action: "read",
+    key: "accounting.read",
+    description: "Ver plan de cuentas, comprobantes de diario, mayor y estados financieros",
+  },
+  {
+    id: "p_accounting_write",
+    module: "accounting",
+    action: "write",
+    key: "accounting.write",
+    description: "Crear y modificar cuentas contables y comprobantes de diario en borrador",
+  },
+  {
+    id: "p_accounting_post",
+    module: "accounting",
+    action: "post",
+    key: "accounting.post",
+    description: "Asentar legalmente comprobantes en el libro diario (Aprobación)",
+  },
+  {
+    id: "p_accounting_close",
+    module: "accounting",
+    action: "close",
+    key: "accounting.close",
+    description: "Ejecutar procesos de cierre mensual/anual y ajuste por inflación",
+  },
+
+  // Notificaciones y Alertas
+  {
+    id: "p_notifications_read",
+    module: "notifications",
+    action: "read",
+    key: "notifications.read",
+    description: "Consultar centro de notificaciones y alertas",
+  },
+  {
+    id: "p_notifications_write",
+    module: "notifications",
+    action: "write",
+    key: "notifications.write",
+    description: "Configurar preferencias y compartir reportes por correo",
+  },
 ];
 
 export const UsersAndRolesView: React.FC = () => {
@@ -504,6 +623,7 @@ export const UsersAndRolesView: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [roles, setRoles] = useState<RoleRecord[]>([]);
+  const [license, setLicense] = useState<LicenseInfo | null>(null);
   const [permissions, setPermissions] =
     useState<PermissionItem[]>(DEFAULT_PERMISSIONS);
 
@@ -518,6 +638,10 @@ export const UsersAndRolesView: React.FC = () => {
   // Estado del modal de crear / editar usuario
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
+  const [selectedUserForNotifs, setSelectedUserForNotifs] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [availableBranches, setAvailableBranches] = useState<
     BranchWithWarehouses[]
@@ -558,11 +682,12 @@ export const UsersAndRolesView: React.FC = () => {
     }
 
     try {
-      const [uRes, rRes, pRes, bRes] = await Promise.all([
+      const [uRes, rRes, pRes, bRes, lRes] = await Promise.all([
         fetch("/api/config/users", { headers }),
         fetch("/api/config/roles", { headers }),
         fetch("/api/config/permissions", { headers }),
         fetch("/api/auth/branches?all=true", { headers }),
+        fetch("/api/licenses/status", { headers }),
       ]);
 
       if (uRes.ok) {
@@ -581,6 +706,12 @@ export const UsersAndRolesView: React.FC = () => {
         const p = await pRes.json();
         if (p.success && Array.isArray(p.data) && p.data.length > 0) {
           setPermissions(p.data);
+        }
+      }
+      if (lRes && lRes.ok) {
+        const lJson = await lRes.json();
+        if (lJson.success && lJson.data) {
+          setLicense(lJson.data);
         }
       }
       if (bRes.ok) {
@@ -976,17 +1107,24 @@ export const UsersAndRolesView: React.FC = () => {
     }
   };
 
-  // Permisos agrupados por módulo
+  // Permisos agrupados por módulo (filtrando por módulos permitidos en la licencia activa)
   const permissionsByModule = useMemo(() => {
+    const allowedModules = license?.modulesAllowed || [];
+    const isUnlimitedModules = allowedModules.includes("*") || isSuperAdminRole(user?.role);
+
     const query = permSearchQuery.trim().toLowerCase();
-    const filtered = query
-      ? permissions.filter(
-          (p) =>
-            p.description.toLowerCase().includes(query) ||
-            p.key.toLowerCase().includes(query) ||
-            p.module.toLowerCase().includes(query),
-        )
-      : permissions;
+    const filtered = permissions.filter((p) => {
+      // Regla: Solo permitir asociar a roles los módulos permitidos
+      const isModAllowed = isUnlimitedModules || allowedModules.includes(p.module) || p.module === "config";
+      if (!isModAllowed) return false;
+
+      if (!query) return true;
+      return (
+        p.description.toLowerCase().includes(query) ||
+        p.key.toLowerCase().includes(query) ||
+        p.module.toLowerCase().includes(query)
+      );
+    });
 
     const map = new Map<string, PermissionItem[]>();
     for (const p of filtered) {
@@ -995,7 +1133,7 @@ export const UsersAndRolesView: React.FC = () => {
       map.set(p.module, list);
     }
     return map;
-  }, [permissions, permSearchQuery]);
+  }, [permissions, permSearchQuery, license, user]);
 
   // Filtrado de usuarios
   const filteredUsers = useMemo(() => {
@@ -1043,13 +1181,57 @@ export const UsersAndRolesView: React.FC = () => {
 
         <div className="flex items-center gap-2">
           {activeTab === "users" ? (
-            <Button size="sm" onClick={handleOpenCreateUser}>
-              <Plus className="w-4 h-4 mr-1.5" />
-              Nuevo Usuario
-            </Button>
+            <div className="flex items-center gap-2">
+              {license && (
+                <span
+                  className={`text-xs px-2.5 py-1 rounded-lg border font-semibold ${
+                    license.maxUsers > 0 &&
+                    users.filter((u) => u.isActive).length >= license.maxUsers
+                      ? "text-red-700 bg-red-50/60 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg"
+                      : "text-neutral-400 bg-sky-50/60 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-lg"
+                  }`}
+                >
+                  Cupo: {users.filter((u) => u.isActive).length} /{" "}
+                  {license.maxUsers <= 0 ? "∞ Ilimitados" : license.maxUsers}
+                </span>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleOpenCreateUser}
+                disabled={Boolean(
+                  license &&
+                  license.maxUsers > 0 &&
+                  users.filter((u) => u.isActive).length >= license.maxUsers,
+                )}
+                className={`flex items-center gap-2 border-[#007BFF] dark:border-[#3D91FF] rounded-lg ${
+                  license &&
+                  license.maxUsers > 0 &&
+                  users.filter((u) => u.isActive).length >= license.maxUsers
+                    ? "opacity-50 cursor-not-allowed bg-neutral-100 dark:bg-neutral-800"
+                    : "bg-blue-50 dark:bg-blue-600/30 hover:bg-border-blue-600 dark:hover:border-blue-500"
+                }`}
+                title={
+                  license &&
+                  license.maxUsers > 0 &&
+                  users.filter((u) => u.isActive).length >= license.maxUsers
+                    ? `Límite de ${license.maxUsers} usuarios alcanzado por su licencia`
+                    : "Nuevo Usuario"
+                }
+              >
+                <Plus className="w-4 h-4 text-blue-600 dark:blue-500 mr-1.5" />
+                Nuevo Usuario
+              </Button>
+            </div>
           ) : (
-            <Button size="sm" onClick={handleOpenCreateRole}>
-              <Plus className="w-4 h-4 mr-1.5" />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleOpenCreateRole}
+              className="flex items-center gap-2 border-[#007BFF] dark:border-[#3D91FF] rounded-lg bg-blue-50 dark:bg-blue-600/30 hover:bg-border-blue-600 dark:hover:border-blue-500"
+              title="Nuevo Rol"
+            >
+              <Plus className="w-4 h-4 text-blue-600 dark:blue-500 mr-1.5" />
               Nuevo Rol
             </Button>
           )}
@@ -1245,11 +1427,26 @@ export const UsersAndRolesView: React.FC = () => {
                               variant="outline"
                               size="sm"
                               className="p-0 rounded-lg text-neutral-700 dark:text-neutral-300 hover:text-sky-700 dark:hover:text-sky-400 hover:bg-sky-100/80 dark:hover:bg-neutral-800 border-neutral-200 dark:border-neutral-700"
+                              onClick={() =>
+                                setSelectedUserForNotifs({
+                                  id: u.id,
+                                  name: u.fullName || u.username,
+                                })
+                              }
+                              title="Configurar Notificaciones"
+                            >
+                              <Bell className="w-3.5 h-3.5 mr-1 text-sky-600 dark:text-sky-400" />
+                              {/* Notif. */}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="p-0 rounded-lg text-neutral-700 dark:text-neutral-300 hover:text-sky-700 dark:hover:text-sky-400 hover:bg-sky-100/80 dark:hover:bg-neutral-800 border-neutral-200 dark:border-neutral-700"
                               onClick={() => handleOpenEditUser(u)}
                               title="Editar Usuario"
                             >
                               <Edit2 className="w-3.5 h-3.5 mr-1" />
-                              Editar
+                              {/* Editar */}
                             </Button>
                             <Button
                               variant="outline"
@@ -1269,12 +1466,12 @@ export const UsersAndRolesView: React.FC = () => {
                               {u.isActive ? (
                                 <>
                                   <UserX className="w-3.5 h-3.5 mr-1" />
-                                  Suspender
+                                  {/* Suspender */}
                                 </>
                               ) : (
                                 <>
                                   <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-                                  Activar
+                                  {/* Activar */}
                                 </>
                               )}
                             </Button>
@@ -1411,7 +1608,11 @@ export const UsersAndRolesView: React.FC = () => {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingUser ? `Editar Usuario: ${editingUser.username}` : "Registrar Nuevo Usuario"}
+        title={
+          editingUser
+            ? `Editar Usuario: ${editingUser.username}`
+            : "Registrar Nuevo Usuario"
+        }
         subtitle="Gestión de credenciales, roles y accesos"
         size="xl"
         footer={
@@ -1424,7 +1625,12 @@ export const UsersAndRolesView: React.FC = () => {
             >
               Cancelar
             </Button>
-            <Button type="submit" size="sm" disabled={submitting} form="userForm">
+            <Button
+              type="submit"
+              size="sm"
+              disabled={submitting}
+              form="userForm"
+            >
               {submitting
                 ? "Guardando..."
                 : editingUser
@@ -1439,376 +1645,365 @@ export const UsersAndRolesView: React.FC = () => {
           onSubmit={handleSubmitUser}
           className="space-y-4 text-xs"
         >
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
-                      Nombre de Usuario *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      disabled={Boolean(editingUser)}
-                      value={formUsername}
-                      onChange={(e) =>
-                        setFormUsername(e.target.value.toLowerCase())
-                      }
-                      placeholder="ej: jgonzalez"
-                      className="w-full px-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:bg-neutral-100 dark:disabled:bg-neutral-800/60 disabled:text-neutral-500 dark:disabled:text-neutral-400 font-mono"
-                    />
-                    {editingUser && (
-                      <p className="text-[10px] text-neutral-400 mt-1">
-                        El username no puede modificarse
-                      </p>
-                    )}
-                  </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                Nombre de Usuario *
+              </label>
+              <input
+                type="text"
+                required
+                disabled={Boolean(editingUser)}
+                value={formUsername}
+                onChange={(e) => setFormUsername(e.target.value.toLowerCase())}
+                placeholder="ej: jgonzalez"
+                className="w-full px-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:bg-neutral-100 dark:disabled:bg-neutral-800/60 disabled:text-neutral-500 dark:disabled:text-neutral-400 font-mono"
+              />
+              {editingUser && (
+                <p className="text-[10px] text-neutral-400 mt-1">
+                  El username no puede modificarse
+                </p>
+              )}
+            </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
-                      Rol en el Sistema *
-                    </label>
-                    <select
-                      value={formRoleId}
-                      onChange={(e) => setFormRoleId(e.target.value)}
-                      className="w-full px-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+            <div>
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                Rol en el Sistema *
+              </label>
+              <select
+                value={formRoleId}
+                onChange={(e) => setFormRoleId(e.target.value)}
+                className="w-full px-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              >
+                {roles.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+              Nombre y Apellido Completo *
+            </label>
+            <input
+              type="text"
+              required
+              value={formFullName}
+              onChange={(e) => setFormFullName(e.target.value)}
+              placeholder="ej: Juan González"
+              className="w-full px-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+              Correo Electrónico Corporativo *
+            </label>
+            <input
+              type="email"
+              required
+              value={formEmail}
+              onChange={(e) => setFormEmail(e.target.value)}
+              placeholder="ej: jgonzalez@erove.com"
+              className="w-full px-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+              {editingUser
+                ? "Nueva Contraseña (dejar en blanco para conservar actual)"
+                : "Contraseña de Acceso *"}
+            </label>
+            <div className="relative">
+              <Lock className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="password"
+                required={!editingUser}
+                value={formPassword}
+                onChange={(e) => setFormPassword(e.target.value)}
+                placeholder={editingUser ? "••••••••" : "Mínimo 8 caracteres"}
+                className="w-full pl-9 pr-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
+          </div>
+
+          {/* 1. Alcance de Sucursales */}
+          <div className="pt-3 border-t border-neutral-200 dark:border-neutral-800 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                Acceso a Sucursales
+              </label>
+              <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                {formAllBranches
+                  ? "Todas las sucursales"
+                  : `${formBranchIds.length} seleccionada(s)`}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <label
+                className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                  formAllBranches
+                    ? "border-sky-500 bg-sky-50/40 dark:bg-sky-950/40 text-neutral-900 dark:text-neutral-100 ring-1 ring-sky-500"
+                    : "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800/50 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="branchScope"
+                  checked={formAllBranches}
+                  onChange={() => setFormAllBranches(true)}
+                  className="mt-0.5 w-3.5 h-3.5 text-sky-600 focus:ring-sky-500"
+                />
+                <div className="text-[11px] leading-snug">
+                  <span className="font-semibold block text-neutral-900 dark:text-neutral-100">
+                    Todas las sucursales
+                  </span>
+                  <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                    Permite ver y alternar entre todas las sedes de la empresa
+                  </span>
+                </div>
+              </label>
+
+              <label
+                className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                  !formAllBranches
+                    ? "border-sky-500 bg-sky-50/40 dark:bg-sky-950/40 text-neutral-900 dark:text-neutral-100 ring-1 ring-sky-500"
+                    : "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800/50 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="branchScope"
+                  checked={!formAllBranches}
+                  onChange={() => {
+                    setFormAllBranches(false);
+                    if (
+                      formBranchIds.length === 0 &&
+                      availableBranches.length > 0
+                    ) {
+                      setFormBranchIds([availableBranches[0].id]);
+                    }
+                  }}
+                  className="mt-0.5 w-3.5 h-3.5 text-sky-600 focus:ring-sky-500"
+                />
+                <div className="text-[11px] leading-snug">
+                  <span className="font-semibold block text-neutral-900 dark:text-neutral-100">
+                    Sucursales específicas
+                  </span>
+                  <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                    Restringir acceso únicamente a sedes autorizadas
+                  </span>
+                </div>
+              </label>
+            </div>
+
+            {!formAllBranches && (
+              <div className="p-2.5 bg-sky-50/60 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-lg space-y-2 mt-2">
+                <span className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 block">
+                  Seleccione las sucursales permitidas:
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                  {availableBranches.map((b) => {
+                    const isChecked = formBranchIds.includes(b.id);
+                    return (
+                      <label
+                        key={b.id}
+                        className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer transition-colors ${
+                          isChecked
+                            ? "border-sky-300 dark:border-sky-700 bg-white dark:bg-neutral-800 shadow-xs text-neutral-900 dark:text-neutral-100"
+                            : "border-neutral-200 dark:border-neutral-700 bg-neutral-100/60 dark:bg-neutral-800/40 text-neutral-600 dark:text-neutral-400 hover:bg-white dark:hover:bg-neutral-800"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFormBranchIds([...formBranchIds, b.id]);
+                            } else {
+                              setFormBranchIds(
+                                formBranchIds.filter((id) => id !== b.id),
+                              );
+                            }
+                          }}
+                          className="w-3.5 h-3.5 text-sky-600 rounded border-neutral-300 focus:ring-sky-500"
+                        />
+                        <div className="truncate">
+                          <span className="font-medium text-[11px]">
+                            {b.name}
+                          </span>
+                          <span className="text-[10px] text-neutral-400 font-mono ml-1">
+                            ({b.code})
+                          </span>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-neutral-500 dark:text-neutral-400 pt-0.5">
+                  {formBranchIds.length === 1
+                    ? "Al asignar exactamente 1 sucursal, el usuario quedará fijado a ella sin opción de cambio."
+                    : formBranchIds.length > 1
+                      ? "Al tener varias sucursales asignadas, el usuario podrá alternar entre ellas en el sistema."
+                      : "Debe marcar al menos 1 sucursal autorizada."}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* 2. Control de Almacenes */}
+          <div className="pt-3 border-t border-neutral-200 dark:border-neutral-800 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
+                <Warehouse className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                Operación de Depósitos / Almacenes
+              </label>
+              <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                {formCanSwitchWarehouses
+                  ? "Libre alternancia"
+                  : "Almacén único fijado"}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <label
+                className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                  formCanSwitchWarehouses
+                    ? "border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/40 text-neutral-900 dark:text-neutral-100 ring-1 ring-emerald-500"
+                    : "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800/50 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="warehouseScope"
+                  checked={formCanSwitchWarehouses}
+                  onChange={() => setFormCanSwitchWarehouses(true)}
+                  className="mt-0.5 w-3.5 h-3.5 text-emerald-600 focus:ring-emerald-500"
+                />
+                <div className="text-[11px] leading-snug">
+                  <span className="font-semibold block text-neutral-900 dark:text-neutral-100">
+                    Permitir cambiar de almacén
+                  </span>
+                  <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                    El usuario puede alternar entre los depósitos activos de su
+                    sucursal
+                  </span>
+                </div>
+              </label>
+
+              <label
+                className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                  !formCanSwitchWarehouses
+                    ? "border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/40 text-neutral-900 dark:text-neutral-100 ring-1 ring-emerald-500"
+                    : "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800/50 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="warehouseScope"
+                  checked={!formCanSwitchWarehouses}
+                  onChange={() => setFormCanSwitchWarehouses(false)}
+                  className="mt-0.5 w-3.5 h-3.5 text-emerald-600 focus:ring-emerald-500"
+                />
+                <div className="text-[11px] leading-snug">
+                  <span className="font-semibold block text-neutral-900 dark:text-neutral-100">
+                    Establecer almacén fijo por sucursal
+                  </span>
+                  <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                    Bloquea al usuario a un depósito específico e impide su
+                    cambio
+                  </span>
+                </div>
+              </label>
+            </div>
+
+            {!formCanSwitchWarehouses && (
+              <div className="p-2.5 bg-sky-50/60 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-lg space-y-2 mt-2">
+                <span className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 block">
+                  Seleccione el almacén fijo para cada sede autorizada:
+                </span>
+                {(formAllBranches
+                  ? availableBranches
+                  : availableBranches.filter((b) =>
+                      formBranchIds.includes(b.id),
+                    )
+                ).map((b) => {
+                  const currentWhVal =
+                    formWarehouseByBranch[b.id] ||
+                    b.warehouses.find((w) => w.isDefault)?.id ||
+                    b.warehouses[0]?.id ||
+                    "";
+                  return (
+                    <div
+                      key={b.id}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg text-xs"
                     >
-                      {roles.map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {r.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
-                    Nombre y Apellido Completo *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formFullName}
-                    onChange={(e) => setFormFullName(e.target.value)}
-                    placeholder="ej: Juan González"
-                    className="w-full px-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
-                    Correo Electrónico Corporativo *
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={formEmail}
-                    onChange={(e) => setFormEmail(e.target.value)}
-                    placeholder="ej: jgonzalez@erove.com"
-                    className="w-full px-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
-                    {editingUser
-                      ? "Nueva Contraseña (dejar en blanco para conservar actual)"
-                      : "Contraseña de Acceso *"}
-                  </label>
-                  <div className="relative">
-                    <Lock className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="password"
-                      required={!editingUser}
-                      value={formPassword}
-                      onChange={(e) => setFormPassword(e.target.value)}
-                      placeholder={
-                        editingUser ? "••••••••" : "Mínimo 8 caracteres"
-                      }
-                      className="w-full pl-9 pr-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    />
-                  </div>
-                </div>
-
-                {/* 1. Alcance de Sucursales */}
-                <div className="pt-3 border-t border-neutral-200 dark:border-neutral-800 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
-                      <Building2 className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-                      Acceso a Sucursales
-                    </label>
-                    <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
-                      {formAllBranches
-                        ? "Todas las sucursales"
-                        : `${formBranchIds.length} seleccionada(s)`}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <label
-                      className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
-                        formAllBranches
-                          ? "border-sky-500 bg-sky-50/40 dark:bg-sky-950/40 text-neutral-900 dark:text-neutral-100 ring-1 ring-sky-500"
-                          : "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800/50 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="branchScope"
-                        checked={formAllBranches}
-                        onChange={() => setFormAllBranches(true)}
-                        className="mt-0.5 w-3.5 h-3.5 text-sky-600 focus:ring-sky-500"
-                      />
-                      <div className="text-[11px] leading-snug">
-                        <span className="font-semibold block text-neutral-900 dark:text-neutral-100">
-                          Todas las sucursales
+                      <div className="min-w-0">
+                        <span className="font-semibold text-neutral-800 dark:text-neutral-200 text-[11px] block truncate">
+                          {b.name}
                         </span>
-                        <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
-                          Permite ver y alternar entre todas las sedes de la
-                          empresa
+                        <span className="text-[10px] text-neutral-400 font-mono">
+                          ({b.code})
                         </span>
                       </div>
-                    </label>
-
-                    <label
-                      className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
-                        !formAllBranches
-                          ? "border-sky-500 bg-sky-50/40 dark:bg-sky-950/40 text-neutral-900 dark:text-neutral-100 ring-1 ring-sky-500"
-                          : "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800/50 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="branchScope"
-                        checked={!formAllBranches}
-                        onChange={() => {
-                          setFormAllBranches(false);
-                          if (
-                            formBranchIds.length === 0 &&
-                            availableBranches.length > 0
-                          ) {
-                            setFormBranchIds([availableBranches[0].id]);
-                          }
-                        }}
-                        className="mt-0.5 w-3.5 h-3.5 text-sky-600 focus:ring-sky-500"
-                      />
-                      <div className="text-[11px] leading-snug">
-                        <span className="font-semibold block text-neutral-900 dark:text-neutral-100">
-                          Sucursales específicas
+                      {b.warehouses.length > 0 ? (
+                        <select
+                          value={currentWhVal}
+                          onChange={(e) => {
+                            setFormWarehouseByBranch((prev) => ({
+                              ...prev,
+                              [b.id]: e.target.value,
+                            }));
+                          }}
+                          className="px-2.5 py-1 text-xs border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        >
+                          {b.warehouses.map((w) => (
+                            <option key={w.id} value={w.id}>
+                              {w.name} ({w.code}){" "}
+                              {w.isDefault ? "• Principal" : ""}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-[10px] text-neutral-400 italic">
+                          Sin depósitos activos
                         </span>
-                        <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
-                          Restringir acceso únicamente a sedes autorizadas
-                        </span>
-                      </div>
-                    </label>
-                  </div>
-
-                  {!formAllBranches && (
-                    <div className="p-2.5 bg-neutral-50 dark:bg-neutral-850 rounded-lg border border-neutral-200 dark:border-neutral-700 space-y-2 mt-2">
-                      <span className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 block">
-                        Seleccione las sucursales permitidas:
-                      </span>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                        {availableBranches.map((b) => {
-                          const isChecked = formBranchIds.includes(b.id);
-                          return (
-                            <label
-                              key={b.id}
-                              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer transition-colors ${
-                                isChecked
-                                  ? "border-sky-300 dark:border-sky-700 bg-white dark:bg-neutral-800 shadow-xs text-neutral-900 dark:text-neutral-100"
-                                  : "border-neutral-200 dark:border-neutral-700 bg-neutral-100/60 dark:bg-neutral-800/40 text-neutral-600 dark:text-neutral-400 hover:bg-white dark:hover:bg-neutral-800"
-                              }`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setFormBranchIds([
-                                      ...formBranchIds,
-                                      b.id,
-                                    ]);
-                                  } else {
-                                    setFormBranchIds(
-                                      formBranchIds.filter(
-                                        (id) => id !== b.id,
-                                      ),
-                                    );
-                                  }
-                                }}
-                                className="w-3.5 h-3.5 text-sky-600 rounded border-neutral-300 focus:ring-sky-500"
-                              />
-                              <div className="truncate">
-                                <span className="font-medium text-[11px]">
-                                  {b.name}
-                                </span>
-                                <span className="text-[10px] text-neutral-400 font-mono ml-1">
-                                  ({b.code})
-                                </span>
-                              </div>
-                            </label>
-                          );
-                        })}
-                      </div>
-                      <p className="text-[10px] text-neutral-500 dark:text-neutral-400 pt-0.5">
-                        {formBranchIds.length === 1
-                          ? "Al asignar exactamente 1 sucursal, el usuario quedará fijado a ella sin opción de cambio."
-                          : formBranchIds.length > 1
-                            ? "Al tener varias sucursales asignadas, el usuario podrá alternar entre ellas en el sistema."
-                            : "Debe marcar al menos 1 sucursal autorizada."}
-                      </p>
+                      )}
                     </div>
-                  )}
-                </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
-                {/* 2. Control de Almacenes */}
-                <div className="pt-3 border-t border-neutral-200 dark:border-neutral-800 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
-                      <Warehouse className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                      Operación de Depósitos / Almacenes
-                    </label>
-                    <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
-                      {formCanSwitchWarehouses
-                        ? "Libre alternancia"
-                        : "Almacén único fijado"}
-                    </span>
-                  </div>
+          <div className="pt-2 border-t border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row gap-4 justify-between">
+            <label className="flex items-center gap-2 cursor-pointer text-xs text-neutral-700 dark:text-neutral-300">
+              <input
+                type="checkbox"
+                checked={formIs2fa}
+                onChange={(e) => setFormIs2fa(e.target.checked)}
+                className="w-4 h-4 text-sky-600 rounded border-neutral-300 focus:ring-sky-500"
+              />
+              <span>Requerir Autenticación 2FA (TOTP)</span>
+            </label>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <label
-                      className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
-                        formCanSwitchWarehouses
-                          ? "border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/40 text-neutral-900 dark:text-neutral-100 ring-1 ring-emerald-500"
-                          : "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800/50 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="warehouseScope"
-                        checked={formCanSwitchWarehouses}
-                        onChange={() => setFormCanSwitchWarehouses(true)}
-                        className="mt-0.5 w-3.5 h-3.5 text-emerald-600 focus:ring-emerald-500"
-                      />
-                      <div className="text-[11px] leading-snug">
-                        <span className="font-semibold block text-neutral-900 dark:text-neutral-100">
-                          Permitir cambiar de almacén
-                        </span>
-                        <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
-                          El usuario puede alternar entre los depósitos
-                          activos de su sucursal
-                        </span>
-                      </div>
-                    </label>
-
-                    <label
-                      className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
-                        !formCanSwitchWarehouses
-                          ? "border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/40 text-neutral-900 dark:text-neutral-100 ring-1 ring-emerald-500"
-                          : "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800/50 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="warehouseScope"
-                        checked={!formCanSwitchWarehouses}
-                        onChange={() => setFormCanSwitchWarehouses(false)}
-                        className="mt-0.5 w-3.5 h-3.5 text-emerald-600 focus:ring-emerald-500"
-                      />
-                      <div className="text-[11px] leading-snug">
-                        <span className="font-semibold block text-neutral-900 dark:text-neutral-100">
-                          Establecer almacén fijo por sucursal
-                        </span>
-                        <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
-                          Bloquea al usuario a un depósito específico e impide
-                          su cambio
-                        </span>
-                      </div>
-                    </label>
-                  </div>
-
-                  {!formCanSwitchWarehouses && (
-                    <div className="p-2.5 bg-neutral-50 dark:bg-neutral-850 rounded-lg border border-neutral-200 dark:border-neutral-700 space-y-2 mt-2">
-                      <span className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 block">
-                        Seleccione el almacén fijo para cada sede autorizada:
-                      </span>
-                      {(formAllBranches
-                        ? availableBranches
-                        : availableBranches.filter((b) =>
-                            formBranchIds.includes(b.id),
-                          )
-                      ).map((b) => {
-                        const currentWhVal =
-                          formWarehouseByBranch[b.id] ||
-                          b.warehouses.find((w) => w.isDefault)?.id ||
-                          b.warehouses[0]?.id ||
-                          "";
-                        return (
-                          <div
-                            key={b.id}
-                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg text-xs"
-                          >
-                            <div className="min-w-0">
-                              <span className="font-semibold text-neutral-800 dark:text-neutral-200 text-[11px] block truncate">
-                                {b.name}
-                              </span>
-                              <span className="text-[10px] text-neutral-400 font-mono">
-                                ({b.code})
-                              </span>
-                            </div>
-                            {b.warehouses.length > 0 ? (
-                              <select
-                                value={currentWhVal}
-                                onChange={(e) => {
-                                  setFormWarehouseByBranch((prev) => ({
-                                    ...prev,
-                                    [b.id]: e.target.value,
-                                  }));
-                                }}
-                                className="px-2.5 py-1 text-xs border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                              >
-                                {b.warehouses.map((w) => (
-                                  <option key={w.id} value={w.id}>
-                                    {w.name} ({w.code}){" "}
-                                    {w.isDefault ? "• Principal" : ""}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <span className="text-[10px] text-neutral-400 italic">
-                                Sin depósitos activos
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                <div className="pt-2 border-t border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row gap-4 justify-between">
-                  <label className="flex items-center gap-2 cursor-pointer text-xs text-neutral-700 dark:text-neutral-300">
-                    <input
-                      type="checkbox"
-                      checked={formIs2fa}
-                      onChange={(e) => setFormIs2fa(e.target.checked)}
-                      className="w-4 h-4 text-sky-600 rounded border-neutral-300 focus:ring-sky-500"
-                    />
-                    <span>Requerir Autenticación 2FA (TOTP)</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 cursor-pointer text-xs text-neutral-700 dark:text-neutral-300">
-                    <input
-                      type="checkbox"
-                      checked={formIsActive}
-                      onChange={(e) => setFormIsActive(e.target.checked)}
-                      className="w-4 h-4 text-sky-600 rounded border-neutral-300 focus:ring-sky-500"
-                    />
-                    <span>Usuario Activo en el Sistema</span>
-                  </label>
-                </div>
-
-            </form>
+            <label className="flex items-center gap-2 cursor-pointer text-xs text-neutral-700 dark:text-neutral-300">
+              <input
+                type="checkbox"
+                checked={formIsActive}
+                onChange={(e) => setFormIsActive(e.target.checked)}
+                className="w-4 h-4 text-sky-600 rounded border-neutral-300 focus:ring-sky-500"
+              />
+              <span>Usuario Activo en el Sistema</span>
+            </label>
+          </div>
+        </form>
       </Modal>
 
       {/* MODAL CREAR / EDITAR ROL Y MATRIZ DE PERMISOS */}
@@ -1860,193 +2055,200 @@ export const UsersAndRolesView: React.FC = () => {
           onSubmit={handleSubmitRole}
           className="space-y-4 text-xs"
         >
-                {/* Datos básicos del Rol */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
-                      Nombre del Rol *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      disabled={Boolean(editingRole?.isSystem)}
-                      value={roleFormName}
-                      onChange={(e) => setRoleFormName(e.target.value)}
-                      placeholder="ej: Auditor Contable"
-                      className="w-full px-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:bg-neutral-100 dark:disabled:bg-neutral-800/60 disabled:text-neutral-500 dark:disabled:text-neutral-400"
-                    />
-                    {editingRole?.isSystem && (
-                      <p className="text-[10px] text-neutral-400 mt-1">
-                        El identificador de los roles del sistema está protegido
-                        contra cambios de nombre.
-                      </p>
-                    )}
-                  </div>
+          {/* Datos básicos del Rol */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                Nombre del Rol *
+              </label>
+              <input
+                type="text"
+                required
+                disabled={Boolean(editingRole?.isSystem)}
+                value={roleFormName}
+                onChange={(e) => setRoleFormName(e.target.value)}
+                placeholder="ej: Auditor Contable"
+                className="w-full px-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:bg-neutral-100 dark:disabled:bg-neutral-800/60 disabled:text-neutral-500 dark:disabled:text-neutral-400"
+              />
+              {editingRole?.isSystem && (
+                <p className="text-[10px] text-neutral-400 mt-1">
+                  El identificador de los roles del sistema está protegido
+                  contra cambios de nombre.
+                </p>
+              )}
+            </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
-                      Descripción del Rol
-                    </label>
-                    <input
-                      type="text"
-                      value={roleFormDesc}
-                      onChange={(e) => setRoleFormDesc(e.target.value)}
-                      placeholder="ej: Supervisión de transacciones y cierres fiscales"
-                      className="w-full px-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    />
-                  </div>
-                </div>
+            <div>
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                Descripción del Rol
+              </label>
+              <input
+                type="text"
+                value={roleFormDesc}
+                onChange={(e) => setRoleFormDesc(e.target.value)}
+                placeholder="ej: Supervisión de transacciones y cierres fiscales"
+                className="w-full px-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
+          </div>
 
-                {/* Barra de control de matriz de permisos */}
-                <div className="pt-2 border-t border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700 shrink-0 bg-white dark:bg-neutral-900">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
-                      Matriz de Permisos:
-                    </span>
-                    <span className="text-xs font-mono font-bold text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-950/60 px-2 py-0.5 rounded-lg border border-sky-300 dark:border-sky-800">
-                      {roleSelectedPerms.length} de {permissions.length}{" "}
-                      seleccionados
-                    </span>
-                  </div>
+          {/* Barra de control de matriz de permisos */}
+          <div className="pt-2 border-t border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700 shrink-0 bg-white dark:bg-neutral-900">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
+                Matriz de Permisos:
+              </span>
+              <span className="text-xs font-mono font-bold text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-950/60 px-2 py-0.5 rounded-lg border border-sky-300 dark:border-sky-800">
+                {roleSelectedPerms.length} de {permissions.length} seleccionados
+              </span>
+            </div>
 
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <button
-                      type="button"
-                      onClick={handleSelectAllPerms}
-                      className="text-[11px] font-semibold text-sky-700 dark:text-sky-400 hover:text-sky-900 dark:hover:text-sky-200 px-2 py-1 rounded-lg border border-sky-200 dark:border-sky-800 hover:bg-sky-50 dark:hover:bg-sky-950/40 transition-colors cursor-pointer"
-                    >
-                      Marcar Todos
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleDeselectAllPerms}
-                      className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100 px-2 py-1 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
-                    >
-                      Desmarcar Todos
-                    </button>
-                  </div>
-                </div>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={handleSelectAllPerms}
+                className="text-[11px] font-semibold text-sky-700 dark:text-sky-400 hover:text-sky-900 dark:hover:text-sky-200 px-2 py-1 rounded-lg border border-sky-200 dark:border-sky-800 hover:bg-sky-50 dark:hover:bg-sky-950/40 transition-colors cursor-pointer"
+              >
+                Marcar Todos
+              </button>
+              <button
+                type="button"
+                onClick={handleDeselectAllPerms}
+                className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100 px-2 py-1 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+              >
+                Desmarcar Todos
+              </button>
+            </div>
+          </div>
 
-                {/* Filtro rápido dentro de la matriz */}
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={permSearchQuery}
-                    onChange={(e) => setPermSearchQuery(e.target.value)}
-                    placeholder="Filtrar permisos por texto (ej: tasa, factura, anular, SENIAT)..."
-                    className="w-full pl-8 pr-3 py-1.5 text-xs border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                </div>
+          {/* Filtro rápido dentro de la matriz */}
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={permSearchQuery}
+              onChange={(e) => setPermSearchQuery(e.target.value)}
+              placeholder="Filtrar permisos por texto (ej: tasa, factura, anular, SENIAT)..."
+              className="w-full pl-8 pr-3 py-1.5 text-xs border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
+            />
+          </div>
 
-                {/* Lista agrupada por módulo */}
-                <div className="space-y-3">
-                  {Array.from(permissionsByModule.entries()).map(
-                    ([moduleName, modulePerms]) => {
-                      const meta = MODULE_METADATA[moduleName] || {
-                        label: moduleName.toUpperCase(),
-                        badgeColor:
-                          "bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 border-neutral-200 dark:border-neutral-700",
-                      };
-                      const modulePermKeys = modulePerms.map((p) => p.key);
-                      const selectedInModule = modulePermKeys.filter((k) =>
-                        roleSelectedPerms.includes(k),
-                      ).length;
-                      const isAllModuleSelected =
-                        modulePermKeys.length > 0 &&
-                        selectedInModule === modulePermKeys.length;
+          {/* Lista agrupada por módulo */}
+          <div className="space-y-3">
+            {Array.from(permissionsByModule.entries()).map(
+              ([moduleName, modulePerms]) => {
+                const meta = MODULE_METADATA[moduleName] || {
+                  label: moduleName.toUpperCase(),
+                  badgeColor:
+                    "bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 border-neutral-200 dark:border-neutral-700",
+                };
+                const modulePermKeys = modulePerms.map((p) => p.key);
+                const selectedInModule = modulePermKeys.filter((k) =>
+                  roleSelectedPerms.includes(k),
+                ).length;
+                const isAllModuleSelected =
+                  modulePermKeys.length > 0 &&
+                  selectedInModule === modulePermKeys.length;
 
-                      return (
-                        <div
-                          key={moduleName}
-                          className="border border-neutral-200 dark:border-neutral-800 rounded-lg overflow-hidden bg-white dark:bg-neutral-900 shadow-xs"
+                return (
+                  <div
+                    key={moduleName}
+                    className="border border-neutral-200 dark:border-neutral-800 rounded-lg overflow-hidden bg-white dark:bg-neutral-900 shadow-xs"
+                  >
+                    {/* Cabecera del Módulo */}
+                    <div className="p-2.5 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between shrink-0">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`text-[11px] font-bold px-2 py-0.5 rounded-lg border ${meta.badgeColor}`}
                         >
-                          {/* Cabecera del Módulo */}
-                          <div className="p-2.5 bg-neutral-50/70 dark:bg-neutral-850 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between shrink-0">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`text-[11px] font-bold px-2 py-0.5 rounded-lg border ${meta.badgeColor}`}
-                              >
-                                {meta.label}
-                              </span>
-                              <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                                ({selectedInModule} de {modulePermKeys.length}{" "}
-                                activos)
-                              </span>
+                          {meta.label}
+                        </span>
+                        <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                          ({selectedInModule} de {modulePermKeys.length}{" "}
+                          activos)
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleToggleModule(modulePermKeys)}
+                        className="flex items-center gap-1 text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100 cursor-pointer"
+                      >
+                        {isAllModuleSelected ? (
+                          <>
+                            <CheckSquare className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                            <span>Desmarcar módulo</span>
+                          </>
+                        ) : (
+                          <>
+                            <Square className="w-3.5 h-3.5 text-neutral-400" />
+                            <span>Marcar módulo completo</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Lista de Permisos del Módulo */}
+                    <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {modulePerms.map((perm) => {
+                        const isChecked = roleSelectedPerms.includes(perm.key);
+                        const isExchangeRatePerm =
+                          perm.key === "pricing.exchange_rate";
+
+                        return (
+                          <label
+                            key={perm.key}
+                            className={`flex items-start gap-2.5 p-2 rounded-lg border transition-colors cursor-pointer ${
+                              isChecked
+                                ? isExchangeRatePerm
+                                  ? "bg-amber-50/60 dark:bg-amber-950/30 border-amber-300 dark:border-amber-700"
+                                  : "bg-sky-50/50 dark:bg-sky-950/30 border-sky-200 dark:border-sky-800"
+                                : "border-neutral-100 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => handleTogglePerm(perm.key)}
+                              className="mt-0.5 w-4 h-4 text-sky-600 rounded border-neutral-300 focus:ring-sky-500"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-mono text-[10px] font-bold text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 px-1.5 py-0.5 rounded border border-neutral-200 dark:border-neutral-700">
+                                  {perm.key}
+                                </span>
+                                {isExchangeRatePerm && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-700">
+                                    <Coins className="w-2.5 h-2.5" />
+                                    Tasa Oficial BCV
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1 leading-tight">
+                                {perm.description}
+                              </p>
                             </div>
-
-                            <button
-                              type="button"
-                              onClick={() => handleToggleModule(modulePermKeys)}
-                              className="flex items-center gap-1 text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100 cursor-pointer"
-                            >
-                              {isAllModuleSelected ? (
-                                <>
-                                  <CheckSquare className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-                                  <span>Desmarcar módulo</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Square className="w-3.5 h-3.5 text-neutral-400" />
-                                  <span>Marcar módulo completo</span>
-                                </>
-                              )}
-                            </button>
-                          </div>
-
-                          {/* Lista de Permisos del Módulo */}
-                          <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-2">
-                            {modulePerms.map((perm) => {
-                              const isChecked = roleSelectedPerms.includes(
-                                perm.key,
-                              );
-                              const isExchangeRatePerm =
-                                perm.key === "pricing.exchange_rate";
-
-                              return (
-                                <label
-                                  key={perm.key}
-                                  className={`flex items-start gap-2.5 p-2 rounded-lg border transition-colors cursor-pointer ${
-                                    isChecked
-                                      ? isExchangeRatePerm
-                                        ? "bg-amber-50/60 dark:bg-amber-950/30 border-amber-300 dark:border-amber-700"
-                                        : "bg-sky-50/50 dark:bg-sky-950/30 border-sky-200 dark:border-sky-800"
-                                      : "border-neutral-100 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
-                                  }`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={isChecked}
-                                    onChange={() => handleTogglePerm(perm.key)}
-                                    className="mt-0.5 w-4 h-4 text-sky-600 rounded border-neutral-300 focus:ring-sky-500"
-                                  />
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      <span className="font-mono text-[10px] font-bold text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-800 px-1.5 py-0.5 rounded border border-neutral-200 dark:border-neutral-700">
-                                        {perm.key}
-                                      </span>
-                                      {isExchangeRatePerm && (
-                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-700">
-                                          <Coins className="w-2.5 h-2.5" />
-                                          Tasa Oficial BCV
-                                        </span>
-                                      )}
-                                    </div>
-                                    <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1 leading-tight">
-                                      {perm.description}
-                                    </p>
-                                  </div>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    },
-                  )}
-                </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              },
+            )}
+          </div>
         </form>
       </Modal>
+
+      {/* Modal de Preferencias de Notificaciones para el usuario */}
+      {selectedUserForNotifs && (
+        <NotificationPreferencesModal
+          isOpen={Boolean(selectedUserForNotifs)}
+          targetUserId={selectedUserForNotifs.id}
+          targetUserName={selectedUserForNotifs.name}
+          onClose={() => setSelectedUserForNotifs(null)}
+        />
+      )}
     </div>
   );
 };

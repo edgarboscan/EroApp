@@ -22,6 +22,10 @@ CREATE TABLE `companies` (
   `iva_retention_rate` DECIMAL(5,2) NOT NULL DEFAULT 75.00, -- 75% o 100%
   `currency_base` CHAR(3) NOT NULL DEFAULT 'USD',
   `currency_secondary` CHAR(3) NOT NULL DEFAULT 'VES',
+  `report_currency` VARCHAR(10) NOT NULL DEFAULT 'BOTH',
+  `show_logo_in_reports` TINYINT(1) NOT NULL DEFAULT 1,
+  `report_logo_type` VARCHAR(20) NOT NULL DEFAULT 'default',
+  `custom_logo_url` LONGTEXT DEFAULT NULL,
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -1043,6 +1047,9 @@ CREATE TABLE `cash_registers` (
   `name` VARCHAR(100) NOT NULL, -- ej: 'Caja Principal Piso de Venta'
   `fiscal_printer_serial` VARCHAR(50) DEFAULT NULL, -- ej: 'Z5A1234567'
   `invoice_mode` VARCHAR(30) NOT NULL DEFAULT 'normal_printer',
+  `ticket_printer_type` VARCHAR(50) NOT NULL DEFAULT 'thermal_80mm',
+  `ticket_printer_name` VARCHAR(100) DEFAULT NULL,
+  `ticket_print_mode` VARCHAR(20) NOT NULL DEFAULT 'prompt',
   `accepts_orders` TINYINT(1) NOT NULL DEFAULT 1,
   `warehouse_id` CHAR(36) DEFAULT NULL,
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,
@@ -1718,6 +1725,10 @@ CREATE TABLE `licenses` (
   `max_users` INT NOT NULL DEFAULT 5,
   `max_branches` INT NOT NULL DEFAULT 1,
   `has_support` TINYINT(1) NOT NULL DEFAULT 1,
+  `encrypted_payload` LONGTEXT DEFAULT NULL,
+  `auth_tag` VARCHAR(64) DEFAULT NULL,
+  `iv` VARCHAR(64) DEFAULT NULL,
+  `integrity_hash` VARCHAR(128) DEFAULT NULL,
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -1746,6 +1757,35 @@ CREATE TABLE `business_rules` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_br_company_branch` (`company_id`, `branch_id`),
   CONSTRAINT `fk_br_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+DROP TABLE IF EXISTS `notifications`;
+CREATE TABLE `notifications` (
+  `id` VARCHAR(36) NOT NULL,
+  `company_id` VARCHAR(36) NOT NULL,
+  `user_id` VARCHAR(36) NOT NULL,
+  `type` VARCHAR(50) NOT NULL,
+  `title` VARCHAR(255) NOT NULL,
+  `message` TEXT NOT NULL,
+  `data` JSON DEFAULT NULL,
+  `is_read` TINYINT(1) NOT NULL DEFAULT '0',
+  `read_at` DATETIME DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_notif_user` (`company_id`, `user_id`, `is_read`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+DROP TABLE IF EXISTS `user_notification_preferences`;
+CREATE TABLE `user_notification_preferences` (
+  `id` VARCHAR(36) NOT NULL,
+  `company_id` VARCHAR(36) NOT NULL,
+  `user_id` VARCHAR(36) NOT NULL,
+  `notification_type` VARCHAR(50) NOT NULL,
+  `in_app_enabled` TINYINT(1) NOT NULL DEFAULT '1',
+  `email_enabled` TINYINT(1) NOT NULL DEFAULT '0',
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_notif_pref` (`company_id`, `user_id`, `notification_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

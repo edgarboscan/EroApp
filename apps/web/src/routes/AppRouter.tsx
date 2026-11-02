@@ -64,6 +64,14 @@ import { PurchasesBookView } from '../features/taxes/PurchasesBookView';
 import { SalesBookView } from '../features/taxes/SalesBookView';
 import { ARCVReportView } from '../features/taxes/ARCVReportView';
 
+// Módulo Contable Senior (VEN-NIF / NIIF)
+import { ChartOfAccountsView } from '../features/accounting/ChartOfAccountsView';
+import { JournalEntriesView } from '../features/accounting/JournalEntriesView';
+import { GeneralLedgerView } from '../features/accounting/GeneralLedgerView';
+import { TrialBalanceView } from '../features/accounting/TrialBalanceView';
+import { FinancialStatementsView } from '../features/accounting/FinancialStatementsView';
+import { FiscalClosingView } from '../features/accounting/FiscalClosingView';
+
 // Módulo Configuración, Licenciamiento & Auditoría (Paso 10)
 import { CompanyConfigView } from '../features/config/CompanyConfigView';
 import { PaymentMethodsConfigView } from '../features/config/PaymentMethodsConfigView';
@@ -361,6 +369,66 @@ export const AppRouter: React.FC = () => {
           }
         />
 
+        {/* Módulo Contable Senior (VEN-NIF / NIIF & Código de Comercio) */}
+        <Route
+          path="/accounting"
+          element={<Navigate to="/accounting/accounts" replace />}
+        />
+
+        <Route
+          path="/accounting/accounts"
+          element={
+            <RequirePermission module="accounting" action="read">
+              <ChartOfAccountsView />
+            </RequirePermission>
+          }
+        />
+
+        <Route
+          path="/accounting/journal"
+          element={
+            <RequirePermission module="accounting" action="read">
+              <JournalEntriesView />
+            </RequirePermission>
+          }
+        />
+
+        <Route
+          path="/accounting/ledger"
+          element={
+            <RequirePermission module="accounting" action="read">
+              <GeneralLedgerView />
+            </RequirePermission>
+          }
+        />
+
+        <Route
+          path="/accounting/trial-balance"
+          element={
+            <RequirePermission module="accounting" action="read">
+              <TrialBalanceView />
+            </RequirePermission>
+          }
+        />
+
+        <Route
+          path="/accounting/financial-statements"
+          element={
+            <RequirePermission module="accounting" action="read">
+              <FinancialStatementsView />
+            </RequirePermission>
+          }
+        />
+
+        <Route
+          path="/accounting/fiscal-closing"
+          element={
+            <RequirePermission module="accounting" action="read">
+              <FiscalClosingView />
+            </RequirePermission>
+          }
+        />
+
         <Route
           path="/inventory/products"
           element={
@@ -444,6 +512,14 @@ export const AppRouter: React.FC = () => {
 
         <Route
           path="/reports"
+          element={
+            <RequirePermission module="reports" action="export_pdf">
+              <ReportsView />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/reports/:reportId"
           element={
             <RequirePermission module="reports" action="export_pdf">
               <ReportsView />

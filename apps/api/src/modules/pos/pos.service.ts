@@ -105,11 +105,38 @@ export class POSService {
     return { success: true, id };
   }
 
+  private static cashRegisterColsChecked = false;
+  private static async ensureCashRegisterColumns(): Promise<void> {
+    if (this.cashRegisterColsChecked) return;
+    try {
+      const cols = await query<any>(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_NAME = 'cash_registers' AND COLUMN_NAME IN ('ticket_printer_type', 'ticket_printer_name', 'ticket_print_mode')
+      `);
+      const existing = cols.map((c: any) => (c.COLUMN_NAME || c.column_name || '').toLowerCase());
+      if (!existing.includes('ticket_printer_type')) {
+        await query(`ALTER TABLE cash_registers ADD COLUMN ticket_printer_type VARCHAR(50) NOT NULL DEFAULT 'thermal_80mm'`).catch(() => {});
+      }
+      if (!existing.includes('ticket_printer_name')) {
+        await query(`ALTER TABLE cash_registers ADD COLUMN ticket_printer_name VARCHAR(100) DEFAULT NULL`).catch(() => {});
+      }
+      if (!existing.includes('ticket_print_mode')) {
+        await query(`ALTER TABLE cash_registers ADD COLUMN ticket_print_mode VARCHAR(20) NOT NULL DEFAULT 'prompt'`).catch(() => {});
+      }
+      this.cashRegisterColsChecked = true;
+    } catch {
+      this.cashRegisterColsChecked = true;
+    }
+  }
+
   /**
    * Obtiene el listado de cajas registradoras de una sucursal o de toda la empresa
    * Opcionalmente filtra solo cajas que aceptan comandas de restaurante.
    */
   static async getCashRegisters(companyId: string, branchId?: string, acceptsOrdersOnly?: boolean) {
+    await this.ensureCashRegisterColumns();
+
     const params: any[] = [companyId];
     let branchFilter = '';
     if (branchId) {
@@ -122,7 +149,8 @@ export class POSService {
 
     const rows = await query<any>(
       `SELECT cr.id, cr.branch_id, b.name as branch_name, cr.code, cr.name, cr.fiscal_printer_serial,
-              cr.invoice_mode, cr.accepts_orders, cr.default_bank_account_ves_id, cr.default_bank_account_usd_id, cr.is_active,
+              cr.invoice_mode, cr.ticket_printer_type, cr.ticket_printer_name, cr.ticket_print_mode,
+              cr.accepts_orders, cr.default_bank_account_ves_id, cr.default_bank_account_usd_id, cr.is_active,
               cr.warehouse_id, w.name as warehouse_name,
               (SELECT cs.id FROM cash_shifts cs WHERE cs.cash_register_id = cr.id AND cs.status = 'OPEN' LIMIT 1) as active_shift_id,
               (SELECT u.full_name FROM cash_shifts cs INNER JOIN users u ON cs.user_id = u.id WHERE cs.cash_register_id = cr.id AND cs.status = 'OPEN' LIMIT 1) as active_cashier_name
@@ -153,6 +181,9 @@ export class POSService {
       name: r.name,
       fiscalPrinterSerial: r.fiscal_printer_serial,
       invoiceMode: r.invoice_mode,
+      ticketPrinterType: r.ticket_printer_type || 'thermal_80mm',
+      ticketPrinterName: r.ticket_printer_name || null,
+      ticketPrintMode: r.ticket_print_mode || 'prompt',
       acceptsOrders: Boolean(r.accepts_orders !== 0 && r.accepts_orders !== null),
       defaultBankAccountIdVES: r.default_bank_account_ves_id || null,
       defaultBankAccountIdUSD: r.default_bank_account_usd_id || null,
@@ -168,6 +199,8 @@ export class POSService {
    * Crea una nueva caja registradora configurando si es fiscal o no y su almacén asociado
    */
   static async createCashRegister(companyId: string, input: CashRegisterInput) {
+    await this.ensureCashRegisterColumns();
+
     // Validar sucursal
     const branchRows = await query<any>(
       `SELECT id FROM branches WHERE id = ? AND company_id = ?`,
@@ -192,13 +225,23 @@ export class POSService {
     const fiscalPrinterSerial = invoiceMode === 'fiscal_printer'
       ? (input.fiscalPrinterSerial?.trim() || null)
       : null;
+    const ticketPrinterType = invoiceMode === 'normal_printer'
+      ? (input.ticketPrinterType || 'thermal_80mm')
+      : 'thermal_80mm';
+    const ticketPrinterName = invoiceMode === 'normal_printer'
+      ? (input.ticketPrinterName?.trim() || null)
+      : null;
+    const ticketPrintMode = invoiceMode === 'normal_printer'
+      ? (input.ticketPrintMode || 'prompt')
+      : 'prompt';
     const acceptsOrders = input.acceptsOrders !== false ? 1 : 0;
 
     await query(
       `INSERT INTO cash_registers (
-        id, branch_id, code, name, fiscal_printer_serial, invoice_mode, accepts_orders,
-        default_bank_account_ves_id, default_bank_account_usd_id, warehouse_id, is_active
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+        id, branch_id, code, name, fiscal_printer_serial, invoice_mode,
+        ticket_printer_type, ticket_printer_name, ticket_print_mode,
+        accepts_orders, default_bank_account_ves_id, default_bank_account_usd_id, warehouse_id, is_active
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
       [
         id,
         input.branchId,
@@ -206,6 +249,9 @@ export class POSService {
         name,
         fiscalPrinterSerial,
         invoiceMode,
+        ticketPrinterType,
+        ticketPrinterName,
+        ticketPrintMode,
         acceptsOrders,
         input.defaultBankAccountIdVES || null,
         input.defaultBankAccountIdUSD || null,
@@ -230,6 +276,9 @@ export class POSService {
       name,
       fiscalPrinterSerial,
       invoiceMode,
+      ticketPrinterType,
+      ticketPrinterName,
+      ticketPrintMode,
       acceptsOrders: acceptsOrders === 1,
       defaultBankAccountIdVES: input.defaultBankAccountIdVES || null,
       defaultBankAccountIdUSD: input.defaultBankAccountIdUSD || null,
@@ -242,6 +291,8 @@ export class POSService {
    * Actualiza una caja registradora existente (nombre, código, almacén, modo fiscal, serial)
    */
   static async updateCashRegister(companyId: string, id: string, input: Partial<CashRegisterInput>) {
+    await this.ensureCashRegisterColumns();
+
     const rows = await query<any>(
       `SELECT cr.* FROM cash_registers cr
        INNER JOIN branches b ON cr.branch_id = b.id
@@ -261,6 +312,15 @@ export class POSService {
     const fiscalPrinterSerial = invoiceMode === 'fiscal_printer'
       ? (input.fiscalPrinterSerial !== undefined ? input.fiscalPrinterSerial?.trim() || null : current.fiscal_printer_serial)
       : null;
+    const ticketPrinterType = invoiceMode === 'normal_printer'
+      ? (input.ticketPrinterType !== undefined ? input.ticketPrinterType : (current.ticket_printer_type || 'thermal_80mm'))
+      : (current.ticket_printer_type || 'thermal_80mm');
+    const ticketPrinterName = invoiceMode === 'normal_printer'
+      ? (input.ticketPrinterName !== undefined ? (input.ticketPrinterName?.trim() || null) : (current.ticket_printer_name || null))
+      : (current.ticket_printer_name || null);
+    const ticketPrintMode = invoiceMode === 'normal_printer'
+      ? (input.ticketPrintMode !== undefined ? input.ticketPrintMode : (current.ticket_print_mode || 'prompt'))
+      : (current.ticket_print_mode || 'prompt');
     const acceptsOrders = input.acceptsOrders !== undefined
       ? (input.acceptsOrders ? 1 : 0)
       : (current.accepts_orders !== 0 && current.accepts_orders !== null ? 1 : 0);
@@ -277,11 +337,17 @@ export class POSService {
 
     await query(
       `UPDATE cash_registers
-       SET code = ?, name = ?, fiscal_printer_serial = ?, invoice_mode = ?, accepts_orders = ?,
-           default_bank_account_ves_id = ?, default_bank_account_usd_id = ?,
+       SET code = ?, name = ?, fiscal_printer_serial = ?, invoice_mode = ?,
+           ticket_printer_type = ?, ticket_printer_name = ?, ticket_print_mode = ?,
+           accepts_orders = ?, default_bank_account_ves_id = ?, default_bank_account_usd_id = ?,
            warehouse_id = ?, is_active = ?
        WHERE id = ?`,
-      [code, name, fiscalPrinterSerial, invoiceMode, acceptsOrders, defaultBankAccountIdVES, defaultBankAccountIdUSD, warehouseId, isActive, id]
+      [
+        code, name, fiscalPrinterSerial, invoiceMode,
+        ticketPrinterType, ticketPrinterName, ticketPrintMode,
+        acceptsOrders, defaultBankAccountIdVES, defaultBankAccountIdUSD,
+        warehouseId, isActive, id
+      ]
     );
 
     let allowedDepartmentIds = input.allowedDepartmentIds;
@@ -311,6 +377,10 @@ export class POSService {
       name,
       fiscalPrinterSerial,
       invoiceMode,
+      ticketPrinterType,
+      ticketPrinterName,
+      ticketPrintMode,
+      acceptsOrders: acceptsOrders === 1,
       defaultBankAccountIdVES,
       defaultBankAccountIdUSD,
       allowedDepartmentIds: allowedDepartmentIds || [],
@@ -374,9 +444,11 @@ export class POSService {
    * Obtiene el turno de caja actualmente abierto para el usuario o sucursal
    */
   static async getCurrentShift(companyId: string, userId: string, branchId: string) {
+    await this.ensureCashRegisterColumns();
     const rows = await query<any>(
       `SELECT cs.*, cr.code as cash_register_code, cr.name as cash_register_name,
               cr.fiscal_printer_serial, cr.invoice_mode,
+              cr.ticket_printer_type, cr.ticket_printer_name, cr.ticket_print_mode,
               cr.default_bank_account_ves_id, cr.default_bank_account_usd_id,
               cr.warehouse_id, w.name as warehouse_name,
               u.full_name as cashier_name
@@ -472,6 +544,12 @@ export class POSService {
     const expectedCashUSD = Number((initialCashUSD + cashSalesUSD + inflowsUSD - outflowsUSD).toFixed(2));
     const expectedCashVES = Number((initialCashVES + cashSalesVES + inflowsVES - outflowsVES).toFixed(2));
 
+    const crdRows = await query<any>(
+      `SELECT department_id FROM cash_register_departments WHERE cash_register_id = ?`,
+      [shift.cash_register_id]
+    );
+    const allowedDepartmentIds = crdRows.map((r: any) => r.department_id);
+
     return {
       id: shift.id,
       cashRegisterId: shift.cash_register_id,
@@ -479,10 +557,14 @@ export class POSService {
       cashRegisterName: shift.cash_register_name,
       fiscalPrinterSerial: shift.fiscal_printer_serial,
       invoiceMode: shift.invoice_mode,
+      ticketPrinterType: shift.ticket_printer_type || 'thermal_80mm',
+      ticketPrinterName: shift.ticket_printer_name || null,
+      ticketPrintMode: shift.ticket_print_mode || 'prompt',
       defaultBankAccountIdVES: shift.default_bank_account_ves_id || null,
       defaultBankAccountIdUSD: shift.default_bank_account_usd_id || null,
       warehouseId: shift.warehouse_id || null,
       warehouseName: shift.warehouse_name || null,
+      allowedDepartmentIds,
       branchId: shift.branch_id,
       userId: shift.user_id,
       cashierName: shift.cashier_name,
@@ -519,9 +601,11 @@ export class POSService {
    * Obtiene los datos detallados de un turno de caja para comprobante / acta de arqueo
    */
   static async getShiftById(companyId: string, shiftId: string) {
+    await this.ensureCashRegisterColumns();
     const rows = await query<any>(
       `SELECT cs.*, cr.code as cash_register_code, cr.name as cash_register_name,
               cr.fiscal_printer_serial, cr.invoice_mode,
+              cr.ticket_printer_type, cr.ticket_printer_name, cr.ticket_print_mode,
               b.name as branch_name,
               u.full_name as cashier_name,
               u_ver.full_name as verified_by_name,
@@ -590,6 +674,9 @@ export class POSService {
       id: shift.id,
       cashRegisterCode: shift.cash_register_code,
       cashRegisterName: shift.cash_register_name,
+      ticketPrinterType: shift.ticket_printer_type || 'thermal_80mm',
+      ticketPrinterName: shift.ticket_printer_name || null,
+      ticketPrintMode: shift.ticket_print_mode || 'prompt',
       cashierName: shift.cashier_name,
       branchName: shift.branch_name,
       openedAt: shift.opened_at ? new Date(shift.opened_at).toISOString() : new Date().toISOString(),

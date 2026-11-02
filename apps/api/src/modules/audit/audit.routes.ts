@@ -10,7 +10,7 @@ export const auditRouter = new Hono<AppEnv>();
 auditRouter.get(
   '/logs',
   authenticate,
-  authorize('audit', 'read'),
+  authorize(['audit.read', 'audit', 'config.read', 'security.read']),
   zValidator('query', auditLogFilterSchema),
   async (c) => {
     const user = c.get('user');

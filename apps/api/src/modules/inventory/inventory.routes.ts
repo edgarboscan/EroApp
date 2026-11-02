@@ -49,6 +49,12 @@ inventoryRouter.route('/counts', inventoryCountRouter);
 // Rutas de Jerarquía: Departamentos, Grupos, Subgrupos
 // ==========================================
 
+inventoryRouter.get('/hierarchy', authenticate, async (c) => {
+  const user = c.get('user');
+  const result = await InventoryService.getFullHierarchy(user.companyId);
+  return c.json({ success: true, data: result });
+});
+
 inventoryRouter.get('/departments', authenticate, authorize('inventory', 'read'), async (c) => {
   const user = c.get('user');
   const result = await InventoryService.getDepartments(user.companyId);
@@ -228,6 +234,7 @@ inventoryRouter.get('/products', authenticate, authorize(['inventory.read', 'pos
   const groupId = c.req.query('groupId');
   const subgroupId = c.req.query('subgroupId');
   const search = c.req.query('search');
+  const cashRegisterId = c.req.query('cashRegisterId');
   const branchId = c.req.query('branchId') || c.req.header('X-Branch-Id') || c.get('activeBranchId') || user.branchId;
   const warehouseScope = c.req.query('warehouseScope') || c.req.query('mode'); // 'pos' | 'sales' | 'transfer' | 'default'
   let warehouseId = c.req.query('warehouseId');
@@ -243,7 +250,7 @@ inventoryRouter.get('/products', authenticate, authorize(['inventory.read', 'pos
     }
   }
 
-  const result = await InventoryService.getProducts(user.companyId, { departmentId, groupId, subgroupId, search, warehouseId });
+  const result = await InventoryService.getProducts(user.companyId, { departmentId, groupId, subgroupId, search, warehouseId, cashRegisterId });
   return c.json({ success: true, data: result });
 });
 
@@ -527,9 +534,14 @@ inventoryRouter.get('/kardex', authenticate, authorize('inventory', 'read'), asy
   const branchId = c.req.query('branchId') || user.branchId;
   const warehouseId = c.req.query('warehouseId');
   const productId = c.req.query('productId');
+  const departmentId = c.req.query('departmentId');
+  const groupId = c.req.query('groupId');
+  const subgroupId = c.req.query('subgroupId');
   const movementType = c.req.query('movementType') as any;
   const startDate = c.req.query('startDate');
   const endDate = c.req.query('endDate');
+  const model = (c.req.query('model') || 'physical') as 'physical' | 'valued';
+  const currency = (c.req.query('currency') || 'BOTH') as 'VES' | 'USD' | 'BOTH';
   const format = c.req.query('format');
 
   try {
@@ -537,9 +549,14 @@ inventoryRouter.get('/kardex', authenticate, authorize('inventory', 'read'), asy
       branchId,
       warehouseId,
       productId,
+      departmentId,
+      groupId,
+      subgroupId,
       movementType,
       startDate,
       endDate,
+      model,
+      currency,
     });
 
     if (format === 'pdf') {
@@ -557,26 +574,50 @@ inventoryRouter.get('/kardex', authenticate, authorize('inventory', 'read'), asy
           warehouseName: warehouseId ? movementList[0]?.warehouseName : undefined,
           branchName: branchId ? movementList[0]?.branchName : undefined,
           productName: productId ? movementList[0]?.productName : undefined,
+          departmentName: departmentId ? movementList[0]?.departmentName : undefined,
+          groupName: groupId ? movementList[0]?.groupName : undefined,
+          subgroupName: subgroupId ? movementList[0]?.subgroupName : undefined,
           movementType,
+          model,
+          currency,
+          bcvRate: result.summary?.bcvRate,
         },
         movements: movementList.map((m: any) => ({
           date: m.createdAt ? new Date(m.createdAt).toISOString() : new Date().toISOString(),
           productSku: m.sku || 'N/A',
           productName: m.productName,
           warehouseName: m.warehouseName,
+          departmentName: m.departmentName,
+          groupName: m.groupName,
+          subgroupName: m.subgroupName,
           movementType: m.movementType,
           quantity: Number(m.quantity || 0),
+          unitOfMeasure: m.unitOfMeasure,
           unitCost: Number(m.unitCost || 0),
           totalCost: Number(m.totalCost || 0),
+          unitCostUSD: Number(m.unitCostUSD || 0),
+          totalCostUSD: Number(m.totalCostUSD || 0),
+          unitCostVES: Number(m.unitCostVES || 0),
+          totalCostVES: Number(m.totalCostVES || 0),
+          unitPrice: Number(m.unitPrice || 0),
+          totalPrice: Number(m.totalPrice || 0),
+          unitPriceUSD: Number(m.unitPriceUSD || 0),
+          totalPriceUSD: Number(m.totalPriceUSD || 0),
+          unitPriceVES: Number(m.unitPriceVES || 0),
+          totalPriceVES: Number(m.totalPriceVES || 0),
           previousStock: Number(m.previousStock || 0),
           newStock: Number(m.newStock || 0),
+          stockValueUSD: Number(m.stockValueUSD || 0),
+          stockValueVES: Number(m.stockValueVES || 0),
           referenceDocument: m.referenceDocument || undefined,
+          reason: m.reason || undefined,
+          userName: m.userName || undefined,
         })),
         userName,
       });
 
       c.header('Content-Type', 'application/pdf');
-      c.header('Content-Disposition', `inline; filename="kardex_inventario_${new Date().toISOString().slice(0, 10)}.pdf"`);
+      c.header('Content-Disposition', `inline; filename="kardex_${model}_${new Date().toISOString().slice(0, 10)}.pdf"`);
       return c.body(new Uint8Array(pdfBuffer));
     }
 

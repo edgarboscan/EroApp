@@ -30,6 +30,7 @@ import {
   calculateSuggestedReorderQuantity,
 } from '@ero/shared';
 import crypto from 'crypto';
+import { ConfigService } from '../config/config.service';
 
 export class InventoryService {
   // ==========================================
@@ -39,7 +40,8 @@ export class InventoryService {
   static async getDepartments(companyId: string) {
     return await query<any>(
       `SELECT d.id, d.code, d.name, d.description, d.is_active as isActive,
-              (SELECT COUNT(g.id) FROM \`groups\` g WHERE g.department_id = d.id) AS groupsCount
+              (SELECT COUNT(g.id) FROM \`groups\` g WHERE g.department_id = d.id) AS groupsCount,
+              (SELECT COUNT(p.id) FROM products p WHERE p.department_id = d.id AND p.is_active = 1) AS productsCount
        FROM departments d
        WHERE d.company_id = ?
        ORDER BY d.name ASC`,
@@ -100,8 +102,9 @@ export class InventoryService {
   static async getGroups(departmentId?: string) {
     return await query<any>(
       `SELECT g.id, g.department_id as departmentId, g.code, g.name, g.description, g.is_active as isActive,
-              d.name as departmentName,
-              (SELECT COUNT(sg.id) FROM subgroups sg WHERE sg.group_id = g.id) AS subgroupsCount
+              d.name as departmentName, d.code as departmentCode,
+              (SELECT COUNT(sg.id) FROM subgroups sg WHERE sg.group_id = g.id) AS subgroupsCount,
+              (SELECT COUNT(p.id) FROM products p WHERE p.group_id = g.id AND p.is_active = 1) AS productsCount
        FROM \`groups\` g
        INNER JOIN departments d ON g.department_id = d.id
        WHERE (? IS NULL OR g.department_id = ?)
@@ -164,7 +167,9 @@ export class InventoryService {
   static async getSubgroups(groupId?: string) {
     return await query<any>(
       `SELECT sg.id, sg.group_id as groupId, sg.code, sg.name, sg.description, sg.is_active as isActive,
-              g.name as groupName, d.name as departmentName
+              g.name as groupName, g.code as groupCode,
+              d.id as departmentId, d.name as departmentName, d.code as departmentCode,
+              (SELECT COUNT(p.id) FROM products p WHERE p.subgroup_id = sg.id AND p.is_active = 1) AS productsCount
        FROM subgroups sg
        INNER JOIN \`groups\` g ON sg.group_id = g.id
        INNER JOIN departments d ON g.department_id = d.id
@@ -172,6 +177,15 @@ export class InventoryService {
        ORDER BY sg.name ASC`,
       [groupId || null, groupId || null]
     );
+  }
+
+  static async getFullHierarchy(companyId: string) {
+    const [departments, groups, subgroups] = await Promise.all([
+      this.getDepartments(companyId),
+      this.getGroups(),
+      this.getSubgroups(),
+    ]);
+    return { departments, groups, subgroups };
   }
 
   static async createSubgroup(input: SubgroupInput) {
@@ -416,7 +430,38 @@ export class InventoryService {
     subgroupId?: string;
     search?: string;
     warehouseId?: string;
+    cashRegisterId?: string;
   }) {
+    let allowedDeptIds: string[] | null = null;
+    if (filters.cashRegisterId) {
+      const crdRows = await query<any>(
+        `SELECT department_id FROM cash_register_departments WHERE cash_register_id = ?`,
+        [filters.cashRegisterId]
+      );
+      if (crdRows.length > 0) {
+        allowedDeptIds = crdRows.map((r: any) => r.department_id);
+      }
+    }
+
+    let cashRegisterDeptClause = '';
+    const cashRegisterDeptParams: any[] = [];
+    if (allowedDeptIds && allowedDeptIds.length > 0) {
+      cashRegisterDeptClause = ` AND p.department_id IN (${allowedDeptIds.map(() => '?').join(',')})`;
+      cashRegisterDeptParams.push(...allowedDeptIds);
+    }
+
+    const queryParams = [
+      filters.warehouseId || null, filters.warehouseId || null,
+      filters.warehouseId || null,
+      filters.warehouseId || null, filters.warehouseId || null,
+      companyId,
+      filters.departmentId || null, filters.departmentId || null,
+      filters.groupId || null, filters.groupId || null,
+      filters.subgroupId || null, filters.subgroupId || null,
+      filters.search || null, filters.search || null, filters.search || null, filters.search || null,
+      ...cashRegisterDeptParams,
+    ];
+
     const rows = await query<any>(
       `SELECT p.id, p.sku, p.barcode, p.name, p.description, p.product_type as productType,
               p.tracks_inventory as tracksInventory,
@@ -448,17 +493,9 @@ export class InventoryService {
          AND (? IS NULL OR p.group_id = ?)
          AND (? IS NULL OR p.subgroup_id = ?)
          AND (? IS NULL OR p.name LIKE CONCAT('%', ?, '%') OR p.sku LIKE CONCAT('%', ?, '%') OR p.barcode LIKE CONCAT('%', ?, '%'))
+         ${cashRegisterDeptClause}
        ORDER BY p.name ASC`,
-      [
-        filters.warehouseId || null, filters.warehouseId || null,
-        filters.warehouseId || null,
-        filters.warehouseId || null, filters.warehouseId || null,
-        companyId,
-        filters.departmentId || null, filters.departmentId || null,
-        filters.groupId || null, filters.groupId || null,
-        filters.subgroupId || null, filters.subgroupId || null,
-        filters.search || null, filters.search || null, filters.search || null, filters.search || null,
-      ]
+      queryParams
     );
 
     const productIds = rows.map((r: any) => r.id);
@@ -1253,7 +1290,7 @@ export class InventoryService {
   }
 
   /**
-   * Obtiene el Kardex Valorizado detallado con saldo acumulado
+   * Obtiene el Kardex detallado con modelo físico o valorado, soporte multimoneda y jerarquía
    */
   static async getKardex(companyId: string, filters: KardexFilterInput) {
     const params: any[] = [companyId];
@@ -1262,6 +1299,10 @@ export class InventoryService {
         im.id, im.branch_id, b.name as branch_name,
         im.warehouse_id, w.name as warehouse_name,
         im.product_id, p.sku, p.name as product_name, p.unit_of_measure,
+        p.base_price, p.cost_price, p.currency as product_currency,
+        p.department_id, d.name as department_name,
+        p.group_id, g.name as group_name,
+        p.subgroup_id, sg.name as subgroup_name,
         im.movement_type, im.quantity, im.unit_cost, im.total_cost,
         im.previous_stock, im.new_stock, im.reference_document, im.reason,
         im.created_at, u.full_name as user_name
@@ -1270,6 +1311,9 @@ export class InventoryService {
       INNER JOIN warehouses w ON im.warehouse_id = w.id
       INNER JOIN branches b ON im.branch_id = b.id
       INNER JOIN users u ON im.user_id = u.id
+      LEFT JOIN departments d ON p.department_id = d.id
+      LEFT JOIN \`groups\` g ON p.group_id = g.id
+      LEFT JOIN subgroups sg ON p.subgroup_id = sg.id
       WHERE p.company_id = ?
     `;
 
@@ -1285,6 +1329,18 @@ export class InventoryService {
       sql += ` AND im.product_id = ?`;
       params.push(filters.productId);
     }
+    if (filters.departmentId) {
+      sql += ` AND p.department_id = ?`;
+      params.push(filters.departmentId);
+    }
+    if (filters.groupId) {
+      sql += ` AND p.group_id = ?`;
+      params.push(filters.groupId);
+    }
+    if (filters.subgroupId) {
+      sql += ` AND p.subgroup_id = ?`;
+      params.push(filters.subgroupId);
+    }
     if (filters.movementType) {
       sql += ` AND im.movement_type = ?`;
       params.push(filters.movementType);
@@ -1298,55 +1354,129 @@ export class InventoryService {
       params.push(filters.endDate);
     }
 
-    sql += ` ORDER BY im.created_at DESC LIMIT 200`;
+    sql += ` ORDER BY im.created_at DESC LIMIT 300`;
 
-    const rows = await query<any>(sql, params);
+    const [rows, rateInfo] = await Promise.all([
+      query<any>(sql, params),
+      ConfigService.getExchangeRate(companyId),
+    ]);
+
+    const bcvRate = Number(rateInfo?.rate) || 1;
 
     let totalInQty = 0;
     let totalOutQty = 0;
-    let totalInValue = 0;
-    let totalOutValue = 0;
+    let totalInCostUSD = 0;
+    let totalInCostVES = 0;
+    let totalOutCostUSD = 0;
+    let totalOutCostVES = 0;
+    let totalInPriceUSD = 0;
+    let totalInPriceVES = 0;
+    let totalOutPriceUSD = 0;
+    let totalOutPriceVES = 0;
 
     for (const r of rows) {
-      const qty = Number(r.quantity);
-      const total = Number(r.total_cost);
+      const qty = Number(r.quantity) || 0;
+      const unitCostUSD = Number(r.unit_cost) || 0;
+      const totalCostUSD = Number(r.total_cost) || Number((unitCostUSD * qty).toFixed(2));
+      const totalCostVES = Number((totalCostUSD * bcvRate).toFixed(2));
+
+      const unitPriceUSD = Number(r.base_price) || 0;
+      const totalPriceUSD = Number((unitPriceUSD * qty).toFixed(2));
+      const totalPriceVES = Number((totalPriceUSD * bcvRate).toFixed(2));
+
       if (['IN', 'ADJUST_IN', 'TRANSFER_IN', 'PURCHASE'].includes(r.movement_type)) {
         totalInQty += qty;
-        totalInValue += total;
+        totalInCostUSD += totalCostUSD;
+        totalInCostVES += totalCostVES;
+        totalInPriceUSD += totalPriceUSD;
+        totalInPriceVES += totalPriceVES;
       } else {
         totalOutQty += qty;
-        totalOutValue += total;
+        totalOutCostUSD += totalCostUSD;
+        totalOutCostVES += totalCostVES;
+        totalOutPriceUSD += totalPriceUSD;
+        totalOutPriceVES += totalPriceVES;
       }
     }
 
     return {
-      movements: rows.map((r) => ({
-        id: r.id,
-        branchId: r.branch_id,
-        branchName: r.branch_name,
-        warehouseId: r.warehouse_id,
-        warehouseName: r.warehouse_name,
-        productId: r.product_id,
-        sku: r.sku,
-        productName: r.product_name,
-        unitOfMeasure: r.unit_of_measure,
-        movementType: r.movement_type,
-        quantity: Number(r.quantity),
-        unitCost: Number(r.unit_cost),
-        totalCost: Number(r.total_cost),
-        previousStock: Number(r.previous_stock),
-        newStock: Number(r.new_stock),
-        referenceDocument: r.reference_document,
-        reason: r.reason,
-        createdAt: r.created_at,
-        userName: r.user_name,
-      })),
+      movements: rows.map((r) => {
+        const qty = Number(r.quantity) || 0;
+        const unitCostUSD = Number(r.unit_cost) || 0;
+        const totalCostUSD = Number(r.total_cost) || Number((unitCostUSD * qty).toFixed(2));
+        const unitCostVES = Number((unitCostUSD * bcvRate).toFixed(2));
+        const totalCostVES = Number((totalCostUSD * bcvRate).toFixed(2));
+
+        const unitPriceUSD = Number(r.base_price) || 0;
+        const totalPriceUSD = Number((unitPriceUSD * qty).toFixed(2));
+        const unitPriceVES = Number((unitPriceUSD * bcvRate).toFixed(2));
+        const totalPriceVES = Number((totalPriceUSD * bcvRate).toFixed(2));
+
+        const previousStock = Number(r.previous_stock) || 0;
+        const newStock = Number(r.new_stock) || 0;
+
+        return {
+          id: r.id,
+          branchId: r.branch_id,
+          branchName: r.branch_name,
+          warehouseId: r.warehouse_id,
+          warehouseName: r.warehouse_name,
+          productId: r.product_id,
+          sku: r.sku,
+          productName: r.product_name,
+          unitOfMeasure: r.unit_of_measure,
+          departmentId: r.department_id,
+          departmentName: r.department_name || 'Sin departamento',
+          groupId: r.group_id,
+          groupName: r.group_name || 'Sin grupo',
+          subgroupId: r.subgroup_id,
+          subgroupName: r.subgroup_name || 'Sin subgrupo',
+          movementType: r.movement_type,
+          quantity: qty,
+          // Costos (USD y VES)
+          unitCost: unitCostUSD,
+          totalCost: totalCostUSD,
+          unitCostUSD,
+          totalCostUSD,
+          unitCostVES,
+          totalCostVES,
+          // Precios (USD y VES)
+          unitPrice: unitPriceUSD,
+          totalPrice: totalPriceUSD,
+          unitPriceUSD,
+          totalPriceUSD,
+          unitPriceVES,
+          totalPriceVES,
+          // Stock y Valoración de Existencia
+          previousStock,
+          newStock,
+          stockValueUSD: Number((newStock * unitCostUSD).toFixed(2)),
+          stockValueVES: Number((newStock * unitCostVES).toFixed(2)),
+          referenceDocument: r.reference_document,
+          reason: r.reason,
+          createdAt: r.created_at,
+          userName: r.user_name,
+        };
+      }),
       summary: {
         totalMovements: rows.length,
+        bcvRate,
+        model: filters.model || 'physical',
+        currency: filters.currency || 'BOTH',
         totalInQty: Number(totalInQty.toFixed(2)),
         totalOutQty: Number(totalOutQty.toFixed(2)),
-        totalInValue: Number(totalInValue.toFixed(2)),
-        totalOutValue: Number(totalOutValue.toFixed(2)),
+        netQty: Number((totalInQty - totalOutQty).toFixed(2)),
+        totalInCostUSD: Number(totalInCostUSD.toFixed(2)),
+        totalInCostVES: Number(totalInCostVES.toFixed(2)),
+        totalOutCostUSD: Number(totalOutCostUSD.toFixed(2)),
+        totalOutCostVES: Number(totalOutCostVES.toFixed(2)),
+        totalInPriceUSD: Number(totalInPriceUSD.toFixed(2)),
+        totalInPriceVES: Number(totalInPriceVES.toFixed(2)),
+        totalOutPriceUSD: Number(totalOutPriceUSD.toFixed(2)),
+        totalOutPriceVES: Number(totalOutPriceVES.toFixed(2)),
+        // Para compatibilidad
+        totalInValue: Number(totalInCostUSD.toFixed(2)),
+        totalOutValue: Number(totalOutCostUSD.toFixed(2)),
       },
     };
   }

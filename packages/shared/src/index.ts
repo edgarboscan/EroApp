@@ -15,6 +15,8 @@ export * from './schemas/supplierNotes';
 export * from './schemas/inventoryCount';
 export * from './schemas/restaurant';
 export * from './schemas/config';
+export * from './schemas/accounting';
+export * from './schemas/notifications';
 export * from './lib/fiscal-ve';
 export * from './lib/inventory-costing';
 export * from './lib/formatters';

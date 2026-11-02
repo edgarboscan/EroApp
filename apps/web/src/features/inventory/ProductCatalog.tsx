@@ -26,12 +26,14 @@ import {
   Check,
   X,
   Info,
+  FolderTree,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "../../stores/authStore";
 import { formatMoneyUSD, formatNumber } from "../../utils/formatters";
 import { showConfirmQuestion } from "../../lib/sweetalert";
 import { ProductStockLotsModal } from "./ProductStockLotsModal";
+import { HierarchySearchModal, HierarchySelection } from "../../components/search";
 
 // Interfaces de Producto
 export interface ProductSkuItem {
@@ -188,6 +190,7 @@ export const ProductCatalog: React.FC = () => {
   // Modales
   const [isPdfModalOpen, setIsPdfModalOpen] = useState<boolean>(false);
   const [isProductModalOpen, setIsProductModalOpen] = useState<boolean>(false);
+  const [hierarchyModalTarget, setHierarchyModalTarget] = useState<'filter' | 'form' | null>(null);
   const [isBrandModalOpen, setIsBrandModalOpen] = useState<boolean>(false);
   const [isUnitModalOpen, setIsUnitModalOpen] = useState<boolean>(false);
   const [isPresentationModalOpen, setIsPresentationModalOpen] =
@@ -404,6 +407,37 @@ export const ProductCatalog: React.FC = () => {
     if (!productForm.groupId) return [];
     return subgroups.filter((sg) => sg.groupId === productForm.groupId);
   }, [subgroups, productForm.groupId]);
+
+  const handleHierarchySelect = (sel: HierarchySelection) => {
+    if (hierarchyModalTarget === 'filter') {
+      if (sel.level === 'none') {
+        setSelectedDepartment('');
+        setSelectedGroup('');
+        setSelectedSubgroup('');
+      } else {
+        setSelectedDepartment(sel.departmentId || '');
+        setSelectedGroup(sel.groupId || '');
+        setSelectedSubgroup(sel.subgroupId || '');
+      }
+    } else if (hierarchyModalTarget === 'form') {
+      if (sel.level === 'none') {
+        setProductForm((prev) => ({
+          ...prev,
+          departmentId: '',
+          groupId: '',
+          subgroupId: '',
+        }));
+      } else {
+        setProductForm((prev) => ({
+          ...prev,
+          departmentId: sel.departmentId || '',
+          groupId: sel.groupId || '',
+          subgroupId: sel.subgroupId || '',
+        }));
+      }
+    }
+    setHierarchyModalTarget(null);
+  };
 
   // Tasa de impuesto activa seleccionada
   const selectedTaxRateValue = useMemo(() => {
@@ -1404,11 +1438,13 @@ export const ProductCatalog: React.FC = () => {
 
           {/* Nuevo Producto */}
           <Button
+            variant="outline"
             size="sm"
             onClick={handleOpenCreateProduct}
-            className="rounded-lg"
+            className="flex items-center gap-2 border-[#007BFF] dark:border-[#3D91FF] rounded-lg bg-blue-50 dark:bg-blue-600/30 hover:bg-border-blue-600 dark:hover:border-blue-500"
+            title="Nuevo Producto"
           >
-            <Plus className="w-4 h-4 mr-1.5" />
+            <Plus className="w-4 h-4 text-blue-600 dark:blue-500 mr-1.5" />
             Nuevo Producto
           </Button>
         </div>
@@ -1416,6 +1452,21 @@ export const ProductCatalog: React.FC = () => {
 
       {/* Barra de Filtros */}
       <Card className="p-4 rounded-lg">
+        <div className="flex items-center justify-between pb-2 mb-3 border-b border-neutral-200 dark:border-neutral-800">
+          <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5">
+            <Layers className="w-3.5 h-3.5 text-sky-600" />
+            Criterios de Filtrado de Catálogo
+          </span>
+          <button
+            type="button"
+            onClick={() => setHierarchyModalTarget('filter')}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/50 border border-sky-200 dark:border-sky-800 rounded-lg transition-colors cursor-pointer"
+            title="Abrir buscador modal de jerarquía de productos"
+          >
+            <FolderTree className="w-3.5 h-3.5" />
+            <span>Buscar en Jerarquía...</span>
+          </button>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {/* Búsqueda */}
           <div>
@@ -1764,9 +1815,20 @@ export const ProductCatalog: React.FC = () => {
 
                 {/* Departamento */}
                 <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                    Departamento
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                      Departamento
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setHierarchyModalTarget('form')}
+                      className="text-[11px] font-medium text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1 cursor-pointer"
+                      title="Buscar y autocompletar Departamento, Grupo y Subgrupo"
+                    >
+                      <FolderTree className="w-3 h-3" />
+                      <span>Buscar Jerarquía</span>
+                    </button>
+                  </div>
                   <select
                     value={productForm.departmentId}
                     onChange={(e) =>
@@ -2084,9 +2146,9 @@ export const ProductCatalog: React.FC = () => {
                   base (<strong>{productForm.unitOfMeasure}</strong>).
                 </div>
               ) : (
-                <div className="border border-neutral-200 rounded-lg overflow-x-auto">
+                <div className="border border-gray-200 dark:border-gray-800 rounded-lg overflow-x-auto bg-white dark:bg-[#1E1F21] shadow-xs">
                   <table className="w-full text-left text-sm border-collapse">
-                    <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase  tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
+                    <thead className="bg-[#F4F6F9] dark:bg-[#18191A] text-neutral-700 dark:text-neutral-300 uppercase font-semibold text-[10px] tracking-wider border-b border-gray-200 dark:border-gray-800 sticky top-0 z-10">
                       <tr>
                         <th className="p-2.5">Presentación *</th>
                         <th className="p-2.5">Factor (UND Base)</th>
@@ -2110,7 +2172,7 @@ export const ProductCatalog: React.FC = () => {
                         return (
                           <tr
                             key={idx}
-                            className="border-b border-neutral-100 dark:border-neutral-800 hover:bg-neutral-600 animate-pulse"
+                            className="border-b border-gray-100 dark:border-gray-800/80 hover:bg-[#F4F6F9] dark:hover:bg-neutral-800/50 transition-colors"
                           >
                             <td className="p-2">
                               <input
@@ -2560,7 +2622,7 @@ export const ProductCatalog: React.FC = () => {
             {unitsOfMeasure.map((u) => (
               <div
                 key={u.id}
-                className="flex items-center justify-between p-2.5 text-xs hover:bg-neutral-600"
+                className="flex items-center justify-between p-2.5 text-xs hover:bg-[#F4F6F9] dark:hover:bg-neutral-800/50 transition-colors"
               >
                 <div>
                   <span className="font-mono font-bold text-neutral-400 bg-red-500 px-1.5 py-0.5 rounded-lg mr-2">
@@ -2789,6 +2851,39 @@ export const ProductCatalog: React.FC = () => {
         endpoint={pdfEndpoint}
         title="Catálogo de Productos e Inventario"
         filename={`catalogo_productos_${new Date().toISOString().slice(0, 10)}.pdf`}
+      />
+
+      {/* Modal de Búsqueda y Selección de Jerarquía */}
+      <HierarchySearchModal
+        isOpen={hierarchyModalTarget !== null}
+        onClose={() => setHierarchyModalTarget(null)}
+        onSelect={handleHierarchySelect}
+        initialDepartmentId={
+          hierarchyModalTarget === 'form'
+            ? productForm.departmentId
+            : selectedDepartment
+        }
+        initialGroupId={
+          hierarchyModalTarget === 'form'
+            ? productForm.groupId
+            : selectedGroup
+        }
+        initialSubgroupId={
+          hierarchyModalTarget === 'form'
+            ? productForm.subgroupId
+            : selectedSubgroup
+        }
+        selectionMode="any"
+        title={
+          hierarchyModalTarget === 'form'
+            ? 'Asignar Jerarquía al Producto'
+            : 'Filtrar Catálogo por Jerarquía'
+        }
+        subtitle={
+          hierarchyModalTarget === 'form'
+            ? 'Seleccione el Departamento, Grupo o Subgrupo para clasificar este producto'
+            : 'Localice y filtre rápidamente los productos de una categoría específica'
+        }
       />
     </div>
   );

@@ -553,8 +553,13 @@ export const CustomersView: React.FC = () => {
           </p>
         </div>
 
-        <Button onClick={handleOpenCreateModal} className="sm:w-auto">
-          <Plus className="w-4 h-4 mr-1.5" />
+        <Button
+          variant="outline"
+          onClick={handleOpenCreateModal}
+          className="flex items-center gap-2 border-[#007BFF] dark:border-[#3D91FF] rounded-lg bg-blue-50 dark:bg-blue-600/30 hover:bg-border-blue-600 dark:hover:border-blue-500 sm:w-auto"
+          title="Nuevo Cliente"
+        >
+          <Plus className="w-4 h-4 text-blue-600 dark:blue-500 mr-1.5" />
           Nuevo Cliente
         </Button>
       </div>
@@ -607,7 +612,7 @@ export const CustomersView: React.FC = () => {
       {/* Tabla de Clientes */}
       <div className="overflow-x-auto  border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-xs">
         <table className="w-full text-left text-sm border-collapse">
-          <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase  tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
+          <thead className="bg-[#F4F6F9] dark:bg-[#18191A] text-neutral-700 dark:text-neutral-300 uppercase font-semibold text-[10px] tracking-wider border-b border-gray-200 dark:border-gray-800 sticky top-0 z-10">
             <tr>
               <th className="py-3 px-4">Documento & Estado</th>
               <th className="py-3 px-4">Nombre / Razón Social</th>
@@ -663,13 +668,13 @@ export const CustomersView: React.FC = () => {
                 return (
                   <tr
                     key={c.id}
-                    className={`hover:bg-neutral-800 transition-colors ${
+                    className={`hover:bg-[#F4F6F9]/80 dark:hover:bg-neutral-800/50 transition-colors ${
                       c.isBlocked ? "bg-rose-50/20" : ""
                     }`}
                   >
                     {/* Documento y Estado */}
                     <td className="py-3 px-4">
-                      <div className="font-mono font-bold text-neutral-400 ">
+                      <div className="font-mono font-bold text-[#007BFF] dark:text-[#3D91FF]">
                         {c.docType}-{c.docNumber}
                       </div>
                       <div className="mt-1 flex items-center gap-1.5 flex-wrap">
@@ -697,7 +702,7 @@ export const CustomersView: React.FC = () => {
 
                     {/* Nombre y Dirección */}
                     <td className="py-3 px-4">
-                      <div className="font-semibold text-neutral-400 ">
+                      <div className="font-semibold text-[#333333] dark:text-[#E0E0E0]">
                         {c.name}
                       </div>
                       {c.address && (
@@ -730,7 +735,7 @@ export const CustomersView: React.FC = () => {
                             />
                           ))}
                         </div>
-                        <span className="font-mono font-bold text-neutral-400  text-[11px]">
+                        <span className="font-mono font-bold text-neutral-700 dark:text-neutral-300 text-[11px]">
                           {Number(c.ratingScore || 5).toFixed(1)}
                         </span>
                       </div>
@@ -765,7 +770,7 @@ export const CustomersView: React.FC = () => {
                     <td className="py-3 px-4">
                       {c.creditEnabled ? (
                         <div>
-                          <div className="font-semibold text-neutral-400  font-mono">
+                          <div className="font-semibold text-[#333333] dark:text-[#E0E0E0] font-mono">
                             {formatMoneyUSD(c.creditLimit)}
                           </div>
                           <div className="text-[10px] text-neutral-500">
@@ -1512,42 +1517,42 @@ export const CustomersView: React.FC = () => {
 
               {/* Grid de KPIs Estadísticos */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                <Card className="p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
-                  <span className="text-[10px] font-medium text-neutral-500 block">
+                <Card className="p-3 border-l-4 border-l-[#007BFF] dark:border-l-[#3D91FF] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+                  <span className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
                     Total Facturado
                   </span>
-                  <p className="text-lg font-bold text-neutral-400  font-mono mt-0.5">
+                  <p className="text-lg font-bold text-[#007BFF] dark:text-[#3D91FF] font-mono mt-0.5">
                     {formatMoneyUSD(historyData.statistics.totalInvoicedUSD)}
                   </p>
-                  <span className="text-[10px] text-neutral-400">
+                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
                     {historyData.statistics.invoicesCount} factura(s)
                   </span>
                 </Card>
 
-                <Card className="p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
-                  <span className="text-[10px] font-medium text-neutral-500 block">
+                <Card className="p-3 border-l-4 border-l-[#28A745] dark:border-l-[#4ADE80] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+                  <span className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
                     Total Pagado
                   </span>
-                  <p className="text-lg font-bold text-emerald-700 font-mono mt-0.5">
+                  <p className="text-lg font-bold text-[#28A745] dark:text-[#4ADE80] font-mono mt-0.5">
                     {formatMoneyUSD(historyData.statistics.totalPaidUSD)}
                   </p>
-                  <span className="text-[10px] text-neutral-400">
+                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
                     {historyData.statistics.paidInvoicesCount} cancelada(s)
                   </span>
                 </Card>
 
-                <Card className="p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
-                  <span className="text-[10px] font-medium text-neutral-500 block">
+                <Card className={`p-3 border-l-4 ${historyData.statistics.currentBalanceUSD > 0 ? "border-l-[#FFC107] dark:border-l-[#FBBF24]" : "border-l-neutral-400 dark:border-l-neutral-600"} bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs`}>
+                  <span className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
                     Deuda Actual
                   </span>
                   <p
-                    className={`text-lg font-bold font-mono mt-0.5 ${historyData.statistics.currentBalanceUSD > 0 ? "text-amber-700" : "text-neutral-400 "}`}
+                    className={`text-lg font-bold font-mono mt-0.5 ${historyData.statistics.currentBalanceUSD > 0 ? "text-[#b28500] dark:text-[#FBBF24]" : "text-[#333333] dark:text-[#E0E0E0]"}`}
                   >
                     {formatMoneyUSD(historyData.statistics.currentBalanceUSD)}
                   </p>
-                  <span className="text-[10px] text-neutral-400">
+                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
                     {historyData.statistics.totalOverdueUSD > 0 ? (
-                      <span className="text-rose-600 font-semibold">
+                      <span className="text-[#EF4444] dark:text-[#F87171] font-semibold">
                         {formatMoneyUSD(historyData.statistics.totalOverdueUSD)}{" "}
                         en mora
                       </span>
@@ -1557,14 +1562,14 @@ export const CustomersView: React.FC = () => {
                   </span>
                 </Card>
 
-                <Card className="p-3 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 rounded-lg border border-sky-200 dark:border-sky-800">
-                  <span className="text-[10px] font-medium text-neutral-500 block">
+                <Card className="p-3 border-l-4 border-l-[#17A2B8] dark:border-l-[#38C9DD] bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+                  <span className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
                     Puntualidad
                   </span>
-                  <p className="text-lg font-bold text-sky-700 font-mono mt-0.5">
+                  <p className="text-lg font-bold text-[#17A2B8] dark:text-[#38C9DD] font-mono mt-0.5">
                     {historyData.statistics.punctualityRate}%
                   </p>
-                  <span className="text-[10px] text-neutral-400">
+                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
                     {historyData.statistics.overdueCount > 0
                       ? `${historyData.statistics.overdueCount} atraso(s)`
                       : "100% puntual"}

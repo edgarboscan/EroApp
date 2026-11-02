@@ -23,6 +23,9 @@ export const MODULES = {
   AUDIT: 'audit',
   LICENSES: 'licenses',
   DASHBOARDS: 'dashboards',
+  ACCOUNTING: 'accounting',
+  RESTAURANT: 'restaurant',
+  NOTIFICATIONS: 'notifications',
 } as const;
 
 export type ModuleType = (typeof MODULES)[keyof typeof MODULES];
@@ -32,6 +35,7 @@ export const ACTIONS = {
   CREATE: 'create',
   UPDATE: 'update',
   DELETE: 'delete',
+  WRITE: 'write',
   EXPORT_PDF: 'export_pdf',
   EXPORT_EXCEL: 'export_excel',
   EXPORT_CSV: 'export_csv',
@@ -43,6 +47,32 @@ export const ACTIONS = {
   CLOSE_REGISTER: 'close_register',
   RECONCILE: 'reconcile',
   APPLY_TAX: 'apply_tax',
+  EXCHANGE_RATE: 'exchange_rate',
+  POST: 'post',
+  CLOSE: 'close',
+  ITEMS: 'items',
+  PAYMENTS: 'payments',
+  TABLES: 'tables',
+  KDS: 'kds',
+  SETTINGS: 'settings',
+  COUNTS: 'counts',
+  AUDIT_SHIFTS: 'audit_shifts',
+  APPROVE_DISCOUNT: 'approve_discount',
+  CREDIT_NOTES: 'credit_notes',
+  EXPORT_SENIAT: 'export_seniat',
+  // Acciones específicas de Reportes Gerenciales
+  SALES_REPORT: 'sales',
+  CASH_SHIFTS_REPORT: 'cash_shifts',
+  SALES_BY_CASHIER_REPORT: 'sales_by_cashier',
+  SALES_BY_PRODUCT_REPORT: 'sales_by_product',
+  INVENTORY_HIERARCHY_REPORT: 'inventory_hierarchy',
+  RESTAURANT_TIPS_REPORT: 'restaurant_tips',
+  RECEIVABLES_AGING_REPORT: 'receivables_aging',
+  PAYABLES_AGING_REPORT: 'payables_aging',
+  TREASURY_BALANCES_REPORT: 'treasury_balances',
+  BANK_MOVEMENTS_REPORT: 'bank_movements',
+  BANK_RECONCILIATION_REPORT: 'bank_reconciliation',
+  CASH_FLOW_REPORT: 'cash_flow',
 } as const;
 
 export type ActionType = (typeof ACTIONS)[keyof typeof ACTIONS];
@@ -61,8 +91,9 @@ export const ROLES = {
 export type RoleType = (typeof ROLES)[keyof typeof ROLES];
 
 /**
- * Determina si una cadena de rol corresponde a Super Administrador o Administrador del ERP.
- * Normaliza y tolera variaciones como 'Super Administrador', 'super_admin', 'super admin', 'admin', 'administrador'.
+ * Determina si una cadena de rol corresponde estrictamente a Super Administrador del ERP.
+ * Normaliza y tolera variaciones oficiales como 'Super Administrador', 'super_admin', 'super admin', 'SuperAdmin', 'superuser'.
+ * Roles administrativos estándar de empresa (como 'admin', 'administrador', 'gerente', 'director') NO son Super Administrador.
  */
 export function isSuperAdminRole(role?: string | null): boolean {
   if (!role) return false;
@@ -70,25 +101,22 @@ export function isSuperAdminRole(role?: string | null): boolean {
   return (
     r === 'superadmin' ||
     r === 'superadministrador' ||
-    r === 'admin' ||
-    r === 'administrador' ||
     r === 'superuser' ||
-    r === 'superusuario' ||
-    r === 'directorgeneral' ||
-    r === 'gerentegeneral' ||
-    r === 'generalmanager'
+    r === 'superusuario'
   );
 }
 
 /**
  * Determina si una cadena de rol corresponde a un cargo de Administración o Supervisión
- * con jerarquía para autorizar operaciones restringidas (descuentos, stock negativo, presentaciones).
+ * con jerarquía para autorizar operaciones restringidas (descuentos, stock negativo, anulaciones).
  */
 export function isSupervisorOrAdminRole(role?: string | null): boolean {
   if (!role) return false;
   if (isSuperAdminRole(role)) return true;
   const r = role.toLowerCase().trim().replace(/[\s_-]+/g, '');
   return (
+    r === 'admin' ||
+    r === 'administrador' ||
     r.includes('supervisor') ||
     r.includes('gerente') ||
     r.includes('director') ||

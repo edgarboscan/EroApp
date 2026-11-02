@@ -8,19 +8,67 @@ import {
   UpdateBusinessRulesInput,
 } from '@ero/shared';
 import crypto from 'crypto';
+import { LicensesService } from '../licenses/licenses.service';
+import { syncSystemPermissions, SYSTEM_PERMISSIONS } from '../../db/seedPermissions';
 
 export class ConfigService {
+  private static logoColumnsEnsured = false;
+
+  private static async ensureLogoColumns() {
+    if (this.logoColumnsEnsured) return;
+    try {
+      await query(`
+        ALTER TABLE companies
+        ADD COLUMN show_logo_in_reports TINYINT(1) NOT NULL DEFAULT 1
+      `);
+    } catch {}
+    try {
+      await query(`
+        ALTER TABLE companies
+        ADD COLUMN report_logo_type VARCHAR(20) NOT NULL DEFAULT 'default'
+      `);
+    } catch {}
+    try {
+      await query(`
+        ALTER TABLE companies
+        ADD COLUMN report_currency VARCHAR(10) NOT NULL DEFAULT 'BOTH'
+      `);
+    } catch {}
+    try {
+      await query(`
+        ALTER TABLE companies
+        ADD COLUMN custom_logo_url LONGTEXT DEFAULT NULL
+      `);
+    } catch {}
+    this.logoColumnsEnsured = true;
+  }
+
   /**
    * Obtiene la información general de la empresa
    */
   static async getCompany(companyId: string) {
-    const rows = await query<any>(
-      `SELECT id, rif, legal_name, trade_name, fiscal_address, phone, email,
-              is_special_taxpayer, iva_retention_rate, currency_base, currency_secondary, is_active
-       FROM companies
-       WHERE id = ?`,
-      [companyId]
-    );
+    await this.ensureLogoColumns();
+
+    let rows: any[] = [];
+    try {
+      rows = await query<any>(
+        `SELECT id, rif, legal_name, trade_name, fiscal_address, phone, email,
+                is_special_taxpayer, iva_retention_rate, currency_base, currency_secondary,
+                report_currency, show_logo_in_reports, report_logo_type, custom_logo_url, is_active
+         FROM companies
+         WHERE id = ?`,
+        [companyId]
+      );
+    } catch {
+      // Fallback si las columnas aún no están mapeadas en mock
+      rows = await query<any>(
+        `SELECT id, rif, legal_name, trade_name, fiscal_address, phone, email,
+                is_special_taxpayer, iva_retention_rate, currency_base, currency_secondary, is_active
+         FROM companies
+         WHERE id = ?`,
+        [companyId]
+      );
+    }
 
     if (rows.length === 0) {
       // Fallback para demo si aún no existe en DB
@@ -36,6 +84,10 @@ export class ConfigService {
         ivaRetentionRate: 75.0,
         currencyBase: 'USD',
         currencySecondary: 'VES',
+        reportCurrency: 'BOTH' as const,
+        showLogoInReports: true,
+        reportLogoType: 'default' as const,
+        customLogoUrl: null,
         isActive: true,
       };
     }
@@ -53,6 +105,10 @@ export class ConfigService {
       ivaRetentionRate: Number(c.iva_retention_rate),
       currencyBase: c.currency_base,
       currencySecondary: c.currency_secondary,
+      reportCurrency: (c.report_currency === 'VES' || c.report_currency === 'USD' ? c.report_currency : 'BOTH') as 'VES' | 'USD' | 'BOTH',
+      showLogoInReports: c.show_logo_in_reports !== undefined ? Boolean(c.show_logo_in_reports) : true,
+      reportLogoType: (c.report_logo_type === 'custom' ? 'custom' : 'default') as 'default' | 'custom',
+      customLogoUrl: c.custom_logo_url || null,
       isActive: Boolean(c.is_active),
     };
   }
@@ -61,12 +117,15 @@ export class ConfigService {
    * Actualiza el perfil de la empresa
    */
   static async updateCompany(companyId: string, input: UpdateCompanyInput) {
+    await this.ensureLogoColumns();
+
     try {
       await query(
         `UPDATE companies
          SET legal_name = ?, trade_name = ?, rif = ?, fiscal_address = ?,
              phone = ?, email = ?, is_special_taxpayer = ?, iva_retention_rate = ?,
-             currency_base = ?, currency_secondary = ?
+             currency_base = ?, currency_secondary = ?, report_currency = ?,
+             show_logo_in_reports = ?, report_logo_type = ?, custom_logo_url = ?
          WHERE id = ?`,
         [
           input.legalName,
@@ -79,6 +138,10 @@ export class ConfigService {
           input.ivaRetentionRate,
           input.currencyBase,
           input.currencySecondary,
+          input.reportCurrency || 'BOTH',
+          input.showLogoInReports !== false ? 1 : 0,
+          input.reportLogoType || 'default',
+          input.customLogoUrl || null,
           companyId,
         ]
       );
@@ -156,6 +219,10 @@ export class ConfigService {
    * Crea una nueva sucursal
    */
   static async createBranch(companyId: string, input: BranchInput) {
+    if (input.isActive !== false) {
+      await LicensesService.checkBranchLimit(companyId);
+    }
+
     const branchId = crypto.randomUUID();
     try {
       if (input.isMain) {
@@ -850,6 +917,10 @@ export class ConfigService {
     warehouseIds?: string[];
     warehouseByBranch?: Record<string, string>;
   }) {
+    if (input.isActive !== false) {
+      await LicensesService.checkUserLimit(companyId);
+    }
+
     const id = crypto.randomUUID();
     let passwordHash = 'Admin123!';
     if (input.password) {
@@ -1087,13 +1158,20 @@ export class ConfigService {
   /**
    * Obtiene la matriz de permisos del sistema disponibles
    */
-  static async getPermissions() {
+  static async getPermissions(companyId?: string) {
+    try {
+      await syncSystemPermissions();
+    } catch {
+      // Ignorar fallo no crítico
+    }
+
+    let permissions: any[] = [];
     try {
       const rows = await query<any>(
         `SELECT id, module, action, description FROM permissions ORDER BY module, action`
       );
       if (rows.length > 0) {
-        return rows.map((p) => ({
+        permissions = rows.map((p) => ({
           id: p.id,
           module: p.module,
           action: p.action,
@@ -1105,33 +1183,28 @@ export class ConfigService {
       // Fallback
     }
 
-    return [
-      { id: 'p_sales_read', module: 'sales', action: 'read', key: 'sales.read', description: 'Consultar cotizaciones, notas de entrega y clientes' },
-      { id: 'p_sales_write', module: 'sales', action: 'write', key: 'sales.write', description: 'Crear cotizaciones y notas de despacho' },
-      { id: 'p_sales_delete', module: 'sales', action: 'delete', key: 'sales.delete', description: 'Anular documentos de venta' },
-      { id: 'p_sales_discount', module: 'sales', action: 'approve_discount', key: 'sales.approve_discount', description: 'Aprobar descuentos comerciales' },
-      { id: 'p_pos_read', module: 'pos', action: 'read', key: 'pos.read', description: 'Acceso a caja y terminal de punto de venta' },
-      { id: 'p_pos_shifts', module: 'pos', action: 'open_shift', key: 'pos.open_shift', description: 'Apertura y cierre de turnos fiscales' },
-      { id: 'p_pos_invoice', module: 'pos', action: 'issue_invoice', key: 'pos.issue_invoice', description: 'Emisión de facturas y tickets fiscales' },
-      { id: 'p_purchases_read', module: 'purchases', action: 'read', key: 'purchases.read', description: 'Consultar compras y proveedores' },
-      { id: 'p_purchases_write', module: 'purchases', action: 'write', key: 'purchases.write', description: 'Crear órdenes y recepciones de mercancía' },
-      { id: 'p_inventory_read', module: 'inventory', action: 'read', key: 'inventory.read', description: 'Consultar productos, catálogo y stock' },
-      { id: 'p_inventory_adjust', module: 'inventory', action: 'adjust', key: 'inventory.adjust', description: 'Realizar ajustes de entrada y salida' },
-      { id: 'p_inventory_transfer', module: 'inventory', action: 'transfer', key: 'inventory.transfer', description: 'Autorizar y recibir traslados entre depósitos' },
-      { id: 'p_pricing_read', module: 'pricing', action: 'read', key: 'pricing.read', description: 'Ver listas de precios y márgenes' },
-      { id: 'p_pricing_bulk', module: 'pricing', action: 'bulk_update', key: 'pricing.bulk_update', description: 'Ejecutar actualización masiva de precios' },
-      { id: 'p_pricing_rate', module: 'pricing', action: 'exchange_rate', key: 'pricing.exchange_rate', description: 'Modificar tasa de cambio oficial BCV' },
-      { id: 'p_treasury_read', module: 'treasury', action: 'read', key: 'treasury.read', description: 'Ver cuentas bancarias y flujo de caja' },
-      { id: 'p_treasury_transfer', module: 'treasury', action: 'transfer', key: 'treasury.transfer', description: 'Transferencias entre cuentas bancarias' },
-      { id: 'p_treasury_reconcile', module: 'treasury', action: 'reconcile', key: 'treasury.reconcile', description: 'Conciliación bancaria' },
-      { id: 'p_taxes_read', module: 'taxes', action: 'read', key: 'taxes.read', description: 'Consultar libros de IVA y retenciones' },
-      { id: 'p_taxes_export', module: 'taxes', action: 'export_seniat', key: 'taxes.export_seniat', description: 'Generar archivos TXT/XML para SENIAT' },
-      { id: 'p_reports_read', module: 'reports', action: 'read', key: 'reports.read', description: 'Ver y descargar reportes gerenciales' },
-      { id: 'p_config_read', module: 'config', action: 'read', key: 'config.read', description: 'Consultar parámetros y sucursales' },
-      { id: 'p_config_write', module: 'config', action: 'write', key: 'config.write', description: 'Modificar configuración, usuarios y roles' },
-      { id: 'p_dashboards_read', module: 'dashboards', action: 'read', key: 'dashboards.read', description: 'Acceso a dashboards interactivos' },
-      { id: 'p_dashboards_update', module: 'dashboards', action: 'update', key: 'dashboards.update', description: 'Personalizar widgets del dashboard' },
-    ];
+    if (permissions.length === 0) {
+      permissions = SYSTEM_PERMISSIONS.map((p) => ({
+        ...p,
+        key: `${p.module}.${p.action}`,
+      }));
+    }
+
+    if (companyId) {
+      try {
+        const { LicensesService } = await import('../licenses/licenses.service');
+        const lic = await LicensesService.getLicense(companyId);
+        if (lic && !lic.modulesAllowed.includes('*')) {
+          permissions = permissions.filter((p) =>
+            lic.modulesAllowed.includes(p.module) || p.module === 'config'
+          );
+        }
+      } catch {
+        // Fallback
+      }
+    }
+
+    return permissions;
   }
 
   /**
@@ -1157,8 +1230,22 @@ export class ConfigService {
         [id, companyId, input.name.trim(), input.description.trim()]
       );
 
-      if (input.permissions && input.permissions.length > 0) {
-        for (const permKey of input.permissions) {
+            let effectivePerms = input.permissions || [];
+      try {
+        const { LicensesService } = await import('../licenses/licenses.service');
+        const lic = await LicensesService.getLicense(companyId);
+        if (lic && !lic.modulesAllowed.includes('*')) {
+          effectivePerms = effectivePerms.filter((permKey) => {
+            const mod = permKey.split('.')[0];
+            return lic.modulesAllowed.includes(mod) || mod === 'config';
+          });
+        }
+      } catch {
+        // Ignorar
+      }
+
+      if (effectivePerms && effectivePerms.length > 0) {
+        for (const permKey of effectivePerms) {
           const [mod, act] = permKey.split('.');
           if (mod && act) {
             const permRows = await query<any>(
@@ -1180,8 +1267,8 @@ export class ConfigService {
         name: input.name,
         description: input.description,
         isSystem: false,
-        permissionsCount: input.permissions?.length || 0,
-        permissions: input.permissions || [],
+        permissionsCount: effectivePerms.length,
+        permissions: effectivePerms,
       };
     } catch (err: any) {
       if (err.message && err.message.includes('Ya existe un rol')) {
@@ -1212,9 +1299,23 @@ export class ConfigService {
         [input.name.trim(), input.description.trim(), id, companyId]
       );
 
+            let effectiveUpdatePerms = input.permissions || [];
+      try {
+        const { LicensesService } = await import('../licenses/licenses.service');
+        const lic = await LicensesService.getLicense(companyId);
+        if (lic && !lic.modulesAllowed.includes('*')) {
+          effectiveUpdatePerms = effectiveUpdatePerms.filter((permKey) => {
+            const mod = permKey.split('.')[0];
+            return lic.modulesAllowed.includes(mod) || mod === 'config';
+          });
+        }
+      } catch {
+        // Ignorar
+      }
+
       await query(`DELETE FROM role_permissions WHERE role_id = ?`, [id]);
-      if (input.permissions && input.permissions.length > 0) {
-        for (const permKey of input.permissions) {
+      if (effectiveUpdatePerms && effectiveUpdatePerms.length > 0) {
+        for (const permKey of effectiveUpdatePerms) {
           const [mod, act] = permKey.split('.');
           if (mod && act) {
             const permRows = await query<any>(

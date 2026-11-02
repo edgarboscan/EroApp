@@ -26,6 +26,54 @@ export function authorize(
       return await next();
     }
 
+    const targetModule = Array.isArray(moduleOrPermissions)
+      ? (typeof moduleOrPermissions[0] === 'string' ? moduleOrPermissions[0].split('.')[0] : null)
+      : String(moduleOrPermissions).split('.')[0];
+
+    // Validación de licencia integral y bloqueo para usuarios no super_admin
+    if (user.companyId) {
+      const { LicensesService } = await import('../modules/licenses/licenses.service');
+      const lic = await LicensesService.getLicense(user.companyId);
+
+      const isLicenseOperation =
+        targetModule === 'licenses' ||
+        c.req.path.startsWith('/api/licenses') ||
+        (targetModule === 'config' && action === 'read' && c.req.path.includes('/licenses'));
+
+      // Regla: Cuando la licencia esté bloqueada, solo se permite abrir el módulo de licenciamiento a usuarios no superadmin
+      if (!lic.isActive || lic.status !== 'ACTIVE') {
+        if (!isLicenseOperation) {
+          return c.json({
+            success: false,
+            error: {
+              code: 'LICENSE_LOCKED',
+              message: `El sistema se encuentra bloqueado debido a que la licencia está inactiva o expirada (Estado: ${lic.status}). Solo se permite el acceso al módulo de licenciamiento para reactivar la plataforma.`,
+            },
+          }, 403);
+        }
+      }
+
+      // Validación de licencia por módulo del sistema
+      const LICENSED_MODULES = [
+        'dashboards', 'pos', 'inventory', 'pricing', 'sales', 'customers',
+        'receivables', 'purchases', 'suppliers', 'payables', 'treasury',
+        'taxes', 'reports', 'audit', 'restaurant', 'accounting'
+      ];
+
+      if (targetModule && LICENSED_MODULES.includes(targetModule)) {
+        const isAllowed = await LicensesService.isModuleAllowed(user.companyId, targetModule);
+        if (!isAllowed) {
+          return c.json({
+            success: false,
+            error: {
+              code: 'MODULE_NOT_LICENSED',
+              message: `El módulo '${targetModule}' no está incluido o habilitado en la licencia activa de su empresa.`,
+            },
+          }, 403);
+        }
+      }
+    }
+
     const userPermissions: string[] = user.permissions || [];
 
     if (Array.isArray(moduleOrPermissions)) {

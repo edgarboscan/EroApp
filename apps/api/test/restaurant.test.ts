@@ -266,10 +266,11 @@ describe('Restaurant & Kitchen Display (KDS) Module', () => {
     const { query } = await import('../src/db/index');
     // Crear caja de prueba
     const testRegisterId = 'reg-test-' + Date.now();
+    const testRegisterCode = 'TBAR-' + Math.floor(Math.random() * 100000);
     await query(
       `INSERT INTO cash_registers (id, branch_id, code, name, is_active)
        VALUES (?, ?, ?, 'Caja Bar Terraza', 1)`,
-      [testRegisterId, BRANCH_ID, 'TEST-BAR']
+      [testRegisterId, BRANCH_ID, testRegisterCode]
     );
 
     // Obtener un departamento existente
@@ -347,6 +348,39 @@ describe('Restaurant & Kitchen Display (KDS) Module', () => {
       );
       expect(Number(afterInvoiceRows[0]?.reserved_stock)).toBe(initialReserved);
     }
+  });
+
+  it('debe obtener y actualizar la configuración de impresión de comanda, salonero y cocina', async () => {
+    // 1. Obtener configuración por defecto
+    const defaultSettings = await RestaurantService.getRestaurantSettings(COMPANY_ID, BRANCH_ID);
+    expect(defaultSettings).toBeDefined();
+    expect(defaultSettings.company_id).toBe(COMPANY_ID);
+    expect(typeof defaultSettings.print_order_ticket).toBe('boolean');
+    expect(typeof defaultSettings.print_waiter_copy).toBe('boolean');
+    expect(['direct', 'prompt']).toContain(defaultSettings.ticket_print_mode);
+
+    // 2. Actualizar configuración
+    const updated = await RestaurantService.updateRestaurantSettings(COMPANY_ID, {
+      branch_id: BRANCH_ID,
+      print_order_ticket: true,
+      print_waiter_copy: true,
+      print_kitchen_ticket: false,
+      ticket_print_mode: 'direct',
+      ticket_header: 'Restaurante Test Gourmet C.A.',
+      ticket_footer: '¡Gracias por su visita!',
+    });
+
+    expect(updated.print_order_ticket).toBe(true);
+    expect(updated.print_waiter_copy).toBe(true);
+    expect(updated.print_kitchen_ticket).toBe(false);
+    expect(updated.ticket_print_mode).toBe('direct');
+    expect(updated.ticket_header).toBe('Restaurante Test Gourmet C.A.');
+    expect(updated.ticket_footer).toBe('¡Gracias por su visita!');
+
+    // 3. Re-consultar para asegurar persistencia
+    const persisted = await RestaurantService.getRestaurantSettings(COMPANY_ID, BRANCH_ID);
+    expect(persisted.ticket_print_mode).toBe('direct');
+    expect(persisted.ticket_header).toBe('Restaurante Test Gourmet C.A.');
   });
 });
 

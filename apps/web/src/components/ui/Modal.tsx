@@ -97,14 +97,14 @@ export const Modal: React.FC<ModalProps> = ({
       />
 
       <div
-        className={`relative w-full ${resolvedMaxWidth} max-h-[92vh] bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 shadow-2xl flex flex-col overflow-hidden z-10 my-auto text-neutral-900 dark:text-neutral-100 ${className}`}
+        className={`relative w-full ${resolvedMaxWidth} max-h-[92vh] bg-white dark:bg-[#242526] rounded-lg border border-gray-200 dark:border-gray-800 shadow-2xl flex flex-col overflow-hidden z-10 my-auto text-[#333333] dark:text-[#E0E0E0] ${className}`}
       >
         {/* Header Fijo (Pinned) */}
-        <div className="px-5 py-3.5 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between shrink-0 bg-white dark:bg-neutral-900">
+        <div className="px-5 py-3.5 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between shrink-0 bg-white dark:bg-[#242526]">
           <div className="flex items-center gap-2.5 min-w-0 pr-2">
-            {icon && <div className="text-sky-600 dark:text-sky-400 shrink-0">{icon}</div>}
+            {icon && <div className="text-[#007BFF] dark:text-[#3D91FF] shrink-0">{icon}</div>}
             <div className="min-w-0">
-              <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100 truncate">{title}</h3>
+              <h3 className="text-sm font-bold text-[#333333] dark:text-[#E0E0E0] truncate">{title}</h3>
               {(subtitle || description) && <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">{subtitle || description}</p>}
             </div>
           </div>
@@ -113,7 +113,7 @@ export const Modal: React.FC<ModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 cursor-pointer p-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors focus-visible:ring-2 focus-visible:ring-sky-500"
+              className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 cursor-pointer p-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors focus-visible:ring-2 focus-visible:ring-[#007BFF] dark:focus-visible:ring-[#3D91FF]"
               title="Cerrar modal (Esc)"
               aria-label="Cerrar ventana modal"
             >
@@ -129,7 +129,7 @@ export const Modal: React.FC<ModalProps> = ({
 
         {/* Footer Fijo (Pinned) */}
         {footer && (
-          <div className="px-5 py-3.5 border-t border-neutral-200 dark:border-neutral-800 shrink-0 bg-white dark:bg-neutral-900 flex items-center justify-end gap-3">
+          <div className="px-5 py-3.5 border-t border-gray-200 dark:border-gray-800 shrink-0 bg-[#F4F6F9]/70 dark:bg-[#1E1F21] flex items-center justify-end gap-3">
             {footer}
           </div>
         )}

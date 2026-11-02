@@ -173,7 +173,7 @@ export const PurchaseOrderSearchModal: React.FC<PurchaseOrderSearchModalProps> =
         {/* Tabla de Resultados */}
         <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-700 rounded-lg max-h-96">
           <table className="w-full text-left text-xs border-collapse">
-            <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10 font-medium">
+            <thead className="bg-[#F4F6F9] dark:bg-[#18191A] text-neutral-700 dark:text-neutral-300 uppercase tracking-wider border-b border-gray-200 dark:border-gray-800 sticky top-0 z-10 font-semibold text-[10px]">
               <tr>
                 <th className="py-2.5 px-3">Nº Orden</th>
                 <th className="py-2.5 px-3">Proveedor & RIF</th>
@@ -200,9 +200,9 @@ export const PurchaseOrderSearchModal: React.FC<PurchaseOrderSearchModalProps> =
                 filteredOrders.map((order) => (
                   <tr
                     key={order.id}
-                    className="hover:bg-neutral-50 dark:hover:bg-neutral-800/60 transition-colors"
+                    className="hover:bg-[#F4F6F9]/80 dark:hover:bg-neutral-800/50 transition-colors"
                   >
-                    <td className="py-2.5 px-3 font-mono font-semibold text-sky-700 dark:text-sky-400">
+                    <td className="py-2.5 px-3 font-mono font-bold text-[#007BFF] dark:text-[#3D91FF]">
                       {order.orderNumber}
                       {order.branchName && (
                         <span className="block text-[10px] font-normal text-neutral-500">
@@ -238,7 +238,7 @@ export const PurchaseOrderSearchModal: React.FC<PurchaseOrderSearchModalProps> =
                         type="button"
                         size="sm"
                         onClick={() => handleSelect(order)}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1 ml-auto"
+                        className="bg-[#007BFF] hover:bg-[#0069d9] text-white dark:bg-[#3D91FF] dark:hover:bg-[#297be6] font-medium text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1 ml-auto shadow-xs cursor-pointer"
                       >
                         <PackageCheck className="w-3.5 h-3.5" />
                         <span>Importar</span>

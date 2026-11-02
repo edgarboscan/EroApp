@@ -14,6 +14,8 @@ import type {
   RestaurantTipsReport,
   RestaurantTipItem,
   WaiterTipsSummary,
+  RestaurantSettings,
+  UpdateRestaurantSettingsInput,
 } from '@ero/shared';
 
 export class RestaurantService {
@@ -29,6 +31,149 @@ export class RestaurantService {
       [companyId]
     );
     return rows.length > 0 ? Number(rows[0].rate) : 1.0;
+  }
+
+  // ==========================================
+  // CONFIGURACIÓN GENERAL DE RESTAURANTE
+  // ==========================================
+
+  private static settingsTableChecked = false;
+  private static async ensureRestaurantSettingsTable(): Promise<void> {
+    if (this.settingsTableChecked) return;
+    try {
+      await query(`
+        CREATE TABLE IF NOT EXISTS restaurant_settings (
+          company_id CHAR(36) NOT NULL,
+          branch_id CHAR(36) DEFAULT NULL,
+          print_order_ticket TINYINT(1) NOT NULL DEFAULT 1,
+          print_waiter_copy TINYINT(1) NOT NULL DEFAULT 1,
+          print_kitchen_ticket TINYINT(1) NOT NULL DEFAULT 1,
+          ticket_print_mode ENUM('direct', 'prompt') NOT NULL DEFAULT 'prompt',
+          ticket_header VARCHAR(255) DEFAULT NULL,
+          ticket_footer VARCHAR(255) DEFAULT NULL,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          PRIMARY KEY (company_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+      `);
+      this.settingsTableChecked = true;
+    } catch {
+      this.settingsTableChecked = true;
+    }
+  }
+
+  private static orderColsChecked = false;
+  private static async ensureRestaurantOrderColumns(): Promise<void> {
+    if (this.orderColsChecked) return;
+    try {
+      const cols = await query<any>(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_NAME = 'restaurant_orders' AND COLUMN_NAME = 'cash_register_id'
+      `);
+      if (cols.length === 0) {
+        await query(`ALTER TABLE restaurant_orders ADD COLUMN cash_register_id CHAR(36) DEFAULT NULL`).catch(() => {});
+      }
+      this.orderColsChecked = true;
+    } catch {
+      this.orderColsChecked = true;
+    }
+  }
+
+  static async getRestaurantSettings(companyId: string, branchId?: string): Promise<RestaurantSettings> {
+    await this.ensureRestaurantSettingsTable();
+    const rows = await query<any>(
+      `SELECT company_id, branch_id, print_order_ticket, print_waiter_copy, print_kitchen_ticket,
+              ticket_print_mode, ticket_header, ticket_footer, updated_at
+       FROM restaurant_settings
+       WHERE company_id = ?`,
+      [companyId]
+    );
+
+    if (rows.length === 0) {
+      return {
+        company_id: companyId,
+        branch_id: branchId || null,
+        print_order_ticket: true,
+        print_waiter_copy: true,
+        print_kitchen_ticket: true,
+        ticket_print_mode: 'prompt',
+        ticket_header: null,
+        ticket_footer: null,
+      };
+    }
+
+    const r = rows[0];
+    return {
+      company_id: r.company_id,
+      branch_id: r.branch_id || null,
+      print_order_ticket: Boolean(r.print_order_ticket !== 0 && r.print_order_ticket !== null),
+      print_waiter_copy: Boolean(r.print_waiter_copy !== 0 && r.print_waiter_copy !== null),
+      print_kitchen_ticket: Boolean(r.print_kitchen_ticket !== 0 && r.print_kitchen_ticket !== null),
+      ticket_print_mode: r.ticket_print_mode === 'direct' ? 'direct' : 'prompt',
+      ticket_header: r.ticket_header || null,
+      ticket_footer: r.ticket_footer || null,
+      updated_at: r.updated_at,
+    };
+  }
+
+  static async updateRestaurantSettings(companyId: string, data: UpdateRestaurantSettingsInput): Promise<RestaurantSettings> {
+    await this.ensureRestaurantSettingsTable();
+    const existing = await query<any>(
+      `SELECT company_id FROM restaurant_settings WHERE company_id = ?`,
+      [companyId]
+    );
+
+    const printOrderTicket = data.print_order_ticket !== undefined ? (data.print_order_ticket ? 1 : 0) : 1;
+    const printWaiterCopy = data.print_waiter_copy !== undefined ? (data.print_waiter_copy ? 1 : 0) : 1;
+    const printKitchenTicket = data.print_kitchen_ticket !== undefined ? (data.print_kitchen_ticket ? 1 : 0) : 1;
+    const ticketPrintMode = data.ticket_print_mode === 'direct' ? 'direct' : 'prompt';
+    const ticketHeader = data.ticket_header !== undefined ? (data.ticket_header?.trim() || null) : null;
+    const ticketFooter = data.ticket_footer !== undefined ? (data.ticket_footer?.trim() || null) : null;
+    const branchId = data.branch_id || null;
+
+    if (existing.length === 0) {
+      await query(
+        `INSERT INTO restaurant_settings (
+          company_id, branch_id, print_order_ticket, print_waiter_copy, print_kitchen_ticket,
+          ticket_print_mode, ticket_header, ticket_footer
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          companyId,
+          branchId,
+          printOrderTicket,
+          printWaiterCopy,
+          printKitchenTicket,
+          ticketPrintMode,
+          ticketHeader,
+          ticketFooter,
+        ]
+      );
+    } else {
+      await query(
+        `UPDATE restaurant_settings
+         SET branch_id = ?,
+             print_order_ticket = ?,
+             print_waiter_copy = ?,
+             print_kitchen_ticket = ?,
+             ticket_print_mode = ?,
+             ticket_header = ?,
+             ticket_footer = ?
+         WHERE company_id = ?`,
+        [
+          branchId,
+          printOrderTicket,
+          printWaiterCopy,
+          printKitchenTicket,
+          ticketPrintMode,
+          ticketHeader,
+          ticketFooter,
+          companyId,
+        ]
+      );
+    }
+
+    return await this.getRestaurantSettings(companyId, branchId || undefined);
   }
 
   // ==========================================
@@ -307,6 +452,7 @@ export class RestaurantService {
   // ==========================================
 
   static async openOrder(companyId: string, branchId: string, input: OpenOrderInput) {
+    await this.ensureRestaurantOrderColumns();
     return withTransaction(async (conn) => {
       // Validar mesa
       const [tableRows]: any = await conn.query(
@@ -339,13 +485,14 @@ export class RestaurantService {
       const orderId = crypto.randomUUID();
       await conn.query(
         `INSERT INTO restaurant_orders 
-          (id, company_id, branch_id, table_id, order_number, waiter_id, waiter_name, customer_id, customer_name, status, notes, total_usd, total_ves, exchange_rate, is_invoiced)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN', ?, 0.00, 0.00, ?, 0)`,
+          (id, company_id, branch_id, table_id, cash_register_id, order_number, waiter_id, waiter_name, customer_id, customer_name, status, notes, total_usd, total_ves, exchange_rate, is_invoiced)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN', ?, 0.00, 0.00, ?, 0)`,
         [
           orderId,
           companyId,
           branchId,
           input.table_id,
+          input.cash_register_id || null,
           orderNumber,
           input.waiter_id || null,
           input.waiter_name || null,
@@ -388,6 +535,7 @@ export class RestaurantService {
   }
 
   static async getOrder(orderId: string) {
+    await this.ensureRestaurantOrderColumns();
     const orderRows = await query<any>(
       `SELECT 
         o.*,
@@ -579,7 +727,7 @@ export class RestaurantService {
 
         if (tracksInventory) {
           const [whRows]: any = await conn.query(
-            `SELECT id FROM warehouses WHERE branch_id = ? AND is_active = 1 ORDER BY is_main DESC LIMIT 1`,
+            `SELECT id FROM warehouses WHERE branch_id = ? AND is_active = 1 ORDER BY is_default DESC LIMIT 1`,
             [order.branch_id]
           );
           const warehouseId = whRows.length > 0 ? whRows[0].id : null;
@@ -648,7 +796,7 @@ export class RestaurantService {
             const diff = qty - oldQty;
             if (diff !== 0) {
               const [whRows]: any = await conn.query(
-                `SELECT id FROM warehouses WHERE branch_id = ? AND is_active = 1 ORDER BY is_main DESC LIMIT 1`,
+                `SELECT id FROM warehouses WHERE branch_id = ? AND is_active = 1 ORDER BY is_default DESC LIMIT 1`,
                 [item.branch_id]
               );
               const warehouseId = whRows.length > 0 ? whRows[0].id : null;
@@ -713,7 +861,7 @@ export class RestaurantService {
 
         if (tracksInventory) {
           const [whRows]: any = await conn.query(
-            `SELECT id FROM warehouses WHERE branch_id = ? AND is_active = 1 ORDER BY is_main DESC LIMIT 1`,
+            `SELECT id FROM warehouses WHERE branch_id = ? AND is_active = 1 ORDER BY is_default DESC LIMIT 1`,
             [item.branch_id]
           );
           const warehouseId = whRows.length > 0 ? whRows[0].id : null;
@@ -1491,7 +1639,7 @@ export class RestaurantService {
       if (orderRows.length > 0) {
         const branchId = orderRows[0].branch_id;
         const [whRows]: any = await conn.query(
-          `SELECT id FROM warehouses WHERE branch_id = ? AND is_active = 1 ORDER BY is_main DESC LIMIT 1`,
+          `SELECT id FROM warehouses WHERE branch_id = ? AND is_active = 1 ORDER BY is_default DESC LIMIT 1`,
           [branchId]
         );
         const warehouseId = whRows.length > 0 ? whRows[0].id : null;
