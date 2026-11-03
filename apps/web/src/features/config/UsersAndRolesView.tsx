@@ -21,6 +21,7 @@ import {
   Warehouse,
   Bell,
   Copy,
+  MessageSquare,
 } from "lucide-react";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
@@ -50,6 +51,7 @@ export interface UserRecord {
   lastLoginAt: string | null;
   allBranches?: boolean;
   canSwitchWarehouses?: boolean;
+  canUseChat?: boolean;
   branchIds?: string[];
   warehouseIds?: string[];
   warehouseByBranch?: Record<string, string>;
@@ -764,6 +766,7 @@ export const DEFAULT_PERMISSIONS: PermissionItem[] = [
 export const UsersAndRolesView: React.FC = () => {
   const token = useAuthStore((s) => s.token);
   const user = useAuthStore((s) => s.user);
+  const updateCurrentUser = useAuthStore((s) => s.updateCurrentUser);
   const hasPermission = useAuthStore((s) => s.hasPermission);
 
   const [activeTab, setActiveTab] = useState<"users" | "roles">("users");
@@ -805,6 +808,7 @@ export const UsersAndRolesView: React.FC = () => {
   const [formAllBranches, setFormAllBranches] = useState(true);
   const [formBranchIds, setFormBranchIds] = useState<string[]>([]);
   const [formCanSwitchWarehouses, setFormCanSwitchWarehouses] = useState(true);
+  const [formCanUseChat, setFormCanUseChat] = useState(true);
   const [formWarehouseByBranch, setFormWarehouseByBranch] = useState<
     Record<string, string>
   >({});
@@ -895,6 +899,7 @@ export const UsersAndRolesView: React.FC = () => {
     setFormAllBranches(true);
     setFormBranchIds([]);
     setFormCanSwitchWarehouses(true);
+    setFormCanUseChat(true);
     setFormWarehouseByBranch({});
     setIsModalOpen(true);
   };
@@ -911,6 +916,7 @@ export const UsersAndRolesView: React.FC = () => {
     setFormAllBranches(userToEdit.allBranches ?? true);
     setFormBranchIds(userToEdit.branchIds || []);
     setFormCanSwitchWarehouses(userToEdit.canSwitchWarehouses ?? true);
+    setFormCanUseChat(userToEdit.canUseChat ?? true);
     setFormWarehouseByBranch(userToEdit.warehouseByBranch || {});
     setIsModalOpen(true);
   };
@@ -952,6 +958,7 @@ export const UsersAndRolesView: React.FC = () => {
           allBranches: formAllBranches,
           branchIds: formAllBranches ? [] : formBranchIds,
           canSwitchWarehouses: formCanSwitchWarehouses,
+          canUseChat: formCanUseChat,
           warehouseByBranch: formCanSwitchWarehouses
             ? {}
             : formWarehouseByBranch,
@@ -990,6 +997,7 @@ export const UsersAndRolesView: React.FC = () => {
                   allBranches: formAllBranches,
                   branchIds: formAllBranches ? [] : formBranchIds,
                   canSwitchWarehouses: formCanSwitchWarehouses,
+                  canUseChat: formCanUseChat,
                   warehouseByBranch: formCanSwitchWarehouses
                     ? {}
                     : formWarehouseByBranch,
@@ -997,6 +1005,17 @@ export const UsersAndRolesView: React.FC = () => {
               : u,
           ),
         );
+
+        if (user && editingUser.id === user.id) {
+          updateCurrentUser({
+            fullName: formFullName.trim(),
+            email: formEmail.trim(),
+            canUseChat: formCanUseChat,
+            allBranches: formAllBranches,
+            canSwitchWarehouses: formCanSwitchWarehouses,
+          });
+        }
+
         toast.success(
           `Usuario "${editingUser.username}" actualizado correctamente`,
         );
@@ -1012,6 +1031,7 @@ export const UsersAndRolesView: React.FC = () => {
           allBranches: formAllBranches,
           branchIds: formAllBranches ? [] : formBranchIds,
           canSwitchWarehouses: formCanSwitchWarehouses,
+          canUseChat: formCanUseChat,
           warehouseByBranch: formCanSwitchWarehouses
             ? {}
             : formWarehouseByBranch,
@@ -1044,6 +1064,7 @@ export const UsersAndRolesView: React.FC = () => {
           allBranches: formAllBranches,
           branchIds: formAllBranches ? [] : formBranchIds,
           canSwitchWarehouses: formCanSwitchWarehouses,
+          canUseChat: formCanUseChat,
           warehouseByBranch: formCanSwitchWarehouses
             ? {}
             : formWarehouseByBranch,
@@ -1540,6 +1561,7 @@ export const UsersAndRolesView: React.FC = () => {
                     <th className="py-2.5 px-4">Rol Asignado</th>
                     <th className="py-2.5 px-4">Sucursales</th>
                     <th className="py-2.5 px-4">Almacenes</th>
+                    <th className="py-2.5 px-4 text-center">Chat</th>
                     <th className="py-2.5 px-4 text-center hidden">2FA</th>
                     <th className="py-2.5 px-4">Último Ingreso</th>
                     <th className="py-2.5 px-4 text-center">Estado</th>
@@ -1550,7 +1572,7 @@ export const UsersAndRolesView: React.FC = () => {
                   {filteredUsers.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={10}
+                        colSpan={11}
                         className="py-8 text-center text-neutral-500 dark:text-neutral-400"
                       >
                         No se encontraron usuarios que coincidan con los
@@ -1603,6 +1625,25 @@ export const UsersAndRolesView: React.FC = () => {
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
                               <Warehouse className="w-3 h-3" />
                               Fijo
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          {u.canUseChat !== false ? (
+                            <span
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800"
+                              title="Chat Interno Habilitado para este usuario"
+                            >
+                              <MessageSquare className="w-3 h-3" />
+                              Activo
+                            </span>
+                          ) : (
+                            <span
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700"
+                              title="Chat Interno Bloqueado para este usuario"
+                            >
+                              <MessageSquare className="w-3 h-3 text-neutral-400" />
+                              Inactivo
                             </span>
                           )}
                         </td>
@@ -2197,6 +2238,46 @@ export const UsersAndRolesView: React.FC = () => {
                 })}
               </div>
             )}
+          </div>
+
+          {/* 3. Acceso a Chat Interno */}
+          <div className="pt-3 border-t border-neutral-200 dark:border-neutral-800 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
+                <MessageSquare className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                Acceso a Chat Interno
+              </label>
+              <span
+                className={`text-[10px] font-semibold px-2 py-0.5 rounded-lg border ${
+                  formCanUseChat
+                    ? "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800"
+                    : "bg-neutral-100 text-neutral-600 border-neutral-200 dark:bg-neutral-800 dark:text-neutral-400 dark:border-neutral-700"
+                }`}
+              >
+                {formCanUseChat ? "Autorizado" : "Denegado"}
+              </span>
+            </div>
+
+            <div className="flex items-start gap-3 p-3 bg-neutral-50 dark:bg-neutral-800/60 rounded-lg border border-neutral-200 dark:border-neutral-700 cursor-pointer">
+              <input
+                type="checkbox"
+                id="formCanUseChat"
+                checked={formCanUseChat}
+                onChange={(e) => setFormCanUseChat(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded text-teal-600 focus:ring-teal-500 border-neutral-300 dark:border-neutral-600 cursor-pointer"
+              />
+              <label
+                htmlFor="formCanUseChat"
+                className="cursor-pointer select-none text-xs text-neutral-700 dark:text-neutral-300"
+              >
+                <span className="font-semibold text-neutral-900 dark:text-neutral-100 block">
+                  Habilitar Chat Interno para este usuario
+                </span>
+                <span className="text-[11px] text-neutral-500 dark:text-neutral-400 block mt-0.5 leading-relaxed">
+                  Permite a este usuario enviar y recibir mensajes con otros colaboradores de la empresa. Si se desmarca, el usuario no podrá abrir el chat ni aparecerá en la búsqueda de contactos.
+                </span>
+              </label>
+            </div>
           </div>
 
           <div className="pt-2 border-t border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row gap-4 justify-between">

@@ -319,10 +319,20 @@ export const LicensesView: React.FC = () => {
           <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
           <div className="flex-1">
             <h3 className="text-sm font-bold text-red-800 dark:text-red-300">
-              Sistema Restringido: Licencia Bloqueada o Inactiva (Estado: {license?.status || 'SIN_LICENCIA'})
+              Sistema Restringido: Licencia Bloqueada o Inactiva (Estado: {
+                license?.status === 'INVALID_COMPANY'
+                  ? 'Razón Social No Coincide'
+                  : license?.status === 'INVALID_HARDWARE'
+                    ? 'Hardware No Coincide'
+                    : license?.status === 'EXPIRED'
+                      ? 'Licencia Expirada'
+                      : license?.status || 'SIN_LICENCIA'
+              })
             </h3>
             <p className="text-xs text-red-700 dark:text-red-400 mt-1">
-              Las operaciones comerciales y el acceso a los módulos se encuentran temporalmente suspendidos. Para restaurar el acceso al sistema, active una clave o paquete de licencia válido a continuación.
+              {license?.status === 'INVALID_COMPANY'
+                ? `La Razón Social configurada en la empresa no coincide con la Razón Social certificada en la licencia (${license?.companyName || 'N/A'}). Active una licencia con la Razón Social correcta o verifique la configuración legal de la empresa.`
+                : 'Las operaciones comerciales y el acceso a los módulos se encuentran temporalmente suspendidos. Para restaurar el acceso al sistema, active una clave o paquete de licencia válido a continuación.'}
             </p>
           </div>
           <Button
@@ -402,7 +412,7 @@ export const LicensesView: React.FC = () => {
                     variant={
                       license?.status === "ACTIVE"
                         ? "success"
-                        : license?.status === "EXPIRED"
+                        : license?.status === "EXPIRED" || license?.status === "INVALID_COMPANY"
                           ? "danger"
                           : license?.status === "INVALID_HARDWARE"
                             ? "warning"
@@ -415,7 +425,9 @@ export const LicensesView: React.FC = () => {
                         ? "Expirada"
                         : license?.status === "INVALID_HARDWARE"
                           ? "Hardware No Coincide"
-                          : "Sin Verificar"}
+                          : license?.status === "INVALID_COMPANY"
+                            ? "Razón Social No Coincide"
+                            : "Sin Verificar"}
                   </Badge>
                 </div>
 

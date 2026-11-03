@@ -63,6 +63,7 @@ import { formatExchangeRate, formatMoneyVES } from "@ero/shared";
 import { NotificationBell } from "../components/notifications/NotificationBell";
 import { ChatButton } from "../features/chat/ChatButton";
 import { useNotificationStore } from "../stores/notificationStore";
+import { useRealtimeSync } from "../hooks/useRealtimeSync";
 import { PdfViewerModal } from "../components/ui/PdfViewerModal";
 import { SelectBranchModal } from "../features/auth/SelectBranchModal";
 
@@ -86,6 +87,9 @@ interface NavGroup {
 }
 
 export const MainLayout: React.FC = () => {
+  // Sincronización continua de eventos en tiempo real (Chat y Notificaciones con SSE y audio)
+  useRealtimeSync();
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const sharedReportToView = useNotificationStore((s) => s.sharedReportToView);
   const closeSharedReport = useNotificationStore((s) => s.closeSharedReport);

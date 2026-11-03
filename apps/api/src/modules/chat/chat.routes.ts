@@ -1,18 +1,58 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
+import { isSuperAdminRole } from '@ero/shared';
 import { ChatService } from './chat.service';
 import { authenticate, AppEnv } from '../../middleware/auth';
 import { authorize } from '../../middleware/rbac';
 
 export const chatRouter = new Hono<AppEnv>();
 
+// Middleware para verificar que el usuario tenga acceso operativo al chat
+const requireChatAccess = async (c: any, next: any) => {
+  const user = c.get('user');
+  if (!user) {
+    return c.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'No autenticado' } }, 401);
+  }
+  if (user.canUseChat === false) {
+    return c.json(
+      {
+        success: false,
+        error: {
+          code: 'CHAT_DISABLED_FOR_USER',
+          message:
+            'El uso del chat interno no está autorizado para su cuenta de usuario. Contacte al administrador.',
+        },
+      },
+      403
+    );
+  }
+
+  const isSuperAdmin = isSuperAdminRole(user.role);
+  const isExplicitlyAllowed = user.canUseChat === true;
+  const hasRolePermission = Array.isArray(user.permissions) && user.permissions.includes('chat.read');
+
+  if (!isSuperAdmin && !isExplicitlyAllowed && !hasRolePermission) {
+    return c.json(
+      {
+        success: false,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Permiso denegado: requiere autorización de chat o permiso chat.read',
+        },
+      },
+      403
+    );
+  }
+  await next();
+};
+
 // ==========================================
-// 1. CHAT OPERATIVO DE USUARIOS (chat.read)
+// 1. CHAT OPERATIVO DE USUARIOS (chat.read o canUseChat)
 // ==========================================
 
 // GET /api/chat/unread-total - Total de no leídos para badges
-chatRouter.get('/unread-total', authenticate, authorize('chat', 'read'), async (c) => {
+chatRouter.get('/unread-total', authenticate, requireChatAccess, async (c) => {
   const user = c.get('user');
   try {
     const total = await ChatService.getUnreadTotal(user.companyId, user.sub);
@@ -23,7 +63,7 @@ chatRouter.get('/unread-total', authenticate, authorize('chat', 'read'), async (
 });
 
 // GET /api/chat/users - Buscar usuarios del sistema para iniciar chat
-chatRouter.get('/users', authenticate, authorize('chat', 'read'), async (c) => {
+chatRouter.get('/users', authenticate, requireChatAccess, async (c) => {
   const user = c.get('user');
   const search = c.req.query('search') || '';
   try {
@@ -35,7 +75,7 @@ chatRouter.get('/users', authenticate, authorize('chat', 'read'), async (c) => {
 });
 
 // GET /api/chat/conversations - Listar conversaciones activas del usuario
-chatRouter.get('/conversations', authenticate, authorize('chat', 'read'), async (c) => {
+chatRouter.get('/conversations', authenticate, requireChatAccess, async (c) => {
   const user = c.get('user');
   try {
     const conversations = await ChatService.getConversations(user.companyId, user.sub);
@@ -53,7 +93,7 @@ const createConversationSchema = z.object({
 chatRouter.post(
   '/conversations',
   authenticate,
-  authorize('chat', 'read'),
+  requireChatAccess,
   zValidator('json', createConversationSchema),
   async (c) => {
     const user = c.get('user');
@@ -69,7 +109,7 @@ chatRouter.post(
 );
 
 // GET /api/chat/conversations/:id/messages - Obtener mensajes de la conversación y marcar leídos
-chatRouter.get('/conversations/:id/messages', authenticate, authorize('chat', 'read'), async (c) => {
+chatRouter.get('/conversations/:id/messages', authenticate, requireChatAccess, async (c) => {
   const user = c.get('user');
   const conversationId = c.req.param('id')!;
   const limit = parseInt(c.req.query('limit') || '100', 10);
@@ -90,7 +130,7 @@ const sendMessageSchema = z.object({
 chatRouter.post(
   '/conversations/:id/messages',
   authenticate,
-  authorize('chat', 'read'),
+  requireChatAccess,
   zValidator('json', sendMessageSchema),
   async (c) => {
     const user = c.get('user');

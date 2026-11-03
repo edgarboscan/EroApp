@@ -29,6 +29,7 @@ import { inventoryCountRouter } from './modules/inventory/inventoryCount.routes'
 import { accountingRouter } from './modules/accounting/accounting.routes';
 import { notificationsRouter } from './modules/notifications/notifications.routes';
 import { chatRouter } from './modules/chat/chat.routes';
+import { realtimeRouter } from './modules/realtime/realtime.routes';
 
 dotenv.config();
 
@@ -82,6 +83,7 @@ app.route('/api/restaurant', restaurantRouter);
 app.route('/api/accounting', accountingRouter);
 app.route('/api/notifications', notificationsRouter);
 app.route('/api/chat', chatRouter);
+app.route('/api/realtime', realtimeRouter);
 
 // Manejador Global de Errores
 app.onError((err, c) => {

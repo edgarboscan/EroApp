@@ -118,7 +118,7 @@ export interface LicenseInfo {
   maxBranches: number;
   hasSupport?: boolean;
   isActive: boolean;
-  status: 'ACTIVE' | 'EXPIRED' | 'INVALID_HARDWARE';
+  status: 'ACTIVE' | 'EXPIRED' | 'INVALID_HARDWARE' | 'INVALID_COMPANY';
   daysRemaining: number | null;
 }
 
@@ -168,6 +168,7 @@ export const createUserSchema = z.object({
   isActive: z.boolean().default(true),
   allBranches: z.boolean().default(true),
   canSwitchWarehouses: z.boolean().default(true),
+  canUseChat: z.boolean().default(true),
   branchIds: z.array(z.string()).optional(),
   warehouseIds: z.array(z.string()).optional(),
   warehouseByBranch: z.record(z.string(), z.string()).optional(),

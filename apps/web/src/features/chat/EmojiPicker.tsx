@@ -112,7 +112,7 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelectEmoji, onClose
 
       {/* Tabs de categorías */}
       {!searchTerm && (
-        <div className="flex border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-850 px-2 py-1 gap-1">
+        <div className="flex border-b border-gray-100 dark:border-gray-700  px-2 py-1 gap-1">
           {EMOJI_CATEGORIES.map((cat) => (
             <button
               key={cat.id}
@@ -121,7 +121,7 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelectEmoji, onClose
               title={cat.name}
               className={`flex-1 py-1 text-sm text-center rounded-lg transition-colors cursor-pointer ${
                 activeCategory === cat.id
-                  ? 'bg-white dark:bg-gray-700 shadow-xs'
+                  ? 'bg-sky-500 dark:bg-sky-700 shadow-xs'
                   : 'hover:bg-gray-200/50 dark:hover:bg-gray-750 text-gray-500'
               }`}
             >
@@ -153,13 +153,13 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelectEmoji, onClose
       </div>
 
       {/* Footer con categoría activa */}
-      <div className="px-3 py-1 bg-gray-50 dark:bg-gray-850 border-t border-gray-100 dark:border-gray-700 text-[10px] text-gray-500 dark:text-gray-400 flex justify-between items-center">
+      <div className="px-3 py-1 border-t border-gray-100 dark:border-gray-700 text-[10px] text-gray-500 dark:text-gray-400 flex justify-between items-center">
         <span>{searchTerm ? 'Resultados' : currentCategory.name}</span>
         {onClose && (
           <button
             type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
+            className="text-sky-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
           >
             Cerrar
           </button>

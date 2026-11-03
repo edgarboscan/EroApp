@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { MessageSquare } from 'lucide-react';
-import { useAuthStore } from '../../stores/authStore';
+import { useAuthStore, isSuperAdminRole } from '../../stores/authStore';
 import { ChatModal } from './ChatModal';
 
 export const ChatButton: React.FC = () => {
@@ -10,14 +10,14 @@ export const ChatButton: React.FC = () => {
 
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [unreadTotal, setUnreadTotal] = useState<number>(0);
-
+  const [initialConversationId, setInitialConversationId] = useState<string | null>(null);
+  
   const canUseChat = Boolean(
-    user?.role === 'super_admin' ||
-    user?.role === 'Super Administrador' ||
-    user?.role === 'Administrador' ||
-    hasPermission('chat', 'read')
+    user &&
+    user.canUseChat !== false &&
+    (user.canUseChat === true || isSuperAdminRole(user?.role) || hasPermission('chat', 'read'))
   );
-
+ 
   const fetchUnreadTotal = useCallback(async () => {
     if (!token || !canUseChat) return;
     try {
@@ -33,7 +33,44 @@ export const ChatButton: React.FC = () => {
     }
   }, [token, canUseChat]);
 
-  // Polling regular cada 15 segundos
+  // Escuchar eventos en tiempo real para actualización inmediata
+  useEffect(() => {
+    const handleOpenChat = (e: Event) => {
+      const customEvent = e as CustomEvent<{ conversationId?: string }>;
+      if (customEvent.detail?.conversationId) {
+        setInitialConversationId(customEvent.detail.conversationId);
+      }
+      setIsModalOpen(true);
+    };
+
+    const handleUnreadUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent<{ unreadTotal: number }>;
+      if (typeof customEvent.detail?.unreadTotal === 'number') {
+        setUnreadTotal(customEvent.detail.unreadTotal);
+      }
+    };
+
+    const handleNewMessage = (e: Event) => {
+      const customEvent = e as CustomEvent<{ unreadTotal?: number }>;
+      if (typeof customEvent.detail?.unreadTotal === 'number') {
+        setUnreadTotal(customEvent.detail.unreadTotal);
+      } else {
+        setUnreadTotal((prev) => prev + 1);
+      }
+    };
+
+    window.addEventListener('ero:open_chat', handleOpenChat);
+    window.addEventListener('ero:chat:unread_update', handleUnreadUpdate);
+    window.addEventListener('ero:chat:new_message', handleNewMessage);
+
+    return () => {
+      window.removeEventListener('ero:open_chat', handleOpenChat);
+      window.removeEventListener('ero:chat:unread_update', handleUnreadUpdate);
+      window.removeEventListener('ero:chat:new_message', handleNewMessage);
+    };
+  }, []);
+
+  // Polling de respaldo cada 15 segundos
   useEffect(() => {
     if (!canUseChat) return;
     fetchUnreadTotal();
@@ -47,7 +84,10 @@ export const ChatButton: React.FC = () => {
     <>
       <button
         type="button"
-        onClick={() => setIsModalOpen(true)}
+        onClick={() => {
+          setInitialConversationId(null);
+          setIsModalOpen(true);
+        }}
         className="relative flex items-center justify-center p-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 font-medium transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-emerald-500"
         title="Chat Interno entre Usuarios"
         aria-label="Abrir chat interno"
@@ -62,8 +102,10 @@ export const ChatButton: React.FC = () => {
 
       <ChatModal
         isOpen={isModalOpen}
+        initialConversationId={initialConversationId}
         onClose={() => {
           setIsModalOpen(false);
+          setInitialConversationId(null);
           fetchUnreadTotal();
         }}
         onConversationRead={fetchUnreadTotal}

@@ -11,6 +11,7 @@ import {
   EmailLogItem,
 } from '@ero/shared';
 import { AuditService } from '../audit/audit.service';
+import { RealtimeService } from '../realtime/realtime.service';
 
 export class NotificationsService {
   private static tablesEnsured = false;
@@ -313,6 +314,19 @@ export class NotificationsService {
              VALUES (?, ?, NULL, 'Sistema ERO ERP', ?, ?, 'custom', ?, ?, ?, 'SENT', NOW())`,
             [emailLogId, companyId, userRows[0].email, userRows[0].full_name || 'Usuario', title, message, data?.reportTitle || null]
           );
+        }
+      }
+
+      // Si se generó notificación en app, emitir evento en tiempo real
+      if (createdItem) {
+        try {
+          const unreadCount = await this.getUnreadCount(companyId, userId);
+          RealtimeService.emitToUser(userId, 'notification:new', {
+            notification: createdItem,
+            unreadCount,
+          });
+        } catch {
+          // Silencioso
         }
       }
 

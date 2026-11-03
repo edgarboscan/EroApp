@@ -49,9 +49,15 @@ interface ChatModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConversationRead?: () => void;
+  initialConversationId?: string | null;
 }
 
-export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, onConversationRead }) => {
+export const ChatModal: React.FC<ChatModalProps> = ({
+  isOpen,
+  onClose,
+  onConversationRead,
+  initialConversationId,
+}) => {
   const token = useAuthStore((s) => s.token);
   const currentUser = useAuthStore((s) => s.user);
 
@@ -123,6 +129,12 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, onConvers
     return date.toLocaleDateString([], { day: '2-digit', month: '2-digit' });
   };
 
+  const selectedConversationRef = useRef<ConversationItem | null>(null);
+  selectedConversationRef.current = selectedConversation;
+
+  const onConversationReadRef = useRef(onConversationRead);
+  onConversationReadRef.current = onConversationRead;
+
   // Cargar lista de conversaciones
   const fetchConversations = useCallback(
     async (showLoading = false) => {
@@ -135,11 +147,12 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, onConvers
         const data = await res.json();
         if (data.success && Array.isArray(data.data)) {
           setConversations(data.data);
-          // Si hay una conversación activa, actualizar su unread y datos
-          if (selectedConversation) {
-            const updated = data.data.find((c: ConversationItem) => c.id === selectedConversation.id);
+          // Si hay una conversación activa, actualizar sus datos sin disparar loop
+          const currentSelectedId = selectedConversationRef.current?.id;
+          if (currentSelectedId) {
+            const updated = data.data.find((c: ConversationItem) => c.id === currentSelectedId);
             if (updated) {
-              setSelectedConversation(updated);
+              setSelectedConversation((prev) => (prev?.id === updated.id ? { ...prev, ...updated } : prev));
             }
           }
         }
@@ -149,13 +162,13 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, onConvers
         if (showLoading) setIsLoadingConvs(false);
       }
     },
-    [token, selectedConversation]
+    [token]
   );
 
   // Cargar mensajes de la conversación activa
   const fetchMessages = useCallback(
     async (convId: string, showLoading = false) => {
-      if (!token) return;
+      if (!token || !convId) return;
       if (showLoading) setIsLoadingMessages(true);
       try {
         const res = await fetch(`/api/chat/conversations/${convId}/messages`, {
@@ -165,9 +178,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, onConvers
         if (data.success && Array.isArray(data.data)) {
           setMessages(data.data);
           // Notificar actualización de no leídos al padre
-          if (onConversationRead) {
-            onConversationRead();
-          }
+          onConversationReadRef.current?.();
         }
       } catch {
         // Silencioso en polling
@@ -175,13 +186,28 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, onConvers
         if (showLoading) setIsLoadingMessages(false);
       }
     },
-    [token, onConversationRead]
+    [token]
   );
 
   // Scroll al último mensaje
   const scrollToBottom = (smooth = true) => {
     messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
   };
+
+  // Cerrar modal al presionar la tecla Escape
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   // Efecto cuando abre el modal
   useEffect(() => {
@@ -200,17 +226,71 @@ export const ChatModal: React.FC<ChatModalProps> = ({ isOpen, onClose, onConvers
 
     const interval = setInterval(() => {
       fetchConversations(false);
-      if (selectedConversation) {
-        fetchMessages(selectedConversation.id, false);
+      const activeId = selectedConversationRef.current?.id;
+      if (activeId) {
+        fetchMessages(activeId, false);
       }
     }, 4000);
 
     return () => clearInterval(interval);
-  }, [isOpen, selectedConversation, fetchConversations, fetchMessages]);
+  }, [isOpen, fetchConversations, fetchMessages]);
+
+  // Seleccionar automáticamente conversación si se solicita vía prop
+  useEffect(() => {
+    if (isOpen && initialConversationId && conversations.length > 0) {
+      const target = conversations.find((c) => c.id === initialConversationId);
+      if (target) {
+        setSelectedConversation(target);
+      }
+    }
+  }, [isOpen, initialConversationId, conversations]);
+
+  // Suscripción a eventos en tiempo real cuando el modal está montado
+  useEffect(() => {
+    const handleLiveMessage = (e: Event) => {
+      const customEvent = e as CustomEvent<{
+        message?: ChatMessageItem;
+        conversationId?: string;
+      }>;
+      const { message, conversationId } = customEvent.detail || {};
+      if (!message || !conversationId) return;
+
+      // Si el mensaje pertenece a la conversación actualmente en pantalla
+      if (selectedConversationRef.current?.id === conversationId) {
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === message.id)) return prev;
+          return [...prev, message];
+        });
+        setTimeout(() => scrollToBottom(true), 50);
+        // Notificar que se leyó
+        onConversationReadRef.current?.();
+      } else {
+        // Si pertenece a otra conversación, refrescar el listado lateral
+        fetchConversations(false);
+      }
+    };
+
+    const handleReadReceipt = (e: Event) => {
+      const customEvent = e as CustomEvent<{ conversationId?: string }>;
+      if (selectedConversationRef.current?.id === customEvent.detail?.conversationId) {
+        setMessages((prev) =>
+          prev.map((m) => (m.sender_id === currentUser?.id ? { ...m, is_read: 1 } : m))
+        );
+      }
+    };
+
+    window.addEventListener('ero:chat:new_message', handleLiveMessage);
+    window.addEventListener('ero:chat:read_receipt', handleReadReceipt);
+
+    return () => {
+      window.removeEventListener('ero:chat:new_message', handleLiveMessage);
+      window.removeEventListener('ero:chat:read_receipt', handleReadReceipt);
+    };
+  }, [fetchConversations, currentUser?.id]);
 
   // Cuando cambia la conversación seleccionada, cargar sus mensajes
   useEffect(() => {
-    if (selectedConversation) {
+    if (selectedConversation?.id) {
       fetchMessages(selectedConversation.id, true);
       setTimeout(() => scrollToBottom(false), 150);
       inputRef.current?.focus();

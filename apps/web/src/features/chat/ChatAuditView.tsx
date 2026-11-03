@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ShieldCheck,
   Search,
@@ -90,6 +90,9 @@ export const ChatAuditView: React.FC = () => {
     fetchUsers();
   }, [token]);
 
+  const selectedConvRef = useRef<AuditConversation | null>(null);
+  selectedConvRef.current = selectedConversation;
+
   // Cargar lista de conversaciones auditables
   const fetchAuditConversations = useCallback(async () => {
     if (!token) return;
@@ -107,10 +110,13 @@ export const ChatAuditView: React.FC = () => {
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
         setConversations(data.data);
-        // Si la conversación seleccionada ya no existe en la lista filtrada, resetear o mantener
-        if (selectedConversation) {
-          const match = data.data.find((c: AuditConversation) => c.id === selectedConversation.id);
-          if (match) setSelectedConversation(match);
+        // Si hay una conversación seleccionada, mantenerla actualizada sin disparar re-fetch
+        const currentSelectedId = selectedConvRef.current?.id;
+        if (currentSelectedId) {
+          const match = data.data.find((c: AuditConversation) => c.id === currentSelectedId);
+          if (match) {
+            setSelectedConversation((prev) => (prev?.id === match.id ? { ...prev, ...match } : prev));
+          }
         }
       }
     } catch {
@@ -118,7 +124,7 @@ export const ChatAuditView: React.FC = () => {
     } finally {
       setIsLoadingList(false);
     }
-  }, [token, searchTerm, selectedUserFilter, dateFrom, dateTo, selectedConversation]);
+  }, [token, searchTerm, selectedUserFilter, dateFrom, dateTo]);
 
   useEffect(() => {
     fetchAuditConversations();
@@ -275,7 +281,7 @@ export const ChatAuditView: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 h-[650px]">
         {/* Panel Izquierdo: Lista de Conversaciones Institucionales */}
         <div className="lg:col-span-5 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-2xs flex flex-col overflow-hidden">
-          <div className="p-3 border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-850 flex items-center justify-between">
+          <div className="p-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
             <span className="text-xs font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider">
               Conversaciones ({conversations.length})
             </span>
@@ -358,7 +364,7 @@ export const ChatAuditView: React.FC = () => {
           {selectedConversation ? (
             <>
               {/* Cabecera del Hilo Auditado */}
-              <div className="p-3 border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-850 flex items-center justify-between shrink-0">
+              <div className="p-3 border-b border-gray-200 dark:border-gray-800  flex items-center justify-between shrink-0">
                 <div>
                   <h3 className="text-xs font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
                     <span>{selectedConversation.user1.full_name}</span>

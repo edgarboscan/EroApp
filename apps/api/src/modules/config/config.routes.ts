@@ -203,7 +203,7 @@ configRouter.delete(
 // ==========================================
 // 4. Reglas de Negocio
 // ==========================================
-configRouter.get('/business-rules', authenticate, authorize('config', 'read'), async (c) => {
+configRouter.get('/business-rules', authenticate, async (c) => {
   const user = c.get('user');
   const branchId = c.req.query('branchId');
   try {

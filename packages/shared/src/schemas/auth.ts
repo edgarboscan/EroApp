@@ -28,6 +28,7 @@ export const userTokenPayloadSchema = z.object({
   warehouses: z.array(z.string().uuid()),
   allBranches: z.boolean().optional(),
   canSwitchWarehouses: z.boolean().optional(),
+  canUseChat: z.boolean().optional(),
 });
 
 export type UserTokenPayload = z.infer<typeof userTokenPayloadSchema>;

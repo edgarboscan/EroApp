@@ -122,6 +122,20 @@ export class LicensesService {
   }
 
   /**
+   * Normaliza una Razón Social para comparación segura (sin tildes, signos de puntuación ni espacios extra)
+   */
+  static normalizeCompanyName(name?: string): string {
+    if (!name) return '';
+    return name
+      .trim()
+      .toUpperCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // Quitar acentos
+      .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, '') // Quitar puntuación: C.A. vs CA
+      .replace(/\s+/g, ' '); // Unificar espacios
+  }
+
+  /**
    * Genera una Clave de Licencia corporativa firmada para un Hardware Fingerprint
    */
   static generateLicenseKey(
@@ -340,7 +354,7 @@ export class LicensesService {
 
       if (rows.length > 0) {
         const lic = rows[0];
-        let status: 'ACTIVE' | 'EXPIRED' | 'INVALID_HARDWARE' = 'ACTIVE';
+        let status: 'ACTIVE' | 'EXPIRED' | 'INVALID_HARDWARE' | 'INVALID_COMPANY' = 'ACTIVE';
 
         let maxUsers = Number(lic.max_users) || 5;
         let maxBranches = Number(lic.max_branches) || 1;
@@ -430,6 +444,22 @@ export class LicensesService {
         const isExpired = expiresAt ? expiresAt.getTime() < now.getTime() : false;
         if (isExpired && status === 'ACTIVE') {
           status = 'EXPIRED';
+        }
+
+        // Validar coincidencia de Razón Social entre la licencia y la empresa
+        if (status === 'ACTIVE' && companyName && licenseType !== 'trial') {
+          try {
+            const compRows = await query<any>(`SELECT legal_name FROM companies WHERE id = ? LIMIT 1`, [companyId]);
+            if (compRows.length > 0 && compRows[0].legal_name) {
+              const normLicName = this.normalizeCompanyName(companyName);
+              const normCompName = this.normalizeCompanyName(compRows[0].legal_name);
+              if (normLicName && normCompName && normLicName !== normCompName) {
+                status = 'INVALID_COMPANY';
+              }
+            }
+          } catch {
+            // Silencioso
+          }
         }
 
         let displayKey = lic.license_key;
@@ -530,11 +560,39 @@ export class LicensesService {
     const licenseId = crypto.randomUUID();
     const rawKey = input.licenseKey.trim();
 
+    // Obtener datos actuales de la empresa para contrastar Razón Social y RIF
+    const compRows = await query<any>(`SELECT legal_name, rif FROM companies WHERE id = ? LIMIT 1`, [companyId]);
+    const currentCompany = compRows[0];
+    const companyLegalName = currentCompany?.legal_name || '';
+    const companyRif = currentCompany?.rif || '';
+
     // 1. Caso A: Activación mediante paquete criptográfico firmado ERO-PKG
     const pkg = this.verifyLicensePackage(rawKey);
     if (pkg) {
       if (pkg.fp !== currentFingerprint) {
         throw new Error(`El paquete de licencia está vinculado a otro hardware (${pkg.fp}) y no coincide con este equipo (${currentFingerprint})`);
+      }
+
+      // Validar coincidencia estricta de Razón Social
+      if (pkg.companyName && companyLegalName) {
+        const normPkgName = this.normalizeCompanyName(pkg.companyName);
+        const normCompName = this.normalizeCompanyName(companyLegalName);
+        if (normPkgName !== normCompName) {
+          throw new Error(
+            `La Razón Social de la licencia ("${pkg.companyName}") no coincide con la Razón Social de la empresa ("${companyLegalName}"). La licencia solo es válida para la empresa titular asignada.`
+          );
+        }
+      }
+
+      // Validar coincidencia de RIF si está especificado en el paquete
+      if (pkg.companyRif && companyRif) {
+        const cleanPkgRif = (pkg.companyRif || '').trim().toUpperCase();
+        const cleanCompRif = (companyRif || '').trim().toUpperCase();
+        if (cleanPkgRif !== cleanCompRif) {
+          throw new Error(
+            `El RIF de la licencia ("${pkg.companyRif}") no coincide con el RIF de la empresa ("${companyRif}").`
+          );
+        }
       }
 
       const expiryDate = pkg.expiresAt ? new Date(pkg.expiresAt) : null;
@@ -664,6 +722,8 @@ export class LicensesService {
     const securePayload = {
       v: 2,
       fp: currentFingerprint,
+      companyName: companyLegalName || undefined,
+      companyRif: companyRif || undefined,
       type,
       expiresAt: expiryDate.toISOString(),
       maxUsers: 50,
@@ -679,11 +739,13 @@ export class LicensesService {
     try {
       await query(
         `INSERT INTO licenses (
-           id, company_id, license_key, type, expires_at, hardware_fingerprint,
+           id, company_id, company_name, company_rif, license_key, type, expires_at, hardware_fingerprint,
            modules_allowed, max_users, max_branches, has_support, is_active,
            encrypted_payload, auth_tag, iv, integrity_hash
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?, ?, ?, ?)
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
+           company_name = VALUES(company_name),
+           company_rif = VALUES(company_rif),
            license_key = VALUES(license_key),
            type = VALUES(type),
            expires_at = VALUES(expires_at),
@@ -697,6 +759,8 @@ export class LicensesService {
         [
           licenseId,
           companyId,
+          companyLegalName || null,
+          companyRif || null,
           rawKey.toUpperCase(),
           type,
           expiryDate,
@@ -717,6 +781,8 @@ export class LicensesService {
     return {
       id: licenseId,
       companyId,
+      companyName: companyLegalName,
+      companyRif: companyRif,
       licenseKey: rawKey.toUpperCase(),
       type,
       expiresAt: expiryDate.toISOString(),
@@ -727,7 +793,7 @@ export class LicensesService {
       hasSupport: true,
       isActive: true,
       status: 'ACTIVE',
-      daysRemaining: 365,
+      daysRemaining: type === 'perpetua' ? 3650 : 365,
     };
   }
 

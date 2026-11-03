@@ -23,6 +23,7 @@ export interface UserSession {
   warehouses?: string[];
   allBranches?: boolean;
   canSwitchWarehouses?: boolean;
+  canUseChat?: boolean;
 }
 
 export interface TempAuthUser {
@@ -80,6 +81,7 @@ interface AuthState {
   lastActivityAt: number | null;
   sessionExpiredReason: string | null;
   setAuth: (user: UserSession, token: string) => void;
+  updateCurrentUser: (patch: Partial<UserSession>) => void;
   setRequires2FA: (tempUser: TempAuthUser) => void;
   clearTempUser: () => void;
   setActiveBranch: (branchId: string, warehouseId?: string, cashRegisterId?: string | null) => void;
@@ -234,6 +236,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       lastActivityAt,
       sessionExpiredReason: null,
     });
+  },
+
+  updateCurrentUser: (patch: Partial<UserSession>) => {
+    const current = get();
+    if (!current.user) return;
+    const updatedUser: UserSession = { ...current.user, ...patch };
+    const sessionData: PersistedSession = {
+      user: updatedUser,
+      token: current.token,
+      activeBranchId: current.activeBranchId,
+      activeWarehouseId: current.activeWarehouseId,
+      activeCashRegisterId: current.activeCashRegisterId,
+      expiresAt: current.expiresAt,
+      lastActivityAt: current.lastActivityAt,
+    };
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(sessionData));
+    } catch {
+      // Ignorar errores
+    }
+    set({ user: updatedUser });
   },
 
   setRequires2FA: (tempUser) => {

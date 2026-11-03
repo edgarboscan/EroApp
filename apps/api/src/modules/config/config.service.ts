@@ -119,6 +119,21 @@ export class ConfigService {
   static async updateCompany(companyId: string, input: UpdateCompanyInput) {
     await this.ensureLogoColumns();
 
+    // Validar que la nueva Razón Social no viole la licencia activa vinculada
+    const licRows = await query<any>(
+      `SELECT company_name, type, is_active FROM licenses WHERE company_id = ? AND is_active = 1 LIMIT 1`,
+      [companyId]
+    );
+    if (licRows.length > 0 && licRows[0].company_name && licRows[0].type !== 'trial') {
+      const normLic = LicensesService.normalizeCompanyName(licRows[0].company_name);
+      const normInput = LicensesService.normalizeCompanyName(input.legalName);
+      if (normLic && normInput && normLic !== normInput) {
+        throw new Error(
+          `No es posible cambiar la Razón Social a "${input.legalName}" porque la licencia empresarial activa está vinculada exclusivamente a "${licRows[0].company_name}". Para cambiar la Razón Social debe registrar una nueva licencia correspondiente.`
+        );
+      }
+    }
+
     try {
       await query(
         `UPDATE companies
@@ -719,7 +734,7 @@ export class ConfigService {
     try {
       const rows = await query<any>(
         `SELECT u.id, u.username, u.email, u.full_name, u.role_id, u.is_2fa_enabled,
-                u.is_active, u.all_branches, u.can_switch_warehouses, u.last_login_at, r.name as role_name
+                u.is_active, u.all_branches, u.can_switch_warehouses, u.can_use_chat, u.last_login_at, r.name as role_name
          FROM users u
          LEFT JOIN roles r ON u.role_id = r.id
          WHERE u.company_id = ?
@@ -774,6 +789,7 @@ export class ConfigService {
           isActive: Boolean(u.is_active),
           allBranches: Boolean(u.all_branches ?? 1),
           canSwitchWarehouses: Boolean(u.can_switch_warehouses ?? 1),
+          canUseChat: Boolean(u.can_use_chat ?? 1),
           branchIds: branchMap.get(u.id) || [],
           warehouseIds: warehouseMap.get(u.id) || [],
           warehouseByBranch: warehouseByBranchMap.get(u.id) || {},
@@ -913,6 +929,7 @@ export class ConfigService {
     isActive?: boolean;
     allBranches?: boolean;
     canSwitchWarehouses?: boolean;
+    canUseChat?: boolean;
     branchIds?: string[];
     warehouseIds?: string[];
     warehouseByBranch?: Record<string, string>;
@@ -934,6 +951,7 @@ export class ConfigService {
 
     const allBranchesVal = input.allBranches !== undefined ? (input.allBranches ? 1 : 0) : 1;
     const canSwitchWhVal = input.canSwitchWarehouses !== undefined ? (input.canSwitchWarehouses ? 1 : 0) : 1;
+    const canUseChatVal = input.canUseChat !== undefined ? (input.canUseChat ? 1 : 0) : 1;
 
     try {
       const existing = await query<any>(
@@ -945,8 +963,8 @@ export class ConfigService {
       }
 
       await query(
-        `INSERT INTO users (id, company_id, role_id, username, email, password_hash, full_name, is_2fa_enabled, is_active, all_branches, can_switch_warehouses)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO users (id, company_id, role_id, username, email, password_hash, full_name, is_2fa_enabled, is_active, all_branches, can_switch_warehouses, can_use_chat)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
           companyId,
@@ -959,6 +977,7 @@ export class ConfigService {
           input.isActive !== undefined ? (input.isActive ? 1 : 0) : 1,
           allBranchesVal,
           canSwitchWhVal,
+          canUseChatVal,
         ]
       );
 
@@ -1040,6 +1059,7 @@ export class ConfigService {
     isActive?: boolean;
     allBranches?: boolean;
     canSwitchWarehouses?: boolean;
+    canUseChat?: boolean;
     branchIds?: string[];
     warehouseIds?: string[];
     warehouseByBranch?: Record<string, string>;
@@ -1075,6 +1095,10 @@ export class ConfigService {
       if (input.canSwitchWarehouses !== undefined) {
         updates.push('can_switch_warehouses = ?');
         values.push(input.canSwitchWarehouses ? 1 : 0);
+      }
+      if (input.canUseChat !== undefined) {
+        updates.push('can_use_chat = ?');
+        values.push(input.canUseChat ? 1 : 0);
       }
       if (input.password && input.password.trim() !== '') {
         let passwordHash = input.password;
@@ -1608,12 +1632,48 @@ export class ConfigService {
       adminFullName?: string;
       adminEmail?: string;
       adminPassword?: string;
+      licenseKey?: string;
+      activateTrialLicense?: boolean;
     }
   ) {
     const rifClean = data.rif.trim().toUpperCase();
     if (!rifClean) throw new Error('El RIF de la empresa es obligatorio.');
     if (!data.legalName.trim()) throw new Error('La Razón Social es obligatoria.');
     if (!data.fiscalAddress.trim()) throw new Error('La Dirección Fiscal es obligatoria.');
+
+    // 0. Si se proporciona una clave de licencia, pre-validar coincidencia de Razón Social y Hardware
+    const rawKey = data.licenseKey?.trim();
+    const currentFingerprint = LicensesService.getHardwareFingerprint();
+
+    if (rawKey) {
+      const pkg = LicensesService.verifyLicensePackage(rawKey);
+      if (pkg) {
+        if (pkg.fp !== currentFingerprint) {
+          throw new Error(
+            `El paquete de licencia está vinculado a otro hardware (${pkg.fp}) y no coincide con el servidor actual (${currentFingerprint}).`
+          );
+        }
+
+        if (pkg.companyName) {
+          const normPkg = LicensesService.normalizeCompanyName(pkg.companyName);
+          const normComp = LicensesService.normalizeCompanyName(data.legalName);
+          if (normPkg !== normComp) {
+            throw new Error(
+              `La Razón Social de la licencia ("${pkg.companyName}") no coincide con la Razón Social de la nueva empresa ("${data.legalName}").`
+            );
+          }
+        }
+
+        if (pkg.companyRif) {
+          const cleanPkgRif = pkg.companyRif.trim().toUpperCase();
+          if (cleanPkgRif !== rifClean) {
+            throw new Error(
+              `El RIF de la licencia ("${pkg.companyRif}") no coincide con el RIF de la nueva empresa ("${rifClean}").`
+            );
+          }
+        }
+      }
+    }
 
     // Verificar si el RIF ya existe
     const existingComp = await query<any>(`SELECT id FROM companies WHERE rif = ? LIMIT 1`, [rifClean]);
@@ -1759,7 +1819,56 @@ export class ConfigService {
       [newAdminUserId, newWarehouseId]
     );
 
-    // 9. Registrar en auditoría
+    // 9. Activar Licencia para la nueva empresa
+    let activatedLicense: any = null;
+    try {
+      if (rawKey) {
+        activatedLicense = await LicensesService.activateLicense(newCompanyId, {
+          licenseKey: rawKey,
+          hardwareFingerprint: currentFingerprint,
+        });
+      } else {
+        // Por defecto, inicializar con licencia Trial de 30 días vinculada a la nueva Razón Social
+        const trialResult = await LicensesService.issueLicense(
+          {
+            companyName: data.legalName.trim(),
+            companyRif: rifClean,
+            hardwareFingerprint: currentFingerprint,
+            type: 'trial',
+            durationMonths: 1,
+            maxUsers: 10,
+            maxBranches: 2,
+            hasSupport: true,
+            modulesAllowed: [
+              'dashboards',
+              'pos',
+              'inventory',
+              'pricing',
+              'purchases',
+              'sales',
+              'customers',
+              'receivables',
+              'suppliers',
+              'payables',
+              'treasury',
+              'taxes',
+              'reports',
+              'config',
+              'audit',
+              'restaurant',
+              'accounting',
+              'chat',
+            ],
+          },
+          newCompanyId
+        );
+        activatedLicense = trialResult.licenseInfo;
+      }
+    } catch (licErr: any) {
+      console.error('[initializeNewCompany] Error activando licencia:', licErr.message);
+    }
+
+    // 10. Registrar en auditoría
     await query(
       `INSERT INTO audit_logs (id, company_id, user_id, action, entity, entity_id, new_values, ip_address)
        VALUES (UUID(), ?, ?, 'INITIALIZE_COMPANY', 'companies', ?, ?, '127.0.0.1')`,
@@ -1794,6 +1903,17 @@ export class ConfigService {
         email: adminEmail,
         initialPassword: adminPassword,
       },
+      license: activatedLicense
+        ? {
+            id: activatedLicense.id,
+            type: activatedLicense.type,
+            licenseKey: activatedLicense.licenseKey,
+            status: activatedLicense.status,
+            expiresAt: activatedLicense.expiresAt,
+            daysRemaining: activatedLicense.daysRemaining,
+            companyName: activatedLicense.companyName,
+          }
+        : null,
     };
   }
 }

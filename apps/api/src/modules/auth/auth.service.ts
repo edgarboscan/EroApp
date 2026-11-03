@@ -87,6 +87,7 @@ export class AuthService {
     const isSuperAdmin = isSuperAdminRole(user.role_name);
     const allBranches = isSuperAdmin ? true : Boolean(user.all_branches ?? 1);
     const canSwitchWarehouses = isSuperAdmin ? true : Boolean(user.can_switch_warehouses ?? 1);
+    const canUseChat = isSuperAdmin ? true : Boolean(user.can_use_chat ?? 1);
 
     // Obtener permisos asignados
     let permissions: string[] = [];
@@ -104,6 +105,13 @@ export class AuthService {
         [user.role_id]
       );
       permissions = permissionsRows.map((r: any) => r.perm);
+    }
+
+    // Gestionar permiso de chat operativo según autorización individual o de rol
+    if (canUseChat && !permissions.includes('chat.read')) {
+      permissions.push('chat.read');
+    } else if (!canUseChat) {
+      permissions = permissions.filter((p) => p !== 'chat.read');
     }
 
     // Obtener sucursales
@@ -178,6 +186,7 @@ export class AuthService {
       warehouses,
       allBranches,
       canSwitchWarehouses,
+      canUseChat,
     };
 
     // Firmar Access Token & Refresh Token
@@ -213,6 +222,7 @@ export class AuthService {
         warehouses,
         allBranches,
         canSwitchWarehouses,
+        canUseChat,
       },
     };
   }

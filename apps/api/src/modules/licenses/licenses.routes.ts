@@ -9,22 +9,30 @@ export const licensesRouter = new Hono<AppEnv>();
 licensesRouter.get('/status', authenticate, async (c) => {
   const user = c.get('user');
   const userPerms = user.permissions || [];
-  const canRead =
+  const isPrivileged =
     isSuperAdminRole(user.role) ||
     isSupervisorOrAdminRole(user.role) ||
     userPerms.includes('config.read') ||
     userPerms.includes('config.write');
 
-  if (!canRead) {
-    return c.json({
-      success: false,
-      error: { code: 'FORBIDDEN', message: 'No posee privilegios para consultar el estado de la licencia' },
-    }, 403);
-  }
-
   try {
     const license = await LicensesService.getLicense(user.companyId);
-    return c.json({ success: true, data: license });
+    if (isPrivileged) {
+      return c.json({ success: true, data: license });
+    }
+
+    // Para usuarios operativos (Cajeros, Vendedores, etc.), retornar el estado de actividad de la licencia
+    return c.json({
+      success: true,
+      data: {
+        isActive: license.isActive,
+        status: license.status,
+        type: license.type,
+        daysRemaining: license.daysRemaining,
+        expiresAt: license.expiresAt,
+        companyId: license.companyId,
+      },
+    });
   } catch (error: any) {
     return c.json({ success: false, error: { code: 'LICENSE_FETCH_ERROR', message: error.message } }, 500);
   }

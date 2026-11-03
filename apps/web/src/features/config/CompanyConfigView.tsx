@@ -112,6 +112,8 @@ export const CompanyConfigView: React.FC = () => {
     adminEmail: "",
     adminPassword: "",
     securityConfirmation: "",
+    activateLicenseMode: "trial" as "trial" | "custom",
+    licenseKey: "",
   });
 
   // Permisos y Tasa Oficial de Cambio
@@ -241,6 +243,16 @@ export const CompanyConfigView: React.FC = () => {
       return;
     }
 
+    if (
+      initCompanyForm.activateLicenseMode === "custom" &&
+      !initCompanyForm.licenseKey.trim()
+    ) {
+      toast.error(
+        "Ingrese la clave o paquete de licencia a activar para la nueva empresa.",
+      );
+      return;
+    }
+
     const confirmed = await showConfirmQuestion({
       title: "¿Inicializar y Aprovisionar Nueva Empresa?",
       text: `Se creará la empresa ${initCompanyForm.legalName} (${initCompanyForm.rif}) con sucursal principal, almacén central, caja registradora, métodos de pago y usuario administrador.`,
@@ -278,6 +290,12 @@ export const CompanyConfigView: React.FC = () => {
             adminUsername: initCompanyForm.adminUsername.trim() || undefined,
             adminEmail: initCompanyForm.adminEmail.trim() || undefined,
             adminPassword: initCompanyForm.adminPassword.trim() || undefined,
+            activateTrialLicense:
+              initCompanyForm.activateLicenseMode === "trial",
+            licenseKey:
+              initCompanyForm.activateLicenseMode === "custom"
+                ? initCompanyForm.licenseKey.trim()
+                : undefined,
           },
         }),
       });
@@ -313,6 +331,8 @@ export const CompanyConfigView: React.FC = () => {
         adminEmail: "",
         adminPassword: "",
         securityConfirmation: "",
+        activateLicenseMode: "trial",
+        licenseKey: "",
       });
     } catch (err: unknown) {
       const msg =
@@ -3929,6 +3949,96 @@ export const CompanyConfigView: React.FC = () => {
               </div>
             </div>
 
+            {/* Licencia del Sistema */}
+            <div className="border border-neutral-200 dark:border-neutral-800 rounded-lg p-3.5 space-y-3">
+              <h4 className="text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                Activación de Licencia del Sistema
+              </h4>
+
+              <div className="text-[11px] text-neutral-600 dark:text-neutral-400">
+                Seleccione la modalidad de activación de licencia para la nueva empresa. Recuerde que si usa una clave de licencia comercial, su Razón Social debe coincidir exactamente con la ingresada arriba.
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer text-xs transition-colors ${
+                  initCompanyForm.activateLicenseMode === "trial"
+                    ? "border-sky-500 bg-sky-50/50 dark:bg-sky-950/20 text-sky-900 dark:text-sky-200"
+                    : "border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 text-neutral-700 dark:text-neutral-300"
+                }`}>
+                  <input
+                    type="radio"
+                    name="activateLicenseMode"
+                    value="trial"
+                    checked={initCompanyForm.activateLicenseMode === "trial"}
+                    onChange={() =>
+                      setInitCompanyForm({
+                        ...initCompanyForm,
+                        activateLicenseMode: "trial",
+                      })
+                    }
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <span className="font-semibold block text-[11px]">Licencia de Prueba (30 Días)</span>
+                    <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                      Activa automáticamente 30 días de acceso ilimitado vinculada a la nueva Razón Social.
+                    </span>
+                  </div>
+                </label>
+
+                <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer text-xs transition-colors ${
+                  initCompanyForm.activateLicenseMode === "custom"
+                    ? "border-sky-500 bg-sky-50/50 dark:bg-sky-950/20 text-sky-900 dark:text-sky-200"
+                    : "border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 text-neutral-700 dark:text-neutral-300"
+                }`}>
+                  <input
+                    type="radio"
+                    name="activateLicenseMode"
+                    value="custom"
+                    checked={initCompanyForm.activateLicenseMode === "custom"}
+                    onChange={() =>
+                      setInitCompanyForm({
+                        ...initCompanyForm,
+                        activateLicenseMode: "custom",
+                      })
+                    }
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <span className="font-semibold block text-[11px]">Clave de Licencia Comercial</span>
+                    <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                      Vincular un paquete criptográfico o clave provista por el proveedor ERO ERP.
+                    </span>
+                  </div>
+                </label>
+              </div>
+
+              {initCompanyForm.activateLicenseMode === "custom" && (
+                <div className="space-y-1 pt-1">
+                  <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300">
+                    Clave o Paquete de Licencia *
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="Pegue aquí el paquete o clave de licencia provista..."
+                    value={initCompanyForm.licenseKey}
+                    onChange={(e) =>
+                      setInitCompanyForm({
+                        ...initCompanyForm,
+                        licenseKey: e.target.value,
+                      })
+                    }
+                    className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-xs font-mono text-neutral-900 dark:text-neutral-100"
+                    required
+                  />
+                  <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                    Importante: La Razón Social emitida en el certificado de licencia debe coincidir con la Razón Social Legal de la empresa.
+                  </p>
+                </div>
+              )}
+            </div>
+
             {/* Confirmación Crítica */}
             <div className="border border-red-200 dark:border-red-900/60 rounded-lg p-3.5 bg-red-50/40 dark:bg-red-950/20 space-y-2">
               <label className="block text-xs font-bold text-red-800 dark:text-red-300">
@@ -4075,6 +4185,43 @@ export const CompanyConfigView: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* Licencia Activada */}
+            {initResult.license && (
+              <div className="border border-emerald-200 dark:border-emerald-800 bg-emerald-50/30 dark:bg-emerald-950/20 rounded-lg p-3.5 space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    Licencia del Sistema Activada
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 uppercase">
+                    {initResult.license.type}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[11px] text-neutral-700 dark:text-neutral-300">
+                  <div>
+                    <span className="text-neutral-500">Razón Social:</span>{" "}
+                    <span className="font-semibold text-neutral-900 dark:text-neutral-100">
+                      {initResult.license.companyName}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-neutral-500">Vigencia:</span>{" "}
+                    <span className="font-medium text-neutral-900 dark:text-neutral-100">
+                      {initResult.license.validUntil
+                        ? new Date(initResult.license.validUntil).toLocaleDateString()
+                        : "Permanente"}
+                    </span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-neutral-500 block mb-0.5">Clave de Activación:</span>
+                    <span className="font-mono text-[10px] break-all bg-white dark:bg-neutral-900 px-2 py-1 rounded border border-neutral-200 dark:border-neutral-800 block select-all">
+                      {initResult.license.licenseKey}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="flex justify-end pt-2 border-t border-neutral-200 dark:border-neutral-800">
               <Button

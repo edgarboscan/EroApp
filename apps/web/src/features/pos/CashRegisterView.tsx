@@ -858,19 +858,19 @@ export const CashRegisterView: React.FC = () => {
                 </h3>
                 <div className="space-y-2.5 text-xs">
                   <div className="flex items-center justify-between py-1.5 border-b border-neutral-50">
-                    <span className="text-neutral-600">Efectivo Divisas ($)</span>
+                    <span className="text-neutral-400">Efectivo Divisas ($)</span>
                     <span className="font-mono font-semibold">{formatMoneyUSD(currentShift.summary.cashSalesUSD)}</span>
                   </div>
                   <div className="flex items-center justify-between py-1.5 border-b border-neutral-50 ">
-                    <span className="text-neutral-600">Efectivo Bolívares (Bs en Gaveta)</span>
+                    <span className="text-neutral-400">Efectivo Bolívares (Bs en Gaveta)</span>
                     <span className="font-mono font-semibold text-emerald-700">{formatMoneyVES(currentShift.summary.cashSalesVES)}</span>
                   </div>
                   <div className="flex items-center justify-between py-1.5 border-b border-neutral-50">
-                    <span className="text-neutral-600">Punto de Venta - Tarjeta de Débito</span>
+                    <span className="text-neutral-400">Punto de Venta - Tarjeta de Débito</span>
                     <span className="font-mono font-semibold">{formatMoneyVES(currentShift.summary.debitVES)}</span>
                   </div>
                   <div className="flex items-center justify-between py-1.5 border-b border-neutral-50">
-                    <span className="text-neutral-600">Punto de Venta - Tarjeta de Crédito</span>
+                    <span className="text-neutral-400">Punto de Venta - Tarjeta de Crédito</span>
                     <span className="font-mono font-semibold">{formatMoneyVES(currentShift.summary.creditVES || 0)}</span>
                   </div>
                   <div className="flex items-center justify-between py-1.5 border-b border-neutral-50 bg-sky-50/60 px-2 rounded">
@@ -880,29 +880,29 @@ export const CashRegisterView: React.FC = () => {
                     </span>
                   </div>
                   <div className="flex items-center justify-between py-1.5 border-b border-neutral-50">
-                    <span className="text-neutral-600">Pago Móvil Bancario</span>
+                    <span className="text-neutral-400">Pago Móvil Bancario</span>
                     <span className="font-mono font-semibold">{formatMoneyVES(currentShift.summary.pagomovilVES)}</span>
                   </div>
                   <div className="flex items-center justify-between py-1.5 border-b border-neutral-50">
-                    <span className="text-neutral-600">Transferencia / Zelle ($)</span>
+                    <span className="text-neutral-400">Transferencia / Zelle ($)</span>
                     <span className="font-mono font-semibold">{formatMoneyUSD(currentShift.summary.zelleUSD)}</span>
                   </div>
                   {((currentShift.summary.otherVES || 0) > 0 || (currentShift.summary.otherUSD || 0) > 0) && (
                     <div className="flex items-center justify-between py-1.5 border-b border-neutral-50">
-                      <span className="text-neutral-600">Otros Medios de Pago</span>
+                      <span className="text-neutral-400">Otros Medios de Pago</span>
                       <span className="font-mono font-semibold">
                         {(currentShift.summary.otherVES || 0) > 0 ? formatMoneyVES(currentShift.summary.otherVES) : ''}
                         {(currentShift.summary.otherUSD || 0) > 0 ? ` ${formatMoneyUSD(currentShift.summary.otherUSD)}` : ''}
                       </span>
                     </div>
                   )}
-                  <div className="flex items-center justify-between pt-2 border-t border-neutral-200 font-bold text-neutral-900">
+                  <div className="flex items-center justify-between pt-2 border-t border-neutral-200 font-bold text-neutral-500">
                     <span>Total Recaudado en Bolívares (VES):</span>
                     <span className="font-mono text-indigo-700 font-extrabold text-sm">
                       {formatMoneyVES(currentShift.summary.totalCollectedVES || (currentShift.summary.cashSalesVES + (currentShift.summary.posBatchVES || 0) + currentShift.summary.pagomovilVES))}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between pt-1 border-t border-neutral-100 font-medium text-neutral-600">
+                  <div className="flex items-center justify-between pt-1 border-t border-neutral-100 font-medium text-neutral-400">
                     <span>Documentos / Facturas Emitidas:</span>
                     <span className="font-mono font-semibold">{currentShift.summary.totalInvoices} operaciones</span>
                   </div>

@@ -1,5 +1,6 @@
 import { query } from '../../db/index';
 import crypto from 'crypto';
+import { RealtimeService } from '../realtime/realtime.service';
 
 export interface ChatUserSummary {
   id: string;
@@ -55,6 +56,7 @@ export class ChatService {
       WHERE u.company_id = ?
         AND u.id != ?
         AND u.is_active = 1
+        AND (u.can_use_chat = 1 OR u.can_use_chat IS NULL)
     `;
     const params: any[] = [companyId, currentUserId];
 
@@ -204,12 +206,29 @@ export class ChatService {
     }
 
     // Marcar como leídos los mensajes dirigidos al usuario actual
-    await query(
+    const updateRes = await query<any>(
       `UPDATE chat_messages 
        SET is_read = 1, read_at = NOW() 
        WHERE conversation_id = ? AND recipient_id = ? AND is_read = 0`,
       [conversationId, currentUserId]
     );
+
+    // Si se marcaron mensajes como leídos, emitir actualización en tiempo real
+    const updateHeader = updateRes as any;
+    if (updateHeader && (updateHeader.affectedRows > 0 || updateHeader.changedRows > 0)) {
+      try {
+        const unreadTotal = await this.getUnreadTotal(companyId, currentUserId);
+        RealtimeService.emitToUser(currentUserId, 'chat:unread', { unreadTotal });
+
+        const otherUserId = user1_id === currentUserId ? user2_id : user1_id;
+        RealtimeService.emitToUser(otherUserId, 'chat:read', {
+          conversationId,
+          readByUserId: currentUserId,
+        });
+      } catch {
+        // Silencioso
+      }
+    }
 
     // Obtener los últimos mensajes
     const messages = await query<ChatMessage>(
@@ -276,7 +295,38 @@ export class ChatService {
       [messageId]
     );
 
-    return createdRows[0];
+    const createdMsg = createdRows[0];
+
+    // Emitir eventos en tiempo real al destinatario y al emisor
+    try {
+      const senderRows = await query<any>(
+        `SELECT id, username, full_name FROM users WHERE id = ? LIMIT 1`,
+        [senderId]
+      );
+      const sender = senderRows[0] || { id: senderId, username: 'Usuario', full_name: 'Usuario' };
+      const unreadTotal = await this.getUnreadTotal(companyId, recipientId);
+
+      // 1. Notificar al destinatario con payload completo para alertas, audio y popup
+      RealtimeService.emitToUser(recipientId, 'chat:message', {
+        message: createdMsg,
+        conversationId,
+        senderId,
+        senderName: sender.full_name || sender.username,
+        senderUsername: sender.username,
+        text,
+        unreadTotal,
+      });
+
+      // 2. Notificar al emisor para sincronizar otras pestañas o ventanas activas
+      RealtimeService.emitToUser(senderId, 'chat:sent', {
+        message: createdMsg,
+        conversationId,
+      });
+    } catch (realtimeErr) {
+      console.error('[ChatService] Error al emitir evento de tiempo real:', realtimeErr);
+    }
+
+    return createdMsg;
   }
 
   /**
