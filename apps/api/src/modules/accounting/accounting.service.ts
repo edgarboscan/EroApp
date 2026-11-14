@@ -390,7 +390,7 @@ export class AccountingService {
       const [lastNumberRows]: any = await conn.query(
         `SELECT entry_number FROM accounting_journal_entries 
          WHERE company_id = ? AND entry_number LIKE ? 
-         ORDER BY id DESC LIMIT 1 FOR UPDATE`,
+         ORDER BY entry_number DESC LIMIT 1 FOR UPDATE`,
         [companyId, `AS-${entryYear}-%`]
       );
 

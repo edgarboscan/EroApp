@@ -1,6 +1,7 @@
 import { query, withTransaction } from '../../db';
 import { CreatePayablePaymentInput, CreatePurchaseInvoiceInput } from '@ero/shared';
 import crypto from 'crypto';
+import { AccountingAutoPostingService } from '../accounting/accounting-auto-posting.service';
 
 export class PayablesService {
   static async getPayables(companyId: string, branchId?: string, supplierId?: string, status?: string) {
@@ -147,10 +148,11 @@ export class PayablesService {
 
   static async registerPayment(companyId: string, userId: string, data: CreatePayablePaymentInput) {
     const rows = await query<any>(
-      `SELECT p.*, pi.id as invoice_id, pi.invoice_number, b.company_id
+      `SELECT p.*, pi.id as invoice_id, pi.invoice_number, b.company_id, s.name as supplier_name
        FROM payables p
        INNER JOIN branches b ON p.branch_id = b.id
        INNER JOIN purchase_invoices pi ON p.invoice_id = pi.id
+       LEFT JOIN suppliers s ON p.supplier_id = s.id
        WHERE p.id = ? AND b.company_id = ?`,
       [data.payableId, companyId]
     );
@@ -209,7 +211,44 @@ export class PayablesService {
         ]
       );
 
-      // 3. If fully paid, check if all payables for this purchase invoice are paid
+      // 3. Descontar saldo bancario y asentar en Tesorería si se seleccionó cuenta bancaria
+      if (data.bankAccountId) {
+        const [accRows]: any = await conn.query(
+          `SELECT id, currency, current_balance, description FROM bank_accounts WHERE id = ? AND company_id = ? FOR UPDATE`,
+          [data.bankAccountId, companyId]
+        );
+        if (accRows && accRows.length > 0) {
+          const acc = accRows[0];
+          const withdrawalAmount = acc.currency === 'VES' ? paymentAmountVes : paymentAmountUsd;
+          const newBal = Number((Number(acc.current_balance) - withdrawalAmount).toFixed(2));
+
+          await conn.query(
+            `UPDATE bank_accounts SET current_balance = ?, updated_at = NOW() WHERE id = ?`,
+            [newBal, acc.id]
+          );
+
+          const refNum = data.referenceNumber ? data.referenceNumber.trim() : `PAG-${Date.now().toString().slice(-6)}`;
+          const concept = `Pago CxP Proveedor ${payable.supplier_name || 'Proveedor'} - Factura ${payable.invoice_number || ''} (${data.paymentMethod})`;
+
+          await conn.query(
+            `INSERT INTO bank_movements (
+              id, account_id, user_id, movement_type, amount, balance_after,
+              movement_date, reference_number, concept, is_reconciled
+            ) VALUES (?, ?, ?, 'WITHDRAWAL', ?, ?, NOW(), ?, ?, 0)`,
+            [
+              crypto.randomUUID(),
+              acc.id,
+              userId,
+              withdrawalAmount,
+              newBal,
+              refNum,
+              concept,
+            ]
+          );
+        }
+      }
+
+      // 4. If fully paid, check if all payables for this purchase invoice are paid
       if (newStatus === 'PAID') {
         const [pendingRows] = (await conn.query(
           `SELECT COUNT(*) as count FROM payables WHERE invoice_id = ? AND status <> 'PAID'`,
@@ -222,6 +261,13 @@ export class PayablesService {
             [payable.invoice_id]
           );
         }
+      }
+
+      // 5. Motor de Contabilización Automática de Pago a Proveedor
+      try {
+        await AccountingAutoPostingService.postPayablePayment(conn, paymentId, userId);
+      } catch (accErr: any) {
+        console.error('[AutoPosting] Error contabilizando pago CxP:', accErr.message);
       }
 
       return {

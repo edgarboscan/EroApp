@@ -8,6 +8,7 @@ import {
 } from '@ero/shared';
 import crypto from 'crypto';
 import argon2 from 'argon2';
+import { AccountingAutoPostingService } from '../accounting/accounting-auto-posting.service';
 
 export class SalesService {
   // ==========================================
@@ -1324,6 +1325,13 @@ export class SalesService {
         [invoiceId, input.deliveryNoteId]
       );
 
+      // 9. Motor de Contabilización Automática de Ventas
+      try {
+        await AccountingAutoPostingService.postSaleInvoice(conn, invoiceId, userId);
+      } catch (accErr: any) {
+        console.error('[AutoPosting] Error contabilizando venta desde nota de entrega:', accErr.message);
+      }
+
       return {
         invoiceId,
         invoiceNumber,
@@ -1781,6 +1789,13 @@ export class SalesService {
         `UPDATE sales_quotations SET status = 'CONVERTED' WHERE id = ?`,
         [input.quotationId]
       );
+
+      // 9. Motor de Contabilización Automática de Ventas
+      try {
+        await AccountingAutoPostingService.postSaleInvoice(conn, invoiceId, userId);
+      } catch (accErr: any) {
+        console.error('[AutoPosting] Error contabilizando venta desde cotización:', accErr.message);
+      }
 
       return {
         invoiceId,

@@ -810,9 +810,9 @@ export const CustomersView: React.FC = () => {
 
                     {/* Acciones */}
                     <td className="py-2 px-3 text-center">
-                      <div className="flex flex-col items-center justify-center gap-1.5 py-0.5">
+                      <div className="flex flex-col items-center justify-center gap-0.5 py-0.5">
                         {/* Fila 1: Editar, Bloquear/Desbloquear, Calificar */}
-                        <div className="flex items-center justify-center gap-1.5">
+                        <div className="flex items-center justify-center gap-0.5">
                           {/* Botón Editar */}
                           <Button
                             size="sm"

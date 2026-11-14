@@ -7,6 +7,7 @@ import {
   CustomerNoteApplication,
 } from '@ero/shared';
 import crypto from 'crypto';
+import { AccountingAutoPostingService } from '../accounting/accounting-auto-posting.service';
 
 export class CustomerNotesService {
   /**
@@ -444,6 +445,13 @@ export class CustomerNotesService {
           }),
         ]
       );
+
+      // 10. Motor de Contabilización Automática de Nota de Cliente
+      try {
+        await AccountingAutoPostingService.postCustomerNote(conn, noteId, userId);
+      } catch (accErr: any) {
+        console.error('[AutoPosting] Error contabilizando nota de cliente:', accErr.message);
+      }
 
       return {
         id: noteId,

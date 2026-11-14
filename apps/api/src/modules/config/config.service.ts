@@ -10,6 +10,8 @@ import {
 import crypto from 'crypto';
 import { LicensesService } from '../licenses/licenses.service';
 import { syncSystemPermissions, SYSTEM_PERMISSIONS } from '../../db/seedPermissions';
+import { NotificationsService } from '../notifications/notifications.service';
+import { RealtimeService } from '../realtime/realtime.service';
 
 export class ConfigService {
   private static logoColumnsEnsured = false;
@@ -40,6 +42,12 @@ export class ConfigService {
         ADD COLUMN custom_logo_url LONGTEXT DEFAULT NULL
       `);
     } catch {}
+    try {
+      await query(`
+        ALTER TABLE companies
+        ADD COLUMN auto_sync_bcv TINYINT(1) NOT NULL DEFAULT 1
+      `);
+    } catch {}
     this.logoColumnsEnsured = true;
   }
 
@@ -54,7 +62,8 @@ export class ConfigService {
       rows = await query<any>(
         `SELECT id, rif, legal_name, trade_name, fiscal_address, phone, email,
                 is_special_taxpayer, iva_retention_rate, currency_base, currency_secondary,
-                report_currency, show_logo_in_reports, report_logo_type, custom_logo_url, is_active
+                report_currency, show_logo_in_reports, report_logo_type, custom_logo_url,
+                auto_sync_bcv, is_active
          FROM companies
          WHERE id = ?`,
         [companyId]
@@ -88,6 +97,7 @@ export class ConfigService {
         showLogoInReports: true,
         reportLogoType: 'default' as const,
         customLogoUrl: null,
+        autoSyncBcv: true,
         isActive: true,
       };
     }
@@ -109,6 +119,7 @@ export class ConfigService {
       showLogoInReports: c.show_logo_in_reports !== undefined ? Boolean(c.show_logo_in_reports) : true,
       reportLogoType: (c.report_logo_type === 'custom' ? 'custom' : 'default') as 'default' | 'custom',
       customLogoUrl: c.custom_logo_url || null,
+      autoSyncBcv: c.auto_sync_bcv !== undefined && c.auto_sync_bcv !== null ? Boolean(c.auto_sync_bcv) : true,
       isActive: Boolean(c.is_active),
     };
   }
@@ -140,7 +151,8 @@ export class ConfigService {
          SET legal_name = ?, trade_name = ?, rif = ?, fiscal_address = ?,
              phone = ?, email = ?, is_special_taxpayer = ?, iva_retention_rate = ?,
              currency_base = ?, currency_secondary = ?, report_currency = ?,
-             show_logo_in_reports = ?, report_logo_type = ?, custom_logo_url = ?
+             show_logo_in_reports = ?, report_logo_type = ?, custom_logo_url = ?,
+             auto_sync_bcv = ?
          WHERE id = ?`,
         [
           input.legalName,
@@ -157,6 +169,7 @@ export class ConfigService {
           input.showLogoInReports !== false ? 1 : 0,
           input.reportLogoType || 'default',
           input.customLogoUrl || null,
+          input.autoSyncBcv !== false ? 1 : 0,
           companyId,
         ]
       );
@@ -167,8 +180,99 @@ export class ConfigService {
     return {
       id: companyId,
       ...input,
+      autoSyncBcv: input.autoSyncBcv !== false,
       isActive: true,
     };
+  }
+
+  // Cache para evitar saturar de notificaciones identicas de fallo a la misma empresa en menos de 20 minutos
+  private static lastFailureNotificationTimes = new Map<string, number>();
+
+  /**
+   * Obtiene si la actualizacion automatica de la tasa BCV esta activada
+   */
+  static async getAutoSyncBcv(companyId: string): Promise<boolean> {
+    await this.ensureLogoColumns();
+    try {
+      const rows = await query<any>(`SELECT auto_sync_bcv FROM companies WHERE id = ?`, [companyId]);
+      if (rows.length > 0 && rows[0].auto_sync_bcv !== undefined && rows[0].auto_sync_bcv !== null) {
+        return Boolean(rows[0].auto_sync_bcv);
+      }
+    } catch {}
+    return true;
+  }
+
+  /**
+   * Activa o desactiva la actualizacion automatica de la tasa BCV para la empresa
+   */
+  static async setAutoSyncBcv(companyId: string, enabled: boolean): Promise<boolean> {
+    await this.ensureLogoColumns();
+    try {
+      await query(`UPDATE companies SET auto_sync_bcv = ? WHERE id = ?`, [enabled ? 1 : 0, companyId]);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Registra y notifica formalmente el fallo al obtener la tasa oficial del BCV
+   */
+  static async recordBcvSyncFailure(companyId: string, errorReason: string): Promise<void> {
+    const now = Date.now();
+    const lastNotified = this.lastFailureNotificationTimes.get(companyId) || 0;
+    const THROTTLE_MS = 20 * 60 * 1000; // 20 minutos de ventana entre alertas persistentes
+
+    // Emitir inmediatamente evento en tiempo real a la empresa para refrescar estado en UI
+    try {
+      RealtimeService.emitToCompany(companyId, 'bcv:sync-error', {
+        error: errorReason,
+        timestamp: new Date().toISOString(),
+      });
+    } catch {}
+
+    if (now - lastNotified < THROTTLE_MS) {
+      return; // Ya notificado recientemente en BD para evitar saturar la bandeja de entrada
+    }
+
+    this.lastFailureNotificationTimes.set(companyId, now);
+
+    try {
+      // Buscar usuarios administradores o con permiso para modificar tasas de la empresa
+      const adminUsers = await query<any>(
+        `SELECT DISTINCT u.id, u.email, u.full_name
+         FROM users u
+         JOIN roles r ON u.role_id = r.id
+         WHERE u.company_id = ? AND u.is_active = 1
+           AND (r.name LIKE '%admin%' OR r.permissions LIKE '%pricing.exchange_rate%' OR r.permissions LIKE '%config.write%')`,
+        [companyId]
+      );
+
+      const recipients = adminUsers.length > 0 ? adminUsers : await query<any>(
+        `SELECT id, email, full_name FROM users WHERE company_id = ? AND is_active = 1 LIMIT 3`,
+        [companyId]
+      );
+
+      const title = 'Fallo en Sincronización Automática de Tasa BCV';
+      const message = `No fue posible obtener la tasa oficial del dólar desde el BCV. Motivo: ${errorReason}. Por favor verifique la conexión a internet o actualice la tasa manualmente.`;
+
+      for (const user of recipients) {
+        await NotificationsService.createNotification(
+          companyId,
+          user.id,
+          'SYSTEM',
+          title,
+          message,
+          {
+            errorReason,
+            source: 'bcv-auto-sync',
+            attemptedAt: new Date().toISOString(),
+          }
+        );
+      }
+    } catch (err: any) {
+      console.error('[ConfigService] Error al registrar notificacion de fallo BCV:', err.message);
+    }
   }
 
   /**

@@ -227,10 +227,36 @@ Se completó el análisis arquitectural integral y la implementación base del E
 
 9. **Notificaciones**:
    - [x] Diseñar un modulo de notificaciones y poder configurar que notificaciones pueden recibir cada usuario.
-   - [x] Poder enviar reportes desde el visor de reporte a otros usuario y notificar al usuario del recivimiento de un reporte.
+   - [x] Poder enviar reportes desde el visor de reporte a otros usuario y notificar al usuario del recivimiento de un reporte.  
    - [x] Poder enviar a proveedores y clientes reportes por correo electronicos.
-   - 
 
+10. **Actualizacion del dolar**
+   - [x] Si la actualizacion automatica esta activada y si no se pudo obtener la tasa del dol dolar notificar que no se pudo y porque.
 
+10. **DASHBOARD**
+   - [ ] Poder permitir a usuario que Widgets pueden ver.
+   - [ ] Agregar Widgets para contabilidad.
+   - [ ] Todos los KPIs deben de tener el mismo alto.
+   - [ ] Poder seleccionar si los KPIs se pueden visualizar en 1 o 2 filas.
 
+11. **POS**
+   - [ ] Si el producto tiene 1 sola presentacion.
+   - [ ] En el ticket de venta, si el producto se le aplica % de descuento, debe de salir reflejado el descuento.
+   - [ ] Organiza mejor el detalle de la venta para que se puedan visualizar mas productos de la lista, puedes quitar la parte del cliente y agregar la busquedad como un modal y que solo salga reflejado el nombre del cliente.
+   - [ ] En Verificación de Arqueos & Depósitos el filtro deberia de estar por defecto la fecha del di correspondiente, y el estado pendiente de verificacion
+   - [ ] En Verificación de Arqueos & Depósitos Bancarios si una caja no tuvo ventas, permitir eliminarla de la lista.
+
+12. **Configuracio**
+   - [ ] En Inicializar Nueva Empresa (Tenant Limpio) si crea la nueva empresa pero no limpea las demas tablas ni elimina los datos de la empresas anteriores pero debe de preguntar si se elimian los datos de las empresa .
+   - [ ] El Super Administrador tiene que tener acceso a todas las empresas en el sistema.
+   - [ ] Evitar que un usuario con conocimiento de la base de datos, entre en la base de datos y cambie un usuario a super administrador.
+
+13. **Productos**
+   - [ ] En todas las tablas donde se pueda ingresar producto no debe de permitir escoger el % de iva debe de tomarlo automaticamente del producto y mostrar el monto de cuanto representa ese iva.
+   - [ ] Permitir generar codigo de barra y poderlos imprimir en impresoras especializadas como Zebra, permitiendo configurar la impresora para etiquetas de codigo de .
+   - [ ] En la ficha de prodcuto no carga las unidades de medidas.
+
+14. **Ajuste de Inventario**
+   - [ ] En registrar un ajuste permitir buscar producto por modal y ajustar el tamaño de las columnas.
+   - [ ] Al procesar un ajuste muestra el siguiente error: Cannot add or update a child row: a foreign key constraint fails (`ero_erp_db`.`inventory_adjustment_items`, CONSTRAINT `fk_adji_adjustment` FOREIGN KEY (`adjustment_id`) REFERENCES `inventory_adjustments` (`id`) ON DELETE CASCADE)
 

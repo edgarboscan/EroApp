@@ -21,6 +21,31 @@ export interface SalesReportFilters {
   status?: string;
 }
 
+export interface IGTFReportFilters {
+  startDate?: string;
+  endDate?: string;
+  branchId?: string;
+  cashRegisterId?: string;
+  shiftId?: string;
+  paymentMethod?: string;
+  origin?: 'ALL' | 'POS' | 'ADMIN';
+  search?: string;
+}
+
+export interface PaymentMethodsReportFilters {
+  startDate?: string;
+  endDate?: string;
+  branchId?: string;
+  paymentMethod?: string;
+  origin?: 'ALL' | 'POS' | 'ADMIN_SALES' | 'COLLECTIONS' | 'PURCHASE_PAYMENTS' | 'CASH_MOVEMENTS';
+  flowType?: 'ALL' | 'IN' | 'OUT';
+  bankAccountId?: string;
+  cashRegisterId?: string;
+  shiftId?: string;
+  userId?: string;
+  search?: string;
+}
+
 export interface CashShiftsReportFilters {
   startDate?: string;
   endDate?: string;
@@ -1514,6 +1539,842 @@ export class ReportsService {
       startDate,
       endDate,
       bcvRate,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Reporte Fiscal de IGTF Percibido (3%) sobre pagos en divisas / criptoactivos (SENIAT)
+   */
+  static async getIGTFReport(companyId: string, filters: IGTFReportFilters = {}) {
+    const whereConditions: string[] = ['b.company_id = ?', "si.status <> 'ANNULLED'"];
+    const params: any[] = [companyId];
+
+    if (filters.startDate) {
+      whereConditions.push('DATE(si.invoice_date) >= ?');
+      params.push(filters.startDate);
+    }
+    if (filters.endDate) {
+      whereConditions.push('DATE(si.invoice_date) <= ?');
+      params.push(filters.endDate);
+    }
+    if (filters.branchId && filters.branchId !== 'all') {
+      whereConditions.push('si.branch_id = ?');
+      params.push(filters.branchId);
+    }
+    if (filters.cashRegisterId && filters.cashRegisterId !== 'all') {
+      whereConditions.push('cr.id = ?');
+      params.push(filters.cashRegisterId);
+    }
+    if (filters.shiftId && filters.shiftId !== 'all') {
+      whereConditions.push('si.shift_id = ?');
+      params.push(filters.shiftId);
+    }
+    if (filters.origin === 'POS') {
+      whereConditions.push('si.shift_id IS NOT NULL');
+    } else if (filters.origin === 'ADMIN') {
+      whereConditions.push('si.shift_id IS NULL');
+    }
+    if (filters.paymentMethod && filters.paymentMethod !== 'all') {
+      whereConditions.push('sp.method = ?');
+      params.push(filters.paymentMethod);
+    }
+
+    // Regla de aplicación IGTF: aplica si está marcado o si el método es divisas o si la factura tiene igtf registrado
+    whereConditions.push(
+      "(sp.applies_igtf = 1 OR sp.igtf_amount_usd > 0 OR sp.igtf_amount_ves > 0 OR si.igtf_amount > 0 OR sp.method IN ('CASH_USD', 'ZELLE', 'CRYPTO', 'TRANSFER_USD'))"
+    );
+
+    const whereClause = whereConditions.join(' AND ');
+
+    const rows = await query<any>(
+      `SELECT 
+        sp.id as payment_id,
+        sp.invoice_id,
+        sp.method,
+        sp.amount_usd,
+        sp.amount_ves,
+        sp.exchange_rate,
+        sp.applies_igtf,
+        sp.igtf_amount_usd,
+        sp.igtf_amount_ves,
+        sp.reference_number,
+        sp.created_at as payment_date,
+        si.invoice_number,
+        si.control_number,
+        si.invoice_date,
+        si.created_at as invoice_created_at,
+        si.branch_id,
+        b.name as branch_name,
+        si.user_id,
+        u.full_name as cashier_name,
+        si.customer_id,
+        COALESCE(c.name, 'CLIENTE CONTADO') as customer_name,
+        COALESCE(CONCAT(c.doc_type, '-', c.doc_number), 'V-00000000') as customer_doc,
+        si.shift_id,
+        cr.id as cash_register_id,
+        cr.code as cash_register_code,
+        cr.name as cash_register_name,
+        si.currency as invoice_currency,
+        si.exchange_rate as invoice_exchange_rate,
+        si.igtf_amount as invoice_igtf_amount,
+        si.total_amount as invoice_total_amount
+      FROM sales_payments sp
+      INNER JOIN sales_invoices si ON sp.invoice_id = si.id
+      INNER JOIN branches b ON si.branch_id = b.id
+      INNER JOIN users u ON si.user_id = u.id
+      LEFT JOIN customers c ON si.customer_id = c.id
+      LEFT JOIN cash_shifts cs ON si.shift_id = cs.id
+      LEFT JOIN cash_registers cr ON cs.cash_register_id = cr.id
+      WHERE ${whereClause}
+      ORDER BY si.invoice_date DESC, sp.created_at DESC`,
+      params
+    );
+
+    // Mapeo dinámico de nombres de medios de pago
+    const pmRows = await query<any>(
+      `SELECT code, name FROM payment_methods WHERE company_id = ?`,
+      [companyId]
+    );
+    const methodNames: Record<string, string> = {
+      CASH_USD: 'Efectivo Divisas ($)',
+      CASH_VES: 'Efectivo Bolívares (Bs)',
+      PAGO_MOVIL: 'Pago Móvil C2P / P2P',
+      DEBIT_CARD: 'Punto de Venta Débito',
+      CREDIT_CARD: 'Punto de Venta Crédito',
+      POS_TERMINAL: 'Punto de Venta',
+      ZELLE: 'Zelle USD',
+      TRANSFER: 'Transferencia Bancaria Bs',
+      TRANSFER_VES: 'Transferencia Bancaria Bs',
+      TRANSFER_USD: 'Transferencia Divisas',
+      BIOPAGO: 'Biopago BDV',
+      CRYPTO: 'Criptoactivos / USDT',
+      NOTA_CREDITO: 'Nota de Crédito a Favor',
+    };
+    for (const pm of pmRows) {
+      if (pm.code && pm.name) methodNames[pm.code] = pm.name;
+    }
+
+    const records = rows.map((r) => {
+      const rate = Number(r.exchange_rate) || Number(r.invoice_exchange_rate) || 1.0;
+      let baseUSD = Number(r.amount_usd || 0);
+      let baseVES = Number(r.amount_ves || 0);
+      if (baseUSD <= 0 && baseVES > 0 && rate > 0) {
+        baseUSD = Number((baseVES / rate).toFixed(2));
+      } else if (baseVES <= 0 && baseUSD > 0 && rate > 0) {
+        baseVES = Number((baseUSD * rate).toFixed(2));
+      }
+
+      let igtfUSD = Number(r.igtf_amount_usd || 0);
+      let igtfVES = Number(r.igtf_amount_ves || 0);
+      if (igtfUSD <= 0 && baseUSD > 0) {
+        igtfUSD = Number((baseUSD * 0.03).toFixed(2));
+      }
+      if (igtfVES <= 0 && igtfUSD > 0 && rate > 0) {
+        igtfVES = Number((igtfUSD * rate).toFixed(2));
+      }
+
+      const emissionDate = r.invoice_date
+        ? String(r.invoice_date).slice(0, 10)
+        : String(r.invoice_created_at || '').slice(0, 10);
+
+      const isPOS = Boolean(r.shift_id);
+
+      return {
+        id: r.payment_id,
+        invoiceId: r.invoice_id,
+        invoiceNumber: r.invoice_number,
+        controlNumber: r.control_number || '',
+        emissionDate,
+        branchId: r.branch_id,
+        branchName: r.branch_name,
+        cashierName: r.cashier_name,
+        customerId: r.customer_id,
+        customerName: r.customer_name,
+        customerDoc: r.customer_doc,
+        cashRegisterId: r.cash_register_id,
+        cashRegisterCode: r.cash_register_code || '',
+        cashRegisterName: r.cash_register_name || '',
+        method: r.method,
+        methodName: methodNames[r.method] || r.method,
+        referenceNumber: r.reference_number || '',
+        exchangeRate: rate,
+        baseUSD,
+        baseVES,
+        igtfRatePercent: 3.0,
+        igtfUSD,
+        igtfVES,
+        origin: isPOS ? ('POS' as const) : ('ADMIN' as const),
+        originLabel: isPOS ? 'Punto de Venta (POS)' : 'Venta Administrativa',
+      };
+    });
+
+    // Filtro de búsqueda en memoria si aplica
+    let filteredRecords = records;
+    if (filters.search && filters.search.trim()) {
+      const q = filters.search.toLowerCase().trim();
+      filteredRecords = records.filter(
+        (rec) =>
+          rec.invoiceNumber.toLowerCase().includes(q) ||
+          rec.controlNumber.toLowerCase().includes(q) ||
+          rec.customerName.toLowerCase().includes(q) ||
+          rec.customerDoc.toLowerCase().includes(q) ||
+          rec.referenceNumber.toLowerCase().includes(q)
+      );
+    }
+
+    // Totales y KPIs
+    const totalTaxableUSD = Number(filteredRecords.reduce((acc, r) => acc + r.baseUSD, 0).toFixed(2));
+    const totalTaxableVES = Number(filteredRecords.reduce((acc, r) => acc + r.baseVES, 0).toFixed(2));
+    const totalIgtfUSD = Number(filteredRecords.reduce((acc, r) => acc + r.igtfUSD, 0).toFixed(2));
+    const totalIgtfVES = Number(filteredRecords.reduce((acc, r) => acc + r.igtfVES, 0).toFixed(2));
+    const transactionsCount = filteredRecords.length;
+    const uniqueInvoices = new Set(filteredRecords.map((r) => r.invoiceId));
+    const invoicesCount = uniqueInvoices.size;
+    const weightedRate = totalTaxableUSD > 0 ? Number((totalTaxableVES / totalTaxableUSD).toFixed(4)) : 0;
+
+    // Resumen Quincenal SENIAT
+    const quincenaMap: Record<string, {
+      key: string;
+      periodLabel: string;
+      count: number;
+      taxableUSD: number;
+      taxableVES: number;
+      igtfUSD: number;
+      igtfVES: number;
+    }> = {};
+
+    const monthNames = [
+      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    ];
+
+    for (const r of filteredRecords) {
+      const d = new Date(r.emissionDate + 'T12:00:00Z');
+      const year = d.getUTCFullYear();
+      const month = d.getUTCMonth();
+      const day = d.getUTCDate();
+      const isFirstFortnight = day <= 15;
+      const key = `${year}-${String(month + 1).padStart(2, '0')}-${isFirstFortnight ? 'Q1' : 'Q2'}`;
+      const periodLabel = isFirstFortnight
+        ? `1ra Quincena ${monthNames[month]} ${year} (01 al 15)`
+        : `2da Quincena ${monthNames[month]} ${year} (16 al fin de mes)`;
+
+      if (!quincenaMap[key]) {
+        quincenaMap[key] = {
+          key,
+          periodLabel,
+          count: 0,
+          taxableUSD: 0,
+          taxableVES: 0,
+          igtfUSD: 0,
+          igtfVES: 0,
+        };
+      }
+      quincenaMap[key].count += 1;
+      quincenaMap[key].taxableUSD = Number((quincenaMap[key].taxableUSD + r.baseUSD).toFixed(2));
+      quincenaMap[key].taxableVES = Number((quincenaMap[key].taxableVES + r.baseVES).toFixed(2));
+      quincenaMap[key].igtfUSD = Number((quincenaMap[key].igtfUSD + r.igtfUSD).toFixed(2));
+      quincenaMap[key].igtfVES = Number((quincenaMap[key].igtfVES + r.igtfVES).toFixed(2));
+    }
+
+    const quincenaSummary = Object.values(quincenaMap).sort((a, b) => b.key.localeCompare(a.key));
+
+    // Desglose por Medio de Pago
+    const methodMap: Record<string, {
+      method: string;
+      methodName: string;
+      count: number;
+      taxableUSD: number;
+      taxableVES: number;
+      igtfUSD: number;
+      igtfVES: number;
+    }> = {};
+
+    for (const r of filteredRecords) {
+      if (!methodMap[r.method]) {
+        methodMap[r.method] = {
+          method: r.method,
+          methodName: r.methodName,
+          count: 0,
+          taxableUSD: 0,
+          taxableVES: 0,
+          igtfUSD: 0,
+          igtfVES: 0,
+        };
+      }
+      methodMap[r.method].count += 1;
+      methodMap[r.method].taxableUSD = Number((methodMap[r.method].taxableUSD + r.baseUSD).toFixed(2));
+      methodMap[r.method].taxableVES = Number((methodMap[r.method].taxableVES + r.baseVES).toFixed(2));
+      methodMap[r.method].igtfUSD = Number((methodMap[r.method].igtfUSD + r.igtfUSD).toFixed(2));
+      methodMap[r.method].igtfVES = Number((methodMap[r.method].igtfVES + r.igtfVES).toFixed(2));
+    }
+
+    const byPaymentMethod = Object.values(methodMap).sort((a, b) => b.taxableUSD - a.taxableUSD);
+
+    // Desglose por Sucursal
+    const branchMap: Record<string, {
+      branchId: string;
+      branchName: string;
+      count: number;
+      taxableUSD: number;
+      igtfUSD: number;
+      igtfVES: number;
+    }> = {};
+
+    for (const r of filteredRecords) {
+      if (!branchMap[r.branchId]) {
+        branchMap[r.branchId] = {
+          branchId: r.branchId,
+          branchName: r.branchName,
+          count: 0,
+          taxableUSD: 0,
+          igtfUSD: 0,
+          igtfVES: 0,
+        };
+      }
+      branchMap[r.branchId].count += 1;
+      branchMap[r.branchId].taxableUSD = Number((branchMap[r.branchId].taxableUSD + r.baseUSD).toFixed(2));
+      branchMap[r.branchId].igtfUSD = Number((branchMap[r.branchId].igtfUSD + r.igtfUSD).toFixed(2));
+      branchMap[r.branchId].igtfVES = Number((branchMap[r.branchId].igtfVES + r.igtfVES).toFixed(2));
+    }
+
+    const byBranch = Object.values(branchMap).sort((a, b) => b.taxableUSD - a.taxableUSD);
+
+    return {
+      summary: {
+        totalTaxableUSD,
+        totalTaxableVES,
+        totalIgtfUSD,
+        totalIgtfVES,
+        transactionsCount,
+        invoicesCount,
+        weightedRate,
+      },
+      quincenaSummary,
+      byPaymentMethod,
+      byBranch,
+      records: filteredRecords,
+      filters,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Reporte Discriminado de Movimientos por Medios de Pago (Ingresos, Egresos, Cobranzas, Arqueos)
+   */
+  static async getPaymentMethodsReport(companyId: string, filters: PaymentMethodsReportFilters = {}) {
+    // 1. Cargar nombres amigables de medios de pago
+    const pmRows = await query<any>(
+      `SELECT code, name, currency, type FROM payment_methods WHERE company_id = ?`,
+      [companyId]
+    );
+    const methodNames: Record<string, string> = {
+      CASH_USD: 'Efectivo Divisas ($)',
+      CASH_VES: 'Efectivo Bolívares (Bs)',
+      PAGO_MOVIL: 'Pago Móvil C2P / P2P',
+      DEBIT_CARD: 'Punto de Venta Débito',
+      CREDIT_CARD: 'Punto de Venta Crédito',
+      POS_TERMINAL: 'Punto de Venta',
+      ZELLE: 'Zelle USD',
+      TRANSFER: 'Transferencia Bancaria Bs',
+      TRANSFER_VES: 'Transferencia Bancaria Bs',
+      TRANSFER_USD: 'Transferencia Divisas',
+      BIOPAGO: 'Biopago BDV',
+      CRYPTO: 'Criptoactivos / USDT',
+      NOTA_CREDITO: 'Nota de Crédito a Favor',
+      CHECK: 'Cheque Bancario',
+      CREDIT: 'Crédito Comercial',
+    };
+    for (const pm of pmRows) {
+      if (pm.code && pm.name) methodNames[pm.code] = pm.name;
+    }
+
+    const allItems: any[] = [];
+
+    // --- A. Pagos de Ventas (POS, Ventas Mayoristas y Cobranzas) ---
+    const shouldIncludeSales = !filters.flowType || filters.flowType === 'ALL' || filters.flowType === 'IN';
+    const shouldIncludeSalesOrigin =
+      !filters.origin ||
+      filters.origin === 'ALL' ||
+      filters.origin === 'POS' ||
+      filters.origin === 'ADMIN_SALES' ||
+      filters.origin === 'COLLECTIONS';
+
+    if (shouldIncludeSales && shouldIncludeSalesOrigin) {
+      const salesConditions: string[] = ['b.company_id = ?', "si.status <> 'ANNULLED'"];
+      const salesParams: any[] = [companyId];
+
+      if (filters.startDate) {
+        salesConditions.push('DATE(sp.created_at) >= ?');
+        salesParams.push(filters.startDate);
+      }
+      if (filters.endDate) {
+        salesConditions.push('DATE(sp.created_at) <= ?');
+        salesParams.push(filters.endDate);
+      }
+      if (filters.branchId && filters.branchId !== 'all') {
+        salesConditions.push('si.branch_id = ?');
+        salesParams.push(filters.branchId);
+      }
+      if (filters.paymentMethod && filters.paymentMethod !== 'all') {
+        salesConditions.push('sp.method = ?');
+        salesParams.push(filters.paymentMethod);
+      }
+      if (filters.bankAccountId && filters.bankAccountId !== 'all') {
+        salesConditions.push('sp.bank_account_id = ?');
+        salesParams.push(filters.bankAccountId);
+      }
+      if (filters.cashRegisterId && filters.cashRegisterId !== 'all') {
+        salesConditions.push('cr.id = ?');
+        salesParams.push(filters.cashRegisterId);
+      }
+      if (filters.shiftId && filters.shiftId !== 'all') {
+        salesConditions.push('si.shift_id = ?');
+        salesParams.push(filters.shiftId);
+      }
+      if (filters.userId && filters.userId !== 'all') {
+        salesConditions.push('si.user_id = ?');
+        salesParams.push(filters.userId);
+      }
+
+      const salesRows = await query<any>(
+        `SELECT 
+          sp.id,
+          sp.invoice_id,
+          sp.method,
+          sp.amount_usd,
+          sp.amount_ves,
+          sp.exchange_rate,
+          sp.applies_igtf,
+          sp.igtf_amount_usd,
+          sp.igtf_amount_ves,
+          sp.reference_number,
+          sp.bank_account_id,
+          sp.created_at,
+          si.invoice_number,
+          si.control_number,
+          si.invoice_date,
+          si.is_credit,
+          si.branch_id,
+          b.name as branch_name,
+          si.user_id,
+          u.full_name as user_name,
+          si.customer_id,
+          COALESCE(c.name, 'CLIENTE CONTADO') as third_party_name,
+          COALESCE(CONCAT(c.doc_type, '-', c.doc_number), 'V-00000000') as third_party_doc,
+          si.shift_id,
+          cr.id as cash_register_id,
+          cr.name as cash_register_name,
+          cr.code as cash_register_code,
+          ba.account_number as bank_account_number,
+          bk.name as bank_name
+        FROM sales_payments sp
+        INNER JOIN sales_invoices si ON sp.invoice_id = si.id
+        INNER JOIN branches b ON si.branch_id = b.id
+        INNER JOIN users u ON si.user_id = u.id
+        LEFT JOIN customers c ON si.customer_id = c.id
+        LEFT JOIN cash_shifts cs ON si.shift_id = cs.id
+        LEFT JOIN cash_registers cr ON cs.cash_register_id = cr.id
+        LEFT JOIN bank_accounts ba ON sp.bank_account_id = ba.id
+        LEFT JOIN banks bk ON ba.bank_id = bk.id
+        WHERE ${salesConditions.join(' AND ')}
+        ORDER BY sp.created_at DESC`,
+        salesParams
+      );
+
+      for (const r of salesRows) {
+        const isPOS = Boolean(r.shift_id);
+        const isCreditSale = Boolean(r.is_credit);
+        let origin: 'POS' | 'ADMIN_SALES' | 'COLLECTIONS' = isPOS ? 'POS' : 'ADMIN_SALES';
+        let originLabel = isPOS ? 'Venta POS Mostrador' : 'Venta Mayorista';
+        if (isCreditSale && !isPOS) {
+          origin = 'COLLECTIONS';
+          originLabel = 'Cobranza Factura a Crédito';
+        }
+
+        if (filters.origin && filters.origin !== 'ALL' && filters.origin !== origin) {
+          continue;
+        }
+
+        const rate = Number(r.exchange_rate) || 1.0;
+        let amountUSD = Number(r.amount_usd || 0);
+        let amountVES = Number(r.amount_ves || 0);
+        if (amountUSD <= 0 && amountVES > 0 && rate > 0) {
+          amountUSD = Number((amountVES / rate).toFixed(2));
+        } else if (amountVES <= 0 && amountUSD > 0 && rate > 0) {
+          amountVES = Number((amountUSD * rate).toFixed(2));
+        }
+
+        allItems.push({
+          id: r.id,
+          date: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+          flowType: 'IN' as const,
+          origin,
+          originLabel,
+          documentNumber: r.invoice_number,
+          controlNumber: r.control_number || '',
+          thirdPartyName: r.third_party_name,
+          thirdPartyDoc: r.third_party_doc,
+          method: r.method,
+          methodName: methodNames[r.method] || r.method,
+          referenceNumber: r.reference_number || '',
+          bankAccountId: r.bank_account_id,
+          bankName: r.bank_name ? `${r.bank_name} (${r.bank_account_number || ''})` : null,
+          branchId: r.branch_id,
+          branchName: r.branch_name,
+          cashRegisterName: r.cash_register_name || r.cash_register_code || null,
+          userName: r.user_name,
+          amountUSD,
+          amountVES,
+          exchangeRate: rate,
+          appliesIGTF: Boolean(r.applies_igtf),
+          igtfUSD: Number(r.igtf_amount_usd || 0),
+          notes: null,
+        });
+      }
+    }
+
+    // --- B. Pagos a Proveedores (Egresos) ---
+    const shouldIncludePurchases = !filters.flowType || filters.flowType === 'ALL' || filters.flowType === 'OUT';
+    const shouldIncludePurchasesOrigin = !filters.origin || filters.origin === 'ALL' || filters.origin === 'PURCHASE_PAYMENTS';
+
+    if (shouldIncludePurchases && shouldIncludePurchasesOrigin) {
+      const purConditions: string[] = ['b.company_id = ?', "pi.status <> 'ANNULLED'"];
+      const purParams: any[] = [companyId];
+
+      if (filters.startDate) {
+        purConditions.push('DATE(pp.created_at) >= ?');
+        purParams.push(filters.startDate);
+      }
+      if (filters.endDate) {
+        purConditions.push('DATE(pp.created_at) <= ?');
+        purParams.push(filters.endDate);
+      }
+      if (filters.branchId && filters.branchId !== 'all') {
+        purConditions.push('pi.branch_id = ?');
+        purParams.push(filters.branchId);
+      }
+      if (filters.paymentMethod && filters.paymentMethod !== 'all') {
+        purConditions.push('pp.method = ?');
+        purParams.push(filters.paymentMethod);
+      }
+      if (filters.userId && filters.userId !== 'all') {
+        purConditions.push('pi.user_id = ?');
+        purParams.push(filters.userId);
+      }
+
+      const purRows = await query<any>(
+        `SELECT 
+          pp.id,
+          pp.invoice_id,
+          pp.payable_id,
+          pp.method,
+          pp.amount_usd,
+          pp.amount_ves,
+          pp.exchange_rate,
+          pp.reference_number,
+          pp.notes,
+          pp.created_at,
+          pi.invoice_number,
+          pi.control_number,
+          pi.invoice_date,
+          pi.branch_id,
+          b.name as branch_name,
+          pi.user_id,
+          u.full_name as user_name,
+          pi.supplier_id,
+          COALESCE(s.name, 'PROVEEDOR') as third_party_name,
+          COALESCE(s.rif, 'J-00000000-0') as third_party_doc
+        FROM purchase_payments pp
+        INNER JOIN purchase_invoices pi ON pp.invoice_id = pi.id
+        INNER JOIN branches b ON pi.branch_id = b.id
+        LEFT JOIN users u ON pi.user_id = u.id
+        LEFT JOIN suppliers s ON pi.supplier_id = s.id
+        WHERE ${purConditions.join(' AND ')}
+        ORDER BY pp.created_at DESC`,
+        purParams
+      );
+
+      for (const r of purRows) {
+        const rate = Number(r.exchange_rate) || 1.0;
+        let amountUSD = Number(r.amount_usd || 0);
+        let amountVES = Number(r.amount_ves || 0);
+        if (amountUSD <= 0 && amountVES > 0 && rate > 0) {
+          amountUSD = Number((amountVES / rate).toFixed(2));
+        } else if (amountVES <= 0 && amountUSD > 0 && rate > 0) {
+          amountVES = Number((amountUSD * rate).toFixed(2));
+        }
+
+        allItems.push({
+          id: r.id,
+          date: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+          flowType: 'OUT' as const,
+          origin: 'PURCHASE_PAYMENTS' as const,
+          originLabel: 'Pago a Proveedor (CxP)',
+          documentNumber: r.invoice_number,
+          controlNumber: r.control_number || '',
+          thirdPartyName: r.third_party_name,
+          thirdPartyDoc: r.third_party_doc,
+          method: r.method,
+          methodName: methodNames[r.method] || r.method,
+          referenceNumber: r.reference_number || '',
+          bankAccountId: null,
+          bankName: null,
+          branchId: r.branch_id,
+          branchName: r.branch_name,
+          cashRegisterName: null,
+          userName: r.user_name || 'Administración',
+          amountUSD,
+          amountVES,
+          exchangeRate: rate,
+          appliesIGTF: false,
+          igtfUSD: 0,
+          notes: r.notes || null,
+        });
+      }
+    }
+
+    // --- C. Movimientos de Efectivo en Caja (Ingresos/Egresos directos) ---
+    const shouldIncludeCashMovements = !filters.origin || filters.origin === 'ALL' || filters.origin === 'CASH_MOVEMENTS';
+    if (shouldIncludeCashMovements) {
+      const cmConditions: string[] = ['b.company_id = ?'];
+      const cmParams: any[] = [companyId];
+
+      if (filters.startDate) {
+        cmConditions.push('DATE(cm.created_at) >= ?');
+        cmParams.push(filters.startDate);
+      }
+      if (filters.endDate) {
+        cmConditions.push('DATE(cm.created_at) <= ?');
+        cmParams.push(filters.endDate);
+      }
+      if (filters.branchId && filters.branchId !== 'all') {
+        cmConditions.push('cs.branch_id = ?');
+        cmParams.push(filters.branchId);
+      }
+      if (filters.cashRegisterId && filters.cashRegisterId !== 'all') {
+        cmConditions.push('cs.cash_register_id = ?');
+        cmParams.push(filters.cashRegisterId);
+      }
+      if (filters.shiftId && filters.shiftId !== 'all') {
+        cmConditions.push('cm.shift_id = ?');
+        cmParams.push(filters.shiftId);
+      }
+      if (filters.userId && filters.userId !== 'all') {
+        cmConditions.push('cm.user_id = ?');
+        cmParams.push(filters.userId);
+      }
+      if (filters.flowType === 'IN') {
+        cmConditions.push("cm.type = 'INFLOW'");
+      } else if (filters.flowType === 'OUT') {
+        cmConditions.push("cm.type = 'OUTFLOW'");
+      }
+
+      const cmRows = await query<any>(
+        `SELECT 
+          cm.id,
+          cm.shift_id,
+          cm.user_id,
+          u.full_name as user_name,
+          cm.type,
+          cm.currency,
+          cm.amount,
+          cm.reason,
+          cm.created_at,
+          cs.branch_id,
+          b.name as branch_name,
+          cs.cash_register_id,
+          cr.code as cash_register_code,
+          cr.name as cash_register_name
+        FROM cash_movements cm
+        INNER JOIN cash_shifts cs ON cm.shift_id = cs.id
+        INNER JOIN branches b ON cs.branch_id = b.id
+        INNER JOIN users u ON cm.user_id = u.id
+        INNER JOIN cash_registers cr ON cs.cash_register_id = cr.id
+        WHERE ${cmConditions.join(' AND ')}
+        ORDER BY cm.created_at DESC`,
+        cmParams
+      );
+
+      // Tasa BCV actual como referencia para movimientos de caja
+      const rateRows = await query<any>(
+        `SELECT rate FROM exchange_rates WHERE company_id = ? ORDER BY effective_date DESC, created_at DESC LIMIT 1`,
+        [companyId]
+      );
+      const defaultRate = Number(rateRows[0]?.rate || 1.0);
+
+      for (const r of cmRows) {
+        const isUSD = r.currency === 'USD';
+        const method = isUSD ? 'CASH_USD' : 'CASH_VES';
+        if (filters.paymentMethod && filters.paymentMethod !== 'all' && filters.paymentMethod !== method) {
+          continue;
+        }
+
+        const rawAmount = Number(r.amount || 0);
+        const amountUSD = isUSD ? rawAmount : Number((rawAmount / defaultRate).toFixed(2));
+        const amountVES = isUSD ? Number((rawAmount * defaultRate).toFixed(2)) : rawAmount;
+        const flowType = r.type === 'INFLOW' ? ('IN' as const) : ('OUT' as const);
+
+        allItems.push({
+          id: r.id,
+          date: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+          flowType,
+          origin: 'CASH_MOVEMENTS' as const,
+          originLabel: flowType === 'IN' ? 'Ingreso Manual a Caja' : 'Egreso Manual de Caja',
+          documentNumber: `CAJA-${r.id.slice(0, 8).toUpperCase()}`,
+          controlNumber: '',
+          thirdPartyName: r.user_name,
+          thirdPartyDoc: '',
+          method,
+          methodName: methodNames[method] || method,
+          referenceNumber: '',
+          bankAccountId: null,
+          bankName: null,
+          branchId: r.branch_id,
+          branchName: r.branch_name,
+          cashRegisterName: r.cash_register_name || r.cash_register_code,
+          userName: r.user_name,
+          amountUSD,
+          amountVES,
+          exchangeRate: defaultRate,
+          appliesIGTF: false,
+          igtfUSD: 0,
+          notes: r.reason,
+        });
+      }
+    }
+
+    // Ordenar cronológicamente descendente
+    allItems.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    // Filtro de búsqueda en memoria si aplica
+    let filteredMovements = allItems;
+    if (filters.search && filters.search.trim()) {
+      const q = filters.search.toLowerCase().trim();
+      filteredMovements = allItems.filter(
+        (m) =>
+          m.documentNumber.toLowerCase().includes(q) ||
+          (m.controlNumber && m.controlNumber.toLowerCase().includes(q)) ||
+          m.thirdPartyName.toLowerCase().includes(q) ||
+          (m.thirdPartyDoc && m.thirdPartyDoc.toLowerCase().includes(q)) ||
+          (m.referenceNumber && m.referenceNumber.toLowerCase().includes(q)) ||
+          (m.notes && m.notes.toLowerCase().includes(q))
+      );
+    }
+
+    // Totales y KPIs
+    const inflows = filteredMovements.filter((m) => m.flowType === 'IN');
+    const outflows = filteredMovements.filter((m) => m.flowType === 'OUT');
+
+    const totalInflowUSD = Number(inflows.reduce((acc, m) => acc + m.amountUSD, 0).toFixed(2));
+    const totalInflowVES = Number(inflows.reduce((acc, m) => acc + m.amountVES, 0).toFixed(2));
+    const totalOutflowUSD = Number(outflows.reduce((acc, m) => acc + m.amountUSD, 0).toFixed(2));
+    const totalOutflowVES = Number(outflows.reduce((acc, m) => acc + m.amountVES, 0).toFixed(2));
+    const netUSD = Number((totalInflowUSD - totalOutflowUSD).toFixed(2));
+    const netVES = Number((totalInflowVES - totalOutflowVES).toFixed(2));
+    const operationsCount = filteredMovements.length;
+
+    // Desglose por Medio de Pago
+    const methodSummaryMap: Record<string, {
+      method: string;
+      methodName: string;
+      count: number;
+      inflowUSD: number;
+      inflowVES: number;
+      outflowUSD: number;
+      outflowVES: number;
+      netUSD: number;
+      netVES: number;
+      percentOfTotal: number;
+    }> = {};
+
+    const totalVolumeUSD = totalInflowUSD + totalOutflowUSD;
+
+    for (const m of filteredMovements) {
+      if (!methodSummaryMap[m.method]) {
+        methodSummaryMap[m.method] = {
+          method: m.method,
+          methodName: m.methodName,
+          count: 0,
+          inflowUSD: 0,
+          inflowVES: 0,
+          outflowUSD: 0,
+          outflowVES: 0,
+          netUSD: 0,
+          netVES: 0,
+          percentOfTotal: 0,
+        };
+      }
+      methodSummaryMap[m.method].count += 1;
+      if (m.flowType === 'IN') {
+        methodSummaryMap[m.method].inflowUSD = Number((methodSummaryMap[m.method].inflowUSD + m.amountUSD).toFixed(2));
+        methodSummaryMap[m.method].inflowVES = Number((methodSummaryMap[m.method].inflowVES + m.amountVES).toFixed(2));
+      } else {
+        methodSummaryMap[m.method].outflowUSD = Number((methodSummaryMap[m.method].outflowUSD + m.amountUSD).toFixed(2));
+        methodSummaryMap[m.method].outflowVES = Number((methodSummaryMap[m.method].outflowVES + m.amountVES).toFixed(2));
+      }
+      methodSummaryMap[m.method].netUSD = Number(
+        (methodSummaryMap[m.method].inflowUSD - methodSummaryMap[m.method].outflowUSD).toFixed(2)
+      );
+      methodSummaryMap[m.method].netVES = Number(
+        (methodSummaryMap[m.method].inflowVES - methodSummaryMap[m.method].outflowVES).toFixed(2)
+      );
+    }
+
+    const byMethod = Object.values(methodSummaryMap).map((m) => {
+      const vol = m.inflowUSD + m.outflowUSD;
+      m.percentOfTotal = totalVolumeUSD > 0 ? Number(((vol / totalVolumeUSD) * 100).toFixed(1)) : 0;
+      return m;
+    }).sort((a, b) => (b.inflowUSD + b.outflowUSD) - (a.inflowUSD + a.outflowUSD));
+
+    // Desglose por Origen
+    const originMap: Record<string, {
+      origin: string;
+      originLabel: string;
+      count: number;
+      totalUSD: number;
+      totalVES: number;
+      percentOfTotal: number;
+    }> = {};
+
+    for (const m of filteredMovements) {
+      if (!originMap[m.origin]) {
+        originMap[m.origin] = {
+          origin: m.origin,
+          originLabel: m.originLabel,
+          count: 0,
+          totalUSD: 0,
+          totalVES: 0,
+          percentOfTotal: 0,
+        };
+      }
+      originMap[m.origin].count += 1;
+      originMap[m.origin].totalUSD = Number((originMap[m.origin].totalUSD + m.amountUSD).toFixed(2));
+      originMap[m.origin].totalVES = Number((originMap[m.origin].totalVES + m.amountVES).toFixed(2));
+    }
+
+    const byOrigin = Object.values(originMap).map((o) => {
+      o.percentOfTotal = totalVolumeUSD > 0 ? Number(((o.totalUSD / totalVolumeUSD) * 100).toFixed(1)) : 0;
+      return o;
+    }).sort((a, b) => b.totalUSD - a.totalUSD);
+
+    return {
+      summary: {
+        totalInflowUSD,
+        totalInflowVES,
+        totalOutflowUSD,
+        totalOutflowVES,
+        netUSD,
+        netVES,
+        operationsCount,
+        inflowsCount: inflows.length,
+        outflowsCount: outflows.length,
+      },
+      byMethod,
+      byOrigin,
+      movements: filteredMovements,
+      filters,
       generatedAt: new Date().toISOString(),
     };
   }

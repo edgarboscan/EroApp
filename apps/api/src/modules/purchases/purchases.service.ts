@@ -6,6 +6,7 @@ import {
   calculateWeightedAverageCost,
 } from '@ero/shared';
 import crypto from 'crypto';
+import { AccountingAutoPostingService } from '../accounting/accounting-auto-posting.service';
 
 export class PurchasesService {
   // ==========================================
@@ -755,7 +756,8 @@ export class PurchasesService {
         );
       }
 
-      // 5. Si es a crédito, registrar automáticamente la cuenta por pagar (payables)
+      // 5. Si es a crédito, registrar automáticamente la cuenta por pagar (payables).
+      // Si es de contado, registrar el pago en purchase_payments y descontar de Tesorería.
       if (input.isCredit) {
         const payableId = crypto.randomUUID();
         const dueDate = input.dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -767,6 +769,63 @@ export class PurchasesService {
           ) VALUES (?, ?, ?, ?, ?, 0.00, ?, 'PENDING')`,
           [payableId, receipt.branch_id, receipt.supplier_id, invoiceId, totalAmount, dueDate]
         );
+      } else {
+        const paymentId = crypto.randomUUID();
+        const pMethod = input.paymentMethod || 'TRANSFER_VES';
+        const pRate = Number(receipt.exchange_rate || 1);
+        const amountUSD = receipt.currency === 'USD' ? totalAmount : Number((totalAmount / pRate).toFixed(2));
+        const amountVES = receipt.currency === 'VES' ? totalAmount : Number((totalAmount * pRate).toFixed(2));
+        const refNum = input.referenceNumber ? input.referenceNumber.trim() : `COMPRA-CONTADO-${input.invoiceNumber}`;
+
+        await conn.execute(
+          `INSERT INTO purchase_payments (
+            id, invoice_id, payable_id, method, amount_ves, amount_usd,
+            exchange_rate, reference_number, notes
+          ) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?)`,
+          [
+            paymentId,
+            invoiceId,
+            pMethod,
+            amountVES,
+            amountUSD,
+            pRate,
+            refNum,
+            input.notes || `Pago de contado Factura de Compra ${input.invoiceNumber}`,
+          ]
+        );
+
+        if (input.bankAccountId) {
+          const [accRows]: any = await conn.execute(
+            `SELECT id, currency, current_balance, description FROM bank_accounts WHERE id = ? FOR UPDATE`,
+            [input.bankAccountId]
+          );
+          if (accRows && accRows.length > 0) {
+            const acc = accRows[0];
+            const withdrawalAmount = acc.currency === 'VES' ? amountVES : amountUSD;
+            const newBal = Number((Number(acc.current_balance) - withdrawalAmount).toFixed(2));
+
+            await conn.execute(
+              `UPDATE bank_accounts SET current_balance = ?, updated_at = NOW() WHERE id = ?`,
+              [newBal, acc.id]
+            );
+
+            await conn.execute(
+              `INSERT INTO bank_movements (
+                id, account_id, user_id, movement_type, amount, balance_after,
+                movement_date, reference_number, concept, is_reconciled
+              ) VALUES (?, ?, ?, 'WITHDRAWAL', ?, ?, NOW(), ?, ?, 0)`,
+              [
+                crypto.randomUUID(),
+                acc.id,
+                userId,
+                withdrawalAmount,
+                newBal,
+                refNum,
+                `Pago compra de contado Factura ${input.invoiceNumber} - ${receipt.supplier_name || 'Proveedor'}`,
+              ]
+            );
+          }
+        }
       }
 
       // 6. Actualizar recepción con estado INVOICED y enlace a la factura
@@ -776,6 +835,13 @@ export class PurchasesService {
          WHERE id = ?`,
         [invoiceId, input.receiptId]
       );
+
+      // 7. Motor de Contabilización Automática de Compras
+      try {
+        await AccountingAutoPostingService.postPurchaseInvoice(conn, invoiceId, userId);
+      } catch (accErr: any) {
+        console.error('[AutoPosting] Error contabilizando compra:', accErr.message);
+      }
 
       return {
         invoiceId,

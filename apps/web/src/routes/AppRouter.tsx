@@ -71,6 +71,7 @@ import { GeneralLedgerView } from '../features/accounting/GeneralLedgerView';
 import { TrialBalanceView } from '../features/accounting/TrialBalanceView';
 import { FinancialStatementsView } from '../features/accounting/FinancialStatementsView';
 import { FiscalClosingView } from '../features/accounting/FiscalClosingView';
+import { AutoPostingView } from '../features/accounting/AutoPostingView';
 
 // Módulo Configuración, Licenciamiento & Auditoría (Paso 10)
 import { CompanyConfigView } from '../features/config/CompanyConfigView';
@@ -427,6 +428,15 @@ export const AppRouter: React.FC = () => {
           element={
             <RequirePermission module="accounting" action="read">
               <FiscalClosingView />
+            </RequirePermission>
+          }
+        />
+
+        <Route
+          path="/accounting/auto-posting"
+          element={
+            <RequirePermission module="accounting" action="read">
+              <AutoPostingView />
             </RequirePermission>
           }
         />

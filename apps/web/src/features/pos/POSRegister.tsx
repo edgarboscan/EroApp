@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Button } from '../../components/ui/Button';
-import { Badge } from '../../components/ui/Badge';
-import { Card } from '../../components/ui/Card';
-import { Modal } from '../../components/ui/Modal';
+import React, { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "../../components/ui/Button";
+import { Badge } from "../../components/ui/Badge";
+import { Card } from "../../components/ui/Card";
+import { Modal } from "../../components/ui/Modal";
 import {
   Trash2,
   Plus,
@@ -36,14 +36,17 @@ import {
   Eye,
   Package,
   Utensils,
-} from 'lucide-react';
-import { toast } from 'sonner';
-import { showLeaveCartAlert, showClearCartAlert } from '../../lib/sweetalert';
-import { useAuthStore } from '../../stores/authStore';
-import { useExchangeRateStore } from '../../stores/exchangeRateStore';
-import { FiscalInvoiceModal, FiscalInvoiceTicketData } from './FiscalInvoiceModal';
-import { ImportRestaurantOrderModal } from './ImportRestaurantOrderModal';
-import { ProductSearchModal } from '../../components/search/ProductSearchModal';
+} from "lucide-react";
+import { toast } from "sonner";
+import { showLeaveCartAlert, showClearCartAlert } from "../../lib/sweetalert";
+import { useAuthStore } from "../../stores/authStore";
+import { useExchangeRateStore } from "../../stores/exchangeRateStore";
+import {
+  FiscalInvoiceModal,
+  FiscalInvoiceTicketData,
+} from "./FiscalInvoiceModal";
+import { ImportRestaurantOrderModal } from "./ImportRestaurantOrderModal";
+import { ProductSearchModal } from "../../components/search/ProductSearchModal";
 import {
   formatNumber,
   formatCurrency,
@@ -56,7 +59,7 @@ import {
   isSuperAdminRole,
   isSupervisorOrAdminRole,
   canAuthorizeOperations,
-} from '@ero/shared';
+} from "@ero/shared";
 
 export interface ProductPresentationPOS {
   id: string;
@@ -136,8 +139,9 @@ export const POSRegister: React.FC = () => {
   }, [fetchRate]);
 
   const [products, setProducts] = useState<ProductItem[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isProductSearchModalOpen, setIsProductSearchModalOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isProductSearchModalOpen, setIsProductSearchModalOpen] =
+    useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [activeShift, setActiveShift] = useState<any>(null);
   const [loadingShift, setLoadingShift] = useState(true);
@@ -145,27 +149,29 @@ export const POSRegister: React.FC = () => {
   // Atajo de teclado F3 para buscador de catálogo
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'F3') {
+      if (e.key === "F3") {
         e.preventDefault();
         setIsProductSearchModalOpen(true);
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   // Estado para apertura de turno de caja dentro del POS
   const [showOpenShiftModal, setShowOpenShiftModal] = useState(false);
   const [availableRegisters, setAvailableRegisters] = useState<any[]>([]);
   const [loadingRegisters, setLoadingRegisters] = useState(false);
-  const [openRegisterId, setOpenRegisterId] = useState('');
-  const [openInitialUSD, setOpenInitialUSD] = useState<number | string>('0.00');
-  const [openInitialVES, setOpenInitialVES] = useState<number | string>('0.00');
-  const [openNotes, setOpenNotes] = useState('');
+  const [openRegisterId, setOpenRegisterId] = useState("");
+  const [openInitialUSD, setOpenInitialUSD] = useState<number | string>("0.00");
+  const [openInitialVES, setOpenInitialVES] = useState<number | string>("0.00");
+  const [openNotes, setOpenNotes] = useState("");
   const [isOpeningShift, setIsOpeningShift] = useState(false);
 
   // Opciones de visualización y densidad del catálogo de productos
-  const [catalogViewMode, setCatalogViewMode] = useState<'grid' | 'list'>('grid');
+  const [catalogViewMode, setCatalogViewMode] = useState<"grid" | "list">(
+    "grid",
+  );
   const [catalogOptions, setCatalogOptions] = useState({
     showBarcode: true,
     showSku: true,
@@ -177,10 +183,15 @@ export const POSRegister: React.FC = () => {
 
   // Modal de Selección de Presentaciones del Producto
   const [isPresentationModalOpen, setIsPresentationModalOpen] = useState(false);
-  const [selectedProductForPresentation, setSelectedProductForPresentation] = useState<ProductItem | null>(null);
-  const [selectedPresentationId, setSelectedPresentationId] = useState<string | null>(null);
+  const [selectedProductForPresentation, setSelectedProductForPresentation] =
+    useState<ProductItem | null>(null);
+  const [selectedPresentationId, setSelectedPresentationId] = useState<
+    string | null
+  >(null);
   const [presentationQty, setPresentationQty] = useState<number>(1);
-  const [presentationModalError, setPresentationModalError] = useState<string | null>(null);
+  const [presentationModalError, setPresentationModalError] = useState<
+    string | null
+  >(null);
 
   // Modal para aplicar descuento individual a renglón del carrito
   const [editingDiscountItem, setEditingDiscountItem] = useState<{
@@ -189,8 +200,7 @@ export const POSRegister: React.FC = () => {
     productName: string;
     currentDiscountPercent: number;
   } | null>(null);
-  const [discountInputPercent, setDiscountInputPercent] = useState<string>('0');
-
+  const [discountInputPercent, setDiscountInputPercent] = useState<string>("0");
 
   // Reglas de negocio (Stock negativo y autorizaciones)
   const [businessRules, setBusinessRules] = useState<{
@@ -209,74 +219,98 @@ export const POSRegister: React.FC = () => {
     availableStock: number;
     targetQty: number;
     deficit: number;
-    action: 'ADD' | 'UPDATE' | 'PRESENTATION_AUTH';
+    action: "ADD" | "UPDATE" | "PRESENTATION_AUTH";
     presentationId?: string | null;
     presentationName?: string | null;
     multiplier?: number;
     unitPrice?: number;
   }
-  const [pendingStockApproval, setPendingStockApproval] = useState<SupervisorApprovalRequest | null>(null);
+  const [pendingStockApproval, setPendingStockApproval] =
+    useState<SupervisorApprovalRequest | null>(null);
   const [isSupervisorModalOpen, setIsSupervisorModalOpen] = useState(false);
-  const [supervisorUsername, setSupervisorUsername] = useState('');
-  const [supervisorPassword, setSupervisorPassword] = useState('');
-  const [supervisorNotes, setSupervisorNotes] = useState('');
+  const [supervisorUsername, setSupervisorUsername] = useState("");
+  const [supervisorPassword, setSupervisorPassword] = useState("");
+  const [supervisorNotes, setSupervisorNotes] = useState("");
   const [isAuthorizingSupervisor, setIsAuthorizingSupervisor] = useState(false);
-  const [supervisorAuthError, setSupervisorAuthError] = useState<string | null>(null);
+  const [supervisorAuthError, setSupervisorAuthError] = useState<string | null>(
+    null,
+  );
 
   // Cliente de la venta
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
-  const [customerDocType, setCustomerDocType] = useState<'V' | 'E' | 'J' | 'G' | 'P'>('V');
-  const [customerDocNumber, setCustomerDocNumber] = useState('99999999');
-  const [customerName, setCustomerName] = useState('CONSUMIDOR FINAL');
-  const [customerAddress, setCustomerAddress] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(
+    null,
+  );
+  const [customerDocType, setCustomerDocType] = useState<
+    "V" | "E" | "J" | "G" | "P"
+  >("V");
+  const [customerDocNumber, setCustomerDocNumber] = useState("99999999");
+  const [customerName, setCustomerName] = useState("CONSUMIDOR FINAL");
+  const [customerAddress, setCustomerAddress] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
   const [isSpecialTaxpayer, setIsSpecialTaxpayer] = useState(false);
 
   // Búsqueda de clientes
-  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+  const [customerSearchQuery, setCustomerSearchQuery] = useState("");
   const [customerSearchResults, setCustomerSearchResults] = useState<any[]>([]);
   const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
 
   // Modal: Registrar Nuevo Cliente
   const [isNewCustomerModalOpen, setIsNewCustomerModalOpen] = useState(false);
-  const [newCustomerDocType, setNewCustomerDocType] = useState<'V' | 'E' | 'J' | 'G' | 'P'>('V');
-  const [newCustomerDocNumber, setNewCustomerDocNumber] = useState('');
-  const [newCustomerName, setNewCustomerName] = useState('');
-  const [newCustomerPhone, setNewCustomerPhone] = useState('');
-  const [newCustomerEmail, setNewCustomerEmail] = useState('');
-  const [newCustomerAddress, setNewCustomerAddress] = useState('');
-  const [newCustomerIsSpecialTaxpayer, setNewCustomerIsSpecialTaxpayer] = useState(false);
+  const [newCustomerDocType, setNewCustomerDocType] = useState<
+    "V" | "E" | "J" | "G" | "P"
+  >("V");
+  const [newCustomerDocNumber, setNewCustomerDocNumber] = useState("");
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [newCustomerPhone, setNewCustomerPhone] = useState("");
+  const [newCustomerEmail, setNewCustomerEmail] = useState("");
+  const [newCustomerAddress, setNewCustomerAddress] = useState("");
+  const [newCustomerIsSpecialTaxpayer, setNewCustomerIsSpecialTaxpayer] =
+    useState(false);
   const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
   const [newCustomerError, setNewCustomerError] = useState<string | null>(null);
 
   // Modal de Pago
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
-  const [currentMethod, setCurrentMethod] = useState<string>('CASH_USD');
-  const [availablePaymentMethods, setAvailablePaymentMethods] = useState<PaymentMethod[]>([]);
-  const [paymentCurrencyMode, setPaymentCurrencyMode] = useState<'USD' | 'VES'>('USD');
-  const [paymentAmountInput, setPaymentAmountInput] = useState<string>('');
-  const [paymentRefInput, setPaymentRefInput] = useState<string>('');
+  const [currentMethod, setCurrentMethod] = useState<string>("CASH_USD");
+  const [availablePaymentMethods, setAvailablePaymentMethods] = useState<
+    PaymentMethod[]
+  >([]);
+  const [paymentCurrencyMode, setPaymentCurrencyMode] = useState<"USD" | "VES">(
+    "USD",
+  );
+  const [paymentAmountInput, setPaymentAmountInput] = useState<string>("");
+  const [paymentRefInput, setPaymentRefInput] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Modal de Ticket Fiscal Emitido / Ticket de Venta
-  const [invoiceTicketData, setInvoiceTicketData] = useState<FiscalInvoiceTicketData | null>(null);
+  const [invoiceTicketData, setInvoiceTicketData] =
+    useState<FiscalInvoiceTicketData | null>(null);
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
   const [showPrintPromptModal, setShowPrintPromptModal] = useState(false);
 
   // Integración Restaurante -> POS (Importar Comandas Cerradas)
-  const [isImportRestaurantModalOpen, setIsImportRestaurantModalOpen] = useState(false);
-  const [importedRestaurantOrderId, setImportedRestaurantOrderId] = useState<string | null>(null);
+  const [isImportRestaurantModalOpen, setIsImportRestaurantModalOpen] =
+    useState(false);
+  const [importedRestaurantOrderId, setImportedRestaurantOrderId] = useState<
+    string | null
+  >(null);
 
   const handleImportRestaurantOrder = (restaurantOrder: any) => {
-    if (!restaurantOrder || !restaurantOrder.items || restaurantOrder.items.length === 0) {
-      toast.error('La comanda seleccionada no contiene productos');
+    if (
+      !restaurantOrder ||
+      !restaurantOrder.items ||
+      restaurantOrder.items.length === 0
+    ) {
+      toast.error("La comanda seleccionada no contiene productos");
       return;
     }
 
     const newCartItems: CartItem[] = restaurantOrder.items.map((it: any) => {
-      const matchedProd = products.find((p) => p.id === it.product_id || p.sku === it.sku);
+      const matchedProd = products.find(
+        (p) => p.id === it.product_id || p.sku === it.sku,
+      );
       const taxRatePercent = matchedProd ? matchedProd.taxRatePercent : 16;
       const unitPrice = Number(it.unit_price_usd);
       const quantity = Number(it.quantity);
@@ -289,7 +323,7 @@ export const POSRegister: React.FC = () => {
 
       return {
         productId: it.product_id || `rest-${it.id}`,
-        sku: it.sku || 'REST-ITEM',
+        sku: it.sku || "REST-ITEM",
         name: it.product_name,
         quantity,
         unitPrice,
@@ -305,11 +339,13 @@ export const POSRegister: React.FC = () => {
 
     const tipUsd = Number(restaurantOrder.tip_usd || 0);
     if (tipUsd > 0) {
-      const tipCatalogProduct = products.find((p) => p.sku === 'PROPINA');
+      const tipCatalogProduct = products.find((p) => p.sku === "PROPINA");
       newCartItems.push({
-        productId: tipCatalogProduct ? tipCatalogProduct.id : `rest-tip-${restaurantOrder.id}`,
-        sku: 'PROPINA',
-        name: `Propina del Servicio (${restaurantOrder.table_name || 'Mesa ' + restaurantOrder.table_number})`,
+        productId: tipCatalogProduct
+          ? tipCatalogProduct.id
+          : `rest-tip-${restaurantOrder.id}`,
+        sku: "PROPINA",
+        name: `Propina del Servicio (${restaurantOrder.table_name || "Mesa " + restaurantOrder.table_number})`,
         quantity: 1,
         unitPrice: tipUsd,
         taxRatePercent: 0,
@@ -332,7 +368,9 @@ export const POSRegister: React.FC = () => {
       }
     }
 
-    toast.success(`Comanda ${restaurantOrder.order_number} (${restaurantOrder.table_name || 'Mesa'}) importada al carrito`);
+    toast.success(
+      `Comanda ${restaurantOrder.order_number} (${restaurantOrder.table_name || "Mesa"}) importada al carrito`,
+    );
   };
 
   // Modal de captura / edición de referencia bancaria o lote
@@ -347,27 +385,27 @@ export const POSRegister: React.FC = () => {
     isEditingPaymentIndex?: number;
   }>({
     isOpen: false,
-    method: '',
-    methodName: '',
+    method: "",
+    methodName: "",
     amountUSD: 0,
     amountVES: 0,
     isVES: false,
-    refValue: '',
+    refValue: "",
   });
 
   // Manejo global de tecla Escape para cancelar o cerrar modales activos
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         if (quickRefPrompt.isOpen) {
           setQuickRefPrompt({
             isOpen: false,
-            method: '',
-            methodName: '',
+            method: "",
+            methodName: "",
             amountUSD: 0,
             amountVES: 0,
             isVES: false,
-            refValue: '',
+            refValue: "",
           });
         } else if (editingDiscountItem) {
           setEditingDiscountItem(null);
@@ -393,8 +431,8 @@ export const POSRegister: React.FC = () => {
         }
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [
     quickRefPrompt.isOpen,
     editingDiscountItem,
@@ -414,21 +452,22 @@ export const POSRegister: React.FC = () => {
 
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
-      e.returnValue = '';
-      return '';
+      e.returnValue = "";
+      return "";
     };
 
     const handleDocumentClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement | null;
-      const anchor = target?.closest('a');
+      const anchor = target?.closest("a");
       if (!anchor) return;
 
-      const href = anchor.getAttribute('href');
-      if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
-      if (anchor.target === '_blank') return;
+      const href = anchor.getAttribute("href");
+      if (!href || href.startsWith("#") || href.startsWith("javascript:"))
+        return;
+      if (anchor.target === "_blank") return;
 
       const currentPath = window.location.pathname;
-      if (href !== currentPath && !href.startsWith(currentPath + '#')) {
+      if (href !== currentPath && !href.startsWith(currentPath + "#")) {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
@@ -436,7 +475,7 @@ export const POSRegister: React.FC = () => {
         showLeaveCartAlert().then((confirmed) => {
           if (confirmed) {
             setCart([]);
-            if (href.startsWith('http://') || href.startsWith('https://')) {
+            if (href.startsWith("http://") || href.startsWith("https://")) {
               window.location.href = href;
             } else {
               navigate(href);
@@ -447,7 +486,7 @@ export const POSRegister: React.FC = () => {
     };
 
     const handlePopState = () => {
-      window.history.pushState(null, '', window.location.pathname);
+      window.history.pushState(null, "", window.location.pathname);
       showLeaveCartAlert().then((confirmed) => {
         if (confirmed) {
           setCart([]);
@@ -456,21 +495,21 @@ export const POSRegister: React.FC = () => {
       });
     };
 
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    document.addEventListener('click', handleDocumentClick, true);
-    window.addEventListener('popstate', handlePopState);
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    document.addEventListener("click", handleDocumentClick, true);
+    window.addEventListener("popstate", handlePopState);
 
     return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      document.removeEventListener('click', handleDocumentClick, true);
-      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("click", handleDocumentClick, true);
+      window.removeEventListener("popstate", handlePopState);
     };
   }, [cart.length, navigate]);
 
   // Determinar si la caja activa opera con impresora fiscal
   const isFiscal = useMemo(() => {
     if (!activeShift) return false;
-    return activeShift.invoiceMode === 'fiscal_printer';
+    return activeShift.invoiceMode === "fiscal_printer";
   }, [activeShift]);
 
   useEffect(() => {
@@ -489,8 +528,13 @@ export const POSRegister: React.FC = () => {
     const timer = setTimeout(async () => {
       setIsSearchingCustomer(true);
       try {
-        const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-        const res = await fetch(`/api/customers?search=${encodeURIComponent(customerSearchQuery.trim())}`, { headers });
+        const headers = token
+          ? { Authorization: `Bearer ${token}` }
+          : undefined;
+        const res = await fetch(
+          `/api/customers?search=${encodeURIComponent(customerSearchQuery.trim())}`,
+          { headers },
+        );
         if (res.ok) {
           const json = await res.json();
           if (json.success && Array.isArray(json.data)) {
@@ -510,13 +554,19 @@ export const POSRegister: React.FC = () => {
   const fetchBusinessRules = async () => {
     try {
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const res = await fetch('/api/config/business-rules', { headers });
+      const res = await fetch("/api/config/business-rules", { headers });
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.data) {
           setBusinessRules({
-            allowNegativeStock: json.data.allowNegativeStock !== undefined ? Boolean(json.data.allowNegativeStock) : true,
-            requireApprovalNegativeStock: json.data.requireApprovalNegativeStock !== undefined ? Boolean(json.data.requireApprovalNegativeStock) : true,
+            allowNegativeStock:
+              json.data.allowNegativeStock !== undefined
+                ? Boolean(json.data.allowNegativeStock)
+                : true,
+            requireApprovalNegativeStock:
+              json.data.requireApprovalNegativeStock !== undefined
+                ? Boolean(json.data.requireApprovalNegativeStock)
+                : true,
           });
         }
       }
@@ -528,9 +578,11 @@ export const POSRegister: React.FC = () => {
   const checkCurrentShift = async () => {
     setLoadingShift(true);
     try {
-      const branchParam = activeBranchId ? `?branchId=${activeBranchId}` : '';
+      const branchParam = activeBranchId ? `?branchId=${activeBranchId}` : "";
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const res = await fetch(`/api/pos/shifts/current${branchParam}`, { headers });
+      const res = await fetch(`/api/pos/shifts/current${branchParam}`, {
+        headers,
+      });
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.data) {
@@ -552,7 +604,7 @@ export const POSRegister: React.FC = () => {
   const fetchRegistersForShift = async () => {
     setLoadingRegisters(true);
     try {
-      const branchParam = activeBranchId ? `?branchId=${activeBranchId}` : '';
+      const branchParam = activeBranchId ? `?branchId=${activeBranchId}` : "";
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
       const res = await fetch(`/api/pos/registers${branchParam}`, { headers });
       if (res.ok) {
@@ -575,26 +627,31 @@ export const POSRegister: React.FC = () => {
   const handleOpenShiftSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!openRegisterId) {
-      toast.error('Debe seleccionar una caja registradora');
+      toast.error("Debe seleccionar una caja registradora");
       return;
     }
     const reg = availableRegisters.find((r) => r.id === openRegisterId);
     if (reg?.hasActiveShift) {
-      toast.error(`La caja ${reg.code} ya tiene un turno abierto por ${reg.activeCashierName || 'otro cajero'}`);
+      toast.error(
+        `La caja ${reg.code} ya tiene un turno abierto por ${reg.activeCashierName || "otro cajero"}`,
+      );
       return;
     }
 
     setIsOpeningShift(true);
     try {
-      const res = await fetch('/api/pos/shifts/open', {
-        method: 'POST',
+      const res = await fetch("/api/pos/shifts/open", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
           cashRegisterId: openRegisterId,
-          branchId: activeBranchId || reg?.branchId || 'b1111111-1111-1111-1111-111111111111',
+          branchId:
+            activeBranchId ||
+            reg?.branchId ||
+            "b1111111-1111-1111-1111-111111111111",
           initialCashUSD: Number(openInitialUSD) || 0,
           initialCashVES: Number(openInitialVES) || 0,
           notes: openNotes.trim() || null,
@@ -603,44 +660,57 @@ export const POSRegister: React.FC = () => {
 
       const json = await res.json();
       if (!res.ok || !json.success) {
-        throw new Error(json.error?.message || json.message || 'Error al abrir el turno');
+        throw new Error(
+          json.error?.message || json.message || "Error al abrir el turno",
+        );
       }
 
-      toast.success('Turno de caja abierto correctamente');
+      toast.success("Turno de caja abierto correctamente");
       setShowOpenShiftModal(false);
       await checkCurrentShift();
     } catch (err: any) {
-      toast.error(err.message || 'Error al abrir turno');
+      toast.error(err.message || "Error al abrir turno");
     } finally {
       setIsOpeningShift(false);
     }
   };
 
-  const fetchProducts = async (warehouseIdOverride?: string, cashRegisterIdOverride?: string) => {
+  const fetchProducts = async (
+    warehouseIdOverride?: string,
+    cashRegisterIdOverride?: string,
+  ) => {
     try {
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const targetWh = warehouseIdOverride || activeShift?.warehouseId || activeWarehouseId;
+      const targetWh =
+        warehouseIdOverride || activeShift?.warehouseId || activeWarehouseId;
       const targetCR = cashRegisterIdOverride || activeShift?.cashRegisterId;
       const params = new URLSearchParams();
       if (targetWh) {
-        params.append('warehouseId', targetWh);
+        params.append("warehouseId", targetWh);
       } else {
-        params.append('warehouseScope', 'pos');
+        params.append("warehouseScope", "pos");
       }
       if (targetCR) {
-        params.append('cashRegisterId', targetCR);
+        params.append("cashRegisterId", targetCR);
       }
       if (activeBranchId) {
-        params.append('branchId', activeBranchId);
+        params.append("branchId", activeBranchId);
       }
-      const res = await fetch(`/api/inventory/products?${params.toString()}`, { headers });
+      const res = await fetch(`/api/inventory/products?${params.toString()}`, {
+        headers,
+      });
       if (res.ok) {
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
           const mapped: ProductItem[] = json.data.map((p: any) => {
             const rawTax = p.taxRate ?? p.tax_rate_percentage ?? p.tax_rate;
-            const parsedTax = rawTax !== undefined && rawTax !== null ? parseFloat(rawTax) : 16.0;
-            const price = parseFloat(p.basePrice ?? p.sale_price_usd ?? p.base_price ?? 0);
+            const parsedTax =
+              rawTax !== undefined && rawTax !== null
+                ? parseFloat(rawTax)
+                : 16.0;
+            const price = parseFloat(
+              p.basePrice ?? p.sale_price_usd ?? p.base_price ?? 0,
+            );
             const stock = parseFloat(p.currentStock ?? p.stock ?? 0);
 
             return {
@@ -652,7 +722,8 @@ export const POSRegister: React.FC = () => {
               priceUSD: isNaN(price) || price <= 0 ? 0 : price,
               taxRatePercent: isNaN(parsedTax) ? 16.0 : parsedTax,
               stock: isNaN(stock) ? 0 : stock,
-              tracksInventory: p.tracksInventory !== false && p.tracks_inventory !== 0,
+              tracksInventory:
+                p.tracksInventory !== false && p.tracks_inventory !== 0,
               barcode: p.barcode,
               unitOfMeasure: p.unitOfMeasure,
               presentations: Array.isArray(p.presentations)
@@ -691,7 +762,7 @@ export const POSRegister: React.FC = () => {
   const fetchPaymentMethods = async () => {
     try {
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const res = await fetch('/api/pos/payment-methods', { headers });
+      const res = await fetch("/api/pos/payment-methods", { headers });
       if (res.ok) {
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
@@ -706,55 +777,57 @@ export const POSRegister: React.FC = () => {
   };
 
   const handleSelectCustomer = (c: any) => {
-    const isBlocked = Boolean(c.isBlocked || c.is_blocked || c.status === 'BLOCKED');
+    const isBlocked = Boolean(
+      c.isBlocked || c.is_blocked || c.status === "BLOCKED",
+    );
     if (isBlocked) {
       toast.error(
-        `El cliente "${c.name}" está BLOQUEADO. Motivo: ${c.blockReason || c.block_reason || 'Consulte con administración'}. No puede ser seleccionado.`
+        `El cliente "${c.name}" está BLOQUEADO. Motivo: ${c.blockReason || c.block_reason || "Consulte con administración"}. No puede ser seleccionado.`,
       );
       return;
     }
     setSelectedCustomerId(c.id);
-    setCustomerDocType(c.docType || 'V');
-    setCustomerDocNumber(c.docNumber || '');
-    setCustomerName(c.name || '');
-    setCustomerAddress(c.address || '');
-    setCustomerPhone(c.phone || '');
+    setCustomerDocType(c.docType || "V");
+    setCustomerDocNumber(c.docNumber || "");
+    setCustomerName(c.name || "");
+    setCustomerAddress(c.address || "");
+    setCustomerPhone(c.phone || "");
     setIsSpecialTaxpayer(Boolean(c.isSpecialTaxpayer));
-    setCustomerSearchQuery('');
+    setCustomerSearchQuery("");
     setShowCustomerDropdown(false);
     toast.success(`Cliente seleccionado: ${c.name}`);
   };
 
   const handleResetToConsumerFinal = () => {
     setSelectedCustomerId(null);
-    setCustomerDocType('V');
-    setCustomerDocNumber('99999999');
-    setCustomerName('CONSUMIDOR FINAL');
-    setCustomerAddress('');
-    setCustomerPhone('');
+    setCustomerDocType("V");
+    setCustomerDocNumber("99999999");
+    setCustomerName("CONSUMIDOR FINAL");
+    setCustomerAddress("");
+    setCustomerPhone("");
     setIsSpecialTaxpayer(false);
-    setCustomerSearchQuery('');
+    setCustomerSearchQuery("");
     setShowCustomerDropdown(false);
   };
 
   const handleCreateCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCustomerDocNumber.trim()) {
-      setNewCustomerError('El número de documento es requerido');
+      setNewCustomerError("El número de documento es requerido");
       return;
     }
     if (!newCustomerName.trim()) {
-      setNewCustomerError('El nombre o razón social es requerido');
+      setNewCustomerError("El nombre o razón social es requerido");
       return;
     }
 
     setIsCreatingCustomer(true);
     setNewCustomerError(null);
     try {
-      const res = await fetch('/api/customers', {
-        method: 'POST',
+      const res = await fetch("/api/customers", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
@@ -770,20 +843,24 @@ export const POSRegister: React.FC = () => {
 
       const json = await res.json();
       if (!res.ok || !json.success) {
-        throw new Error(json.error?.message || json.message || 'Error al registrar el cliente');
+        throw new Error(
+          json.error?.message ||
+            json.message ||
+            "Error al registrar el cliente",
+        );
       }
 
       handleSelectCustomer(json.data);
-      toast.success('Cliente registrado exitosamente');
+      toast.success("Cliente registrado exitosamente");
       setIsNewCustomerModalOpen(false);
-      setNewCustomerDocNumber('');
-      setNewCustomerName('');
-      setNewCustomerPhone('');
-      setNewCustomerEmail('');
-      setNewCustomerAddress('');
+      setNewCustomerDocNumber("");
+      setNewCustomerName("");
+      setNewCustomerPhone("");
+      setNewCustomerEmail("");
+      setNewCustomerAddress("");
       setNewCustomerIsSpecialTaxpayer(false);
     } catch (err: any) {
-      setNewCustomerError(err.message || 'Error al registrar cliente');
+      setNewCustomerError(err.message || "Error al registrar cliente");
     } finally {
       setIsCreatingCustomer(false);
     }
@@ -791,13 +868,17 @@ export const POSRegister: React.FC = () => {
 
   // Departamentos permitidos para la caja registradora activa
   const allowedDepartmentIds = useMemo<string[]>(() => {
-    return Array.isArray(activeShift?.allowedDepartmentIds) ? activeShift.allowedDepartmentIds : [];
+    return Array.isArray(activeShift?.allowedDepartmentIds)
+      ? activeShift.allowedDepartmentIds
+      : [];
   }, [activeShift]);
 
   // Productos visibles en la caja (si no tiene departamentos configurados, muestra todos)
   const visibleProducts = useMemo(() => {
     if (allowedDepartmentIds.length === 0) return products;
-    return products.filter((p) => p.departmentId && allowedDepartmentIds.includes(p.departmentId));
+    return products.filter(
+      (p) => p.departmentId && allowedDepartmentIds.includes(p.departmentId),
+    );
   }, [products, allowedDepartmentIds]);
 
   // Filtrado de productos (búsqueda por nombre, SKU principal, código de barras o SKUs/códigos de presentaciones)
@@ -814,8 +895,8 @@ export const POSRegister: React.FC = () => {
             (pr) =>
               (pr.sku && pr.sku.toLowerCase().includes(term)) ||
               (pr.barcode && pr.barcode.toLowerCase().includes(term)) ||
-              (pr.name && pr.name.toLowerCase().includes(term))
-          ))
+              (pr.name && pr.name.toLowerCase().includes(term)),
+          )),
     );
   }, [visibleProducts, searchTerm]);
 
@@ -829,12 +910,13 @@ export const POSRegister: React.FC = () => {
       if (p.presentations && p.presentations.length > 0) {
         const matchedPres = p.presentations.find(
           (pr) =>
-            (pr.barcode && pr.barcode.trim().toLowerCase() === term.toLowerCase()) ||
-            (pr.sku && pr.sku.trim().toLowerCase() === term.toLowerCase())
+            (pr.barcode &&
+              pr.barcode.trim().toLowerCase() === term.toLowerCase()) ||
+            (pr.sku && pr.sku.trim().toLowerCase() === term.toLowerCase()),
         );
         if (matchedPres) {
           addPresentationToCart(p, matchedPres);
-          setSearchTerm('');
+          setSearchTerm("");
           return;
         }
       }
@@ -844,11 +926,11 @@ export const POSRegister: React.FC = () => {
     const exactProduct = visibleProducts.find(
       (p) =>
         (p.barcode && p.barcode.trim().toLowerCase() === term.toLowerCase()) ||
-        p.sku.trim().toLowerCase() === term.toLowerCase()
+        p.sku.trim().toLowerCase() === term.toLowerCase(),
     );
     if (exactProduct) {
       addPresentationToCart(exactProduct, null);
-      setSearchTerm('');
+      setSearchTerm("");
       return;
     }
 
@@ -857,19 +939,22 @@ export const POSRegister: React.FC = () => {
       const topProduct = filteredProducts[0];
       const matchedPresInTop = topProduct.presentations?.find(
         (pr) =>
-          (pr.barcode && pr.barcode.trim().toLowerCase() === term.toLowerCase()) ||
-          (pr.sku && pr.sku.trim().toLowerCase() === term.toLowerCase())
+          (pr.barcode &&
+            pr.barcode.trim().toLowerCase() === term.toLowerCase()) ||
+          (pr.sku && pr.sku.trim().toLowerCase() === term.toLowerCase()),
       );
       if (matchedPresInTop) {
         addPresentationToCart(topProduct, matchedPresInTop);
       } else {
         addPresentationToCart(topProduct, null);
       }
-      setSearchTerm('');
+      setSearchTerm("");
       return;
     }
 
-    toast.error(`No se encontró ningún producto o presentación con el código "${term}"`);
+    toast.error(
+      `No se encontró ningún producto o presentación con el código "${term}"`,
+    );
   };
 
   // Aplica la modificación al carrito registrando el estado de autorización si aplica
@@ -880,7 +965,7 @@ export const POSRegister: React.FC = () => {
     isAuthorized = false,
     authorizedBy?: string,
     isPresAuthorized = false,
-    discountPercentOverride?: number
+    discountPercentOverride?: number,
   ) => {
     const presId = presentation?.id || null;
     const multiplier = presentation?.multiplier || 1;
@@ -890,33 +975,46 @@ export const POSRegister: React.FC = () => {
       presentation?.basePrice !== null && presentation?.basePrice !== undefined
         ? presentation.basePrice
         : Number((product.priceUSD * multiplier).toFixed(4));
-    const displayName = presName ? `${product.name} (${presName})` : product.name;
+    const displayName = presName
+      ? `${product.name} (${presName})`
+      : product.name;
     const requiresAuth = Boolean(presentation?.requiresAuthorization);
 
     setCart((prev) => {
       const existing = prev.find(
-        (item) => item.productId === product.id && (item.presentationId || null) === presId
+        (item) =>
+          item.productId === product.id &&
+          (item.presentationId || null) === presId,
       );
       if (newQuantity <= 0) {
         return prev.filter(
-          (item) => !(item.productId === product.id && (item.presentationId || null) === presId)
+          (item) =>
+            !(
+              item.productId === product.id &&
+              (item.presentationId || null) === presId
+            ),
         );
       }
 
       const discPercent =
         discountPercentOverride !== undefined
           ? discountPercentOverride
-          : (existing?.discountPercent || 0);
+          : existing?.discountPercent || 0;
 
       const grossAmount = Number((newQuantity * presPrice).toFixed(2));
-      const discountAmount = Number(((grossAmount * discPercent) / 100).toFixed(2));
+      const discountAmount = Number(
+        ((grossAmount * discPercent) / 100).toFixed(2),
+      );
       const subtotal = Number((grossAmount - discountAmount).toFixed(2));
-      const taxAmount = Number(((subtotal * product.taxRatePercent) / 100).toFixed(2));
+      const taxAmount = Number(
+        ((subtotal * product.taxRatePercent) / 100).toFixed(2),
+      );
       const total = Number((subtotal + taxAmount).toFixed(2));
 
       if (existing) {
         return prev.map((item) =>
-          item.productId === product.id && (item.presentationId || null) === presId
+          item.productId === product.id &&
+          (item.presentationId || null) === presId
             ? {
                 ...item,
                 quantity: newQuantity,
@@ -927,12 +1025,15 @@ export const POSRegister: React.FC = () => {
                 subtotal,
                 taxAmount,
                 total,
-                isNegativeStockAuthorized: isAuthorized || item.isNegativeStockAuthorized,
-                isPresentationAuthorized: isPresAuthorized || item.isPresentationAuthorized,
-                requiresAuthorization: requiresAuth || item.requiresAuthorization,
+                isNegativeStockAuthorized:
+                  isAuthorized || item.isNegativeStockAuthorized,
+                isPresentationAuthorized:
+                  isPresAuthorized || item.isPresentationAuthorized,
+                requiresAuthorization:
+                  requiresAuth || item.requiresAuthorization,
                 supervisorApprovedBy: authorizedBy || item.supervisorApprovedBy,
               }
-            : item
+            : item,
         );
       }
 
@@ -967,16 +1068,20 @@ export const POSRegister: React.FC = () => {
   const addPresentationToCart = (
     product: ProductItem,
     presentation?: ProductPresentationPOS | null,
-    qtyToAdd = 1
+    qtyToAdd = 1,
   ) => {
     const validQtyToAdd = Math.max(1, qtyToAdd);
     const presId = presentation?.id || null;
     const multiplier = presentation?.multiplier || 1;
     const presName = presentation?.name || null;
-    const displayName = presName ? `${product.name} (${presName})` : product.name;
+    const displayName = presName
+      ? `${product.name} (${presName})`
+      : product.name;
 
     const existing = cart.find(
-      (item) => item.productId === product.id && (item.presentationId || null) === presId
+      (item) =>
+        item.productId === product.id &&
+        (item.presentationId || null) === presId,
     );
     const currentQty = existing ? existing.quantity : 0;
     const targetQty = currentQty + validQtyToAdd;
@@ -984,7 +1089,10 @@ export const POSRegister: React.FC = () => {
     // Validar si la presentación requiere autorización de supervisor para ser vendida
     const isAlreadyPresAuthorized = Boolean(existing?.isPresentationAuthorized);
     if (presentation?.requiresAuthorization && !isAlreadyPresAuthorized) {
-      const isCurrentUserAdmin = canAuthorizeOperations(user?.role, user?.permissions);
+      const isCurrentUserAdmin = canAuthorizeOperations(
+        user?.role,
+        user?.permissions,
+      );
       if (!isCurrentUserAdmin) {
         setPendingStockApproval({
           productId: product.id,
@@ -993,22 +1101,23 @@ export const POSRegister: React.FC = () => {
           availableStock: product.stock ?? 0,
           targetQty,
           deficit: 0,
-          action: 'PRESENTATION_AUTH',
+          action: "PRESENTATION_AUTH",
           presentationId: presId,
           presentationName: presName,
           multiplier,
           unitPrice:
-            presentation?.basePrice !== null && presentation?.basePrice !== undefined
+            presentation?.basePrice !== null &&
+            presentation?.basePrice !== undefined
               ? presentation.basePrice
               : Number((product.priceUSD * multiplier).toFixed(4)),
         });
         setSupervisorAuthError(null);
-        setSupervisorUsername('');
-        setSupervisorPassword('');
-        setSupervisorNotes('');
+        setSupervisorUsername("");
+        setSupervisorPassword("");
+        setSupervisorNotes("");
         setIsSupervisorModalOpen(true);
         toast.warning(
-          `La presentación "${presName}" requiere autorización de supervisor para ser vendida.`
+          `La presentación "${presName}" requiere autorización de supervisor para ser vendida.`,
         );
         return;
       }
@@ -1016,10 +1125,14 @@ export const POSRegister: React.FC = () => {
 
     // Calcular cuántas unidades base del producto ya están en el carrito por otros renglones
     const otherCommittedUnits = cart
-      .filter((i) => i.productId === product.id && (i.presentationId || null) !== presId)
+      .filter(
+        (i) =>
+          i.productId === product.id && (i.presentationId || null) !== presId,
+      )
       .reduce((sum, i) => sum + i.quantity * (i.multiplier || 1), 0);
 
-    const totalBaseUnitsRequested = otherCommittedUnits + targetQty * multiplier;
+    const totalBaseUnitsRequested =
+      otherCommittedUnits + targetQty * multiplier;
     const availableStock = product.stock ?? 0;
     const tracksInventory = product.tracksInventory !== false;
 
@@ -1027,7 +1140,7 @@ export const POSRegister: React.FC = () => {
     if (tracksInventory && totalBaseUnitsRequested > availableStock) {
       if (!businessRules.allowNegativeStock) {
         toast.error(
-          `Existencia insuficiente para "${displayName}" en almacén (Disponible: ${availableStock} unidades base, Requerido total: ${totalBaseUnitsRequested}). Las reglas de negocio no permiten ventas con existencia en negativo.`
+          `Existencia insuficiente para "${displayName}" en almacén (Disponible: ${availableStock} unidades base, Requerido total: ${totalBaseUnitsRequested}). Las reglas de negocio no permiten ventas con existencia en negativo.`,
         );
         return;
       }
@@ -1040,41 +1153,43 @@ export const POSRegister: React.FC = () => {
           availableStock,
           targetQty,
           deficit: totalBaseUnitsRequested - availableStock,
-          action: existing ? 'UPDATE' : 'ADD',
+          action: existing ? "UPDATE" : "ADD",
           presentationId: presId,
           presentationName: presName,
           multiplier,
           unitPrice:
-            presentation?.basePrice !== null && presentation?.basePrice !== undefined
+            presentation?.basePrice !== null &&
+            presentation?.basePrice !== undefined
               ? presentation.basePrice
               : Number((product.priceUSD * multiplier).toFixed(4)),
         });
         setSupervisorAuthError(null);
-        setSupervisorUsername('');
-        setSupervisorPassword('');
-        setSupervisorNotes('');
+        setSupervisorUsername("");
+        setSupervisorPassword("");
+        setSupervisorNotes("");
         setIsSupervisorModalOpen(true);
         toast.warning(
-          `"${displayName}" excede la existencia disponible en almacén (${availableStock} unidades base). Se requiere autorización de supervisor para continuar.`
+          `"${displayName}" excede la existencia disponible en almacén (${availableStock} unidades base). Se requiere autorización de supervisor para continuar.`,
         );
         return;
       }
 
       toast.warning(
-        `Atención: "${displayName}" excede la existencia disponible (${availableStock} unidades base). Se registrará con existencia en negativo.`
+        `Atención: "${displayName}" excede la existencia disponible (${availableStock} unidades base). Se registrará con existencia en negativo.`,
       );
     }
 
     const autoPresAuth = Boolean(
-      presentation?.requiresAuthorization && canAuthorizeOperations(user?.role, user?.permissions)
+      presentation?.requiresAuthorization &&
+      canAuthorizeOperations(user?.role, user?.permissions),
     );
     applyCartItem(
       product,
       targetQty,
       presentation,
       false,
-      autoPresAuth ? (user?.fullName || user?.role || 'Supervisor') : undefined,
-      autoPresAuth
+      autoPresAuth ? user?.fullName || user?.role || "Supervisor" : undefined,
+      autoPresAuth,
     );
   };
 
@@ -1090,7 +1205,9 @@ export const POSRegister: React.FC = () => {
       setSelectedProductForPresentation(product);
       // Por defecto seleccionar la predeterminada (isDefault === true), o la primera si ninguna lo es
       const defaultPres = product.presentations.find((pr) => pr.isDefault);
-      setSelectedPresentationId(defaultPres ? defaultPres.id : product.presentations[0].id);
+      setSelectedPresentationId(
+        defaultPres ? defaultPres.id : product.presentations[0].id,
+      );
       setPresentationQty(1);
       setPresentationModalError(null);
       setIsPresentationModalOpen(true);
@@ -1105,30 +1222,35 @@ export const POSRegister: React.FC = () => {
     if (!selectedProductForPresentation) return;
 
     if (!selectedPresentationId) {
-      setPresentationModalError('Debe seleccionar una presentación para agregar al carrito.');
+      setPresentationModalError(
+        "Debe seleccionar una presentación para agregar al carrito.",
+      );
       return;
     }
 
     const qty = Number(presentationQty);
     if (isNaN(qty) || qty <= 0) {
-      setPresentationModalError('La cantidad debe ser mayor a 0.');
+      setPresentationModalError("La cantidad debe ser mayor a 0.");
       return;
     }
 
     const pres = selectedProductForPresentation.presentations?.find(
-      (p) => p.id === selectedPresentationId
+      (p) => p.id === selectedPresentationId,
     );
     if (!pres) {
-      setPresentationModalError('La presentación seleccionada no es válida.');
+      setPresentationModalError("La presentación seleccionada no es válida.");
       return;
     }
 
     // Pedir autorización solo si la presentación requiere autorización
     if (pres.requiresAuthorization) {
-      const isAuthorizedUser = canAuthorizeOperations(user?.role, user?.permissions);
+      const isAuthorizedUser = canAuthorizeOperations(
+        user?.role,
+        user?.permissions,
+      );
       if (!isAuthorizedUser) {
         setPresentationModalError(
-          `La presentación "${pres.name}" requiere autorización de un usuario supervisor o administrador. Su usuario no posee permisos para autorizarla.`
+          `La presentación "${pres.name}" requiere autorización de un usuario supervisor o administrador. Su usuario no posee permisos para autorizarla.`,
         );
         return;
       }
@@ -1144,7 +1266,7 @@ export const POSRegister: React.FC = () => {
   const handleRequestSupervisorForPresentation = () => {
     if (!selectedProductForPresentation || !selectedPresentationId) return;
     const pres = selectedProductForPresentation.presentations?.find(
-      (p) => p.id === selectedPresentationId
+      (p) => p.id === selectedPresentationId,
     );
     if (!pres) return;
 
@@ -1152,7 +1274,11 @@ export const POSRegister: React.FC = () => {
     const presPrice =
       pres.basePrice !== null && pres.basePrice !== undefined
         ? pres.basePrice
-        : Number((selectedProductForPresentation.priceUSD * (pres.multiplier || 1)).toFixed(4));
+        : Number(
+            (
+              selectedProductForPresentation.priceUSD * (pres.multiplier || 1)
+            ).toFixed(4),
+          );
     const displayName = `${selectedProductForPresentation.name} (${pres.name})`;
 
     setPendingStockApproval({
@@ -1162,16 +1288,16 @@ export const POSRegister: React.FC = () => {
       availableStock: selectedProductForPresentation.stock ?? 0,
       targetQty: qty,
       deficit: 0,
-      action: 'PRESENTATION_AUTH',
+      action: "PRESENTATION_AUTH",
       presentationId: pres.id,
       presentationName: pres.name,
       multiplier: pres.multiplier,
       unitPrice: presPrice,
     });
     setSupervisorAuthError(null);
-    setSupervisorUsername('');
-    setSupervisorPassword('');
-    setSupervisorNotes('');
+    setSupervisorUsername("");
+    setSupervisorPassword("");
+    setSupervisorNotes("");
     setIsPresentationModalOpen(false);
     setIsSupervisorModalOpen(true);
   };
@@ -1180,16 +1306,28 @@ export const POSRegister: React.FC = () => {
   const handleApplyItemDiscount = (
     productId: string,
     presentationId: string | null,
-    percent: number
+    percent: number,
   ) => {
-    const validPercent = Math.max(0, Math.min(100, isNaN(percent) ? 0 : percent));
+    const validPercent = Math.max(
+      0,
+      Math.min(100, isNaN(percent) ? 0 : percent),
+    );
     setCart((prev) =>
       prev.map((item) => {
-        if (item.productId === productId && (item.presentationId || null) === (presentationId || null)) {
-          const grossAmount = Number((item.quantity * item.unitPrice).toFixed(2));
-          const discountAmount = Number(((grossAmount * validPercent) / 100).toFixed(2));
+        if (
+          item.productId === productId &&
+          (item.presentationId || null) === (presentationId || null)
+        ) {
+          const grossAmount = Number(
+            (item.quantity * item.unitPrice).toFixed(2),
+          );
+          const discountAmount = Number(
+            ((grossAmount * validPercent) / 100).toFixed(2),
+          );
           const subtotal = Number((grossAmount - discountAmount).toFixed(2));
-          const taxAmount = Number(((subtotal * item.taxRatePercent) / 100).toFixed(2));
+          const taxAmount = Number(
+            ((subtotal * item.taxRatePercent) / 100).toFixed(2),
+          );
           const total = Number((subtotal + taxAmount).toFixed(2));
           return {
             ...item,
@@ -1202,7 +1340,7 @@ export const POSRegister: React.FC = () => {
           };
         }
         return item;
-      })
+      }),
     );
     setEditingDiscountItem(null);
     toast.success(`Descuento de ${validPercent}% aplicado al producto.`);
@@ -1211,11 +1349,13 @@ export const POSRegister: React.FC = () => {
   const updateCartQty = (
     productId: string,
     presentationId: string | null | undefined,
-    delta: number
+    delta: number,
   ) => {
     const targetPresId = presentationId || null;
     const existing = cart.find(
-      (item) => item.productId === productId && (item.presentationId || null) === targetPresId
+      (item) =>
+        item.productId === productId &&
+        (item.presentationId || null) === targetPresId,
     );
     if (!existing) return;
 
@@ -1231,17 +1371,26 @@ export const POSRegister: React.FC = () => {
 
     // Unidades base comprometidas por otros renglones del mismo producto
     const otherCommittedUnits = cart
-      .filter((i) => i.productId === productId && (i.presentationId || null) !== targetPresId)
+      .filter(
+        (i) =>
+          i.productId === productId &&
+          (i.presentationId || null) !== targetPresId,
+      )
       .reduce((sum, i) => sum + i.quantity * (i.multiplier || 1), 0);
 
-    const totalBaseUnitsRequested = otherCommittedUnits + targetQty * multiplier;
+    const totalBaseUnitsRequested =
+      otherCommittedUnits + targetQty * multiplier;
     const tracksInventory = product ? product.tracksInventory !== false : true;
 
     // Solo se valida stock si se está aumentando la cantidad y el producto controla existencias
-    if (tracksInventory && delta > 0 && totalBaseUnitsRequested > availableStock) {
+    if (
+      tracksInventory &&
+      delta > 0 &&
+      totalBaseUnitsRequested > availableStock
+    ) {
       if (!businessRules.allowNegativeStock) {
         toast.error(
-          `Existencia insuficiente para "${existing.name}" en almacén (Disponible: ${availableStock} unidades base, Solicitado total: ${totalBaseUnitsRequested}). Las reglas de negocio no permiten ventas con existencia en negativo.`
+          `Existencia insuficiente para "${existing.name}" en almacén (Disponible: ${availableStock} unidades base, Solicitado total: ${totalBaseUnitsRequested}). Las reglas de negocio no permiten ventas con existencia en negativo.`,
         );
         return;
       }
@@ -1254,39 +1403,47 @@ export const POSRegister: React.FC = () => {
           availableStock,
           targetQty,
           deficit: totalBaseUnitsRequested - availableStock,
-          action: 'UPDATE',
+          action: "UPDATE",
           presentationId: targetPresId,
           presentationName: existing.presentationName,
           multiplier,
           unitPrice: existing.unitPrice,
         });
         setSupervisorAuthError(null);
-        setSupervisorUsername('');
-        setSupervisorPassword('');
-        setSupervisorNotes('');
+        setSupervisorUsername("");
+        setSupervisorPassword("");
+        setSupervisorNotes("");
         setIsSupervisorModalOpen(true);
         toast.warning(
-          `Modificación a cantidad ${targetQty} de "${existing.name}" dejará existencia en negativo (${availableStock - totalBaseUnitsRequested} unidades). Se requiere autorización de supervisor.`
+          `Modificación a cantidad ${targetQty} de "${existing.name}" dejará existencia en negativo (${availableStock - totalBaseUnitsRequested} unidades). Se requiere autorización de supervisor.`,
         );
         return;
       }
 
       toast.warning(
-        `Atención: Cantidad solicitada (${targetQty}) para "${existing.name}" excede la existencia disponible (${availableStock} unidades).`
+        `Atención: Cantidad solicitada (${targetQty}) para "${existing.name}" excede la existencia disponible (${availableStock} unidades).`,
       );
     }
 
     if (product) {
-      const presObj = product.presentations?.find((pr) => pr.id === targetPresId) || null;
+      const presObj =
+        product.presentations?.find((pr) => pr.id === targetPresId) || null;
       applyCartItem(product, targetQty, presObj);
     } else {
       setCart((prev) =>
         prev.map((item) => {
-          if (item.productId === productId && (item.presentationId || null) === targetPresId) {
+          if (
+            item.productId === productId &&
+            (item.presentationId || null) === targetPresId
+          ) {
             const grossAmount = Number((targetQty * item.unitPrice).toFixed(2));
-            const discountAmount = Number(((grossAmount * (item.discountPercent || 0)) / 100).toFixed(2));
+            const discountAmount = Number(
+              ((grossAmount * (item.discountPercent || 0)) / 100).toFixed(2),
+            );
             const subtotal = Number((grossAmount - discountAmount).toFixed(2));
-            const taxAmount = Number(((subtotal * item.taxRatePercent) / 100).toFixed(2));
+            const taxAmount = Number(
+              ((subtotal * item.taxRatePercent) / 100).toFixed(2),
+            );
             const total = Number((subtotal + taxAmount).toFixed(2));
             return {
               ...item,
@@ -1299,7 +1456,7 @@ export const POSRegister: React.FC = () => {
             };
           }
           return item;
-        })
+        }),
       );
     }
   };
@@ -1308,17 +1465,22 @@ export const POSRegister: React.FC = () => {
   const handleConfirmSupervisorApproval = async (selfAuth = false) => {
     if (!pendingStockApproval) return;
     if (!selfAuth && (!supervisorUsername.trim() || !supervisorPassword)) {
-      setSupervisorAuthError('Ingrese usuario o correo y contraseña del supervisor');
+      setSupervisorAuthError(
+        "Ingrese usuario o correo y contraseña del supervisor",
+      );
       return;
     }
 
     if (!selfAuth && !canAuthorizeOperations(user?.role, user?.permissions)) {
       const inputUser = supervisorUsername.trim().toLowerCase();
-      const currentEmail = (user?.email || '').toLowerCase();
-      const currentUsername = (user?.username || '').toLowerCase();
-      if ((currentEmail && inputUser === currentEmail) || (currentUsername && inputUser === currentUsername)) {
+      const currentEmail = (user?.email || "").toLowerCase();
+      const currentUsername = (user?.username || "").toLowerCase();
+      if (
+        (currentEmail && inputUser === currentEmail) ||
+        (currentUsername && inputUser === currentUsername)
+      ) {
         setSupervisorAuthError(
-          'Su usuario actual no posee nivel de administrador o supervisor. Las autorizaciones deben ser emitidas por un usuario administrador o con nivel para autorizar.'
+          "Su usuario actual no posee nivel de administrador o supervisor. Las autorizaciones deben ser emitidas por un usuario administrador o con nivel para autorizar.",
         );
         return;
       }
@@ -1327,13 +1489,13 @@ export const POSRegister: React.FC = () => {
     setIsAuthorizingSupervisor(true);
     setSupervisorAuthError(null);
 
-    const isPresAuth = pendingStockApproval.action === 'PRESENTATION_AUTH';
+    const isPresAuth = pendingStockApproval.action === "PRESENTATION_AUTH";
 
     try {
-      const res = await fetch('/api/pos/authorize-supervisor', {
-        method: 'POST',
+      const res = await fetch("/api/pos/authorize-supervisor", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
@@ -1350,23 +1512,33 @@ export const POSRegister: React.FC = () => {
 
       const json = await res.json();
       if (!res.ok || !json.success) {
-        throw new Error(json.error?.message || 'Autorización de supervisor rechazada');
+        throw new Error(
+          json.error?.message || "Autorización de supervisor rechazada",
+        );
       }
 
-      const approverName = json.data?.approvedByUserName || 'Supervisor';
-      const product = products.find((p) => p.id === pendingStockApproval.productId) || {
+      const approverName = json.data?.approvedByUserName || "Supervisor";
+      const product = products.find(
+        (p) => p.id === pendingStockApproval.productId,
+      ) || {
         id: pendingStockApproval.productId,
         sku: pendingStockApproval.sku,
         name: pendingStockApproval.productName,
-        priceUSD: cart.find((i) => i.productId === pendingStockApproval.productId)?.unitPrice || 0,
-        taxRatePercent: cart.find((i) => i.productId === pendingStockApproval.productId)?.taxRatePercent || 16,
+        priceUSD:
+          cart.find((i) => i.productId === pendingStockApproval.productId)
+            ?.unitPrice || 0,
+        taxRatePercent:
+          cart.find((i) => i.productId === pendingStockApproval.productId)
+            ?.taxRatePercent || 16,
         stock: pendingStockApproval.availableStock,
       };
 
       const presObj = pendingStockApproval.presentationId
-        ? product.presentations?.find((pr) => pr.id === pendingStockApproval.presentationId) || {
+        ? product.presentations?.find(
+            (pr) => pr.id === pendingStockApproval.presentationId,
+          ) || {
             id: pendingStockApproval.presentationId,
-            name: pendingStockApproval.presentationName || '',
+            name: pendingStockApproval.presentationName || "",
             multiplier: pendingStockApproval.multiplier || 1,
             basePrice: pendingStockApproval.unitPrice || 0,
             requiresAuthorization: isPresAuth,
@@ -1379,29 +1551,36 @@ export const POSRegister: React.FC = () => {
         presObj,
         !isPresAuth, // isNegativeStockAuthorized
         approverName,
-        isPresAuth // isPresentationAuthorized
+        isPresAuth, // isPresentationAuthorized
       );
 
       toast.success(
         isPresAuth
           ? `Venta de presentación autorizada por ${approverName} para "${pendingStockApproval.productName}"`
-          : `Venta con existencia en negativo aprobada por ${approverName} para "${pendingStockApproval.productName}"`
+          : `Venta con existencia en negativo aprobada por ${approverName} para "${pendingStockApproval.productName}"`,
       );
       setIsSupervisorModalOpen(false);
       setPendingStockApproval(null);
     } catch (err: any) {
-      setSupervisorAuthError(err.message || 'Error al autorizar operación');
+      setSupervisorAuthError(err.message || "Error al autorizar operación");
     } finally {
       setIsAuthorizingSupervisor(false);
     }
   };
 
-  const removeFromCart = (productId: string, presentationId?: string | null) => {
+  const removeFromCart = (
+    productId: string,
+    presentationId?: string | null,
+  ) => {
     const targetPresId = presentationId || null;
     setCart((prev) =>
       prev.filter(
-        (item) => !(item.productId === productId && (item.presentationId || null) === targetPresId)
-      )
+        (item) =>
+          !(
+            item.productId === productId &&
+            (item.presentationId || null) === targetPresId
+          ),
+      ),
     );
   };
 
@@ -1410,35 +1589,40 @@ export const POSRegister: React.FC = () => {
     cart
       .filter((i) => i.taxRatePercent === 0)
       .reduce((sum, i) => sum + i.subtotal, 0)
-      .toFixed(2)
+      .toFixed(2),
   );
   const baseTaxable = Number(
     cart
       .filter((i) => i.taxRatePercent > 0)
       .reduce((sum, i) => sum + i.subtotal, 0)
-      .toFixed(2)
+      .toFixed(2),
   );
   const taxAmount = Number(
-    cart.reduce((sum, i) => sum + i.taxAmount, 0).toFixed(2)
+    cart.reduce((sum, i) => sum + i.taxAmount, 0).toFixed(2),
   );
   const discountTotalAmount = Number(
-    cart.reduce((sum, i) => sum + (i.discountAmount || 0), 0).toFixed(2)
+    cart.reduce((sum, i) => sum + (i.discountAmount || 0), 0).toFixed(2),
   );
-  const subtotalBeforeIGTF = Number((baseExempt + baseTaxable + taxAmount).toFixed(2));
+  const subtotalBeforeIGTF = Number(
+    (baseExempt + baseTaxable + taxAmount).toFixed(2),
+  );
 
   // IGTF calculado de los pagos registrados
   const totalIGTFUSD = Number(
-    payments.reduce((sum, p) => sum + p.igtfAmountUSD, 0).toFixed(2)
+    payments.reduce((sum, p) => sum + p.igtfAmountUSD, 0).toFixed(2),
   );
   const finalTotalUSD = Number((subtotalBeforeIGTF + totalIGTFUSD).toFixed(2));
   const finalTotalVES = Number((finalTotalUSD * exchangeRateBCV).toFixed(2));
 
   // Total pagado acumulado
   const totalPaidUSD = Number(
-    payments.reduce((sum, p) => sum + p.amountUSD, 0).toFixed(2)
+    payments.reduce((sum, p) => sum + p.amountUSD, 0).toFixed(2),
   );
   // El saldo restante debe ser contra el Total Final exigible (incluyendo IGTF)
-  const remainingUSD = Math.max(0, Number((finalTotalUSD - totalPaidUSD).toFixed(2)));
+  const remainingUSD = Math.max(
+    0,
+    Number((finalTotalUSD - totalPaidUSD).toFixed(2)),
+  );
   const remainingVES = Number((remainingUSD * exchangeRateBCV).toFixed(2));
 
   // Verificar si un medio de pago requiere número de referencia bancaria o lote
@@ -1447,34 +1631,44 @@ export const POSRegister: React.FC = () => {
     if (conf) {
       return Boolean(conf.requiresReference);
     }
-    return ['PAGO_MOVIL', 'DEBIT_CARD', 'CREDIT_CARD', 'TRANSFER', 'ZELLE'].includes(methodCode);
+    return [
+      "PAGO_MOVIL",
+      "DEBIT_CARD",
+      "CREDIT_CARD",
+      "TRANSFER",
+      "ZELLE",
+    ].includes(methodCode);
   };
 
   const getMethodName = (methodCode: string): string => {
     const conf = availablePaymentMethods.find((m) => m.code === methodCode);
     if (conf?.name) return conf.name;
     switch (methodCode) {
-      case 'DEBIT_CARD':
-        return 'Punto Débito';
-      case 'CREDIT_CARD':
-        return 'Punto Crédito';
-      case 'PAGO_MOVIL':
-        return 'Pago Móvil';
-      case 'CASH_USD':
-        return 'Efectivo $';
-      case 'CASH_VES':
-        return 'Efectivo Bs';
-      case 'TRANSFER':
-        return 'Transferencia Bancaria';
-      case 'ZELLE':
-        return 'Zelle';
+      case "DEBIT_CARD":
+        return "Punto Débito";
+      case "CREDIT_CARD":
+        return "Punto Crédito";
+      case "PAGO_MOVIL":
+        return "Pago Móvil";
+      case "CASH_USD":
+        return "Efectivo $";
+      case "CASH_VES":
+        return "Efectivo Bs";
+      case "TRANSFER":
+        return "Transferencia Bancaria";
+      case "ZELLE":
+        return "Zelle";
       default:
         return methodCode;
     }
   };
 
   // Cobro rápido con verificación automática de referencia bancaria
-  const handleQuickPay = (method: string, amount: number, isAmountInVES = false) => {
+  const handleQuickPay = (
+    method: string,
+    amount: number,
+    isAmountInVES = false,
+  ) => {
     if (amount <= 0.005) return;
     setCurrentMethod(method);
 
@@ -1483,7 +1677,9 @@ export const POSRegister: React.FC = () => {
 
     // Si requiere referencia y no se ha especificado, abrir modal prompt de captura
     if (requiresRef && !currentRef) {
-      const amtUSD = isAmountInVES ? Number((amount / exchangeRateBCV).toFixed(2)) : amount;
+      const amtUSD = isAmountInVES
+        ? Number((amount / exchangeRateBCV).toFixed(2))
+        : amount;
       const amtVES = Number((amtUSD * exchangeRateBCV).toFixed(2));
       setQuickRefPrompt({
         isOpen: true,
@@ -1492,7 +1688,7 @@ export const POSRegister: React.FC = () => {
         amountUSD: amtUSD,
         amountVES: amtVES,
         isVES: isAmountInVES,
-        refValue: '',
+        refValue: "",
       });
       return;
     }
@@ -1505,7 +1701,7 @@ export const POSRegister: React.FC = () => {
   const handleConfirmQuickRef = () => {
     const trimmed = quickRefPrompt.refValue.trim();
     if (!trimmed) {
-      toast.error('Por favor ingrese el número de referencia para continuar');
+      toast.error("Por favor ingrese el número de referencia para continuar");
       return;
     }
 
@@ -1513,32 +1709,39 @@ export const POSRegister: React.FC = () => {
       const idx = quickRefPrompt.isEditingPaymentIndex;
       setPayments((prev) =>
         prev.map((p, i) =>
-          i === idx ? { ...p, referenceNumber: trimmed } : p
-        )
+          i === idx ? { ...p, referenceNumber: trimmed } : p,
+        ),
       );
-      toast.success('Referencia bancaria actualizada');
+      toast.success("Referencia bancaria actualizada");
     } else {
       handleAddPayment(
         quickRefPrompt.method,
-        quickRefPrompt.isVES ? quickRefPrompt.amountVES : quickRefPrompt.amountUSD,
+        quickRefPrompt.isVES
+          ? quickRefPrompt.amountVES
+          : quickRefPrompt.amountUSD,
         quickRefPrompt.isVES,
-        trimmed
+        trimmed,
       );
     }
 
     setQuickRefPrompt({
       isOpen: false,
-      method: '',
-      methodName: '',
+      method: "",
+      methodName: "",
       amountUSD: 0,
       amountVES: 0,
       isVES: false,
-      refValue: '',
+      refValue: "",
     });
   };
 
   // Agregar forma de pago
-  const handleAddPayment = (method: string, amount: number, isAmountInVES = false, ref?: string) => {
+  const handleAddPayment = (
+    method: string,
+    amount: number,
+    isAmountInVES = false,
+    ref?: string,
+  ) => {
     let amountUSD = amount;
     if (isAmountInVES) {
       amountUSD = Number((amount / exchangeRateBCV).toFixed(2));
@@ -1556,7 +1759,7 @@ export const POSRegister: React.FC = () => {
         amountUSD,
         amountVES: amtVES,
         isVES: isAmountInVES,
-        refValue: '',
+        refValue: "",
       });
       return;
     }
@@ -1564,10 +1767,17 @@ export const POSRegister: React.FC = () => {
     // Si ya se cubrió el valor de la mercancía (subtotal previo a IGTF), los pagos subsiguientes
     // corresponden a la liquidación del IGTF. Por principio de no doble tributación (COT Art. 3),
     // no se aplica IGTF sobre el pago del propio impuesto IGTF.
-    const isPayingOnlyIGTF = totalPaidUSD >= subtotalBeforeIGTF && totalIGTFUSD > 0;
+    const isPayingOnlyIGTF =
+      totalPaidUSD >= subtotalBeforeIGTF && totalIGTFUSD > 0;
     const methodConfig = availablePaymentMethods.find((m) => m.code === method);
-    const appliesIGTF = !isPayingOnlyIGTF && (methodConfig ? methodConfig.appliesIGTF : (method === 'CASH_USD' || method === 'ZELLE'));
-    const igtfAmountUSD = appliesIGTF ? Number((amountUSD * 0.03).toFixed(2)) : 0;
+    const appliesIGTF =
+      !isPayingOnlyIGTF &&
+      (methodConfig
+        ? methodConfig.appliesIGTF
+        : method === "CASH_USD" || method === "ZELLE");
+    const igtfAmountUSD = appliesIGTF
+      ? Number((amountUSD * 0.03).toFixed(2))
+      : 0;
     const amountVES = Number((amountUSD * exchangeRateBCV).toFixed(2));
     const igtfAmountVES = Number((igtfAmountUSD * exchangeRateBCV).toFixed(2));
 
@@ -1584,8 +1794,8 @@ export const POSRegister: React.FC = () => {
     };
 
     setPayments((prev) => [...prev, newPayment]);
-    setPaymentAmountInput('');
-    setPaymentRefInput('');
+    setPaymentAmountInput("");
+    setPaymentRefInput("");
   };
 
   const removePayment = (index: number) => {
@@ -1595,26 +1805,31 @@ export const POSRegister: React.FC = () => {
   // Procesar Venta Fiscal
   const handleProcessSale = async () => {
     if (cart.length === 0) {
-      toast.error('El carrito de compras está vacío');
+      toast.error("El carrito de compras está vacío");
       return;
     }
     if (remainingUSD > 0.01) {
-      toast.error(`Falta pagar ${formatMoneyUSD(remainingUSD)} para completar el total`);
+      toast.error(
+        `Falta pagar ${formatMoneyUSD(remainingUSD)} para completar el total`,
+      );
       return;
     }
 
     setIsSubmitting(true);
     try {
       const payload = {
-        branchId: activeBranchId || 'b1111111-1111-1111-1111-111111111111',
-        warehouseId: activeShift?.warehouseId || activeWarehouseId || 'w1111111-1111-1111-1111-111111111111',
+        branchId: activeBranchId || "b1111111-1111-1111-1111-111111111111",
+        warehouseId:
+          activeShift?.warehouseId ||
+          activeWarehouseId ||
+          "w1111111-1111-1111-1111-111111111111",
         customerId: selectedCustomerId || undefined,
         customerDocType,
         customerDocNumber: customerDocNumber.trim(),
         customerName: customerName.trim(),
-        customerAddress: customerAddress.trim() || 'Caracas, Venezuela',
-        invoiceMode: isFiscal ? 'fiscal_printer' : 'normal_printer',
-        currency: 'USD',
+        customerAddress: customerAddress.trim() || "Caracas, Venezuela",
+        invoiceMode: isFiscal ? "fiscal_printer" : "normal_printer",
+        currency: "USD",
         exchangeRate: exchangeRateBCV,
         items: cart.map((item) => ({
           productId: item.productId,
@@ -1652,10 +1867,10 @@ export const POSRegister: React.FC = () => {
         restaurantOrderId: importedRestaurantOrderId || null,
       };
 
-      const res = await fetch('/api/pos/sales', {
-        method: 'POST',
+      const res = await fetch("/api/pos/sales", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify(payload),
@@ -1663,25 +1878,27 @@ export const POSRegister: React.FC = () => {
 
       const json = await res.json();
       if (!res.ok || !json.success) {
-        throw new Error(json.error?.message || 'Error al procesar la venta');
+        throw new Error(json.error?.message || "Error al procesar la venta");
       }
 
       if (isFiscal) {
-        toast.success('¡Factura fiscal emitida y registrada en memoria fiscal!');
+        toast.success(
+          "¡Factura fiscal emitida y registrada en memoria fiscal!",
+        );
       } else {
-        toast.success('¡Venta registrada exitosamente!');
+        toast.success("¡Venta registrada exitosamente!");
       }
 
       // Preparar datos para el ticket impreso
       setInvoiceTicketData({
         invoiceId: json.data.invoiceId,
-        invoiceNumber: json.data.invoiceNumber || 'FACT-00010452',
-        controlNumber: json.data.controlNumber || '00-0010452',
+        invoiceNumber: json.data.invoiceNumber || "FACT-00010452",
+        controlNumber: json.data.controlNumber || "00-0010452",
         invoiceDate: new Date().toISOString(),
-        cashierName: activeShift?.cashierName || user?.fullName || 'Cajero',
+        cashierName: activeShift?.cashierName || user?.fullName || "Cajero",
         customerName,
         customerRif: `${customerDocType}-${customerDocNumber}`,
-        customerAddress: customerAddress || 'Caracas, Venezuela',
+        customerAddress: customerAddress || "Caracas, Venezuela",
         items: cart.map((i) => ({
           name: i.name,
           quantity: i.quantity,
@@ -1706,17 +1923,20 @@ export const POSRegister: React.FC = () => {
       // Si la venta provino de una comanda de restaurante, marcarla como facturada
       if (importedRestaurantOrderId) {
         try {
-          await fetch(`/api/restaurant/orders/${importedRestaurantOrderId}/mark-invoiced`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-              ...(activeBranchId ? { 'x-branch-id': activeBranchId } : {}),
+          await fetch(
+            `/api/restaurant/orders/${importedRestaurantOrderId}/mark-invoiced`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                ...(activeBranchId ? { "x-branch-id": activeBranchId } : {}),
+              },
+              body: JSON.stringify({ invoice_id: json.data.invoiceId }),
             },
-            body: JSON.stringify({ invoice_id: json.data.invoiceId }),
-          });
+          );
         } catch (e) {
-          console.error('Error marking restaurant order as invoiced:', e);
+          console.error("Error marking restaurant order as invoiced:", e);
         }
         setImportedRestaurantOrderId(null);
       }
@@ -1730,15 +1950,15 @@ export const POSRegister: React.FC = () => {
       if (isFiscal) {
         setIsInvoiceModalOpen(true);
       } else {
-        const printMode = activeShift?.ticketPrintMode || 'prompt';
-        if (printMode === 'direct') {
+        const printMode = activeShift?.ticketPrintMode || "prompt";
+        if (printMode === "direct") {
           setIsInvoiceModalOpen(true);
         } else {
           setShowPrintPromptModal(true);
         }
       }
     } catch (err: any) {
-      toast.error(err.message || 'Error al procesar venta');
+      toast.error(err.message || "Error al procesar venta");
     } finally {
       setIsSubmitting(false);
     }
@@ -1751,8 +1971,12 @@ export const POSRegister: React.FC = () => {
           <Loader2 className="w-5 h-5 text-neutral-400 dark:text-neutral-500 animate-spin" />
         </div>
         <div className="text-center space-y-1">
-          <p className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Verificando turno de caja...</p>
-          <p className="text-xs text-neutral-400 dark:text-neutral-500">Consultando estado de caja en la sucursal actual</p>
+          <p className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+            Verificando turno de caja...
+          </p>
+          <p className="text-xs text-neutral-400 dark:text-neutral-500">
+            Consultando estado de caja en la sucursal actual
+          </p>
         </div>
       </div>
     );
@@ -1771,7 +1995,9 @@ export const POSRegister: React.FC = () => {
               Turno de Caja Requerido
             </h2>
             <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-              No tienes un turno de caja abierto en esta sucursal. Para registrar ventas, cobrar productos y emitir comprobantes en el Punto de Venta, es necesario realizar la apertura de turno.
+              No tienes un turno de caja abierto en esta sucursal. Para
+              registrar ventas, cobrar productos y emitir comprobantes en el
+              Punto de Venta, es necesario realizar la apertura de turno.
             </p>
           </div>
 
@@ -1790,7 +2016,7 @@ export const POSRegister: React.FC = () => {
             <Button
               type="button"
               variant="outline"
-              onClick={() => navigate('/pos/cierre')}
+              onClick={() => navigate("/pos/cierre")}
               className="w-full sm:w-auto px-4 py-2.5 text-xs text-neutral-700 dark:text-neutral-300 cursor-pointer"
             >
               Gestión de Cajas
@@ -1822,12 +2048,15 @@ export const POSRegister: React.FC = () => {
                 onClick={handleOpenShiftSubmit as any}
                 disabled={isOpeningShift || !openRegisterId}
               >
-                {isOpeningShift ? 'Abriendo Turno...' : 'Abrir Turno'}
+                {isOpeningShift ? "Abriendo Turno..." : "Abrir Turno"}
               </Button>
             </div>
           }
         >
-          <form onSubmit={handleOpenShiftSubmit} className="space-y-3.5 text-xs">
+          <form
+            onSubmit={handleOpenShiftSubmit}
+            className="space-y-3.5 text-xs"
+          >
             <div>
               <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                 Caja Registradora *
@@ -1846,11 +2075,22 @@ export const POSRegister: React.FC = () => {
                   <option value="">Seleccione una caja...</option>
                   {availableRegisters.map((r) => {
                     const isRegFiscal =
-                      r.invoiceMode === 'fiscal_printer' ||
-                      Boolean(r.fiscalPrinterSerial && r.fiscalPrinterSerial.trim());
+                      r.invoiceMode === "fiscal_printer" ||
+                      Boolean(
+                        r.fiscalPrinterSerial && r.fiscalPrinterSerial.trim(),
+                      );
                     return (
-                      <option key={r.id} value={r.id} disabled={r.hasActiveShift}>
-                        {r.code} - {r.name} ({isRegFiscal ? 'Fiscal' : 'No Fiscal'}) [Almacén: {r.warehouseName || 'Principal'}] {r.hasActiveShift ? `(Ocupada por ${r.activeCashierName || 'otro cajero'})` : '(Disponible)'}
+                      <option
+                        key={r.id}
+                        value={r.id}
+                        disabled={r.hasActiveShift}
+                      >
+                        {r.code} - {r.name} (
+                        {isRegFiscal ? "Fiscal" : "No Fiscal"}) [Almacén:{" "}
+                        {r.warehouseName || "Principal"}]{" "}
+                        {r.hasActiveShift
+                          ? `(Ocupada por ${r.activeCashierName || "otro cajero"})`
+                          : "(Disponible)"}
                       </option>
                     );
                   })}
@@ -1858,7 +2098,11 @@ export const POSRegister: React.FC = () => {
               )}
               {openRegisterId && (
                 <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
-                  Almacén de descarga de stock: <strong className="text-neutral-800 dark:text-neutral-200">{availableRegisters.find((r) => r.id === openRegisterId)?.warehouseName || 'Almacén Principal'}</strong>
+                  Almacén de descarga de stock:{" "}
+                  <strong className="text-neutral-800 dark:text-neutral-200">
+                    {availableRegisters.find((r) => r.id === openRegisterId)
+                      ?.warehouseName || "Almacén Principal"}
+                  </strong>
                 </p>
               )}
             </div>
@@ -1921,48 +2165,67 @@ export const POSRegister: React.FC = () => {
           <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-2.5 flex items-center justify-between text-xs shadow-xs">
             <div className="flex items-center gap-2">
               <span className="font-bold text-neutral-900 dark:text-neutral-100">
-                {activeShift.cashRegisterCode || 'CAJA-01'}
+                {activeShift.cashRegisterCode || "CAJA-01"}
               </span>
               <span className="text-neutral-300 dark:text-neutral-700">•</span>
               <span className="text-neutral-600 dark:text-neutral-400 font-medium">
-                {activeShift.cashRegisterName || 'Punto de Venta'}
+                {activeShift.cashRegisterName || "Punto de Venta"}
               </span>
               <span className="text-neutral-300 dark:text-neutral-700">•</span>
               <span className="text-neutral-500 dark:text-neutral-400">
-                Cajero: <strong className="text-neutral-700 dark:text-neutral-200">{activeShift.cashierName || user?.fullName}</strong>
+                Cajero:{" "}
+                <strong className="text-neutral-700 dark:text-neutral-200">
+                  {activeShift.cashierName || user?.fullName}
+                </strong>
               </span>
               <span className="text-neutral-300 dark:text-neutral-700">•</span>
               <span className="text-neutral-500 dark:text-neutral-400 flex items-center gap-1 font-medium">
                 <Warehouse className="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500" />
-                Almacén: <strong className="text-neutral-700 dark:text-neutral-200">{activeShift.warehouseName || 'Almacén Principal'}</strong>
+                Almacén:{" "}
+                <strong className="text-neutral-700 dark:text-neutral-200">
+                  {activeShift.warehouseName || "Almacén Principal"}
+                </strong>
               </span>
             </div>
             <div>
               {isFiscal ? (
-                <Badge variant="success" className="font-mono text-[10px] flex items-center gap-1">
+                <Badge
+                  variant="success"
+                  className="font-mono text-[10px] flex items-center gap-1"
+                >
                   <Printer className="w-3 h-3" />
-                  Impresora Fiscal {activeShift.fiscalPrinterSerial ? `[${activeShift.fiscalPrinterSerial}]` : 'Conectada'}
+                  Impresora Fiscal{" "}
+                  {activeShift.fiscalPrinterSerial
+                    ? `[${activeShift.fiscalPrinterSerial}]`
+                    : "Conectada"}
                 </Badge>
               ) : (
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <Badge variant="neutral" className="text-[10px] flex items-center gap-1">
+                  <Badge
+                    variant="neutral"
+                    className="text-[10px] flex items-center gap-1"
+                  >
                     <Printer className="w-3 h-3" />
-                    {activeShift.ticketPrinterType === 'thermal_58mm'
-                      ? 'Térmica 58mm'
-                      : activeShift.ticketPrinterType === 'generic_esc_pos'
-                      ? 'ESC/POS'
-                      : activeShift.ticketPrinterType === 'windows_spooler'
-                      ? 'Spooler'
-                      : activeShift.ticketPrinterType === 'pdf_virtual'
-                      ? 'PDF'
-                      : 'Térmica 80mm'}
+                    {activeShift.ticketPrinterType === "thermal_58mm"
+                      ? "Térmica 58mm"
+                      : activeShift.ticketPrinterType === "generic_esc_pos"
+                        ? "ESC/POS"
+                        : activeShift.ticketPrinterType === "windows_spooler"
+                          ? "Spooler"
+                          : activeShift.ticketPrinterType === "pdf_virtual"
+                            ? "PDF"
+                            : "Térmica 80mm"}
                   </Badge>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${
-                    activeShift.ticketPrintMode === 'direct'
-                      ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800'
-                      : 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800'
-                  }`}>
-                    {activeShift.ticketPrintMode === 'direct' ? 'Impresión Directa' : 'Preguntar Ticket'}
+                  <span
+                    className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${
+                      activeShift.ticketPrintMode === "direct"
+                        ? "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800"
+                        : "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800"
+                    }`}
+                  >
+                    {activeShift.ticketPrintMode === "direct"
+                      ? "Impresión Directa"
+                      : "Preguntar Ticket"}
                   </span>
                 </div>
               )}
@@ -1979,7 +2242,7 @@ export const POSRegister: React.FC = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') {
+                if (e.key === "Enter") {
                   e.preventDefault();
                   handleBarcodeOrSkuScan(searchTerm);
                 }
@@ -2019,11 +2282,11 @@ export const POSRegister: React.FC = () => {
               <div className="flex items-center bg-neutral-100 dark:bg-neutral-800 p-0.5 rounded-lg border border-neutral-200 dark:border-neutral-700">
                 <button
                   type="button"
-                  onClick={() => setCatalogViewMode('grid')}
+                  onClick={() => setCatalogViewMode("grid")}
                   className={`p-1.5 rounded-md transition-colors cursor-pointer ${
-                    catalogViewMode === 'grid'
-                      ? 'bg-white dark:bg-neutral-700 text-sky-700 dark:text-sky-300 shadow-xs'
-                      : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200'
+                    catalogViewMode === "grid"
+                      ? "bg-white dark:bg-neutral-700 text-sky-700 dark:text-sky-300 shadow-xs"
+                      : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200"
                   }`}
                   title="Vista Cuadrícula Compacta"
                 >
@@ -2031,11 +2294,11 @@ export const POSRegister: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setCatalogViewMode('list')}
+                  onClick={() => setCatalogViewMode("list")}
                   className={`p-1.5 rounded-md transition-colors cursor-pointer ${
-                    catalogViewMode === 'list'
-                      ? 'bg-white dark:bg-neutral-700 text-sky-700 dark:text-sky-300 shadow-xs'
-                      : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200'
+                    catalogViewMode === "list"
+                      ? "bg-white dark:bg-neutral-700 text-sky-700 dark:text-sky-300 shadow-xs"
+                      : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200"
                   }`}
                   title="Vista Lista / Tabla Densa"
                 >
@@ -2087,7 +2350,10 @@ export const POSRegister: React.FC = () => {
                         type="checkbox"
                         checked={catalogOptions.showSku}
                         onChange={(e) =>
-                          setCatalogOptions((o) => ({ ...o, showSku: e.target.checked }))
+                          setCatalogOptions((o) => ({
+                            ...o,
+                            showSku: e.target.checked,
+                          }))
                         }
                         className="rounded border-neutral-300 dark:border-neutral-700 text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
                       />
@@ -2098,7 +2364,10 @@ export const POSRegister: React.FC = () => {
                         type="checkbox"
                         checked={catalogOptions.showBarcode}
                         onChange={(e) =>
-                          setCatalogOptions((o) => ({ ...o, showBarcode: e.target.checked }))
+                          setCatalogOptions((o) => ({
+                            ...o,
+                            showBarcode: e.target.checked,
+                          }))
                         }
                         className="rounded border-neutral-300 dark:border-neutral-700 text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
                       />
@@ -2109,7 +2378,10 @@ export const POSRegister: React.FC = () => {
                         type="checkbox"
                         checked={catalogOptions.showPrice}
                         onChange={(e) =>
-                          setCatalogOptions((o) => ({ ...o, showPrice: e.target.checked }))
+                          setCatalogOptions((o) => ({
+                            ...o,
+                            showPrice: e.target.checked,
+                          }))
                         }
                         className="rounded border-neutral-300 dark:border-neutral-700 text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
                       />
@@ -2120,7 +2392,10 @@ export const POSRegister: React.FC = () => {
                         type="checkbox"
                         checked={catalogOptions.showStock}
                         onChange={(e) =>
-                          setCatalogOptions((o) => ({ ...o, showStock: e.target.checked }))
+                          setCatalogOptions((o) => ({
+                            ...o,
+                            showStock: e.target.checked,
+                          }))
                         }
                         className="rounded border-neutral-300 dark:border-neutral-700 text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
                       />
@@ -2131,7 +2406,10 @@ export const POSRegister: React.FC = () => {
                         type="checkbox"
                         checked={catalogOptions.showDescription}
                         onChange={(e) =>
-                          setCatalogOptions((o) => ({ ...o, showDescription: e.target.checked }))
+                          setCatalogOptions((o) => ({
+                            ...o,
+                            showDescription: e.target.checked,
+                          }))
                         }
                         className="rounded border-neutral-300 dark:border-neutral-700 text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
                       />
@@ -2148,15 +2426,19 @@ export const POSRegister: React.FC = () => {
             {filteredProducts.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-neutral-400 dark:text-neutral-500 py-12">
                 <Search className="w-8 h-8 mb-2 stroke-1 text-neutral-300 dark:text-neutral-600" />
-                <p className="text-xs">No se encontraron productos coincidentes</p>
+                <p className="text-xs">
+                  No se encontraron productos coincidentes
+                </p>
               </div>
-            ) : catalogViewMode === 'grid' ? (
+            ) : catalogViewMode === "grid" ? (
               /* Cuadrícula Compacta */
               <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
                 {filteredProducts.map((p) => {
                   const priceVES = p.priceUSD * exchangeRateBCV;
                   const hasNoStock = (p.stock ?? 0) <= 0;
-                  const hasPresentations = Boolean(p.presentations && p.presentations.length > 0);
+                  const hasPresentations = Boolean(
+                    p.presentations && p.presentations.length > 0,
+                  );
 
                   return (
                     <div
@@ -2173,15 +2455,18 @@ export const POSRegister: React.FC = () => {
                             </span>
                           )}
                           {catalogOptions.showBarcode && p.barcode && (
-                            <span className="font-mono text-neutral-400 dark:text-neutral-500 truncate flex items-center gap-0.5" title={`Código de barras: ${p.barcode}`}>
+                            <span
+                              className="font-mono text-neutral-400 dark:text-neutral-500 truncate flex items-center gap-0.5"
+                              title={`Código de barras: ${p.barcode}`}
+                            >
                               <Barcode className="w-3 h-3 shrink-0" />
                               <span className="truncate">{p.barcode}</span>
                             </span>
                           )}
                         </div>
 
-                        {catalogOptions.showStock && (
-                          p.tracksInventory === false ? (
+                        {catalogOptions.showStock &&
+                          (p.tracksInventory === false ? (
                             <span className="shrink-0 text-[9px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
                               Sin control
                             </span>
@@ -2193,8 +2478,7 @@ export const POSRegister: React.FC = () => {
                             <span className="shrink-0 text-[9px] font-mono text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-700/60 px-1 py-0.2 rounded">
                               Stock: {p.stock}
                             </span>
-                          )
-                        )}
+                          ))}
                       </div>
 
                       {/* Nombre del producto */}
@@ -2224,8 +2508,13 @@ export const POSRegister: React.FC = () => {
                           <div></div>
                         )}
 
-                        <Badge variant={p.taxRatePercent === 0 ? 'neutral' : 'info'} className="text-[9px] py-0 px-1">
-                          {p.taxRatePercent === 0 ? 'Exento' : `IVA ${p.taxRatePercent}%`}
+                        <Badge
+                          variant={p.taxRatePercent === 0 ? "neutral" : "info"}
+                          className="text-[9px] py-0 px-1"
+                        >
+                          {p.taxRatePercent === 0
+                            ? "Exento"
+                            : `IVA ${p.taxRatePercent}%`}
                         </Badge>
                       </div>
 
@@ -2234,9 +2523,14 @@ export const POSRegister: React.FC = () => {
                         <div className="mt-1.5 pt-1 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between text-[10px] text-sky-700 dark:text-sky-300 bg-sky-50/60 dark:bg-sky-950/40 px-1.5 py-0.5 rounded border border-sky-100 dark:border-sky-900/50">
                           <span className="flex items-center gap-1 font-medium">
                             <Package className="w-3 h-3 text-sky-600 dark:text-sky-400" />
-                            {p.presentations!.length} {p.presentations!.length === 1 ? 'presentación' : 'presentaciones'}
+                            {p.presentations!.length}{" "}
+                            {p.presentations!.length === 1
+                              ? "presentación"
+                              : "presentaciones"}
                           </span>
-                          <span className="text-[9px] font-bold text-sky-800 dark:text-sky-200">Elegir</span>
+                          <span className="text-[9px] font-bold text-sky-800 dark:text-sky-200">
+                            Elegir
+                          </span>
                         </div>
                       )}
                     </div>
@@ -2249,12 +2543,22 @@ export const POSRegister: React.FC = () => {
                 <table className="w-full text-left text-xs border-collapse">
                   <thead className="bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 font-semibold uppercase text-[10px] tracking-wider sticky top-0 border-b border-neutral-200 dark:border-neutral-700 z-10">
                     <tr>
-                      {catalogOptions.showSku && <th className="py-2 px-2.5">Código (SKU)</th>}
-                      {catalogOptions.showBarcode && <th className="py-2 px-2.5">Código de Barras</th>}
+                      {catalogOptions.showSku && (
+                        <th className="py-2 px-2.5">Código (SKU)</th>
+                      )}
+                      {catalogOptions.showBarcode && (
+                        <th className="py-2 px-2.5">Código de Barras</th>
+                      )}
                       <th className="py-2 px-2.5">Producto</th>
-                      {catalogOptions.showStock && <th className="py-2 px-2 text-center">Stock</th>}
-                      {catalogOptions.showPrice && <th className="py-2 px-2.5 text-right">Precio ($)</th>}
-                      {catalogOptions.showPrice && <th className="py-2 px-2.5 text-right">Precio (Bs.)</th>}
+                      {catalogOptions.showStock && (
+                        <th className="py-2 px-2 text-center">Stock</th>
+                      )}
+                      {catalogOptions.showPrice && (
+                        <th className="py-2 px-2.5 text-right">Precio ($)</th>
+                      )}
+                      {catalogOptions.showPrice && (
+                        <th className="py-2 px-2.5 text-right">Precio (Bs.)</th>
+                      )}
                       <th className="py-2 px-2 text-center">Presentaciones</th>
                       <th className="py-2 px-2 text-center w-12">Acción</th>
                     </tr>
@@ -2263,7 +2567,9 @@ export const POSRegister: React.FC = () => {
                     {filteredProducts.map((p) => {
                       const priceVES = p.priceUSD * exchangeRateBCV;
                       const hasNoStock = (p.stock ?? 0) <= 0;
-                      const hasPresentations = Boolean(p.presentations && p.presentations.length > 0);
+                      const hasPresentations = Boolean(
+                        p.presentations && p.presentations.length > 0,
+                      );
 
                       return (
                         <tr
@@ -2278,7 +2584,7 @@ export const POSRegister: React.FC = () => {
                           )}
                           {catalogOptions.showBarcode && (
                             <td className="py-1.5 px-2.5 font-mono text-[11px] text-neutral-500 dark:text-neutral-400 whitespace-nowrap">
-                              {p.barcode || '—'}
+                              {p.barcode || "—"}
                             </td>
                           )}
 
@@ -2286,11 +2592,12 @@ export const POSRegister: React.FC = () => {
                             <div className="font-semibold text-neutral-800 dark:text-neutral-200 text-xs">
                               {p.name}
                             </div>
-                            {catalogOptions.showDescription && p.description && (
-                              <div className="text-[10px] text-neutral-400 dark:text-neutral-500 line-clamp-1 italic">
-                                {p.description}
-                              </div>
-                            )}
+                            {catalogOptions.showDescription &&
+                              p.description && (
+                                <div className="text-[10px] text-neutral-400 dark:text-neutral-500 line-clamp-1 italic">
+                                  {p.description}
+                                </div>
+                              )}
                           </td>
 
                           {catalogOptions.showStock && (
@@ -2304,7 +2611,9 @@ export const POSRegister: React.FC = () => {
                                   {p.stock ?? 0}
                                 </span>
                               ) : (
-                                <span className="text-neutral-700 dark:text-neutral-300">{p.stock}</span>
+                                <span className="text-neutral-700 dark:text-neutral-300">
+                                  {p.stock}
+                                </span>
                               )}
                             </td>
                           )}
@@ -2327,7 +2636,9 @@ export const POSRegister: React.FC = () => {
                                 {p.presentations!.length} pres.
                               </span>
                             ) : (
-                              <span className="text-neutral-400 dark:text-neutral-600 text-[10px]">—</span>
+                              <span className="text-neutral-400 dark:text-neutral-600 text-[10px]">
+                                —
+                              </span>
                             )}
                           </td>
 
@@ -2360,7 +2671,9 @@ export const POSRegister: React.FC = () => {
         <div className="p-3.5 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between bg-neutral-50 dark:bg-neutral-800/60">
           <div className="flex items-center gap-2">
             <ShoppingCart className="w-4 h-4 text-neutral-700 dark:text-neutral-300" />
-            <h2 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">Detalle de la Venta</h2>
+            <h2 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+              Detalle de la Venta
+            </h2>
           </div>
           <div className="flex items-center gap-2">
             {cart.length > 0 && (
@@ -2394,12 +2707,11 @@ export const POSRegister: React.FC = () => {
                 <div className="truncate">
                   <div className="font-semibold text-neutral-900 dark:text-neutral-100 truncate flex items-center gap-1.5">
                     <span>{customerName}</span>
-                    {isSpecialTaxpayer && (
-                      <Badge variant="info">Esp.</Badge>
-                    )}
+                    {isSpecialTaxpayer && <Badge variant="info">Esp.</Badge>}
                   </div>
                   <div className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400">
-                    {customerDocType}-{customerDocNumber} {customerPhone ? `• ${customerPhone}` : ''}
+                    {customerDocType}-{customerDocNumber}{" "}
+                    {customerPhone ? `• ${customerPhone}` : ""}
                   </div>
                 </div>
               </div>
@@ -2442,8 +2754,7 @@ export const POSRegister: React.FC = () => {
                   }}
                   className="h-8 px-2 text-xs text-sky-700 dark:text-sky-300 border-sky-300 dark:border-sky-800 hover:bg-sky-50 dark:hover:bg-sky-950/40 whitespace-nowrap"
                 >
-                  <UserPlus className="w-3.5 h-3.5 mr-1" />
-                  + Nuevo
+                  <UserPlus className="w-3.5 h-3.5 mr-1" />+ Nuevo
                 </Button>
 
                 {/* Dropdown de Autocompletado */}
@@ -2452,7 +2763,7 @@ export const POSRegister: React.FC = () => {
                     {customerSearchResults.length === 0 ? (
                       <div className="p-3 text-center text-neutral-400 dark:text-neutral-500">
                         {isSearchingCustomer ? (
-                          'Buscando clientes...'
+                          "Buscando clientes..."
                         ) : (
                           <div>
                             <p>No se encontraron clientes.</p>
@@ -2460,7 +2771,7 @@ export const POSRegister: React.FC = () => {
                               type="button"
                               onClick={() => {
                                 setNewCustomerName(customerSearchQuery);
-                                setNewCustomerDocNumber('');
+                                setNewCustomerDocNumber("");
                                 setShowCustomerDropdown(false);
                                 setIsNewCustomerModalOpen(true);
                               }}
@@ -2473,8 +2784,13 @@ export const POSRegister: React.FC = () => {
                       </div>
                     ) : (
                       customerSearchResults.map((cust) => {
-                        const isBlocked = Boolean(cust.isBlocked || cust.is_blocked || cust.status === 'BLOCKED');
-                        const blockReason = cust.blockReason || cust.block_reason;
+                        const isBlocked = Boolean(
+                          cust.isBlocked ||
+                          cust.is_blocked ||
+                          cust.status === "BLOCKED",
+                        );
+                        const blockReason =
+                          cust.blockReason || cust.block_reason;
 
                         return (
                           <button
@@ -2483,7 +2799,7 @@ export const POSRegister: React.FC = () => {
                             onClick={() => {
                               if (isBlocked) {
                                 toast.error(
-                                  `El cliente "${cust.name}" está BLOQUEADO. Motivo: ${blockReason || 'Consulte con administración'}. No puede ser seleccionado.`
+                                  `El cliente "${cust.name}" está BLOQUEADO. Motivo: ${blockReason || "Consulte con administración"}. No puede ser seleccionado.`,
                                 );
                                 return;
                               }
@@ -2491,12 +2807,14 @@ export const POSRegister: React.FC = () => {
                             }}
                             className={`w-full text-left p-2.5 flex flex-col transition-colors border-b border-neutral-100 dark:border-neutral-800 last:border-b-0 ${
                               isBlocked
-                                ? 'bg-red-50/60 dark:bg-red-950/30 hover:bg-red-50/80 dark:hover:bg-red-950/50 cursor-not-allowed opacity-90'
-                                : 'hover:bg-sky-50/50 dark:hover:bg-neutral-800/60 cursor-pointer'
+                                ? "bg-red-50/60 dark:bg-red-950/30 hover:bg-red-50/80 dark:hover:bg-red-950/50 cursor-not-allowed opacity-90"
+                                : "hover:bg-sky-50/50 dark:hover:bg-neutral-800/60 cursor-pointer"
                             }`}
                           >
                             <div className="flex items-center justify-between gap-2">
-                              <span className={`font-semibold ${isBlocked ? 'text-red-950 dark:text-red-300' : 'text-neutral-800 dark:text-neutral-200'}`}>
+                              <span
+                                className={`font-semibold ${isBlocked ? "text-red-950 dark:text-red-300" : "text-neutral-800 dark:text-neutral-200"}`}
+                              >
                                 {cust.name}
                               </span>
                               {isBlocked && (
@@ -2506,7 +2824,8 @@ export const POSRegister: React.FC = () => {
                               )}
                             </div>
                             <span className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400 mt-0.5">
-                              {cust.docType}-{cust.docNumber} {cust.phone ? `• ${cust.phone}` : ''}
+                              {cust.docType}-{cust.docNumber}{" "}
+                              {cust.phone ? `• ${cust.phone}` : ""}
                             </span>
                             {isBlocked && blockReason && (
                               <span className="text-[11px] text-red-600 dark:text-red-400 font-medium mt-0.5">
@@ -2559,7 +2878,9 @@ export const POSRegister: React.FC = () => {
             <div className="flex flex-col items-center justify-center h-full text-neutral-400 dark:text-neutral-500 py-12">
               <ShoppingCart className="w-8 h-8 mb-2 stroke-1 text-neutral-300 dark:text-neutral-600" />
               <p className="text-xs">El carrito está vacío</p>
-              <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">Seleccione productos del catálogo para agregarlos</p>
+              <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">
+                Seleccione productos del catálogo para agregarlos
+              </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -2581,17 +2902,28 @@ export const POSRegister: React.FC = () => {
                     const availableStock = prod?.stock ?? 0;
                     const totalCommittedUnits = cart
                       .filter((i) => i.productId === item.productId)
-                      .reduce((s, i) => s + i.quantity * (i.multiplier || 1), 0);
+                      .reduce(
+                        (s, i) => s + i.quantity * (i.multiplier || 1),
+                        0,
+                      );
                     const isNegative = totalCommittedUnits > availableStock;
-                    const itemKey = `${item.productId}-${item.presentationId || 'base'}`;
-                    const grossAmount = item.grossAmount || Number((item.quantity * item.unitPrice).toFixed(2));
+                    const itemKey = `${item.productId}-${item.presentationId || "base"}`;
+                    const grossAmount =
+                      item.grossAmount ||
+                      Number((item.quantity * item.unitPrice).toFixed(2));
                     const hasDiscount = (item.discountPercent || 0) > 0;
 
                     return (
-                      <tr key={itemKey} className="hover:bg-neutral-50/80 dark:hover:bg-neutral-800/50 transition-colors">
+                      <tr
+                        key={itemKey}
+                        className="hover:bg-neutral-50/80 dark:hover:bg-neutral-800/50 transition-colors"
+                      >
                         {/* Descripción */}
                         <td className="py-1.5 px-2 max-w-[125px]">
-                          <div className="font-semibold text-neutral-800 dark:text-neutral-200 text-[11px] truncate" title={item.name}>
+                          <div
+                            className="font-semibold text-neutral-800 dark:text-neutral-200 text-[11px] truncate"
+                            title={item.name}
+                          >
                             {item.name}
                           </div>
                           <div className="flex items-center gap-1 flex-wrap mt-0.5">
@@ -2605,8 +2937,8 @@ export const POSRegister: React.FC = () => {
                                 Neg ({availableStock - totalCommittedUnits})
                               </span>
                             )}
-                            {item.requiresAuthorization && (
-                              item.isPresentationAuthorized ? (
+                            {item.requiresAuthorization &&
+                              (item.isPresentationAuthorized ? (
                                 <span className="text-[9px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1 py-0.2 rounded border border-emerald-200 dark:border-emerald-800 flex items-center gap-0.5">
                                   <ShieldCheck className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
                                   Aut.
@@ -2615,8 +2947,7 @@ export const POSRegister: React.FC = () => {
                                 <span className="text-[9px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1 py-0.2 rounded border border-amber-200 dark:border-amber-800">
                                   Req. Aut.
                                 </span>
-                              )
-                            )}
+                              ))}
                           </div>
                         </td>
 
@@ -2630,16 +2961,30 @@ export const POSRegister: React.FC = () => {
                           <div className="flex items-center justify-center gap-0.5">
                             <button
                               type="button"
-                              onClick={() => updateCartQty(item.productId, item.presentationId, -1)}
+                              onClick={() =>
+                                updateCartQty(
+                                  item.productId,
+                                  item.presentationId,
+                                  -1,
+                                )
+                              }
                               className="w-5 h-5 rounded bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 flex items-center justify-center text-neutral-700 dark:text-neutral-300 cursor-pointer"
                               title="Disminuir cantidad"
                             >
                               <Minus className="w-2.5 h-2.5" />
                             </button>
-                            <span className="text-[11px] font-bold w-5 text-center font-mono text-neutral-900 dark:text-neutral-100">{item.quantity}</span>
+                            <span className="text-[11px] font-bold w-5 text-center font-mono text-neutral-900 dark:text-neutral-100">
+                              {item.quantity}
+                            </span>
                             <button
                               type="button"
-                              onClick={() => updateCartQty(item.productId, item.presentationId, 1)}
+                              onClick={() =>
+                                updateCartQty(
+                                  item.productId,
+                                  item.presentationId,
+                                  1,
+                                )
+                              }
                               className="w-5 h-5 rounded bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 flex items-center justify-center text-neutral-700 dark:text-neutral-300 cursor-pointer"
                               title="Aumentar cantidad"
                             >
@@ -2662,18 +3007,21 @@ export const POSRegister: React.FC = () => {
                                 productId: item.productId,
                                 presentationId: item.presentationId || null,
                                 productName: item.name,
-                                currentDiscountPercent: item.discountPercent || 0,
+                                currentDiscountPercent:
+                                  item.discountPercent || 0,
                               });
-                              setDiscountInputPercent(String(item.discountPercent || 0));
+                              setDiscountInputPercent(
+                                String(item.discountPercent || 0),
+                              );
                             }}
                             className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-medium border cursor-pointer transition-colors ${
                               hasDiscount
-                                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/50'
-                                : 'bg-neutral-50 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500 border-neutral-200 dark:border-neutral-700 hover:text-sky-600 dark:hover:text-sky-400 hover:border-sky-300 dark:hover:border-sky-700'
+                                ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/50"
+                                : "bg-neutral-50 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500 border-neutral-200 dark:border-neutral-700 hover:text-sky-600 dark:hover:text-sky-400 hover:border-sky-300 dark:hover:border-sky-700"
                             }`}
                             title="Modificar descuento para este producto"
                           >
-                            {hasDiscount ? `-${item.discountPercent}%` : '0%'}
+                            {hasDiscount ? `-${item.discountPercent}%` : "0%"}
                           </button>
                         </td>
 
@@ -2686,7 +3034,12 @@ export const POSRegister: React.FC = () => {
                         <td className="py-1.5 px-1 text-center">
                           <button
                             type="button"
-                            onClick={() => removeFromCart(item.productId, item.presentationId)}
+                            onClick={() =>
+                              removeFromCart(
+                                item.productId,
+                                item.presentationId,
+                              )
+                            }
                             className="text-neutral-300 dark:text-neutral-600 hover:text-red-500 dark:hover:text-red-400 p-0.5 rounded cursor-pointer transition-colors"
                             title="Eliminar producto"
                           >
@@ -2707,33 +3060,45 @@ export const POSRegister: React.FC = () => {
           {discountTotalAmount > 0 && (
             <div className="flex justify-between text-emerald-700 dark:text-emerald-400 font-medium">
               <span>Descuento Aplicado:</span>
-              <span className="font-mono">-{formatMoneyUSD(discountTotalAmount)}</span>
+              <span className="font-mono">
+                -{formatMoneyUSD(discountTotalAmount)}
+              </span>
             </div>
           )}
           <div className="flex justify-between text-neutral-600 dark:text-neutral-400">
             <span>Base Exenta:</span>
-            <span className="font-mono font-medium text-neutral-800 dark:text-neutral-200">{formatMoneyUSD(baseExempt)}</span>
+            <span className="font-mono font-medium text-neutral-800 dark:text-neutral-200">
+              {formatMoneyUSD(baseExempt)}
+            </span>
           </div>
           <div className="flex justify-between text-neutral-600 dark:text-neutral-400">
             <span>Base Imponible (16%):</span>
-            <span className="font-mono font-medium text-neutral-800 dark:text-neutral-200">{formatMoneyUSD(baseTaxable)}</span>
+            <span className="font-mono font-medium text-neutral-800 dark:text-neutral-200">
+              {formatMoneyUSD(baseTaxable)}
+            </span>
           </div>
           <div className="flex justify-between text-neutral-600 dark:text-neutral-400">
             <span>IVA (16%):</span>
-            <span className="font-mono font-medium text-neutral-800 dark:text-neutral-200">{formatMoneyUSD(taxAmount)}</span>
+            <span className="font-mono font-medium text-neutral-800 dark:text-neutral-200">
+              {formatMoneyUSD(taxAmount)}
+            </span>
           </div>
 
           <div className="border-t border-neutral-300 dark:border-neutral-700 pt-2 flex items-baseline justify-between">
-            <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100">Total a Pagar:</span>
+            <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+              Total a Pagar:
+            </span>
             <div className="text-right">
-              <div className="text-xl font-bold font-mono text-sky-700 dark:text-sky-400">{formatMoneyUSD(subtotalBeforeIGTF)}</div>
+              <div className="text-xl font-bold font-mono text-sky-700 dark:text-sky-400">
+                {formatMoneyUSD(subtotalBeforeIGTF)}
+              </div>
               <div className="text-xs font-mono text-neutral-500 dark:text-neutral-400">
                 {formatMoneyVES(subtotalBeforeIGTF * exchangeRateBCV)}
               </div>
             </div>
           </div>
 
-          <div className="flex gap-2 pt-1">
+          {/* <div className="flex gap-2 pt-1">
             <Button
               variant="outline"
               size="sm"
@@ -2745,33 +3110,34 @@ export const POSRegister: React.FC = () => {
               <ListChecks className="w-3.5 h-3.5 mr-1 text-sky-600 dark:text-sky-400" />
               Verificar Carrito ({cart.length})
             </Button>
+           
+          </div> */}
+          <div className="flex gap-2 pt-1">
+            <Button
+              className="w-full mt-2 h-11 text-xs font-bold shadow-md"
+              disabled={cart.length === 0}
+              onClick={() => {
+                setPayments([]);
+                setIsPaymentModalOpen(true);
+              }}
+            >
+              <CreditCard className="w-4 h-4 mr-2" />
+              Cobrar & Emitir Factura Fiscal
+            </Button>
             <Button
               variant="outline"
-              size="sm"
               type="button"
               disabled={cart.length === 0}
               onClick={async () => {
                 const confirmed = await showClearCartAlert();
                 if (confirmed) setCart([]);
               }}
-              className="h-8 px-2 text-neutral-400 hover:text-red-600 dark:hover:text-red-400 border-neutral-300 dark:border-neutral-700"
+              className="mt-2 h-11 px-2 text-neutral-400 hover:text-red-600 dark:hover:text-red-400 border-red-300 dark:border-red-700 dark:bg-red-600"
               title="Vaciar Carrito"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </Button>
           </div>
-
-          <Button
-            className="w-full mt-2 h-11 text-xs font-bold shadow-md"
-            disabled={cart.length === 0}
-            onClick={() => {
-              setPayments([]);
-              setIsPaymentModalOpen(true);
-            }}
-          >
-            <CreditCard className="w-4 h-4 mr-2" />
-            Cobrar & Emitir Factura Fiscal
-          </Button>
         </div>
       </div>
 
@@ -2786,9 +3152,15 @@ export const POSRegister: React.FC = () => {
         footer={
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-2 text-xs">
-              <span className="text-neutral-500 dark:text-neutral-400">Saldo pendiente:</span>
-              <span className={`font-mono font-bold ${remainingUSD <= 0.01 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                {remainingUSD <= 0.01 ? 'Pagado Totalmente' : `${formatMoneyUSD(remainingUSD)} (${formatMoneyVES(remainingVES)})`}
+              <span className="text-neutral-500 dark:text-neutral-400">
+                Saldo pendiente:
+              </span>
+              <span
+                className={`font-mono font-bold ${remainingUSD <= 0.01 ? "text-emerald-700 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}
+              >
+                {remainingUSD <= 0.01
+                  ? "Pagado Totalmente"
+                  : `${formatMoneyUSD(remainingUSD)} (${formatMoneyVES(remainingVES)})`}
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -2828,7 +3200,9 @@ export const POSRegister: React.FC = () => {
           {/* Totalizador & Pendiente */}
           <div className="p-3 bg-neutral-50 dark:bg-neutral-800/60 rounded-lg border border-neutral-200 dark:border-neutral-800 grid grid-cols-2 gap-3 text-xs">
             <div>
-              <span className="text-neutral-500 dark:text-neutral-400 block">Total a Pagar:</span>
+              <span className="text-neutral-500 dark:text-neutral-400 block">
+                Total a Pagar:
+              </span>
               <span className="text-base font-bold font-mono text-neutral-900 dark:text-neutral-100">
                 {formatMoneyUSD(finalTotalUSD)}
               </span>
@@ -2837,8 +3211,12 @@ export const POSRegister: React.FC = () => {
               </span>
             </div>
             <div>
-              <span className="text-neutral-500 dark:text-neutral-400 block">Restante por Pagar:</span>
-              <span className={`text-base font-bold font-mono ${remainingUSD <= 0.01 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+              <span className="text-neutral-500 dark:text-neutral-400 block">
+                Restante por Pagar:
+              </span>
+              <span
+                className={`text-base font-bold font-mono ${remainingUSD <= 0.01 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}
+              >
                 {formatMoneyUSD(remainingUSD)}
               </span>
               <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-mono block">
@@ -2856,18 +3234,24 @@ export const POSRegister: React.FC = () => {
                   Diferencia IGTF (3%) por cancelar:
                 </span>
                 <span className="font-mono text-indigo-800 dark:text-indigo-300 font-extrabold text-sm">
-                  {formatMoneyUSD(remainingUSD)} <span className="text-[11px] font-normal text-indigo-600 dark:text-indigo-400">({formatMoneyVES(remainingVES)})</span>
+                  {formatMoneyUSD(remainingUSD)}{" "}
+                  <span className="text-[11px] font-normal text-indigo-600 dark:text-indigo-400">
+                    ({formatMoneyVES(remainingVES)})
+                  </span>
                 </span>
               </div>
               <p className="text-[11px] text-indigo-800 dark:text-indigo-300 leading-tight">
-                Seleccione el método de pago para liquidar la diferencia remanente:
+                Seleccione el método de pago para liquidar la diferencia
+                remanente:
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 pt-0.5">
                 <Button
                   size="sm"
                   variant="outline"
                   type="button"
-                  onClick={() => handleQuickPay('DEBIT_CARD', remainingUSD, false)}
+                  onClick={() =>
+                    handleQuickPay("DEBIT_CARD", remainingUSD, false)
+                  }
                   className="text-[11px] h-8 px-2 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200 bg-white dark:bg-neutral-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 justify-start"
                 >
                   Punto Débito ({formatMoneyVES(remainingVES)})
@@ -2876,7 +3260,9 @@ export const POSRegister: React.FC = () => {
                   size="sm"
                   variant="outline"
                   type="button"
-                  onClick={() => handleQuickPay('CREDIT_CARD', remainingUSD, false)}
+                  onClick={() =>
+                    handleQuickPay("CREDIT_CARD", remainingUSD, false)
+                  }
                   className="text-[11px] h-8 px-2 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200 bg-white dark:bg-neutral-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 justify-start"
                 >
                   Punto Crédito ({formatMoneyVES(remainingVES)})
@@ -2885,7 +3271,9 @@ export const POSRegister: React.FC = () => {
                   size="sm"
                   variant="outline"
                   type="button"
-                  onClick={() => handleQuickPay('PAGO_MOVIL', remainingUSD, false)}
+                  onClick={() =>
+                    handleQuickPay("PAGO_MOVIL", remainingUSD, false)
+                  }
                   className="text-[11px] h-8 px-2 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200 bg-white dark:bg-neutral-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 justify-start"
                 >
                   Pago Móvil ({formatMoneyVES(remainingVES)})
@@ -2894,7 +3282,9 @@ export const POSRegister: React.FC = () => {
                   size="sm"
                   variant="outline"
                   type="button"
-                  onClick={() => handleQuickPay('CASH_VES', remainingUSD, false)}
+                  onClick={() =>
+                    handleQuickPay("CASH_VES", remainingUSD, false)
+                  }
                   className="text-[11px] h-8 px-2 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200 bg-white dark:bg-neutral-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 justify-start"
                 >
                   Efectivo Bs ({formatMoneyVES(remainingVES)})
@@ -2903,7 +3293,9 @@ export const POSRegister: React.FC = () => {
                   size="sm"
                   variant="outline"
                   type="button"
-                  onClick={() => handleQuickPay('CASH_USD', remainingUSD, false)}
+                  onClick={() =>
+                    handleQuickPay("CASH_USD", remainingUSD, false)
+                  }
                   className="text-[11px] h-8 px-2 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200 bg-white dark:bg-neutral-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 justify-start"
                 >
                   Efectivo $ ({formatMoneyUSD(remainingUSD)})
@@ -2919,7 +3311,9 @@ export const POSRegister: React.FC = () => {
                 Cobro Rápido Total:
               </span>
               <div className="flex items-center gap-1.5">
-                <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium">Ref / Lote:</span>
+                <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium">
+                  Ref / Lote:
+                </span>
                 <input
                   type="text"
                   value={paymentRefInput}
@@ -2933,7 +3327,9 @@ export const POSRegister: React.FC = () => {
             <div className="flex flex-wrap gap-1.5">
               <button
                 type="button"
-                onClick={() => handleQuickPay('DEBIT_CARD', remainingUSD, false)}
+                onClick={() =>
+                  handleQuickPay("DEBIT_CARD", remainingUSD, false)
+                }
                 disabled={remainingUSD <= 0.01}
                 className="px-2.5 py-1 text-xs font-semibold rounded bg-sky-100 dark:bg-sky-950/60 text-sky-800 dark:text-sky-300 hover:bg-sky-200 dark:hover:bg-sky-900/60 border border-sky-200 dark:border-sky-800 transition-colors disabled:opacity-50 cursor-pointer"
               >
@@ -2941,7 +3337,9 @@ export const POSRegister: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => handleQuickPay('CREDIT_CARD', remainingUSD, false)}
+                onClick={() =>
+                  handleQuickPay("CREDIT_CARD", remainingUSD, false)
+                }
                 disabled={remainingUSD <= 0.01}
                 className="px-2.5 py-1 text-xs font-semibold rounded bg-indigo-100 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800 transition-colors disabled:opacity-50 cursor-pointer"
               >
@@ -2949,7 +3347,9 @@ export const POSRegister: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => handleQuickPay('PAGO_MOVIL', remainingUSD, false)}
+                onClick={() =>
+                  handleQuickPay("PAGO_MOVIL", remainingUSD, false)
+                }
                 disabled={remainingUSD <= 0.01}
                 className="px-2.5 py-1 text-xs font-semibold rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/60 border border-amber-200 dark:border-amber-800 transition-colors disabled:opacity-50 cursor-pointer"
               >
@@ -2957,7 +3357,7 @@ export const POSRegister: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => handleQuickPay('CASH_USD', remainingUSD, false)}
+                onClick={() => handleQuickPay("CASH_USD", remainingUSD, false)}
                 disabled={remainingUSD <= 0.01}
                 className="px-2.5 py-1 text-xs font-semibold rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 transition-colors disabled:opacity-50 cursor-pointer"
               >
@@ -2965,7 +3365,7 @@ export const POSRegister: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => handleQuickPay('CASH_VES', remainingUSD, false)}
+                onClick={() => handleQuickPay("CASH_VES", remainingUSD, false)}
                 disabled={remainingUSD <= 0.01}
                 className="px-2.5 py-1 text-xs font-semibold rounded bg-neutral-200 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 hover:bg-neutral-300 dark:hover:bg-neutral-700 border border-neutral-300 dark:border-neutral-700 transition-colors disabled:opacity-50 cursor-pointer"
               >
@@ -2976,20 +3376,26 @@ export const POSRegister: React.FC = () => {
 
           {/* Formulario de Agregar Pago Personalizado */}
           <div className="space-y-3 text-xs border border-neutral-200 dark:border-neutral-800 p-3 rounded-lg bg-neutral-50/40 dark:bg-neutral-800/40">
-            <span className="font-semibold text-neutral-800 dark:text-neutral-200 block">Agregar Forma de Pago Personalizada:</span>
+            <span className="font-semibold text-neutral-800 dark:text-neutral-200 block">
+              Agregar Forma de Pago Personalizada:
+            </span>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-neutral-600 dark:text-neutral-400 mb-1">Medio de Pago</label>
+                <label className="block text-neutral-600 dark:text-neutral-400 mb-1">
+                  Medio de Pago
+                </label>
                 <select
                   value={currentMethod}
                   onChange={(e) => {
                     const m = e.target.value;
                     setCurrentMethod(m);
-                    const conf = availablePaymentMethods.find((c) => c.code === m);
-                    if (conf && conf.currency === 'VES') {
-                      setPaymentCurrencyMode('VES');
-                    } else if (conf && conf.currency === 'USD') {
-                      setPaymentCurrencyMode('USD');
+                    const conf = availablePaymentMethods.find(
+                      (c) => c.code === m,
+                    );
+                    if (conf && conf.currency === "VES") {
+                      setPaymentCurrencyMode("VES");
+                    } else if (conf && conf.currency === "USD") {
+                      setPaymentCurrencyMode("USD");
                     }
                   }}
                   className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 font-medium focus-visible:ring-2 focus-visible:ring-sky-500"
@@ -2998,7 +3404,7 @@ export const POSRegister: React.FC = () => {
                     .filter((m) => m.isActive)
                     .map((m) => (
                       <option key={m.code} value={m.code}>
-                        {m.name} {m.appliesIGTF ? '[+3% IGTF]' : ''}
+                        {m.name} {m.appliesIGTF ? "[+3% IGTF]" : ""}
                       </option>
                     ))}
                 </select>
@@ -3006,22 +3412,40 @@ export const POSRegister: React.FC = () => {
               <div>
                 <div className="flex justify-between items-center mb-1">
                   <div className="flex items-center gap-1.5">
-                    <label className="text-neutral-600 dark:text-neutral-400">Monto</label>
+                    <label className="text-neutral-600 dark:text-neutral-400">
+                      Monto
+                    </label>
                     <button
                       type="button"
-                      onClick={() => setPaymentCurrencyMode((prev) => (prev === 'USD' ? 'VES' : 'USD'))}
+                      onClick={() =>
+                        setPaymentCurrencyMode((prev) =>
+                          prev === "USD" ? "VES" : "USD",
+                        )
+                      }
                       className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-neutral-100 dark:bg-neutral-800 hover:bg-sky-100 dark:hover:bg-neutral-700 text-sky-800 dark:text-sky-300 border border-neutral-200 dark:border-neutral-700 transition-colors cursor-pointer"
                       title="Cambiar moneda de entrada"
                     >
                       <ArrowLeftRight className="w-2.5 h-2.5" />
-                      {paymentCurrencyMode === 'USD' ? 'USD ($)' : 'Bs (VES)'}
+                      {paymentCurrencyMode === "USD" ? "USD ($)" : "Bs (VES)"}
                     </button>
                   </div>
                   <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono">
-                    {paymentCurrencyMode === 'USD' ? (
-                      <>Equiv: {formatMoneyVES(((parseFormattedNumber(paymentAmountInput) || remainingUSD)) * exchangeRateBCV)}</>
+                    {paymentCurrencyMode === "USD" ? (
+                      <>
+                        Equiv:{" "}
+                        {formatMoneyVES(
+                          (parseFormattedNumber(paymentAmountInput) ||
+                            remainingUSD) * exchangeRateBCV,
+                        )}
+                      </>
                     ) : (
-                      <>Equiv: {formatMoneyUSD(((parseFormattedNumber(paymentAmountInput) || remainingVES)) / exchangeRateBCV)}</>
+                      <>
+                        Equiv:{" "}
+                        {formatMoneyUSD(
+                          (parseFormattedNumber(paymentAmountInput) ||
+                            remainingVES) / exchangeRateBCV,
+                        )}
+                      </>
                     )}
                   </span>
                 </div>
@@ -3030,9 +3454,13 @@ export const POSRegister: React.FC = () => {
                   value={paymentAmountInput}
                   onChange={(e) => setPaymentAmountInput(e.target.value)}
                   placeholder={
-                    paymentCurrencyMode === 'USD'
-                      ? (remainingUSD > 0 ? remainingUSD.toFixed(2) : '0.00')
-                      : (remainingVES > 0 ? remainingVES.toFixed(2) : '0.00')
+                    paymentCurrencyMode === "USD"
+                      ? remainingUSD > 0
+                        ? remainingUSD.toFixed(2)
+                        : "0.00"
+                      : remainingVES > 0
+                        ? remainingVES.toFixed(2)
+                        : "0.00"
                   }
                   className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs font-mono font-bold bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 focus-visible:ring-2 focus-visible:ring-sky-500"
                 />
@@ -3045,7 +3473,8 @@ export const POSRegister: React.FC = () => {
               return (
                 <div>
                   <label className="block text-neutral-600 dark:text-neutral-400 mb-1">
-                    Número de Referencia / Lote Bancario <span className="text-red-500">*</span>
+                    Número de Referencia / Lote Bancario{" "}
+                    <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -3065,8 +3494,9 @@ export const POSRegister: React.FC = () => {
                 type="button"
                 onClick={() => {
                   const parsed = parseFormattedNumber(paymentAmountInput);
-                  const isVES = paymentCurrencyMode === 'VES';
-                  const amt = parsed > 0 ? parsed : (isVES ? remainingVES : remainingUSD);
+                  const isVES = paymentCurrencyMode === "VES";
+                  const amt =
+                    parsed > 0 ? parsed : isVES ? remainingVES : remainingUSD;
                   handleAddPayment(currentMethod, amt, isVES, paymentRefInput);
                 }}
                 disabled={remainingUSD <= 0.01 && !paymentAmountInput}
@@ -3080,16 +3510,27 @@ export const POSRegister: React.FC = () => {
                 variant="outline"
                 type="button"
                 onClick={() => {
-                  if (paymentCurrencyMode === 'VES') {
-                    handleAddPayment(currentMethod, remainingVES, true, paymentRefInput);
+                  if (paymentCurrencyMode === "VES") {
+                    handleAddPayment(
+                      currentMethod,
+                      remainingVES,
+                      true,
+                      paymentRefInput,
+                    );
                   } else {
-                    handleAddPayment(currentMethod, remainingUSD, false, paymentRefInput);
+                    handleAddPayment(
+                      currentMethod,
+                      remainingUSD,
+                      false,
+                      paymentRefInput,
+                    );
                   }
                 }}
                 disabled={remainingUSD <= 0.01}
                 className="text-sky-700 dark:text-sky-300 border-sky-300 dark:border-sky-800 hover:bg-sky-50 dark:hover:bg-sky-950/40"
               >
-                Pagar Restante Total ({formatMoneyUSD(remainingUSD)} / {formatMoneyVES(remainingVES)})
+                Pagar Restante Total ({formatMoneyUSD(remainingUSD)} /{" "}
+                {formatMoneyVES(remainingVES)})
               </Button>
             </div>
           </div>
@@ -3112,7 +3553,9 @@ export const POSRegister: React.FC = () => {
                   >
                     <div className="flex items-center gap-1.5">
                       <div>
-                        <span className="font-semibold text-neutral-800 dark:text-neutral-200">{p.methodName || p.method}</span>
+                        <span className="font-semibold text-neutral-800 dark:text-neutral-200">
+                          {p.methodName || p.method}
+                        </span>
                         {p.referenceNumber ? (
                           <span className="font-mono text-[11px] text-neutral-600 dark:text-neutral-400 bg-neutral-200/60 dark:bg-neutral-700/60 px-1.5 py-0.5 rounded ml-1.5">
                             Ref: {p.referenceNumber}
@@ -3139,7 +3582,7 @@ export const POSRegister: React.FC = () => {
                               amountUSD: p.amountUSD,
                               amountVES: p.amountVES,
                               isVES: false,
-                              refValue: p.referenceNumber || '',
+                              refValue: p.referenceNumber || "",
                               isEditingPaymentIndex: idx,
                             });
                           }}
@@ -3151,8 +3594,12 @@ export const POSRegister: React.FC = () => {
                       )}
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100">{formatMoneyUSD(p.amountUSD)}</span>
-                      <span className="font-mono text-neutral-400 dark:text-neutral-500 text-[10px]">({formatMoneyVES(p.amountVES)})</span>
+                      <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100">
+                        {formatMoneyUSD(p.amountUSD)}
+                      </span>
+                      <span className="font-mono text-neutral-400 dark:text-neutral-500 text-[10px]">
+                        ({formatMoneyVES(p.amountVES)})
+                      </span>
                       <button
                         type="button"
                         onClick={() => removePayment(idx)}
@@ -3176,15 +3623,19 @@ export const POSRegister: React.FC = () => {
         onClose={() =>
           setQuickRefPrompt({
             isOpen: false,
-            method: '',
-            methodName: '',
+            method: "",
+            methodName: "",
             amountUSD: 0,
             amountVES: 0,
             isVES: false,
-            refValue: '',
+            refValue: "",
           })
         }
-        title={quickRefPrompt.isEditingPaymentIndex !== undefined ? 'Editar Referencia' : 'Referencia de Pago Requerida'}
+        title={
+          quickRefPrompt.isEditingPaymentIndex !== undefined
+            ? "Editar Referencia"
+            : "Referencia de Pago Requerida"
+        }
         icon={<CreditCard className="w-4 h-4 text-sky-600 dark:text-sky-400" />}
         size="sm"
         footer={
@@ -3196,12 +3647,12 @@ export const POSRegister: React.FC = () => {
               onClick={() =>
                 setQuickRefPrompt({
                   isOpen: false,
-                  method: '',
-                  methodName: '',
+                  method: "",
+                  methodName: "",
                   amountUSD: 0,
                   amountVES: 0,
                   isVES: false,
-                  refValue: '',
+                  refValue: "",
                 })
               }
             >
@@ -3223,7 +3674,8 @@ export const POSRegister: React.FC = () => {
           <div className="p-2.5 bg-sky-50 dark:bg-sky-950/40 border border-sky-100 dark:border-sky-800 rounded-lg text-sky-900 dark:text-sky-200">
             <div className="font-semibold">{quickRefPrompt.methodName}</div>
             <div className="text-[11px] font-mono text-sky-700 dark:text-sky-300">
-              Monto: {formatMoneyUSD(quickRefPrompt.amountUSD)} ({formatMoneyVES(quickRefPrompt.amountVES)})
+              Monto: {formatMoneyUSD(quickRefPrompt.amountUSD)} (
+              {formatMoneyVES(quickRefPrompt.amountVES)})
             </div>
           </div>
 
@@ -3236,10 +3688,13 @@ export const POSRegister: React.FC = () => {
               autoFocus
               value={quickRefPrompt.refValue}
               onChange={(e) =>
-                setQuickRefPrompt((prev) => ({ ...prev, refValue: e.target.value }))
+                setQuickRefPrompt((prev) => ({
+                  ...prev,
+                  refValue: e.target.value,
+                }))
               }
               onKeyDown={(e) => {
-                if (e.key === 'Enter') {
+                if (e.key === "Enter") {
                   e.preventDefault();
                   handleConfirmQuickRef();
                 }
@@ -3259,7 +3714,9 @@ export const POSRegister: React.FC = () => {
         isOpen={isNewCustomerModalOpen}
         onClose={() => setIsNewCustomerModalOpen(false)}
         title="Registrar Nuevo Cliente"
-        icon={<UserPlus className="w-5 h-5 text-neutral-800 dark:text-neutral-200" />}
+        icon={
+          <UserPlus className="w-5 h-5 text-neutral-800 dark:text-neutral-200" />
+        }
         size="md"
       >
         <form onSubmit={handleCreateCustomer} className="space-y-3 text-xs">
@@ -3270,7 +3727,9 @@ export const POSRegister: React.FC = () => {
           )}
           <div className="grid grid-cols-3 gap-2">
             <div>
-              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Tipo</label>
+              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                Tipo
+              </label>
               <select
                 value={newCustomerDocType}
                 onChange={(e) => setNewCustomerDocType(e.target.value as any)}
@@ -3284,7 +3743,9 @@ export const POSRegister: React.FC = () => {
               </select>
             </div>
             <div className="col-span-2">
-              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Cédula / RIF *</label>
+              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                Cédula / RIF *
+              </label>
               <input
                 type="text"
                 required
@@ -3297,7 +3758,9 @@ export const POSRegister: React.FC = () => {
           </div>
 
           <div>
-            <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Nombre o Razón Social *</label>
+            <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+              Nombre o Razón Social *
+            </label>
             <input
               type="text"
               required
@@ -3310,7 +3773,9 @@ export const POSRegister: React.FC = () => {
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Teléfono</label>
+              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                Teléfono
+              </label>
               <input
                 type="text"
                 value={newCustomerPhone}
@@ -3320,7 +3785,9 @@ export const POSRegister: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Correo Electrónico</label>
+              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                Correo Electrónico
+              </label>
               <input
                 type="email"
                 value={newCustomerEmail}
@@ -3332,7 +3799,9 @@ export const POSRegister: React.FC = () => {
           </div>
 
           <div>
-            <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Dirección Fiscal</label>
+            <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+              Dirección Fiscal
+            </label>
             <input
               type="text"
               value={newCustomerAddress}
@@ -3347,7 +3816,9 @@ export const POSRegister: React.FC = () => {
               <input
                 type="checkbox"
                 checked={newCustomerIsSpecialTaxpayer}
-                onChange={(e) => setNewCustomerIsSpecialTaxpayer(e.target.checked)}
+                onChange={(e) =>
+                  setNewCustomerIsSpecialTaxpayer(e.target.checked)
+                }
                 className="rounded border-neutral-300 dark:border-neutral-700 text-sky-600 focus:ring-sky-500 bg-white dark:bg-neutral-800"
               />
               <span>Contribuyente Especial SENIAT (Sujeto a retención)</span>
@@ -3363,11 +3834,7 @@ export const POSRegister: React.FC = () => {
             >
               Cancelar
             </Button>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={isCreatingCustomer}
-            >
+            <Button type="submit" size="sm" disabled={isCreatingCustomer}>
               {isCreatingCustomer ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
@@ -3427,10 +3894,12 @@ export const POSRegister: React.FC = () => {
         <div className="space-y-3 text-xs">
           <div className="p-3 bg-neutral-50 dark:bg-neutral-800/60 rounded-lg border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-300 space-y-1">
             <p>
-              La venta ha sido registrada exitosamente y el inventario fue actualizado.
+              La venta ha sido registrada exitosamente y el inventario fue
+              actualizado.
             </p>
             <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-              ¿Desea imprimir el comprobante de entrega para el cliente o continuar con la siguiente transacción?
+              ¿Desea imprimir el comprobante de entrega para el cliente o
+              continuar con la siguiente transacción?
             </p>
           </div>
         </div>
@@ -3494,9 +3963,12 @@ export const POSRegister: React.FC = () => {
           {cart.length === 0 ? (
             <div className="py-12 text-center text-neutral-400 dark:text-neutral-500 flex flex-col items-center">
               <ShoppingCart className="w-10 h-10 mb-2 stroke-1 text-neutral-300 dark:text-neutral-600" />
-              <p className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">El carrito está vacío</p>
+              <p className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+                El carrito está vacío
+              </p>
               <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1">
-                Agregue productos desde el catálogo para visualizarlos y auditarlos aquí.
+                Agregue productos desde el catálogo para visualizarlos y
+                auditarlos aquí.
               </p>
             </div>
           ) : (
@@ -3521,18 +3993,28 @@ export const POSRegister: React.FC = () => {
                   {cart.map((item, idx) => {
                     const unitPriceVES = item.unitPrice * exchangeRateBCV;
                     const totalVES = item.total * exchangeRateBCV;
-                    const itemKey = `${item.productId}-${item.presentationId || 'base'}`;
+                    const itemKey = `${item.productId}-${item.presentationId || "base"}`;
                     const prod = products.find((p) => p.id === item.productId);
                     const availableStock = prod?.stock ?? 0;
                     const totalCommittedUnits = cart
                       .filter((i) => i.productId === item.productId)
-                      .reduce((s, i) => s + i.quantity * (i.multiplier || 1), 0);
+                      .reduce(
+                        (s, i) => s + i.quantity * (i.multiplier || 1),
+                        0,
+                      );
                     const isNegative = totalCommittedUnits > availableStock;
 
                     return (
-                      <tr key={itemKey} className="hover:bg-neutral-50/70 dark:hover:bg-neutral-800/50 transition-colors">
-                        <td className="py-2 px-3 font-mono text-neutral-400 dark:text-neutral-500">{idx + 1}</td>
-                        <td className="py-2 px-3 font-mono font-medium text-neutral-700 dark:text-neutral-300">{item.sku}</td>
+                      <tr
+                        key={itemKey}
+                        className="hover:bg-neutral-50/70 dark:hover:bg-neutral-800/50 transition-colors"
+                      >
+                        <td className="py-2 px-3 font-mono text-neutral-400 dark:text-neutral-500">
+                          {idx + 1}
+                        </td>
+                        <td className="py-2 px-3 font-mono font-medium text-neutral-700 dark:text-neutral-300">
+                          {item.sku}
+                        </td>
                         <td className="py-2 px-3">
                           <div className="font-semibold text-neutral-900 dark:text-neutral-100 flex items-center gap-1.5">
                             <span>{item.name}</span>
@@ -3545,12 +4027,13 @@ export const POSRegister: React.FC = () => {
                           {isNegative && (
                             <div className="flex items-center gap-1 mt-0.5">
                               <span className="text-[10px] font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.2 rounded border border-amber-200 dark:border-amber-800">
-                                Stock neg ({availableStock - totalCommittedUnits})
+                                Stock neg (
+                                {availableStock - totalCommittedUnits})
                               </span>
                               {item.isNegativeStockAuthorized && (
                                 <span className="text-[10px] text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 px-1 py-0.2 rounded border border-emerald-200 dark:border-emerald-800 flex items-center gap-0.5 font-medium">
                                   <ShieldCheck className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
-                                  {item.supervisorApprovedBy || 'Autorizado'}
+                                  {item.supervisorApprovedBy || "Autorizado"}
                                 </span>
                               )}
                             </div>
@@ -3560,7 +4043,8 @@ export const POSRegister: React.FC = () => {
                               {item.isPresentationAuthorized ? (
                                 <span className="text-[10px] text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.2 rounded border border-emerald-200 dark:border-emerald-800 flex items-center gap-0.5 font-medium">
                                   <ShieldCheck className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
-                                  Pres. Autorizada ({item.supervisorApprovedBy || 'Supervisor'})
+                                  Pres. Autorizada (
+                                  {item.supervisorApprovedBy || "Supervisor"})
                                 </span>
                               ) : (
                                 <span className="text-[10px] font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.2 rounded border border-amber-200 dark:border-amber-800 flex items-center gap-0.5">
@@ -3575,31 +4059,55 @@ export const POSRegister: React.FC = () => {
                           <div className="flex items-center justify-center gap-1">
                             <button
                               type="button"
-                              onClick={() => updateCartQty(item.productId, item.presentationId, -1)}
+                              onClick={() =>
+                                updateCartQty(
+                                  item.productId,
+                                  item.presentationId,
+                                  -1,
+                                )
+                              }
                               className="w-5 h-5 rounded bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 border border-neutral-300 dark:border-neutral-700 flex items-center justify-center text-neutral-700 dark:text-neutral-300 cursor-pointer"
                             >
                               <Minus className="w-3 h-3" />
                             </button>
-                            <span className="w-7 text-center font-mono font-bold text-neutral-900 dark:text-neutral-100">{item.quantity}</span>
+                            <span className="w-7 text-center font-mono font-bold text-neutral-900 dark:text-neutral-100">
+                              {item.quantity}
+                            </span>
                             <button
                               type="button"
-                              onClick={() => updateCartQty(item.productId, item.presentationId, 1)}
+                              onClick={() =>
+                                updateCartQty(
+                                  item.productId,
+                                  item.presentationId,
+                                  1,
+                                )
+                              }
                               className="w-5 h-5 rounded bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 border border-neutral-300 dark:border-neutral-700 flex items-center justify-center text-neutral-700 dark:text-neutral-300 cursor-pointer"
                             >
                               <Plus className="w-3 h-3" />
                             </button>
                           </div>
                         </td>
-                        <td className="py-2 px-3 text-right font-mono text-neutral-800 dark:text-neutral-200">{formatMoneyUSD(item.unitPrice)}</td>
+                        <td className="py-2 px-3 text-right font-mono text-neutral-800 dark:text-neutral-200">
+                          {formatMoneyUSD(item.unitPrice)}
+                        </td>
                         <td className="py-2 px-3 text-right font-mono text-neutral-500 dark:text-neutral-400">
                           {formatMoneyVES(unitPriceVES)}
                         </td>
                         <td className="py-2 px-3 text-center">
-                          <Badge variant={item.taxRatePercent === 0 ? 'neutral' : 'info'}>
-                            {item.taxRatePercent === 0 ? 'Exento' : `${item.taxRatePercent}%`}
+                          <Badge
+                            variant={
+                              item.taxRatePercent === 0 ? "neutral" : "info"
+                            }
+                          >
+                            {item.taxRatePercent === 0
+                              ? "Exento"
+                              : `${item.taxRatePercent}%`}
                           </Badge>
                         </td>
-                        <td className="py-2 px-3 text-right font-mono text-neutral-800 dark:text-neutral-200">{formatMoneyUSD(item.subtotal)}</td>
+                        <td className="py-2 px-3 text-right font-mono text-neutral-800 dark:text-neutral-200">
+                          {formatMoneyUSD(item.subtotal)}
+                        </td>
                         <td className="py-2 px-3 text-right font-mono font-bold text-neutral-900 dark:text-neutral-100">
                           {formatMoneyUSD(item.total)}
                         </td>
@@ -3609,7 +4117,12 @@ export const POSRegister: React.FC = () => {
                         <td className="py-2 px-3 text-center">
                           <button
                             type="button"
-                            onClick={() => removeFromCart(item.productId, item.presentationId)}
+                            onClick={() =>
+                              removeFromCart(
+                                item.productId,
+                                item.presentationId,
+                              )
+                            }
                             className="text-neutral-400 hover:text-red-600 dark:hover:text-red-400 p-1 rounded cursor-pointer"
                             title="Eliminar del carrito"
                           >
@@ -3628,7 +4141,9 @@ export const POSRegister: React.FC = () => {
           {cart.length > 0 && (
             <div className="bg-neutral-50 dark:bg-neutral-800/60 p-4 rounded-lg border border-neutral-200 dark:border-neutral-800 grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
               <div>
-                <span className="text-neutral-500 dark:text-neutral-400 block">Base Exenta:</span>
+                <span className="text-neutral-500 dark:text-neutral-400 block">
+                  Base Exenta:
+                </span>
                 <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100 text-sm">
                   {formatMoneyUSD(baseExempt)}
                 </span>
@@ -3637,7 +4152,9 @@ export const POSRegister: React.FC = () => {
                 </span>
               </div>
               <div>
-                <span className="text-neutral-500 dark:text-neutral-400 block">Base Imponible (16%):</span>
+                <span className="text-neutral-500 dark:text-neutral-400 block">
+                  Base Imponible (16%):
+                </span>
                 <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100 text-sm">
                   {formatMoneyUSD(baseTaxable)}
                 </span>
@@ -3646,7 +4163,9 @@ export const POSRegister: React.FC = () => {
                 </span>
               </div>
               <div>
-                <span className="text-neutral-500 dark:text-neutral-400 block">IVA Acumulado:</span>
+                <span className="text-neutral-500 dark:text-neutral-400 block">
+                  IVA Acumulado:
+                </span>
                 <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100 text-sm">
                   {formatMoneyUSD(taxAmount)}
                 </span>
@@ -3655,7 +4174,9 @@ export const POSRegister: React.FC = () => {
                 </span>
               </div>
               <div className="bg-white dark:bg-neutral-900 p-2.5 rounded-lg border border-sky-200 dark:border-sky-800">
-                <span className="text-sky-800 dark:text-sky-300 font-semibold block">Total General:</span>
+                <span className="text-sky-800 dark:text-sky-300 font-semibold block">
+                  Total General:
+                </span>
                 <span className="font-mono font-extrabold text-sky-700 dark:text-sky-400 text-base">
                   {formatMoneyUSD(subtotalBeforeIGTF)}
                 </span>
@@ -3677,16 +4198,18 @@ export const POSRegister: React.FC = () => {
         }}
         title="Autorización de Supervisor Requerida"
         subtitle={
-          pendingStockApproval?.action === 'PRESENTATION_AUTH'
-            ? 'Presentación de producto restringida para la venta'
-            : 'Venta con existencia de inventario en negativo'
+          pendingStockApproval?.action === "PRESENTATION_AUTH"
+            ? "Presentación de producto restringida para la venta"
+            : "Venta con existencia de inventario en negativo"
         }
-        icon={<ShieldCheck className="w-5 h-5 text-amber-600 dark:text-amber-400" />}
+        icon={
+          <ShieldCheck className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+        }
         size="md"
       >
         {pendingStockApproval && (
           <div className="space-y-4 text-xs">
-            {pendingStockApproval.action === 'PRESENTATION_AUTH' ? (
+            {pendingStockApproval.action === "PRESENTATION_AUTH" ? (
               /* Tarjeta de Resumen para Presentación Restringida */
               <div className="p-3 bg-amber-50/60 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800 space-y-2">
                 <div className="flex items-start justify-between">
@@ -3705,10 +4228,17 @@ export const POSRegister: React.FC = () => {
 
                 <div className="pt-2 border-t border-amber-200/60 dark:border-amber-800/60 text-[11px] text-neutral-700 dark:text-neutral-300 space-y-1">
                   <p>
-                    La presentación o empaque <strong>{pendingStockApproval.presentationName || 'seleccionada'}</strong> (x{pendingStockApproval.multiplier || 1}) está configurada para requerir autorización expresa de supervisor antes de ser comercializada en caja.
+                    La presentación o empaque{" "}
+                    <strong>
+                      {pendingStockApproval.presentationName || "seleccionada"}
+                    </strong>{" "}
+                    (x{pendingStockApproval.multiplier || 1}) está configurada
+                    para requerir autorización expresa de supervisor antes de
+                    ser comercializada en caja.
                   </p>
                   <p className="text-neutral-500 dark:text-neutral-400 text-[10px]">
-                    Por favor, solicite a un supervisor que ingrese sus credenciales para autorizar el despacho.
+                    Por favor, solicite a un supervisor que ingrese sus
+                    credenciales para autorizar el despacho.
                   </p>
                 </div>
               </div>
@@ -3731,27 +4261,39 @@ export const POSRegister: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-2 pt-2 border-t border-amber-200/60 dark:border-amber-800/60 text-[11px]">
                   <div>
-                    <span className="text-neutral-500 dark:text-neutral-400 block">Almacén de la Caja:</span>
+                    <span className="text-neutral-500 dark:text-neutral-400 block">
+                      Almacén de la Caja:
+                    </span>
                     <span className="font-semibold text-neutral-800 dark:text-neutral-200">
-                      {activeShift?.warehouseName || 'Almacén Principal'}
+                      {activeShift?.warehouseName || "Almacén Principal"}
                     </span>
                   </div>
                   <div>
-                    <span className="text-neutral-500 dark:text-neutral-400 block">Existencia Actual:</span>
-                    <span className={`font-mono font-bold ${pendingStockApproval.availableStock <= 0 ? 'text-red-600 dark:text-red-400' : 'text-neutral-800 dark:text-neutral-200'}`}>
+                    <span className="text-neutral-500 dark:text-neutral-400 block">
+                      Existencia Actual:
+                    </span>
+                    <span
+                      className={`font-mono font-bold ${pendingStockApproval.availableStock <= 0 ? "text-red-600 dark:text-red-400" : "text-neutral-800 dark:text-neutral-200"}`}
+                    >
                       {pendingStockApproval.availableStock} unidades
                     </span>
                   </div>
                   <div>
-                    <span className="text-neutral-500 dark:text-neutral-400 block">Cantidad a Vender:</span>
+                    <span className="text-neutral-500 dark:text-neutral-400 block">
+                      Cantidad a Vender:
+                    </span>
                     <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100">
                       {pendingStockApproval.targetQty} unidades
                     </span>
                   </div>
                   <div>
-                    <span className="text-neutral-500 dark:text-neutral-400 block">Saldo Resultante:</span>
+                    <span className="text-neutral-500 dark:text-neutral-400 block">
+                      Saldo Resultante:
+                    </span>
                     <span className="font-mono font-bold text-red-600 dark:text-red-400">
-                      {pendingStockApproval.availableStock - pendingStockApproval.targetQty} unidades
+                      {pendingStockApproval.availableStock -
+                        pendingStockApproval.targetQty}{" "}
+                      unidades
                     </span>
                   </div>
                 </div>
@@ -3762,7 +4304,10 @@ export const POSRegister: React.FC = () => {
             {canAuthorizeOperations(user?.role, user?.permissions) ? (
               <div className="p-3 bg-sky-50 dark:bg-sky-950/30 rounded-lg border border-sky-200 dark:border-sky-800 space-y-2">
                 <p className="text-[11px] text-sky-800 dark:text-sky-300">
-                  Su sesión actual posee rango de <strong>{user?.role || 'Administrador / Supervisor'}</strong> con nivel para autorizar operaciones. Puede autorizar esta venta inmediatamente:
+                  Su sesión actual posee rango de{" "}
+                  <strong>{user?.role || "Administrador / Supervisor"}</strong>{" "}
+                  con nivel para autorizar operaciones. Puede autorizar esta
+                  venta inmediatamente:
                 </p>
                 <Button
                   type="button"
@@ -3772,7 +4317,11 @@ export const POSRegister: React.FC = () => {
                   className="w-full flex items-center justify-center gap-1.5 py-2"
                 >
                   <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                  <span>{isAuthorizingSupervisor ? 'Autorizando...' : 'Autorizar como Administrador / Supervisor'}</span>
+                  <span>
+                    {isAuthorizingSupervisor
+                      ? "Autorizando..."
+                      : "Autorizar como Administrador / Supervisor"}
+                  </span>
                 </Button>
                 <div className="relative my-2">
                   <div className="absolute inset-0 flex items-center">
@@ -3787,7 +4336,10 @@ export const POSRegister: React.FC = () => {
               <div className="p-3 bg-neutral-50 dark:bg-neutral-800/60 rounded-lg border border-neutral-200 dark:border-neutral-800 flex items-start gap-2.5">
                 <ShieldCheck className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                 <p className="text-[11px] text-neutral-600 dark:text-neutral-300">
-                  Las autorizaciones deben ser aprobadas exclusivamente por un usuario que sea <strong>Administrador</strong> o cuente con nivel de <strong>Supervisor</strong> autorizado. Ingrese a continuación las credenciales del autorizador.
+                  Las autorizaciones deben ser aprobadas exclusivamente por un
+                  usuario que sea <strong>Administrador</strong> o cuente con
+                  nivel de <strong>Supervisor</strong> autorizado. Ingrese a
+                  continuación las credenciales del autorizador.
                 </p>
               </div>
             )}
@@ -3810,7 +4362,9 @@ export const POSRegister: React.FC = () => {
                   onChange={(e) => setSupervisorUsername(e.target.value)}
                   placeholder="ej: supervisor / admin@empresa.com"
                   className="w-full h-9 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-xs text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
-                  required={!canAuthorizeOperations(user?.role, user?.permissions)}
+                  required={
+                    !canAuthorizeOperations(user?.role, user?.permissions)
+                  }
                 />
               </div>
 
@@ -3824,7 +4378,9 @@ export const POSRegister: React.FC = () => {
                   onChange={(e) => setSupervisorPassword(e.target.value)}
                   placeholder="••••••••"
                   className="w-full h-9 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-xs text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
-                  required={!canAuthorizeOperations(user?.role, user?.permissions)}
+                  required={
+                    !canAuthorizeOperations(user?.role, user?.permissions)
+                  }
                 />
               </div>
 
@@ -3863,9 +4419,13 @@ export const POSRegister: React.FC = () => {
                   type="submit"
                   variant="primary"
                   size="sm"
-                  disabled={isAuthorizingSupervisor || (!supervisorUsername.trim() || !supervisorPassword)}
+                  disabled={
+                    isAuthorizingSupervisor ||
+                    !supervisorUsername.trim() ||
+                    !supervisorPassword
+                  }
                 >
-                  {isAuthorizingSupervisor ? 'Validando...' : 'Autorizar Venta'}
+                  {isAuthorizingSupervisor ? "Validando..." : "Autorizar Venta"}
                 </Button>
               </div>
             </form>
@@ -3875,14 +4435,20 @@ export const POSRegister: React.FC = () => {
 
       {/* Modal de Selección de Presentaciones */}
       <Modal
-        isOpen={Boolean(isPresentationModalOpen && selectedProductForPresentation)}
+        isOpen={Boolean(
+          isPresentationModalOpen && selectedProductForPresentation,
+        )}
         onClose={() => {
           setIsPresentationModalOpen(false);
           setSelectedProductForPresentation(null);
           setPresentationModalError(null);
         }}
         title="Seleccionar Presentación"
-        subtitle={selectedProductForPresentation ? `${selectedProductForPresentation.name} • SKU: ${selectedProductForPresentation.sku}` : ''}
+        subtitle={
+          selectedProductForPresentation
+            ? `${selectedProductForPresentation.name} • SKU: ${selectedProductForPresentation.sku}`
+            : ""
+        }
         icon={<Package className="w-5 h-5 text-sky-600 dark:text-sky-400" />}
         size="lg"
         footer={
@@ -3917,15 +4483,27 @@ export const POSRegister: React.FC = () => {
             {/* Información base del producto */}
             <div className="p-2.5 bg-neutral-50 dark:bg-neutral-800/60 rounded-lg border border-neutral-200 dark:border-neutral-800 flex items-center justify-between text-xs">
               <div>
-                <span className="text-neutral-500 dark:text-neutral-400 block text-[10px] uppercase font-semibold">Precio Base (Unidad)</span>
-                <span className="font-bold text-neutral-900 dark:text-neutral-100">{formatMoneyUSD(selectedProductForPresentation.priceUSD)}</span>
+                <span className="text-neutral-500 dark:text-neutral-400 block text-[10px] uppercase font-semibold">
+                  Precio Base (Unidad)
+                </span>
+                <span className="font-bold text-neutral-900 dark:text-neutral-100">
+                  {formatMoneyUSD(selectedProductForPresentation.priceUSD)}
+                </span>
                 <span className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400 ml-1.5">
-                  ({formatMoneyVES(selectedProductForPresentation.priceUSD * exchangeRateBCV)})
+                  (
+                  {formatMoneyVES(
+                    selectedProductForPresentation.priceUSD * exchangeRateBCV,
+                  )}
+                  )
                 </span>
               </div>
               <div className="text-right">
-                <span className="text-neutral-500 dark:text-neutral-400 block text-[10px] uppercase font-semibold">Stock en Almacén</span>
-                <span className={`font-mono font-bold ${(selectedProductForPresentation.stock ?? 0) <= 0 ? 'text-amber-600 dark:text-amber-400' : 'text-neutral-800 dark:text-neutral-200'}`}>
+                <span className="text-neutral-500 dark:text-neutral-400 block text-[10px] uppercase font-semibold">
+                  Stock en Almacén
+                </span>
+                <span
+                  className={`font-mono font-bold ${(selectedProductForPresentation.stock ?? 0) <= 0 ? "text-amber-600 dark:text-amber-400" : "text-neutral-800 dark:text-neutral-200"}`}
+                >
                   {selectedProductForPresentation.stock ?? 0} unidades base
                 </span>
               </div>
@@ -3934,7 +4512,8 @@ export const POSRegister: React.FC = () => {
             {/* Lista de presentaciones disponibles */}
             <div>
               <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-2">
-                Presentaciones Disponibles ({selectedProductForPresentation.presentations?.length || 0}):
+                Presentaciones Disponibles (
+                {selectedProductForPresentation.presentations?.length || 0}):
               </label>
               <div className="space-y-2">
                 {selectedProductForPresentation.presentations?.map((pres) => {
@@ -3942,7 +4521,12 @@ export const POSRegister: React.FC = () => {
                   const presPrice =
                     pres.basePrice !== null && pres.basePrice !== undefined
                       ? pres.basePrice
-                      : Number((selectedProductForPresentation.priceUSD * (pres.multiplier || 1)).toFixed(4));
+                      : Number(
+                          (
+                            selectedProductForPresentation.priceUSD *
+                            (pres.multiplier || 1)
+                          ).toFixed(4),
+                        );
                   const presPriceVES = presPrice * exchangeRateBCV;
 
                   return (
@@ -3954,8 +4538,8 @@ export const POSRegister: React.FC = () => {
                       }}
                       className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                         isSelected
-                          ? 'border-sky-500 bg-sky-50/50 dark:bg-sky-950/30 ring-1 ring-sky-500'
-                          : 'border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 hover:bg-neutral-50/50 dark:hover:bg-neutral-800/50 bg-white dark:bg-neutral-900'
+                          ? "border-sky-500 bg-sky-50/50 dark:bg-sky-950/30 ring-1 ring-sky-500"
+                          : "border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 hover:bg-neutral-50/50 dark:hover:bg-neutral-800/50 bg-white dark:bg-neutral-900"
                       }`}
                     >
                       <div className="flex items-start gap-3 min-w-0">
@@ -3987,9 +4571,26 @@ export const POSRegister: React.FC = () => {
                             )}
                           </div>
                           <div className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5 flex items-center gap-2">
-                            <span>Contiene: <strong className="text-neutral-700 dark:text-neutral-300">{pres.multiplier || 1} unidades base</strong></span>
-                            {pres.sku && <span>• SKU: <span className="font-mono">{pres.sku}</span></span>}
-                            {pres.barcode && <span>• Barras: <span className="font-mono">{pres.barcode}</span></span>}
+                            <span>
+                              Contiene:{" "}
+                              <strong className="text-neutral-700 dark:text-neutral-300">
+                                {pres.multiplier || 1} unidades base
+                              </strong>
+                            </span>
+                            {pres.sku && (
+                              <span>
+                                • SKU:{" "}
+                                <span className="font-mono">{pres.sku}</span>
+                              </span>
+                            )}
+                            {pres.barcode && (
+                              <span>
+                                • Barras:{" "}
+                                <span className="font-mono">
+                                  {pres.barcode}
+                                </span>
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -4017,7 +4618,9 @@ export const POSRegister: React.FC = () => {
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
-                    onClick={() => setPresentationQty((q) => Math.max(1, q - 1))}
+                    onClick={() =>
+                      setPresentationQty((q) => Math.max(1, q - 1))
+                    }
                     className="w-8 h-8 rounded-lg bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 border border-neutral-300 dark:border-neutral-700 flex items-center justify-center text-neutral-700 dark:text-neutral-300 cursor-pointer"
                   >
                     <Minus className="w-3.5 h-3.5" />
@@ -4046,15 +4649,23 @@ export const POSRegister: React.FC = () => {
               {/* Subtotal estimado */}
               {selectedPresentationId && (
                 <div className="text-right">
-                  <span className="text-[10px] text-neutral-500 dark:text-neutral-400 block uppercase font-semibold">Subtotal Estimado</span>
+                  <span className="text-[10px] text-neutral-500 dark:text-neutral-400 block uppercase font-semibold">
+                    Subtotal Estimado
+                  </span>
                   {(() => {
-                    const pres = selectedProductForPresentation.presentations?.find(
-                      (p) => p.id === selectedPresentationId
-                    );
+                    const pres =
+                      selectedProductForPresentation.presentations?.find(
+                        (p) => p.id === selectedPresentationId,
+                      );
                     const presPrice = pres
                       ? pres.basePrice !== null && pres.basePrice !== undefined
                         ? pres.basePrice
-                        : Number((selectedProductForPresentation.priceUSD * (pres.multiplier || 1)).toFixed(4))
+                        : Number(
+                            (
+                              selectedProductForPresentation.priceUSD *
+                              (pres.multiplier || 1)
+                            ).toFixed(4),
+                          )
                       : 0;
                     const subTotal = presPrice * (presentationQty || 1);
                     return (
@@ -4082,7 +4693,9 @@ export const POSRegister: React.FC = () => {
                   </p>
                 </div>
                 {/* Botón de solicitar supervisor si la causa es falta de autorización */}
-                {selectedProductForPresentation.presentations?.find((p) => p.id === selectedPresentationId)?.requiresAuthorization &&
+                {selectedProductForPresentation.presentations?.find(
+                  (p) => p.id === selectedPresentationId,
+                )?.requiresAuthorization &&
                   !canAuthorizeOperations(user?.role, user?.permissions) && (
                     <Button
                       type="button"
@@ -4127,7 +4740,7 @@ export const POSRegister: React.FC = () => {
                 handleApplyItemDiscount(
                   editingDiscountItem.productId,
                   editingDiscountItem.presentationId,
-                  parseFloat(discountInputPercent) || 0
+                  parseFloat(discountInputPercent) || 0,
                 );
               }}
             >
@@ -4139,7 +4752,10 @@ export const POSRegister: React.FC = () => {
         {editingDiscountItem && (
           <div className="space-y-4">
             <p className="text-xs text-neutral-600 dark:text-neutral-300 font-medium">
-              Producto: <strong className="text-neutral-900 dark:text-neutral-100">{editingDiscountItem.productName}</strong>
+              Producto:{" "}
+              <strong className="text-neutral-900 dark:text-neutral-100">
+                {editingDiscountItem.productName}
+              </strong>
             </p>
 
             <div>
@@ -4157,13 +4773,17 @@ export const POSRegister: React.FC = () => {
                   placeholder="0"
                   className="w-full h-9 pl-3 pr-8 text-xs font-mono font-bold border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
-                <span className="absolute right-3 top-2.5 text-xs text-neutral-400 dark:text-neutral-500 font-bold">%</span>
+                <span className="absolute right-3 top-2.5 text-xs text-neutral-400 dark:text-neutral-500 font-bold">
+                  %
+                </span>
               </div>
             </div>
 
             {/* Atajos Rápidos */}
             <div className="space-y-1">
-              <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-semibold uppercase">Atajos rápidos:</span>
+              <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-semibold uppercase">
+                Atajos rápidos:
+              </span>
               <div className="flex gap-1.5 flex-wrap">
                 {[0, 5, 10, 15, 20, 25, 50].map((pct) => (
                   <button
@@ -4199,7 +4819,7 @@ export const POSRegister: React.FC = () => {
         cashRegisterId={activeShift?.cashRegisterId}
         allowedDepartmentIds={allowedDepartmentIds}
         warehouseId={activeShift?.warehouseId || activeWarehouseId || undefined}
-        warehouseName={activeShift?.warehouseName || 'Almacén de Ventas'}
+        warehouseName={activeShift?.warehouseName || "Almacén de Ventas"}
         onSelect={(prod) => {
           setIsProductSearchModalOpen(false);
           const found = visibleProducts.find((p) => p.id === prod.id);

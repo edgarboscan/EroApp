@@ -739,7 +739,7 @@ export const BankReconciliationView: React.FC = () => {
             variant="outline"
             onClick={() =>
               navigate(
-                `/reports/bank-reconciliation?accountId=${selectedAccountId}&endDate=${periodEnd}`
+                `/reports/bank-reconciliation?accountId=${selectedAccountId}&endDate=${periodEnd}`,
               )
             }
             disabled={!selectedAccountId}
@@ -936,12 +936,16 @@ export const BankReconciliationView: React.FC = () => {
         >
           <div className="flex items-center justify-between">
             <div>
-              <span className={`text-xs font-semibold uppercase tracking-wider block ${isBalanced ? 'text-[#28A745] dark:text-[#4ADE80]' : 'text-red-600 dark:text-red-400'}`}>
+              <span
+                className={`text-xs font-semibold uppercase tracking-wider block ${isBalanced ? "text-[#28A745] dark:text-[#4ADE80]" : "text-red-600 dark:text-red-400"}`}
+              >
                 Diferencia de Cuadre
               </span>
               <p
                 className={`text-2xl font-bold font-mono mt-1 ${
-                  isBalanced ? "text-[#28A745] dark:text-[#4ADE80]" : "text-red-600 dark:text-red-400"
+                  isBalanced
+                    ? "text-[#28A745] dark:text-[#4ADE80]"
+                    : "text-red-600 dark:text-red-400"
                 }`}
               >
                 {formatCurrency(difference, activeAccount?.currency || "VES")}
@@ -1072,7 +1076,7 @@ export const BankReconciliationView: React.FC = () => {
                           type="button"
                           onClick={() =>
                             navigate(
-                              `/reports/bank-reconciliation?accountId=${selectedAccountId}&reconciliationId=${h.id}`
+                              `/reports/bank-reconciliation?accountId=${selectedAccountId}&reconciliationId=${h.id}`,
                             )
                           }
                           className="inline-flex items-center gap-1 text-xs text-sky-600 dark:text-sky-400 hover:underline font-semibold cursor-pointer"
@@ -1433,7 +1437,7 @@ export const BankReconciliationView: React.FC = () => {
 
                 <div className="overflow-x-auto max-h-96">
                   <table className="w-full text-left text-xs text-neutral-600">
-                    <thead className="bg-neutral-50 border-b border-neutral-200 text-[10px] uppercase font-semibold text-neutral-500 sticky top-0">
+                    <thead className="bg-[#F4F6F9] dark:bg-[#18191A] text-neutral-700 dark:text-neutral-300 uppercase font-semibold text-[10px] tracking-wider border-b border-gray-200 dark:border-gray-800 sticky top-0 z-10">
                       <tr>
                         <th className="py-2.5 px-3">Fecha</th>
                         <th className="py-2.5 px-3">Referencia</th>
@@ -1447,12 +1451,12 @@ export const BankReconciliationView: React.FC = () => {
                         <th className="py-2.5 px-3 text-right">Acción</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-neutral-100">
+                    <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
                       {parsedLines.length === 0 ? (
                         <tr>
                           <td
                             colSpan={6}
-                            className="text-center py-10 text-neutral-400"
+                            className="text-center py-10 text-neutral-400 animate-pulse"
                           >
                             No se han cargado movimientos desde el extracto
                             bancario.
@@ -1468,7 +1472,10 @@ export const BankReconciliationView: React.FC = () => {
                             : null;
 
                           return (
-                            <tr key={idx} className="hover:bg-neutral-50">
+                            <tr
+                              key={idx}
+                              className="transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800/60  text-neutral-700 dark:text-neutral-300"
+                            >
                               <td className="py-2.5 px-3 font-mono">
                                 {line.date}
                               </td>
@@ -1525,7 +1532,7 @@ export const BankReconciliationView: React.FC = () => {
               </div>
 
               {/* Resumen al pie del cruce */}
-              <div className="p-3 bg-neutral-50 border-t border-neutral-200 flex justify-between items-center text-xs text-neutral-600">
+              <div className="p-3 bg-[#F4F6F9] dark:bg-[#18191A] border-t border-neutral-200 flex justify-between items-center text-xs text-neutral-600">
                 <span>
                   Coincidentes:{" "}
                   <strong className="text-emerald-700">

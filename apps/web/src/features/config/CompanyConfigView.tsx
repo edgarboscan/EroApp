@@ -133,6 +133,12 @@ export const CompanyConfigView: React.FC = () => {
     updatedAt,
     history,
     isHistoryLoading,
+    autoSyncBcv,
+    setAutoSyncBcv,
+    lastBcvError,
+    checkBcvLiveRate,
+    isBcvChecking,
+    fetchAutoSyncStatus,
     updateRate,
     fetchRate,
     fetchHistory,
@@ -146,7 +152,8 @@ export const CompanyConfigView: React.FC = () => {
 
   useEffect(() => {
     fetchRate();
-  }, [fetchRate]);
+    fetchAutoSyncStatus();
+  }, [fetchRate, fetchAutoSyncStatus]);
 
   useEffect(() => {
     setFormRate(rate.toString());
@@ -360,6 +367,7 @@ export const CompanyConfigView: React.FC = () => {
     showLogoInReports: true,
     reportLogoType: "default",
     customLogoUrl: null,
+    autoSyncBcv: true,
   });
 
   // Procesamiento y compresión mandatoria a WebP de logos para reportes
@@ -587,6 +595,8 @@ export const CompanyConfigView: React.FC = () => {
                 : true,
             reportLogoType: d.data.reportLogoType || "default",
             customLogoUrl: d.data.customLogoUrl || null,
+            autoSyncBcv:
+              d.data.autoSyncBcv !== undefined ? Boolean(d.data.autoSyncBcv) : true,
           });
         }
       }
@@ -821,6 +831,7 @@ export const CompanyConfigView: React.FC = () => {
         showLogoInReports: company.showLogoInReports !== false,
         reportLogoType: company.reportLogoType || "default",
         customLogoUrl: company.customLogoUrl || null,
+        autoSyncBcv: company.autoSyncBcv !== false,
       };
 
       const res = await fetch("/api/config/company", {
@@ -1358,72 +1369,175 @@ export const CompanyConfigView: React.FC = () => {
             </div>
 
             {/* Tasa Oficial de Cambio (BCV) */}
-            <div className="bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-sky-100 dark:bg-sky-900/50 rounded-lg text-sky-700 dark:text-sky-300 mt-0.5">
-                  <Coins className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-xs font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider">
-                      Tasa de Cambio Oficial (BCV)
-                    </h3>
-                    <Badge variant="info">Sincronización Centralizada</Badge>
+            <div className="bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-sky-100 dark:bg-sky-900/50 rounded-lg text-sky-700 dark:text-sky-300 mt-0.5">
+                    <Coins className="w-5 h-5" />
                   </div>
-                  <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
-                    Valor actual del dólar estadounidense aplicado para
-                    presupuestos, facturación y POS:
-                  </p>
-                  <div className="flex items-center gap-3 mt-2">
-                    <span className="font-mono text-base font-extrabold text-neutral-900 dark:text-neutral-100">
-                      Bs. {formatExchangeRate(rate, 4)}{" "}
-                      <span className="text-xs font-normal text-neutral-500 dark:text-neutral-400">
-                        / USD
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xs font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider">
+                        Tasa de Cambio Oficial (BCV)
+                      </h3>
+                      <Badge variant={autoSyncBcv ? "success" : "neutral"}>
+                        {autoSyncBcv ? "Actualización Automática Activa" : "Actualización Manual"}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
+                      Valor actual del dólar estadounidense aplicado para presupuestos, facturación y POS:
+                    </p>
+                    <div className="flex items-center gap-3 mt-2">
+                      <span className="font-mono text-base font-extrabold text-neutral-900 dark:text-neutral-100">
+                        Bs. {formatExchangeRate(rate, 4)}{" "}
+                        <span className="text-xs font-normal text-neutral-500 dark:text-neutral-400">
+                          / USD
+                        </span>
                       </span>
-                    </span>
-                    <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                      Fuente: {source}
-                    </span>
+                      <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                        Fuente: {source}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">
+                      Última actualización: {new Date(updatedAt).toLocaleString()} por {updatedBy}
+                    </p>
                   </div>
-                  <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">
-                    Última actualización: {new Date(updatedAt).toLocaleString()}{" "}
-                    por {updatedBy}
-                  </p>
                 </div>
-              </div>
 
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    fetchHistory();
-                    setShowRateHistoryModal(true);
-                  }}
-                  className="flex items-center gap-1.5 bg-white dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 shadow-xs"
-                >
-                  <History className="w-3.5 h-3.5" />
-                  <span>Ver Historial</span>
-                </Button>
-                {canEditRate ? (
+                <div className="flex items-center gap-2">
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => setShowRateModal(true)}
+                    onClick={() => {
+                      fetchHistory();
+                      setShowRateHistoryModal(true);
+                    }}
                     className="flex items-center gap-1.5 bg-white dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 shadow-xs"
                   >
-                    <Edit2 className="w-3.5 h-3.5" />
-                    <span>Actualizar Tasa</span>
+                    <History className="w-3.5 h-3.5" />
+                    <span>Ver Historial</span>
                   </Button>
-                ) : (
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 rounded-lg border border-neutral-200 dark:border-neutral-700 text-xs">
-                    <Lock className="w-3.5 h-3.5" />
-                    <span>Solo lectura (No autorizado)</span>
-                  </div>
-                )}
+                  {canEditRate ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowRateModal(true)}
+                      className="flex items-center gap-1.5 bg-white dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 shadow-xs"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                      <span>Actualizar Tasa</span>
+                    </Button>
+                  ) : (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 rounded-lg border border-neutral-200 dark:border-neutral-700 text-xs">
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>Solo lectura (No autorizado)</span>
+                    </div>
+                  )}
+                </div>
               </div>
+
+              {/* Controles de Actualización Automática */}
+              <div className="pt-3 border-t border-sky-200/70 dark:border-sky-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div>
+                  <span className="font-semibold text-neutral-800 dark:text-neutral-200 block">
+                    Actualización Periódica del Dólar BCV
+                  </span>
+                  <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                    {autoSyncBcv
+                      ? "El sistema verifica en segundo plano la tasa oficial del BCV y alerta si la tasa cambia o si ocurre un fallo al obtenerla."
+                      : "La verificación automática está desactivada. La tasa se debe ajustar manualmente."}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      const res = await checkBcvLiveRate({ force: true });
+                      if (res.success && res.data) {
+                        toast.success(
+                          `Tasa oficial obtenida del BCV: Bs. ${formatExchangeRate(res.data.bcvRate, 4)}`
+                        );
+                      } else {
+                        toast.error(
+                          `No se pudo obtener la tasa oficial del dólar desde el BCV. Causa: ${res.error || "Fallo de comunicación o timeout"}`
+                        );
+                      }
+                    }}
+                    disabled={isBcvChecking}
+                    className="flex items-center gap-1.5 text-xs bg-white dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isBcvChecking ? "animate-spin" : ""}`} />
+                    <span>{isBcvChecking ? "Consultando..." : "Consultar BCV Ahora"}</span>
+                  </Button>
+
+                  {canEditRate && (
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={autoSyncBcv}
+                      onClick={async () => {
+                        const next = !autoSyncBcv;
+                        await setAutoSyncBcv(next);
+                        toast.success(
+                          next
+                            ? "Actualización automática de tasa BCV activada"
+                            : "Actualización automática de tasa BCV desactivada"
+                        );
+                      }}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus-visible:ring-2 focus-visible:ring-neutral-400 ${
+                        autoSyncBcv ? "bg-neutral-900 dark:bg-neutral-100" : "bg-neutral-300 dark:bg-neutral-700"
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white dark:bg-neutral-900 shadow-sm ring-0 transition duration-200 ease-in-out ${
+                          autoSyncBcv ? "translate-x-4" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Alerta de Fallo en Sincronización Automática */}
+              {lastBcvError && autoSyncBcv && (
+                <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/50 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                  <div>
+                    <span className="font-semibold text-red-800 dark:text-red-300 block">
+                      Aviso: Fallo al obtener la tasa oficial del dólar desde el BCV
+                    </span>
+                    <p className="text-[11px] text-red-700 dark:text-red-400 mt-0.5 leading-relaxed">
+                      Causa del fallo: {lastBcvError}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      const res = await checkBcvLiveRate({ force: true });
+                      if (res.success && res.data) {
+                        toast.success(
+                          `Tasa obtenida con éxito: Bs. ${formatExchangeRate(res.data.bcvRate, 4)}`
+                        );
+                      } else {
+                        toast.error(
+                          `No se pudo obtener la tasa oficial del dólar desde el BCV. Causa: ${res.error || "Fallo de conexión"}`
+                        );
+                      }
+                    }}
+                    disabled={isBcvChecking}
+                    className="shrink-0 bg-white dark:bg-neutral-800 border-red-300 dark:border-red-800 text-red-700 dark:text-red-300"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isBcvChecking ? "animate-spin" : ""}`} />
+                    Reintentar Ahora
+                  </Button>
+                </div>
+              )}
             </div>
 
             {/* Configuración SENIAT */}
@@ -2995,6 +3109,44 @@ export const CompanyConfigView: React.FC = () => {
               Esta tasa se guardará en base de datos MySQL con fecha efectiva e
               historial de auditoría, aplicándose de manera global a todos los
               módulos.
+            </div>
+
+            {/* Sincronización Directa BCV */}
+            <div className="flex items-center justify-between p-3 bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200 dark:border-neutral-800 rounded-lg text-xs">
+              <div>
+                <span className="font-semibold text-neutral-800 dark:text-neutral-200 block">
+                  Sincronización Oficial BCV
+                </span>
+                <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                  Obtener el valor publicado en el portal oficial
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  const res = await checkBcvLiveRate({ force: true });
+                  if (res.success && res.data) {
+                    setFormRate(res.data.bcvRate.toString());
+                    setFormSource(res.data.source);
+                    setFormNotes(
+                      `Sincronizado desde portal oficial del BCV (${res.data.bcvFormattedDate || res.data.bcvEffectiveDate})`
+                    );
+                    toast.success(
+                      `Tasa obtenida del BCV: Bs. ${formatExchangeRate(res.data.bcvRate, 4)}`
+                    );
+                  } else {
+                    toast.error(
+                      `No se pudo obtener la tasa oficial del dólar desde el BCV. Causa: ${res.error || "Fallo de conexión o timeout"}`
+                    );
+                  }
+                }}
+                disabled={isBcvChecking}
+              >
+                <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isBcvChecking ? "animate-spin" : ""}`} />
+                {isBcvChecking ? "Consultando..." : "Obtener del BCV"}
+              </Button>
             </div>
 
             <div>

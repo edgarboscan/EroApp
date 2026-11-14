@@ -984,3 +984,210 @@ reportsRouter.get('/cash-flow', authenticate, authorize('reports', 'cash_flow'),
   }
 });
 
+// GET /api/reports/igtf - Reporte de Percepción IGTF 3%
+reportsRouter.get('/igtf', authenticate, authorize('reports', 'sales'), async (c) => {
+  const user = c.get('user');
+  const startDate = c.req.query('startDate');
+  const endDate = c.req.query('endDate');
+  const branchId = c.req.query('branchId');
+  const cashRegisterId = c.req.query('cashRegisterId');
+  const shiftId = c.req.query('shiftId');
+  const paymentMethod = c.req.query('paymentMethod');
+  const origin = c.req.query('origin') as 'ALL' | 'POS' | 'ADMIN' | undefined;
+  const search = c.req.query('search');
+  const format = c.req.query('format') || c.req.query('export') || 'json';
+  const currency = (c.req.query('currency') as 'VES' | 'USD' | 'BOTH') || undefined;
+
+  try {
+    const data = await ReportsService.getIGTFReport(user.companyId, {
+      startDate,
+      endDate,
+      branchId,
+      cashRegisterId,
+      shiftId,
+      paymentMethod,
+      origin,
+      search,
+    });
+
+    if (format === 'pdf') {
+      const [company, userName, branchName] = await Promise.all([
+        ReportsService.getCompanyPdfInfo(user.companyId),
+        ReportsService.getUserFullName(user.sub),
+        ReportsService.getBranchName(branchId),
+      ]);
+
+      const buffer = ReportsPdfEngine.generateIGTFReportPDF(data, company, userName, {
+        startDate,
+        endDate,
+        branchName,
+        currency,
+      });
+
+      c.header('Content-Type', 'application/pdf');
+      c.header('Content-Disposition', `inline; filename="reporte_igtf_${startDate || 'inicio'}_${endDate || 'fin'}.pdf"`);
+      return c.body(new Uint8Array(buffer));
+    }
+
+    if (format === 'csv') {
+      const flatRows = data.records.map((it: any) => ({
+        'Fecha Emisión': it.emissionDate ? it.emissionDate.substring(0, 10) : '',
+        'N° Factura': it.invoiceNumber,
+        'N° Control': it.controlNumber || '',
+        'Origen': it.originLabel || it.origin,
+        'Cliente': it.customerName,
+        'RIF / C.I.': it.customerDoc,
+        'Sucursal': it.branchName,
+        'Cajero': it.cashierName,
+        'Medio de Pago': it.methodName || it.method,
+        'Referencia': it.referenceNumber || '',
+        'Base Imponible ($)': it.baseUSD,
+        'Tasa Cambio (Bs)': it.exchangeRate,
+        'Base Imponible (Bs)': it.baseVES,
+        'Alicuota': `${it.igtfRatePercent || 3}%`,
+        'IGTF Percibido ($)': it.igtfUSD,
+        'IGTF Percibido (Bs)': it.igtfVES,
+      }));
+      const csv = ReportsService.exportToCSV(flatRows);
+      c.header('Content-Type', 'text/csv');
+      c.header('Content-Disposition', 'attachment; filename="reporte_igtf.csv"');
+      return c.text(csv);
+    }
+
+    if (format === 'excel' || format === 'xlsx') {
+      const flatRows = data.records.map((it: any) => ({
+        'Fecha Emisión': it.emissionDate ? it.emissionDate.substring(0, 10) : '',
+        'N° Factura': it.invoiceNumber,
+        'N° Control': it.controlNumber || '',
+        'Origen': it.originLabel || it.origin,
+        'Cliente': it.customerName,
+        'RIF / C.I.': it.customerDoc,
+        'Sucursal': it.branchName,
+        'Cajero': it.cashierName,
+        'Medio de Pago': it.methodName || it.method,
+        'Referencia': it.referenceNumber || '',
+        'Base Imponible ($)': it.baseUSD,
+        'Tasa Cambio (Bs)': it.exchangeRate,
+        'Base Imponible (Bs)': it.baseVES,
+        'Alicuota': `${it.igtfRatePercent || 3}%`,
+        'IGTF Percibido ($)': it.igtfUSD,
+        'IGTF Percibido (Bs)': it.igtfVES,
+      }));
+      const buffer = ReportsService.exportToExcel(flatRows, 'IGTF 3%');
+      c.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      c.header('Content-Disposition', 'attachment; filename="reporte_igtf.xlsx"');
+      return c.body(new Uint8Array(buffer));
+    }
+
+    return c.json({ success: true, data });
+  } catch (error: any) {
+    return c.json({ success: false, error: { message: error.message } }, 500);
+  }
+});
+
+// GET /api/reports/payment-methods - Reporte Discriminado de Medios de Pago
+reportsRouter.get('/payment-methods', authenticate, authorize('reports', 'sales'), async (c) => {
+  const user = c.get('user');
+  const startDate = c.req.query('startDate');
+  const endDate = c.req.query('endDate');
+  const branchId = c.req.query('branchId');
+  const paymentMethod = c.req.query('paymentMethod');
+  const origin = c.req.query('origin') as 'ALL' | 'POS' | 'ADMIN_SALES' | 'COLLECTIONS' | 'PURCHASE_PAYMENTS' | 'CASH_MOVEMENTS' | undefined;
+  const flowType = c.req.query('flowType') as 'IN' | 'OUT' | 'ALL' | undefined;
+  const bankAccountId = c.req.query('bankAccountId');
+  const cashRegisterId = c.req.query('cashRegisterId');
+  const shiftId = c.req.query('shiftId');
+  const userId = c.req.query('userId');
+  const search = c.req.query('search');
+  const format = c.req.query('format') || c.req.query('export') || 'json';
+  const currency = (c.req.query('currency') as 'VES' | 'USD' | 'BOTH') || undefined;
+
+  try {
+    const data = await ReportsService.getPaymentMethodsReport(user.companyId, {
+      startDate,
+      endDate,
+      branchId,
+      paymentMethod,
+      origin,
+      flowType,
+      bankAccountId,
+      cashRegisterId,
+      shiftId,
+      userId,
+      search,
+    });
+
+    if (format === 'pdf') {
+      const [company, userName, branchName] = await Promise.all([
+        ReportsService.getCompanyPdfInfo(user.companyId),
+        ReportsService.getUserFullName(user.sub),
+        ReportsService.getBranchName(branchId),
+      ]);
+
+      const buffer = ReportsPdfEngine.generatePaymentMethodsReportPDF(data, company, userName, {
+        startDate,
+        endDate,
+        branchName,
+        currency,
+      });
+
+      c.header('Content-Type', 'application/pdf');
+      c.header('Content-Disposition', `inline; filename="reporte_medios_pago_${startDate || 'inicio'}_${endDate || 'fin'}.pdf"`);
+      return c.body(new Uint8Array(buffer));
+    }
+
+    if (format === 'csv') {
+      const flatRows = data.movements.map((mov: any) => ({
+        'Fecha': mov.date,
+        'Hora': mov.time,
+        'Flujo': mov.flowType === 'IN' ? 'Ingreso' : 'Egreso',
+        'Origen': mov.originLabel,
+        'Documento': mov.documentNumber,
+        'Entidad': mov.entityName,
+        'Medio de Pago': mov.paymentMethodLabel,
+        'Referencia': mov.reference,
+        'Monto ($)': mov.amountUSD,
+        'Monto (Bs)': mov.amountVES,
+        'Tasa (Bs)': mov.exchangeRate,
+        'Sucursal': mov.branchName,
+        'Caja': mov.cashRegisterName,
+        'Usuario': mov.userName,
+        'Notas': mov.notes,
+      }));
+      const csv = ReportsService.exportToCSV(flatRows);
+      c.header('Content-Type', 'text/csv');
+      c.header('Content-Disposition', 'attachment; filename="reporte_medios_pago.csv"');
+      return c.text(csv);
+    }
+
+    if (format === 'excel' || format === 'xlsx') {
+      const flatRows = data.movements.map((mov: any) => ({
+        'Fecha': mov.date,
+        'Hora': mov.time,
+        'Flujo': mov.flowType === 'IN' ? 'Ingreso' : 'Egreso',
+        'Origen': mov.originLabel,
+        'Documento': mov.documentNumber,
+        'Entidad': mov.entityName,
+        'Medio de Pago': mov.paymentMethodLabel,
+        'Referencia': mov.reference,
+        'Monto ($)': mov.amountUSD,
+        'Monto (Bs)': mov.amountVES,
+        'Tasa (Bs)': mov.exchangeRate,
+        'Sucursal': mov.branchName,
+        'Caja': mov.cashRegisterName,
+        'Usuario': mov.userName,
+        'Notas': mov.notes,
+      }));
+      const buffer = ReportsService.exportToExcel(flatRows, 'Medios de Pago');
+      c.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      c.header('Content-Disposition', 'attachment; filename="reporte_medios_pago.xlsx"');
+      return c.body(new Uint8Array(buffer));
+    }
+
+    return c.json({ success: true, data });
+  } catch (error: any) {
+    return c.json({ success: false, error: { message: error.message } }, 500);
+  }
+});
+
+

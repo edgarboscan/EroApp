@@ -21,6 +21,7 @@ export const updateCompanySchema = z.object({
   showLogoInReports: z.coerce.boolean().default(true),
   reportLogoType: z.enum(['default', 'custom']).default('default'),
   customLogoUrl: z.string().optional().nullable().or(z.literal('')),
+  autoSyncBcv: z.coerce.boolean().default(true),
 });
 
 export type UpdateCompanyInput = z.infer<typeof updateCompanySchema>;

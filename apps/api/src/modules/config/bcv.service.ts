@@ -12,43 +12,91 @@ export interface BcvRateInfo {
 export class BcvService {
   private static cachedResult: BcvRateInfo | null = null;
   private static lastFetchTime = 0;
-  private static readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos de caché en memoria
+  private static readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos de cache en memoria
+  private static lastErrorDetail: string | null = null;
+  private static lastAttemptAt: string | null = null;
 
   /**
-   * Obtiene la tasa oficial del dólar desde el Banco Central de Venezuela.
+   * Obtiene la descripcion amigable y precisa de un error de conexion o parsing
+   */
+  static parseFriendlyError(err: any): string {
+    if (!err) return 'Error desconocido de comunicacion';
+    const msg = typeof err === 'string' ? err : err.message || String(err);
+
+    if (msg.includes('Timeout') || msg.includes('ETIMEDOUT') || msg.includes('timeout')) {
+      return 'Tiempo de espera agotado al conectar con el servidor oficial (Timeout)';
+    }
+    if (msg.includes('ENOTFOUND') || msg.includes('EAI_AGAIN') || msg.includes('getaddrinfo')) {
+      return 'Sin conexion a internet o fallo de resolucion DNS del portal';
+    }
+    if (msg.includes('ECONNREFUSED')) {
+      return 'Conexion rechazada por el servidor oficial';
+    }
+    if (msg.includes('CERT_') || msg.includes('unable to verify')) {
+      return 'Fallo en la validacion de certificado SSL del portal';
+    }
+    if (msg.includes('status 502') || msg.includes('status 503') || msg.includes('status 504')) {
+      return 'El servidor oficial se encuentra temporalmente fuera de servicio';
+    }
+    if (msg.includes('Contenedor id="dolar"') || msg.includes('Tasa numérica inválida') || msg.includes('no valida')) {
+      return 'Cambio o estructura inesperada en el portal oficial del BCV';
+    }
+
+    return msg;
+  }
+
+  /**
+   * Retorna el ultimo detalle de error registrado
+   */
+  static getLastError(): { message: string | null; attemptedAt: string | null } {
+    return {
+      message: this.lastErrorDetail,
+      attemptedAt: this.lastAttemptAt,
+    };
+  }
+
+  /**
+   * Obtiene la tasa oficial del dolar desde el Banco Central de Venezuela.
    * Consulta directamente el portal del BCV con reintentos y fallback a mirror oficial.
    */
-  static async getOfficialRate(): Promise<BcvRateInfo> {
+  static async getOfficialRate(forceRefresh = false): Promise<BcvRateInfo> {
     const now = Date.now();
-    if (this.cachedResult && now - this.lastFetchTime < this.CACHE_TTL_MS) {
+    if (!forceRefresh && this.cachedResult && now - this.lastFetchTime < this.CACHE_TTL_MS) {
       return this.cachedResult;
     }
+
+    this.lastAttemptAt = new Date().toISOString();
 
     try {
       const direct = await this.scrapeDirect();
       this.cachedResult = direct;
       this.lastFetchTime = now;
+      this.lastErrorDetail = null;
       return direct;
     } catch (directErr: any) {
-      console.warn('[BcvService] Fallback scraping BCV directo:', directErr.message);
+      const directMsg = this.parseFriendlyError(directErr);
+      console.warn('[BcvService] Fallback scraping BCV directo:', directMsg);
+
       try {
         const mirror = await this.fetchDolarApiMirror();
         this.cachedResult = mirror;
         this.lastFetchTime = now;
+        this.lastErrorDetail = null;
         return mirror;
       } catch (mirrorErr: any) {
-        if (this.cachedResult) {
-          return this.cachedResult;
-        }
+        const mirrorMsg = this.parseFriendlyError(mirrorErr);
+        const compositeError = `Portal oficial BCV: ${directMsg}. Servicio alternativo: ${mirrorMsg}`;
+        this.lastErrorDetail = compositeError;
+
         throw new Error(
-          `No fue posible obtener la tasa del BCV: ${directErr.message} / ${mirrorErr.message}`
+          `No fue posible obtener la tasa oficial del dólar desde el BCV. Causa: ${compositeError}`
         );
       }
     }
   }
 
   /**
-   * Scrape directo a la página web del Banco Central de Venezuela
+   * Scrape directo a la pagina web del Banco Central de Venezuela
    */
   private static async scrapeDirect(): Promise<BcvRateInfo> {
     return new Promise((resolve, reject) => {

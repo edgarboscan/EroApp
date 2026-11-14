@@ -1315,33 +1315,36 @@ export const ProductCatalog: React.FC = () => {
           <Button
             size="sm"
             variant="outline"
-            className="rounded-lg text-neutral-700 hover:text-emerald-700 hover:bg-emerald-50 px-2 py-1 text-xs"
+            className="rounded-lg text-neutral-700 hover:text-emerald-700 hover:bg-emerald-50 px-2 py-1 text-xs dark:hover:text-emerald-600 dark:hover:border-emerald-200 dark:hover:bg-green-100"
             onClick={() => {
               setSelectedProductForStockLots(row);
               setIsStockLotsModalOpen(true);
             }}
             title="Ver existencias por almacén y control de lotes"
           >
-            <Warehouse className="w-3.5 h-3.5 mr-1 text-emerald-600" />
-            Existencias
+            <Warehouse className="w-3.5 h-3.5 text-emerald-600" />
+            {/* Existencias */}
           </Button>
           <Button
             size="sm"
             variant="outline"
-            className="p-0 rounded-lg text-neutral-700 hover:text-sky-700 hover:bg-sky-100/80"
+            className="p-0 rounded-lg text-neutral-700 hover:text-sky-700 hover:bg-sky-100/80
+            dark:hover:text-sky-600 dark:hover:border-sky-200 dark:hover:bg-blue-100/90"
             onClick={() => handleOpenEditProduct(row.id)}
             title="Editar producto y presentaciones"
           >
-            <Edit2 className="w-3.5 h-3.5" /> Editar
+            <Edit2 className="w-3.5 h-3.5 text-sky-200" />
+            {/* Editar */}
           </Button>
           <Button
             size="sm"
             variant="outline"
-            className="p-0 rounded-lg text-neutral-700 hover:text-red-600 hover:border-red-200 hover:bg-red-100/80"
+            className="p-0 rounded-lg text-neutral-700 hover:text-red-600 hover:border-red-200 hover:bg-red-100/80 dark:hover:text-red-600 dark:hover:border-red-200 dark:hover:bg-rose-100"
             onClick={() => handleDeleteProduct(row)}
             title="Eliminar producto"
           >
-            <Trash2 className="w-3.5 h-3.5" /> Eliminar
+            <Trash2 className="w-3.5 h-3.5 text:red-200" />
+            {/* Eliminar */}
           </Button>
         </div>
       ),
@@ -1459,7 +1462,7 @@ export const ProductCatalog: React.FC = () => {
           </span>
           <button
             type="button"
-            onClick={() => setHierarchyModalTarget('filter')}
+            onClick={() => setHierarchyModalTarget("filter")}
             className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/50 border border-sky-200 dark:border-sky-800 rounded-lg transition-colors cursor-pointer"
             title="Abrir buscador modal de jerarquía de productos"
           >
@@ -1639,7 +1642,7 @@ export const ProductCatalog: React.FC = () => {
               className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
                 productTab === "general"
                   ? "bg-sky-50 text-sky-700 font-semibold"
-                  : "text-neutral-600 hover:bg-neutral-100"
+                  : "text-neutral-400 hover:bg-neutral-100"
               }`}
             >
               1. Datos Generales
@@ -1650,7 +1653,7 @@ export const ProductCatalog: React.FC = () => {
               className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
                 productTab === "pricing"
                   ? "bg-sky-50 text-sky-700 font-semibold"
-                  : "text-neutral-600 hover:bg-neutral-100"
+                  : "text-neutral-400 hover:bg-neutral-100"
               }`}
             >
               2. Precios & Tributos
@@ -1661,7 +1664,7 @@ export const ProductCatalog: React.FC = () => {
               className={`px-3 py-1.5 rounded-lg font-medium transition-colors flex items-center gap-1.5 ${
                 productTab === "presentations"
                   ? "bg-sky-50 text-sky-700 font-semibold"
-                  : "text-neutral-600 hover:bg-neutral-100"
+                  : "text-neutral-400 hover:bg-neutral-100"
               }`}
             >
               <span>3. Presentaciones & Empaques (SKUs)</span>
@@ -1677,7 +1680,7 @@ export const ProductCatalog: React.FC = () => {
               className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
                 productTab === "stock"
                   ? "bg-sky-50 text-sky-700 font-semibold"
-                  : "text-neutral-600 hover:bg-neutral-100"
+                  : "text-neutral-400 hover:bg-neutral-100"
               }`}
             >
               4. Stock & Ubicación
@@ -1724,7 +1727,7 @@ export const ProductCatalog: React.FC = () => {
                 />
 
                 <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                  <label className="block text-xs font-semibold text-[#333333] dark:text-[#E0E0E0]  mb-1">
                     Tipo de Producto
                   </label>
                   <select
@@ -1752,7 +1755,7 @@ export const ProductCatalog: React.FC = () => {
                 {/* Marca con botón rápido */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-semibold text-neutral-700">
+                    <label className="text-xs font-semibold text-[#333333] dark:text-[#E0E0E0] ">
                       Marca
                     </label>
                     <button
@@ -1784,7 +1787,7 @@ export const ProductCatalog: React.FC = () => {
                 {/* Unidad de Medida Base */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-semibold text-neutral-700">
+                    <label className="text-xs font-semibold text-[#333333] dark:text-[#E0E0E0] ">
                       Unidad de Medida Base
                     </label>
                     <button
@@ -1816,12 +1819,12 @@ export const ProductCatalog: React.FC = () => {
                 {/* Departamento */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                    <label className="block text-xs font-semibold text-[#333333] dark:text-[#E0E0E0] ">
                       Departamento
                     </label>
                     <button
                       type="button"
-                      onClick={() => setHierarchyModalTarget('form')}
+                      onClick={() => setHierarchyModalTarget("form")}
                       className="text-[11px] font-medium text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1 cursor-pointer"
                       title="Buscar y autocompletar Departamento, Grupo y Subgrupo"
                     >
@@ -1852,7 +1855,7 @@ export const ProductCatalog: React.FC = () => {
 
                 {/* Grupo */}
                 <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                  <label className="block text-xs font-semibold text-[#333333] dark:text-[#E0E0E0]  mb-1">
                     Grupo
                   </label>
                   <select
@@ -1880,7 +1883,7 @@ export const ProductCatalog: React.FC = () => {
               {/* Subgrupo y Descripción */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                  <label className="block text-xs font-semibold text-[#333333] dark:text-[#E0E0E0]  mb-1">
                     Subgrupo
                   </label>
                   <select
@@ -1904,7 +1907,7 @@ export const ProductCatalog: React.FC = () => {
                 </div>
 
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                  <label className="block text-xs font-semibold text-[#333333] dark:text-[#E0E0E0]  mb-1">
                     Descripción / Observaciones
                   </label>
                   <input
@@ -2001,7 +2004,7 @@ export const ProductCatalog: React.FC = () => {
                   required
                 />
                 <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                  <label className="block text-xs font-semibold text-[#333333] dark:text-[#E0E0E0]  mb-1">
                     Moneda de Catálogo
                   </label>
                   <select
@@ -2022,7 +2025,7 @@ export const ProductCatalog: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                  <label className="block text-xs font-semibold text-[#333333] dark:text-[#E0E0E0]  mb-1">
                     Alícuota de IVA (SENIAT)
                   </label>
                   <select
@@ -2714,7 +2717,7 @@ export const ProductCatalog: React.FC = () => {
                 required
               />
               <div>
-                <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                <label className="block text-xs font-semibold text-[#333333] dark:text-[#E0E0E0]  mb-1">
                   Unidad de Empaque
                 </label>
                 <select
@@ -2790,7 +2793,8 @@ export const ProductCatalog: React.FC = () => {
                     {t.name}
                   </span>
                   <span className="text-neutral-500 font-mono text-[11px] ml-2">
-                    (Multiplicador: x {formatNumber(t.defaultMultiplier,2)} {t.defaultUnit})
+                    (Multiplicador: x {formatNumber(t.defaultMultiplier, 2)}{" "}
+                    {t.defaultUnit})
                   </span>
                   {t.requiresAuthorization ? (
                     <span className="ml-2 px-1.5 py-0.5 text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 rounded-lg">
@@ -2859,30 +2863,28 @@ export const ProductCatalog: React.FC = () => {
         onClose={() => setHierarchyModalTarget(null)}
         onSelect={handleHierarchySelect}
         initialDepartmentId={
-          hierarchyModalTarget === 'form'
+          hierarchyModalTarget === "form"
             ? productForm.departmentId
             : selectedDepartment
         }
         initialGroupId={
-          hierarchyModalTarget === 'form'
-            ? productForm.groupId
-            : selectedGroup
+          hierarchyModalTarget === "form" ? productForm.groupId : selectedGroup
         }
         initialSubgroupId={
-          hierarchyModalTarget === 'form'
+          hierarchyModalTarget === "form"
             ? productForm.subgroupId
             : selectedSubgroup
         }
         selectionMode="any"
         title={
-          hierarchyModalTarget === 'form'
-            ? 'Asignar Jerarquía al Producto'
-            : 'Filtrar Catálogo por Jerarquía'
+          hierarchyModalTarget === "form"
+            ? "Asignar Jerarquía al Producto"
+            : "Filtrar Catálogo por Jerarquía"
         }
         subtitle={
-          hierarchyModalTarget === 'form'
-            ? 'Seleccione el Departamento, Grupo o Subgrupo para clasificar este producto'
-            : 'Localice y filtre rápidamente los productos de una categoría específica'
+          hierarchyModalTarget === "form"
+            ? "Seleccione el Departamento, Grupo o Subgrupo para clasificar este producto"
+            : "Localice y filtre rápidamente los productos de una categoría específica"
         }
       />
     </div>

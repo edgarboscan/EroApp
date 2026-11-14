@@ -7,6 +7,7 @@ import {
   SupplierNoteApplication,
 } from '@ero/shared';
 import crypto from 'crypto';
+import { AccountingAutoPostingService } from '../accounting/accounting-auto-posting.service';
 
 export class SupplierNotesService {
   /**
@@ -536,41 +537,40 @@ export class SupplierNotesService {
           }
         }
 
-        // Si hay devolución física a inventario (returnFromInventory)
+        // Si hay devolución física de inventario a proveedor (returnFromInventory)
         if (data.warehouseId) {
           for (const item of itemsToInsert) {
             if (item.returnFromInventory && item.productId) {
               // Descontar inventario físico del depósito seleccionado
               await conn.query(
-                `UPDATE product_warehouse_stock
-                 SET physical_stock = physical_stock - ?,
-                     available_stock = available_stock - ?
+                `UPDATE product_stocks
+                 SET current_stock = current_stock - ?,
+                     last_movement_at = CURRENT_TIMESTAMP()
                  WHERE product_id = ? AND warehouse_id = ?`,
-                [item.quantity, item.quantity, item.productId, data.warehouseId]
+                [item.quantity, item.productId, data.warehouseId]
               );
 
-              // Registrar movimiento en el kardex si la tabla existe
+              // Registrar movimiento en el kardex de inventario (salida por devolución a proveedor)
               const movementId = crypto.randomUUID();
+              const totalCost = Number((Number(item.quantity) * Number(item.unitCost || 0)).toFixed(4));
               await conn.query(
                 `INSERT INTO inventory_movements (
-                  id, company_id, branch_id, warehouse_id, product_id, user_id,
-                  movement_type, quantity, unit_cost, reference_type, reference_id, notes
-                ) VALUES (?, ?, ?, ?, ?, ?, 'OUT_SUPPLIER_RETURN', ?, ?, 'SUPPLIER_NOTE', ?, ?)`,
+                  id, branch_id, warehouse_id, product_id, user_id,
+                  movement_type, quantity, unit_cost, total_cost, reference_document, reason
+                ) VALUES (?, ?, ?, ?, ?, 'OUT', ?, ?, ?, ?, ?)`,
                 [
                   movementId,
-                  companyId,
                   data.branchId,
                   data.warehouseId,
                   item.productId,
                   userId,
                   item.quantity,
                   item.unitCost,
-                  noteId,
-                  `Devolución a proveedor según ${noteNumber}`,
+                  totalCost,
+                  noteNumber,
+                  `Devolución a proveedor según Nota Crédito ${noteNumber}`,
                 ]
-              ).catch(() => {
-                // En caso de que inventory_movements tenga otra estructura, continúa de forma resiliente
-              });
+              );
             }
           }
         }
@@ -666,6 +666,13 @@ export class SupplierNotesService {
             item.returnFromInventory ? 1 : 0,
           ]
         );
+      }
+
+      // 8. Motor de Contabilización Automática de Nota de Proveedor
+      try {
+        await AccountingAutoPostingService.postSupplierNote(conn, noteId, userId);
+      } catch (accErr: any) {
+        console.error('[AutoPosting] Error contabilizando nota de proveedor:', accErr.message);
       }
 
       return {
@@ -871,18 +878,39 @@ export class SupplierNotesService {
         // Revertir inventario si hubo devolución física
         if (note.warehouse_id) {
           const [itemRows]: any = await conn.query(
-            `SELECT product_id, quantity, return_from_inventory FROM supplier_note_items WHERE note_id = ?`,
+            `SELECT product_id, quantity, unit_cost, return_from_inventory FROM supplier_note_items WHERE note_id = ?`,
             [note.id]
           );
 
           for (const item of itemRows) {
             if (item.return_from_inventory && item.product_id) {
               await conn.query(
-                `UPDATE product_warehouse_stock
-                 SET physical_stock = physical_stock + ?,
-                     available_stock = available_stock + ?
+                `UPDATE product_stocks
+                 SET current_stock = current_stock + ?,
+                     last_movement_at = CURRENT_TIMESTAMP()
                  WHERE product_id = ? AND warehouse_id = ?`,
-                [item.quantity, item.quantity, item.product_id, note.warehouse_id]
+                [item.quantity, item.product_id, note.warehouse_id]
+              );
+
+              const unitCost = Number(item.unit_cost || 0);
+              const totalCost = Number((Number(item.quantity) * unitCost).toFixed(4));
+              await conn.query(
+                `INSERT INTO inventory_movements (
+                  id, branch_id, warehouse_id, product_id, user_id,
+                  movement_type, quantity, unit_cost, total_cost, reference_document, reason
+                ) VALUES (?, ?, ?, ?, ?, 'IN', ?, ?, ?, ?, ?)`,
+                [
+                  crypto.randomUUID(),
+                  note.branch_id,
+                  note.warehouse_id,
+                  item.product_id,
+                  userId,
+                  item.quantity,
+                  unitCost,
+                  totalCost,
+                  note.note_number,
+                  `Reversión por anulación de Nota de Crédito Proveedor ${note.note_number}`,
+                ]
               );
             }
           }

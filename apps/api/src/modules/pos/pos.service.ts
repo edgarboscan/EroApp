@@ -15,6 +15,7 @@ import {
 } from '@ero/shared';
 import crypto from 'crypto';
 import argon2 from 'argon2';
+import { AccountingAutoPostingService } from '../accounting/accounting-auto-posting.service';
 
 export class POSService {
   /**
@@ -1586,17 +1587,35 @@ export class POSService {
         const isTipItem = item.sku === 'PROPINA' || item.productId?.startsWith('rest-tip-');
         const effectiveProductId = (isTipItem && tipProductId) ? tipProductId : item.productId;
 
+        // Consultar atributos de inventario y costo actual del producto
+        let tracksInventory = false;
+        let baseUnitCost = 0.00;
+
+        if (!isTipItem) {
+          const [productRows]: any = await conn.query(
+            `SELECT tracks_inventory, cost_price FROM products WHERE id = ?`,
+            [effectiveProductId]
+          );
+          if (productRows && productRows.length > 0) {
+            tracksInventory = Boolean(productRows[0].tracks_inventory !== 0 && productRows[0].tracks_inventory !== false);
+            baseUnitCost = Number(productRows[0].cost_price || 0.00);
+          }
+        }
+
+        const itemUnitCost = Number((baseUnitCost * Number(item.multiplier || 1)).toFixed(4));
+
         await conn.query(
           `INSERT INTO sales_invoice_items (
             id, invoice_id, product_id, quantity, unit_price, unit_cost,
             tax_rate, discount_percent, tax_amount, subtotal, total
-          ) VALUES (?, ?, ?, ?, ?, 0.00, ?, ?, ?, ?, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             crypto.randomUUID(),
             invoiceId,
             effectiveProductId,
             item.quantity,
             item.unitPrice,
+            itemUnitCost,
             item.taxRatePercent,
             item.discountPercent,
             item.taxAmount,
@@ -1610,15 +1629,6 @@ export class POSService {
           continue;
         }
 
-        // Consultar si el producto descuenta inventario
-        const [productTrackRows]: any = await conn.query(
-          `SELECT tracks_inventory FROM products WHERE id = ?`,
-          [effectiveProductId]
-        );
-        const tracksInventory = productTrackRows && productTrackRows.length > 0
-          ? Boolean(productTrackRows[0].tracks_inventory !== 0 && productTrackRows[0].tracks_inventory !== false)
-          : false;
-
         if (tracksInventory && effectiveWarehouseId) {
           const unitsToDeduct = Number(item.quantity) * Number(item.multiplier || 1);
           // Descontar inventario en el depósito correspondiente (permitiendo valores negativos según reglas)
@@ -1631,12 +1641,12 @@ export class POSService {
             [effectiveProductId, effectiveWarehouseId, unitsToDeduct, unitsToDeduct]
           );
 
-          // Registrar en Kardex de inventario
+          // Registrar en Kardex de inventario con su costo real de reposición/adquisición
           await conn.query(
             `INSERT INTO inventory_movements (
               id, branch_id, warehouse_id, product_id, user_id, movement_type,
               quantity, unit_cost, reference_document, reason
-            ) VALUES (?, ?, ?, ?, ?, 'SALE', ?, 0.00, ?, ?)`,
+            ) VALUES (?, ?, ?, ?, ?, 'SALE', ?, ?, ?, ?)`,
             [
               crypto.randomUUID(),
               payload.branchId,
@@ -1644,6 +1654,7 @@ export class POSService {
               effectiveProductId,
               userId,
               unitsToDeduct,
+              baseUnitCost,
               invoiceNumber,
               item.multiplier && item.multiplier > 1
                 ? `Venta POS Factura: ${invoiceNumber} (${item.quantity} pres. x ${item.multiplier} un)`
@@ -1683,6 +1694,13 @@ export class POSService {
            WHERE id = ?`,
           [invoiceId, payload.restaurantOrderId]
         );
+      }
+
+      // 6.2 Motor de Contabilización Automática de Ventas y Costo de Mercancía Vendida
+      try {
+        await AccountingAutoPostingService.postSaleInvoice(conn, invoiceId, userId);
+      } catch (accErr: any) {
+        console.error('[AutoPosting] Error contabilizando venta POS:', accErr.message);
       }
 
       // 7. Retornar datos de venta y ticket fiscal emulado
@@ -2252,6 +2270,13 @@ export class POSService {
           currency: item.currency,
           newBalance,
         });
+
+        // Contabilización automática del depósito bancario de cierre de caja
+        try {
+          await AccountingAutoPostingService.postCashShiftDeposit(conn, depositId, userId);
+        } catch (accErr: any) {
+          console.error('[AutoPosting] Error contabilizando depósito de caja:', accErr.message);
+        }
       }
 
       // Actualizar status del turno a 'DEPOSITED' permanentemente

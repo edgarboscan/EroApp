@@ -66,6 +66,9 @@ export const convertReceiptToInvoiceSchema = z.object({
   isCredit: z.boolean().default(false),
   dueDate: z.string().optional().nullable(),
   notes: z.string().max(255).optional().nullable(),
+  paymentMethod: z.string().optional().nullable(),
+  bankAccountId: z.string().uuid().optional().nullable(),
+  referenceNumber: z.string().optional().nullable(),
 });
 
 export type ConvertReceiptToInvoiceInput = z.infer<typeof convertReceiptToInvoiceSchema>;

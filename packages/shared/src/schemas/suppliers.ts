@@ -45,6 +45,7 @@ export const createPayablePaymentSchema = z.object({
   exchangeRate: z.number().positive().default(1),
   referenceNumber: z.string().optional(),
   notes: z.string().optional(),
+  bankAccountId: z.string().uuid().optional().nullable(),
 });
 
 export type CreatePayablePaymentInput = z.infer<typeof createPayablePaymentSchema>;

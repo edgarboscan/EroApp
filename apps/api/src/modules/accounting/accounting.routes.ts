@@ -8,8 +8,12 @@ import {
   financialStatementFilterSchema,
   inflationAdjustmentProcessSchema,
   exchangeDifferenceProcessSchema,
+  accountingSettingSchema,
+  updateAccountingMappingsSchema,
+  batchPostingInputSchema,
 } from '@ero/shared';
 import { AccountingService } from './accounting.service';
+import { AccountingAutoPostingService } from './accounting-auto-posting.service';
 import { AccountingPdfEngine } from './accounting-pdf';
 import { AccountingExportService } from './accounting-export.service';
 import { ReportsService } from '../reports/reports.service';
@@ -590,3 +594,72 @@ accountingRouter.put('/periods/:id/status', authenticate, authorize('accounting'
   const data = await AccountingService.updatePeriodStatus(user.companyId, user.sub, id!, body.status);
   return c.json({ success: true, data });
 });
+
+// ============================================================================
+// MOTOR DE CONTABILIZACIÓN AUTOMÁTICA
+// ============================================================================
+
+// GET /api/accounting/auto-posting/status - Estado del motor y pendientes de contabilización
+accountingRouter.get('/auto-posting/status', authenticate, authorize('accounting', 'read'), async (c) => {
+  const user = c.get('user');
+  const data = await AccountingAutoPostingService.getStatus(user.companyId);
+  return c.json({ success: true, data });
+});
+
+// GET /api/accounting/auto-posting/settings - Configuración de contabilización
+accountingRouter.get('/auto-posting/settings', authenticate, authorize('accounting', 'read'), async (c) => {
+  const user = c.get('user');
+  const data = await AccountingAutoPostingService.getSettings(user.companyId);
+  return c.json({ success: true, data });
+});
+
+// PUT /api/accounting/auto-posting/settings - Modificar configuración de contabilización
+accountingRouter.put(
+  '/auto-posting/settings',
+  authenticate,
+  authorize('accounting', 'write'),
+  zValidator('json', accountingSettingSchema.partial()),
+  async (c) => {
+    const user = c.get('user');
+    const body = c.req.valid('json');
+    const data = await AccountingAutoPostingService.updateSettings(user.companyId, body);
+    return c.json({ success: true, data });
+  }
+);
+
+// GET /api/accounting/auto-posting/mappings - Listado de mapeos contables por operación
+accountingRouter.get('/auto-posting/mappings', authenticate, authorize('accounting', 'read'), async (c) => {
+  const user = c.get('user');
+  const data = await AccountingAutoPostingService.getMappings(user.companyId);
+  return c.json({ success: true, data });
+});
+
+// PUT /api/accounting/auto-posting/mappings - Guardar mapeos contables
+accountingRouter.put(
+  '/auto-posting/mappings',
+  authenticate,
+  authorize('accounting', 'write'),
+  zValidator('json', updateAccountingMappingsSchema),
+  async (c) => {
+    const user = c.get('user');
+    const body = c.req.valid('json');
+    await AccountingAutoPostingService.updateMappings(user.companyId, body.mappings);
+    const data = await AccountingAutoPostingService.getMappings(user.companyId);
+    return c.json({ success: true, data });
+  }
+);
+
+// POST /api/accounting/auto-posting/post-batch - Contabilización masiva de documentos históricos
+accountingRouter.post(
+  '/auto-posting/post-batch',
+  authenticate,
+  authorize('accounting', 'post'),
+  zValidator('json', batchPostingInputSchema),
+  async (c) => {
+    const user = c.get('user');
+    const body = c.req.valid('json');
+    const data = await AccountingAutoPostingService.runBatchPosting(user.companyId, user.sub, body);
+    return c.json({ success: true, data });
+  }
+);
+

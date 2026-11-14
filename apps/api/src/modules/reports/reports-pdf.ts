@@ -4998,6 +4998,434 @@ export class ReportsPdfEngine {
     return this.finalize(doc);
   }
 
+  static generateIGTFReportPDF(
+    data: any,
+    company: CompanyPdfInfo,
+    userName: string,
+    options: {
+      startDate?: string;
+      endDate?: string;
+      branchName?: string;
+      currency?: 'VES' | 'USD' | 'BOTH';
+    } = {}
+  ): Buffer {
+    const title = 'Reporte Fiscal de IGTF (Ley de Grandes Transacciones)';
+    const subtitle = 'Percepción de IGTF 3% sobre Pagos en Divisas y Moneda Extranjera';
+    const periodText = `Período: ${options.startDate || 'Inicio'} al ${options.endDate || 'Actualidad'}`;
+
+    const { doc, startY, pageWidth } = this.initDocument(company, {
+      title,
+      subtitle,
+      periodText,
+      branchName: options.branchName,
+      userName,
+      orientation: 'landscape',
+      currency: options.currency,
+      auditId: `RPT-IGTF-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
+    });
+
+    const summary = data.summary || {};
+    const bcvRate = summary.weightedRate || 1;
+
+    const cards: KpiCardItem[] = [
+      {
+        label: 'Base Imponible Total ($)',
+        value: this.fmtUSD(summary.totalTaxableUSD || 0),
+        sub: `Bolívares: ${this.fmtVES(summary.totalTaxableVES || 0)}`,
+      },
+      {
+        label: 'Total IGTF 3% Percibido ($)',
+        value: this.fmtUSD(summary.totalIgtfUSD || 0),
+        sub: `Bolívares: ${this.fmtVES(summary.totalIgtfVES || 0)}`,
+      },
+      {
+        label: 'Transacciones Sujetas',
+        value: `${summary.transactionsCount || 0} pagos`,
+        sub: `${summary.invoicesCount || 0} facturas asociadas`,
+      },
+      {
+        label: 'Tasa Promedio Ponderada',
+        value: `Bs. ${Number(bcvRate).toFixed(4)}`,
+        sub: 'Tasa de liquidación fiscal',
+      },
+    ];
+
+    let currentY = this.drawKpiCards(doc, startY, cards, pageWidth);
+
+    // Tabla 1: Resumen por Quincena SENIAT
+    if (data.quincenaSummary && data.quincenaSummary.length > 0) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(this.COLOR_PRIMARY[0], this.COLOR_PRIMARY[1], this.COLOR_PRIMARY[2]);
+      doc.text('RESUMEN DE DECLARACIÓN QUINCENAL (SENIAT):', 14, currentY);
+      currentY += 3;
+
+      const qHeaders = ['Período Quincenal', 'N° Pagos', 'Base Imponible ($)', 'Base Imponible (Bs)', 'IGTF 3% ($)', 'IGTF 3% (Bs)'];
+      const qRows = data.quincenaSummary.map((q: any) => [
+        q.periodLabel || q.key,
+        q.count.toString(),
+        this.fmtUSD(q.taxableUSD),
+        this.fmtVES(q.taxableVES),
+        this.fmtUSD(q.igtfUSD),
+        this.fmtVES(q.igtfVES),
+      ]);
+
+      autoTable(doc, {
+        head: [qHeaders],
+        body: qRows,
+        startY: currentY,
+        theme: 'striped',
+        headStyles: {
+          fillColor: this.COLOR_PRIMARY,
+          textColor: [255, 255, 255],
+          fontSize: 7.5,
+          fontStyle: 'bold',
+        },
+        bodyStyles: {
+          fontSize: 7,
+          textColor: this.COLOR_PRIMARY,
+        },
+        columnStyles: {
+          0: { cellWidth: 50, fontStyle: 'bold' },
+          1: { cellWidth: 20, halign: 'center' },
+          2: { halign: 'right' },
+          3: { halign: 'right' },
+          4: { halign: 'right', fontStyle: 'bold' },
+          5: { halign: 'right', fontStyle: 'bold' },
+        },
+        margin: { left: 14, right: 14, bottom: 12 },
+      });
+
+      currentY = (doc as any).lastAutoTable.finalY + 8;
+    }
+
+    // Tabla 2: Detalle de Movimientos Discriminados
+    const records = data.records || [];
+    if (records.length > 0) {
+      if (currentY + 30 > doc.internal.pageSize.getHeight()) {
+        doc.addPage();
+        currentY = 22;
+      }
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(this.COLOR_PRIMARY[0], this.COLOR_PRIMARY[1], this.COLOR_PRIMARY[2]);
+      doc.text('DETALLE DISCRIMINADO DE PERCEPCIÓN DE IGTF:', 14, currentY);
+      currentY += 3;
+
+      const detHeaders = [
+        'Fecha',
+        'Factura',
+        'Control',
+        'Cliente',
+        'RIF / C.I.',
+        'Sucursal',
+        'Medio de Pago',
+        'Referencia',
+        'Base ($)',
+        'Tasa (Bs)',
+        'IGTF ($)',
+        'IGTF (Bs)',
+      ];
+
+      const detRows = records.map((it: any) => [
+        it.emissionDate ? it.emissionDate.substring(0, 10) : '',
+        it.invoiceNumber || '-',
+        it.controlNumber || '-',
+        (it.customerName || '').substring(0, 22),
+        it.customerDoc || '-',
+        it.branchName || '',
+        it.methodName || it.method,
+        it.referenceNumber || '-',
+        this.fmtUSD(it.baseUSD),
+        Number(it.exchangeRate || 0).toFixed(2),
+        this.fmtUSD(it.igtfUSD),
+        this.fmtVES(it.igtfVES),
+      ]);
+
+      const detFoot = [
+        { content: 'TOTALES CONSOLIDADOS:', colSpan: 8, styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
+        this.fmtUSD(summary.totalTaxableUSD || 0),
+        '-',
+        this.fmtUSD(summary.totalIgtfUSD || 0),
+        this.fmtVES(summary.totalIgtfVES || 0),
+      ];
+
+      autoTable(doc, {
+        head: [detHeaders],
+        body: detRows,
+        foot: [detFoot],
+        startY: currentY,
+        theme: 'striped',
+        headStyles: {
+          fillColor: this.COLOR_HEADER,
+          textColor: [255, 255, 255],
+          fontSize: 6.8,
+          fontStyle: 'bold',
+        },
+        footStyles: {
+          fillColor: this.COLOR_BG_LIGHT,
+          textColor: this.COLOR_PRIMARY,
+          fontSize: 7,
+          fontStyle: 'bold',
+        },
+        bodyStyles: {
+          fontSize: 6.5,
+          textColor: this.COLOR_PRIMARY,
+        },
+        columnStyles: {
+          0: { cellWidth: 18 },
+          1: { cellWidth: 22, fontStyle: 'bold' },
+          2: { cellWidth: 20 },
+          3: { cellWidth: 42 },
+          4: { cellWidth: 22 },
+          5: { cellWidth: 24 },
+          6: { cellWidth: 28 },
+          7: { cellWidth: 22 },
+          8: { halign: 'right' },
+          9: { halign: 'right' },
+          10: { halign: 'right', fontStyle: 'bold' },
+          11: { halign: 'right', fontStyle: 'bold' },
+        },
+        margin: { left: 14, right: 14, bottom: 12 },
+      });
+
+      currentY = (doc as any).lastAutoTable.finalY + 10;
+    }
+
+    this.drawSignatureBoxes(
+      doc,
+      currentY,
+      [
+        { title: 'ELABORADO POR (CAJERO / FISCAL)', subtitle: `${userName} - Responsable` },
+        { title: 'REVISADO POR (CONTADOR)', subtitle: 'Firma y Sello Contador Público' },
+        { title: 'APROBADO POR (GERENCIA)', subtitle: 'Gerencia General / Administración' },
+      ],
+      pageWidth
+    );
+
+    return this.finalize(doc);
+  }
+
+  static generatePaymentMethodsReportPDF(
+    data: any,
+    company: CompanyPdfInfo,
+    userName: string,
+    options: {
+      startDate?: string;
+      endDate?: string;
+      branchName?: string;
+      currency?: 'VES' | 'USD' | 'BOTH';
+    } = {}
+  ): Buffer {
+    const title = 'Reporte Discriminado de Movimientos por Medios de Pago';
+    const subtitle = 'Ingresos, Egresos y Conciliación Operativa Multimoneda';
+    const periodText = `Período: ${options.startDate || 'Inicio'} al ${options.endDate || 'Actualidad'}`;
+
+    const { doc, startY, pageWidth } = this.initDocument(company, {
+      title,
+      subtitle,
+      periodText,
+      branchName: options.branchName,
+      userName,
+      orientation: 'landscape',
+      currency: options.currency,
+      auditId: `RPT-MP-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
+    });
+
+    const summary = data.summary || {};
+
+    const cards: KpiCardItem[] = [
+      {
+        label: 'Total Ingresos ($)',
+        value: this.fmtUSD(summary.totalInflowUSD || 0),
+        sub: `Bolívares: ${this.fmtVES(summary.totalInflowVES || 0)} (${summary.inflowsCount || 0} ops)`,
+      },
+      {
+        label: 'Total Egresos ($)',
+        value: this.fmtUSD(summary.totalOutflowUSD || 0),
+        sub: `Bolívares: ${this.fmtVES(summary.totalOutflowVES || 0)} (${summary.outflowsCount || 0} ops)`,
+      },
+      {
+        label: 'Flujo Neto ($)',
+        value: this.fmtUSD(summary.netUSD || 0),
+        sub: `Bolívares: ${this.fmtVES(summary.netVES || 0)} (Consolidado)`,
+      },
+      {
+        label: 'Total Transacciones',
+        value: `${summary.operationsCount || 0} movs`,
+        sub: `Ingresos: ${summary.inflowsCount || 0} | Egresos: ${summary.outflowsCount || 0}`,
+      },
+    ];
+
+    let currentY = this.drawKpiCards(doc, startY, cards, pageWidth);
+
+    // Tabla 1: Resumen por Medio de Pago
+    if (data.byMethod && data.byMethod.length > 0) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(this.COLOR_PRIMARY[0], this.COLOR_PRIMARY[1], this.COLOR_PRIMARY[2]);
+      doc.text('RESUMEN CONSOLIDADO POR MEDIO DE PAGO:', 14, currentY);
+      currentY += 3;
+
+      const mHeaders = [
+        'Medio de Pago',
+        'N° Ops',
+        '% Volumen',
+        'Ingresos ($)',
+        'Ingresos (Bs)',
+        'Egresos ($)',
+        'Egresos (Bs)',
+        'Flujo Neto ($)',
+      ];
+
+      const mRows = data.byMethod.map((m: any) => [
+        m.methodName || m.label || m.method,
+        m.count.toString(),
+        `${Number(m.percentOfTotal || m.inflowSharePct || 0).toFixed(1)}%`,
+        this.fmtUSD(m.inflowUSD),
+        this.fmtVES(m.inflowVES),
+        this.fmtUSD(m.outflowUSD),
+        this.fmtVES(m.outflowVES),
+        this.fmtUSD(m.netUSD),
+      ]);
+
+      const mFoot = [
+        { content: 'TOTALES:', colSpan: 3, styles: { halign: 'right' as const, fontStyle: 'bold' as const } },
+        this.fmtUSD(summary.totalInflowUSD || 0),
+        this.fmtVES(summary.totalInflowVES || 0),
+        this.fmtUSD(summary.totalOutflowUSD || 0),
+        this.fmtVES(summary.totalOutflowVES || 0),
+        this.fmtUSD(summary.netUSD || 0),
+      ];
+
+      autoTable(doc, {
+        head: [mHeaders],
+        body: mRows,
+        foot: [mFoot],
+        startY: currentY,
+        theme: 'striped',
+        headStyles: {
+          fillColor: this.COLOR_PRIMARY,
+          textColor: [255, 255, 255],
+          fontSize: 7.2,
+          fontStyle: 'bold',
+        },
+        footStyles: {
+          fillColor: this.COLOR_BG_LIGHT,
+          textColor: this.COLOR_PRIMARY,
+          fontSize: 7.2,
+          fontStyle: 'bold',
+        },
+        bodyStyles: {
+          fontSize: 6.8,
+          textColor: this.COLOR_PRIMARY,
+        },
+        columnStyles: {
+          0: { cellWidth: 45, fontStyle: 'bold' },
+          1: { cellWidth: 18, halign: 'center' },
+          2: { cellWidth: 20, halign: 'center' },
+          3: { halign: 'right' },
+          4: { halign: 'right' },
+          5: { halign: 'right' },
+          6: { halign: 'right' },
+          7: { halign: 'right', fontStyle: 'bold' },
+        },
+        margin: { left: 14, right: 14, bottom: 12 },
+      });
+
+      currentY = (doc as any).lastAutoTable.finalY + 8;
+    }
+
+    // Tabla 2: Detalle Cronológico de Movimientos
+    if (data.movements && data.movements.length > 0) {
+      if (currentY + 30 > doc.internal.pageSize.getHeight()) {
+        doc.addPage();
+        currentY = 22;
+      }
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(this.COLOR_PRIMARY[0], this.COLOR_PRIMARY[1], this.COLOR_PRIMARY[2]);
+      doc.text('DETALLE DISCRIMINADO DE MOVIMIENTOS:', 14, currentY);
+      currentY += 3;
+
+      const movHeaders = [
+        'Fecha / Hora',
+        'Tipo',
+        'Origen',
+        'Documento',
+        'Cliente / Proveedor / Concepto',
+        'Medio de Pago',
+        'Referencia',
+        'Monto ($)',
+        'Monto (Bs)',
+        'Tasa (Bs)',
+        'Sucursal / Caja',
+      ];
+
+      const movRows = data.movements.map((mov: any) => [
+        `${(mov.date || '').substring(0, 10)} ${mov.time || ''}`.trim(),
+        mov.flowType === 'IN' ? 'INGRESO' : 'EGRESO',
+        mov.originLabel || mov.origin,
+        mov.documentNumber || '-',
+        (mov.entityName || '-').substring(0, 24),
+        mov.paymentMethodLabel || mov.paymentMethod,
+        mov.reference || '-',
+        this.fmtUSD(mov.amountUSD),
+        this.fmtVES(mov.amountVES),
+        Number(mov.exchangeRate || 0).toFixed(2),
+        `${mov.branchName || ''} / ${mov.cashRegisterName || ''}`.trim(),
+      ]);
+
+      autoTable(doc, {
+        head: [movHeaders],
+        body: movRows,
+        startY: currentY,
+        theme: 'striped',
+        headStyles: {
+          fillColor: this.COLOR_HEADER,
+          textColor: [255, 255, 255],
+          fontSize: 6.8,
+          fontStyle: 'bold',
+        },
+        bodyStyles: {
+          fontSize: 6.5,
+          textColor: this.COLOR_PRIMARY,
+        },
+        columnStyles: {
+          0: { cellWidth: 26 },
+          1: { cellWidth: 18, halign: 'center', fontStyle: 'bold' },
+          2: { cellWidth: 26 },
+          3: { cellWidth: 20 },
+          4: { cellWidth: 42 },
+          5: { cellWidth: 28 },
+          6: { cellWidth: 20 },
+          7: { halign: 'right', fontStyle: 'bold' },
+          8: { halign: 'right' },
+          9: { halign: 'right' },
+          10: { cellWidth: 30 },
+        },
+        margin: { left: 14, right: 14, bottom: 12 },
+      });
+
+      currentY = (doc as any).lastAutoTable.finalY + 10;
+    }
+
+    this.drawSignatureBoxes(
+      doc,
+      currentY,
+      [
+        { title: 'ELABORADO POR (TESORERÍA)', subtitle: `${userName} - Responsable` },
+        { title: 'REVISADO POR (AUDITORÍA)', subtitle: 'Firma y Sello Auditor' },
+        { title: 'APROBADO POR (GERENCIA)', subtitle: 'Gerencia de Administración y Finanzas' },
+      ],
+      pageWidth
+    );
+
+    return this.finalize(doc);
+  }
+
   // ==========================================
   // UTILIDADES DE FORMATEO NUMÉRICO
   // ==========================================
@@ -5223,6 +5651,24 @@ export async function generateCashFlowPDF(data: {
   options?: any;
 }): Promise<Buffer> {
   return ReportsPdfEngine.generateCashFlowPDF(data.report, data.company, data.userName || 'Finanzas', data.options || {});
+}
+
+export async function generateIGTFReportPDF(data: {
+  company: CompanyPdfInfo;
+  report: any;
+  userName?: string;
+  options?: any;
+}): Promise<Buffer> {
+  return ReportsPdfEngine.generateIGTFReportPDF(data.report, data.company, data.userName || 'Fiscal / Cajero', data.options || {});
+}
+
+export async function generatePaymentMethodsReportPDF(data: {
+  company: CompanyPdfInfo;
+  report: any;
+  userName?: string;
+  options?: any;
+}): Promise<Buffer> {
+  return ReportsPdfEngine.generatePaymentMethodsReportPDF(data.report, data.company, data.userName || 'Tesorería', data.options || {});
 }
 
 

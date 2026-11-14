@@ -48,6 +48,7 @@ import {
   ChefHat,
   Scale,
   FolderTree,
+  Cpu,
   Sun,
   Moon,
   MessageSquareText,
@@ -182,6 +183,10 @@ export const MainLayout: React.FC = () => {
   const bcvLiveData = useExchangeRateStore((s) => s.bcvLiveData);
   const checkBcvLiveRate = useExchangeRateStore((s) => s.checkBcvLiveRate);
   const isBcvChecking = useExchangeRateStore((s) => s.isBcvChecking);
+  const autoSyncBcv = useExchangeRateStore((s) => s.autoSyncBcv);
+  const setAutoSyncBcv = useExchangeRateStore((s) => s.setAutoSyncBcv);
+  const lastBcvError = useExchangeRateStore((s) => s.lastBcvError);
+  const fetchAutoSyncStatus = useExchangeRateStore((s) => s.fetchAutoSyncStatus);
 
   const [showRateModal, setShowRateModal] = useState(false);
   const [showBcvPromptModal, setShowBcvPromptModal] = useState(false);
@@ -196,7 +201,8 @@ export const MainLayout: React.FC = () => {
 
   useEffect(() => {
     fetchRate();
-  }, [fetchRate]);
+    fetchAutoSyncStatus();
+  }, [fetchRate, fetchAutoSyncStatus]);
 
   useEffect(() => {
     setFormRate(rate.toString());
@@ -209,23 +215,48 @@ export const MainLayout: React.FC = () => {
     hasPermission("pricing", "bulk_update") ||
     hasPermission("config", "write");
 
-  // Tarea automática: verifica periódicamente el BCV siempre que el usuario tenga permitido cambiar la tasa
+  // Tarea automática: verifica periódicamente el BCV siempre que la sincronización automática esté activada
   useEffect(() => {
-    if (!canEditRate) return;
+    if (!canEditRate || !autoSyncBcv) return;
 
     const today = new Date().toISOString().split("T")[0];
     const dismissedKey = `ero_bcv_prompt_dismissed_${today}`;
+    const lastErrorNotifiedKey = `ero_bcv_error_notified_${today}`;
 
     const checkRate = async () => {
-      if (sessionStorage.getItem(dismissedKey)) return;
-
       try {
-        const data = await checkBcvLiveRate();
-        if (data && data.needsUpdate) {
-          setShowBcvPromptModal(true);
+        const result = await checkBcvLiveRate({ isAutoCheck: true });
+        if (result.success && result.data) {
+          if (result.data.needsUpdate && !sessionStorage.getItem(dismissedKey)) {
+            setShowBcvPromptModal(true);
+          }
+        } else if (!result.success && !result.autoSyncDisabled) {
+          // Si la sincronización automática está activada y no se pudo obtener la tasa, notificar que no se pudo y por qué
+          const errorDetail =
+            result.error ||
+            "No fue posible conectar con el portal oficial del BCV ni con el servidor de respaldo.";
+
+          const lastNotified = sessionStorage.getItem(lastErrorNotifiedKey);
+          const now = Date.now();
+          if (!lastNotified || now - Number(lastNotified) > 30 * 60 * 1000) {
+            sessionStorage.setItem(lastErrorNotifiedKey, String(now));
+            toast.error(
+              `Actualización automática de tasa BCV: No se pudo obtener la tasa oficial del dólar. Causa: ${errorDetail}`,
+              {
+                duration: 9000,
+                id: "bcv-auto-sync-error",
+              }
+            );
+          }
         }
-      } catch {
-        // Ignorar fallas silenciosas de red
+      } catch (err: any) {
+        toast.error(
+          `Actualización automática de tasa BCV: Error inesperado al consultar la tasa oficial del dólar. Causa: ${err.message || "Fallo de red"}`,
+          {
+            duration: 8000,
+            id: "bcv-auto-sync-error",
+          }
+        );
       }
     };
 
@@ -236,7 +267,7 @@ export const MainLayout: React.FC = () => {
       clearTimeout(initialTimer);
       clearInterval(interval);
     };
-  }, [canEditRate, checkBcvLiveRate]);
+  }, [canEditRate, autoSyncBcv, checkBcvLiveRate]);
 
   const handleDismissBcvPrompt = () => {
     const today = new Date().toISOString().split("T")[0];
@@ -581,6 +612,13 @@ export const MainLayout: React.FC = () => {
           module: "accounting",
           action: "read",
         },
+        {
+          label: "Contabilización Automática",
+          to: "/accounting/auto-posting",
+          icon: Cpu,
+          module: "accounting",
+          action: "read",
+        },
       ],
     },
     {
@@ -684,6 +722,24 @@ export const MainLayout: React.FC = () => {
           action: "cash_flow",
           category: "Tesorería & Bancos",
         },
+        {
+          label: "Movimientos Medios de Pago",
+          to: "/reports/payment-methods",
+          icon: CreditCard,
+          module: "reports",
+          action: "sales",
+          category: "Tesorería & Bancos",
+        },
+        
+        {
+          label: "Percepción Fiscal IGTF (3%)",
+          to: "/reports/igtf",
+          icon: Landmark,
+          module: "reports",
+          action: "sales",
+          category: "Fiscal & Tributario",
+        },
+      
       ],
     },
     {
@@ -1311,44 +1367,93 @@ export const MainLayout: React.FC = () => {
               className="flex-1 flex flex-col overflow-hidden"
             >
               <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
-                {/* Sincronización Directa BCV */}
-                <div className="flex items-center justify-between p-3 bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200 dark:border-neutral-800 rounded-lg">
-                  <div>
-                    <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 block">
-                      Sincronización Oficial BCV
-                    </span>
-                    <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                      Consultar portal oficial en tiempo real
-                    </span>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={async () => {
-                      const data = await checkBcvLiveRate();
-                      if (data) {
-                        setFormRate(data.bcvRate.toString());
-                        setFormSource(data.source);
-                        setFormNotes(
-                          `Sincronizado desde portal oficial del BCV (${data.bcvFormattedDate || data.bcvEffectiveDate})`,
-                        );
+                {/* Configuración de Actualización Automática & Sincronización Directa BCV */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between p-3 bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200 dark:border-neutral-800 rounded-lg">
+                    <div>
+                      <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 block">
+                        Actualización Automática de Tasa BCV
+                      </span>
+                      <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                        {autoSyncBcv
+                          ? "Activa: comprueba periódicamente y notifica si la tasa cambia o si ocurre un fallo"
+                          : "Pausada: no se realizan consultas automáticas periódicas"}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={autoSyncBcv}
+                      onClick={async () => {
+                        const nextState = !autoSyncBcv;
+                        await setAutoSyncBcv(nextState);
                         toast.success(
-                          `Tasa obtenida del BCV: Bs. ${formatExchangeRate(data.bcvRate, 4)}`,
+                          nextState
+                            ? "Actualización automática de tasa BCV activada"
+                            : "Actualización automática de tasa BCV desactivada"
                         );
-                      } else {
-                        toast.error(
-                          "No se pudo obtener la tasa del BCV en este momento",
-                        );
-                      }
-                    }}
-                    disabled={isBcvChecking}
-                  >
-                    <RefreshCw
-                      className={`w-3.5 h-3.5 mr-1.5 ${isBcvChecking ? "animate-spin" : ""}`}
-                    />
-                    {isBcvChecking ? "Consultando..." : "Obtener del BCV"}
-                  </Button>
+                      }}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus-visible:ring-2 focus-visible:ring-neutral-400 ${
+                        autoSyncBcv ? "bg-neutral-900 dark:bg-neutral-100" : "bg-neutral-300 dark:bg-neutral-700"
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white dark:bg-neutral-900 shadow-sm ring-0 transition duration-200 ease-in-out ${
+                          autoSyncBcv ? "translate-x-4" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 bg-neutral-50 dark:bg-neutral-800/40 border border-neutral-200 dark:border-neutral-800 rounded-lg">
+                    <div>
+                      <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 block">
+                        Sincronización Oficial BCV
+                      </span>
+                      <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                        Consultar portal oficial en tiempo real
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        const result = await checkBcvLiveRate({ force: true });
+                        if (result.success && result.data) {
+                          setFormRate(result.data.bcvRate.toString());
+                          setFormSource(result.data.source);
+                          setFormNotes(
+                            `Sincronizado desde portal oficial del BCV (${result.data.bcvFormattedDate || result.data.bcvEffectiveDate})`
+                          );
+                          toast.success(
+                            `Tasa obtenida del BCV: Bs. ${formatExchangeRate(result.data.bcvRate, 4)}`
+                          );
+                        } else {
+                          toast.error(
+                            `No se pudo obtener la tasa oficial del dólar desde el BCV. Causa: ${result.error || "Fallo de conexión o timeout"}`
+                          );
+                        }
+                      }}
+                      disabled={isBcvChecking}
+                    >
+                      <RefreshCw
+                        className={`w-3.5 h-3.5 mr-1.5 ${isBcvChecking ? "animate-spin" : ""}`}
+                      />
+                      {isBcvChecking ? "Consultando..." : "Obtener del BCV"}
+                    </Button>
+                  </div>
+
+                  {lastBcvError && autoSyncBcv && (
+                    <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/40 rounded-lg text-xs space-y-1">
+                      <span className="font-semibold text-red-800 dark:text-red-300 block">
+                        Aviso: No se pudo obtener la tasa oficial del BCV
+                      </span>
+                      <p className="text-[11px] text-red-700 dark:text-red-400 leading-relaxed">
+                        Causa: {lastBcvError}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div>

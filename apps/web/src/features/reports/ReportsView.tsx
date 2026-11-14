@@ -50,7 +50,9 @@ type ReportTab =
   | 'treasury_balances'
   | 'bank_movements'
   | 'bank_reconciliation'
-  | 'cash_flow';
+  | 'cash_flow'
+  | 'igtf'
+  | 'payment_methods';
 
 const reportSlugMap: Record<string, ReportTab> = {
   sales: 'sales',
@@ -65,6 +67,8 @@ const reportSlugMap: Record<string, ReportTab> = {
   'bank-movements': 'bank_movements',
   'bank-reconciliation': 'bank_reconciliation',
   'cash-flow': 'cash_flow',
+  igtf: 'igtf',
+  'payment-methods': 'payment_methods',
 };
 
 const reportActionMap: Record<ReportTab, string> = {
@@ -80,6 +84,8 @@ const reportActionMap: Record<ReportTab, string> = {
   bank_movements: 'bank_movements',
   bank_reconciliation: 'bank_reconciliation',
   cash_flow: 'cash_flow',
+  igtf: 'sales',
+  payment_methods: 'sales',
 };
 
 const tabToSlugMap: Record<ReportTab, string> = {
@@ -95,6 +101,8 @@ const tabToSlugMap: Record<ReportTab, string> = {
   bank_movements: 'bank-movements',
   bank_reconciliation: 'bank-reconciliation',
   cash_flow: 'cash-flow',
+  igtf: 'igtf',
+  payment_methods: 'payment-methods',
 };
 
 const reportMeta: Record<ReportTab, { title: string; category: string; subtitle: string; icon: React.ComponentType<{ className?: string }> }> = {
@@ -170,6 +178,18 @@ const reportMeta: Record<ReportTab, { title: string; category: string; subtitle:
     subtitle: 'Ingresos por recaudación/cobranzas vs egresos por proveedores/gastos y flujo neto diario',
     icon: Coins,
   },
+  igtf: {
+    title: 'Reporte Fiscal de Percepción IGTF (3%)',
+    category: 'Fiscal & Tributario',
+    subtitle: 'Control de pagos gravados en divisas, bases imponibles y consolidado para declaración quincenal SENIAT',
+    icon: Landmark,
+  },
+  payment_methods: {
+    title: 'Reporte Discriminado de Medios de Pago',
+    category: 'Tesorería & Bancos',
+    subtitle: 'Auditoría cronológica y discriminada de ingresos, egresos y cobranzas por cada medio de pago',
+    icon: CreditCard,
+  },
 };
 
 const formatSafeDateTime = (val?: string | null) => {
@@ -207,6 +227,8 @@ export const ReportsView: React.FC = () => {
     'bank_movements',
     'bank_reconciliation',
     'cash_flow',
+    'igtf',
+    'payment_methods',
   ];
 
   const allowedTabs = allTabs.filter(
@@ -250,6 +272,12 @@ export const ReportsView: React.FC = () => {
   const [bankMovementsData, setBankMovementsData] = useState<any>(null);
   const [bankReconciliationData, setBankReconciliationData] = useState<any>(null);
   const [cashFlowData, setCashFlowData] = useState<any>(null);
+  const [igtfData, setIgtfData] = useState<any>(null);
+  const [paymentMethodsData, setPaymentMethodsData] = useState<any>(null);
+
+  // Filtros adicionales para IGTF y Medios de Pago
+  const [selectedOrigin, setSelectedOrigin] = useState<string>('ALL');
+  const [selectedFlowType, setSelectedFlowType] = useState<'ALL' | 'IN' | 'OUT'>('ALL');
 
   // Cuentas bancarias para selector en reportes de cuenta
   const [bankAccountsList, setBankAccountsList] = useState<any[]>([]);
@@ -305,7 +333,7 @@ export const ReportsView: React.FC = () => {
 
   useEffect(() => {
     loadActiveReport();
-  }, [activeTab, startDate, endDate, selectedMethod, selectedWaiter, selectedAccountId, activeBranchId, reportCurrency]);
+  }, [activeTab, startDate, endDate, selectedMethod, selectedWaiter, selectedAccountId, activeBranchId, reportCurrency, selectedOrigin, selectedFlowType]);
 
   const loadActiveReport = async () => {
     setLoading(true);
@@ -401,6 +429,25 @@ export const ReportsView: React.FC = () => {
           const json = await res.json();
           if (json.success && json.data) setCashFlowData(json.data);
         }
+      } else if (activeTab === 'igtf') {
+        const originParam = selectedOrigin !== 'ALL' ? `&origin=${selectedOrigin}` : '';
+        const searchParam = searchTerm.trim() ? `&search=${encodeURIComponent(searchTerm.trim())}` : '';
+        const url = `/api/reports/igtf?startDate=${startDate}&endDate=${endDate}${branchParam}${methodParam}${originParam}${searchParam}`;
+        const res = await fetch(url, { headers });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && json.data) setIgtfData(json.data);
+        }
+      } else if (activeTab === 'payment_methods') {
+        const originParam = selectedOrigin !== 'ALL' ? `&origin=${selectedOrigin}` : '';
+        const flowParam = selectedFlowType !== 'ALL' ? `&flowType=${selectedFlowType}` : '';
+        const searchParam = searchTerm.trim() ? `&search=${encodeURIComponent(searchTerm.trim())}` : '';
+        const url = `/api/reports/payment-methods?startDate=${startDate}&endDate=${endDate}${branchParam}${methodParam}${originParam}${flowParam}${searchParam}`;
+        const res = await fetch(url, { headers });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && json.data) setPaymentMethodsData(json.data);
+        }
       }
     } catch {
       toast.error('Error al consultar datos del reporte');
@@ -444,6 +491,15 @@ export const ReportsView: React.FC = () => {
         endpoint = `/api/reports/bank-reconciliation?asOfDate=${endDate}${accParam}&export=${format}`;
       } else if (activeTab === 'cash_flow') {
         endpoint = `/api/reports/cash-flow?startDate=${startDate}&endDate=${endDate}${branchParam}${currParam}&export=${format}`;
+      } else if (activeTab === 'igtf') {
+        const originParam = selectedOrigin !== 'ALL' ? `&origin=${selectedOrigin}` : '';
+        const searchParam = searchTerm.trim() ? `&search=${encodeURIComponent(searchTerm.trim())}` : '';
+        endpoint = `/api/reports/igtf?startDate=${startDate}&endDate=${endDate}${branchParam}${methodParam}${originParam}${searchParam}&export=${format}`;
+      } else if (activeTab === 'payment_methods') {
+        const originParam = selectedOrigin !== 'ALL' ? `&origin=${selectedOrigin}` : '';
+        const flowParam = selectedFlowType !== 'ALL' ? `&flowType=${selectedFlowType}` : '';
+        const searchParam = searchTerm.trim() ? `&search=${encodeURIComponent(searchTerm.trim())}` : '';
+        endpoint = `/api/reports/payment-methods?startDate=${startDate}&endDate=${endDate}${branchParam}${methodParam}${originParam}${flowParam}${searchParam}&export=${format}`;
       }
 
       if (!endpoint) return;
@@ -503,6 +559,15 @@ export const ReportsView: React.FC = () => {
       endpoint = `/api/reports/bank-reconciliation?asOfDate=${endDate}${accParam}&format=pdf`;
     } else if (activeTab === 'cash_flow') {
       endpoint = `/api/reports/cash-flow?startDate=${startDate}&endDate=${endDate}${branchParam}${currParam}&format=pdf`;
+    } else if (activeTab === 'igtf') {
+      const originParam = selectedOrigin !== 'ALL' ? `&origin=${selectedOrigin}` : '';
+      const searchParam = searchTerm.trim() ? `&search=${encodeURIComponent(searchTerm.trim())}` : '';
+      endpoint = `/api/reports/igtf?startDate=${startDate}&endDate=${endDate}${branchParam}${methodParam}${originParam}${searchParam}&format=pdf`;
+    } else if (activeTab === 'payment_methods') {
+      const originParam = selectedOrigin !== 'ALL' ? `&origin=${selectedOrigin}` : '';
+      const flowParam = selectedFlowType !== 'ALL' ? `&flowType=${selectedFlowType}` : '';
+      const searchParam = searchTerm.trim() ? `&search=${encodeURIComponent(searchTerm.trim())}` : '';
+      endpoint = `/api/reports/payment-methods?startDate=${startDate}&endDate=${endDate}${branchParam}${methodParam}${originParam}${flowParam}${searchParam}&format=pdf`;
     }
     return endpoint;
   };
@@ -533,6 +598,10 @@ export const ReportsView: React.FC = () => {
         return `Acta_Conciliacion_${bankReconciliationData?.account?.accountNumber || 'Bancaria'}`;
       case 'cash_flow':
         return 'Reporte_Flujo_Caja_Operativo';
+      case 'igtf':
+        return 'Reporte_Fiscal_IGTF_3Pct';
+      case 'payment_methods':
+        return 'Reporte_Discriminado_Medios_Pago';
       default:
         return 'Reporte';
     }
@@ -647,6 +716,34 @@ export const ReportsView: React.FC = () => {
     if (!searchTerm) return true;
     const term = searchTerm.toLowerCase();
     return c.label?.toLowerCase().includes(term);
+  });
+
+  const filteredIgtfRecords = (igtfData?.records || []).filter((r: any) => {
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      r.invoiceNumber?.toLowerCase().includes(term) ||
+      r.controlNumber?.toLowerCase().includes(term) ||
+      r.customerName?.toLowerCase().includes(term) ||
+      r.customerDoc?.toLowerCase().includes(term) ||
+      r.referenceNumber?.toLowerCase().includes(term) ||
+      r.branchName?.toLowerCase().includes(term)
+    );
+  });
+
+  const filteredPaymentMovements = (paymentMethodsData?.movements || []).filter((m: any) => {
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      m.documentNumber?.toLowerCase().includes(term) ||
+      m.entityName?.toLowerCase().includes(term) ||
+      m.reference?.toLowerCase().includes(term) ||
+      m.originLabel?.toLowerCase().includes(term) ||
+      m.paymentMethodLabel?.toLowerCase().includes(term) ||
+      m.notes?.toLowerCase().includes(term) ||
+      m.branchName?.toLowerCase().includes(term) ||
+      m.userName?.toLowerCase().includes(term)
+    );
   });
 
   const MetaIcon = meta.icon;
@@ -859,6 +956,96 @@ export const ReportsView: React.FC = () => {
                 className="h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-xs font-mono"
               />
             </div>
+          )}
+
+          {activeTab === 'igtf' && (
+            <>
+              <div className="flex items-center gap-1.5">
+                <CreditCard className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
+                <span className="font-medium text-neutral-700 dark:text-neutral-300">Medio:</span>
+                <select
+                  value={selectedMethod}
+                  onChange={(e) => setSelectedMethod(e.target.value)}
+                  className="h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-xs"
+                >
+                  <option value="all">Todos en Divisas</option>
+                  <option value="CASH_USD">Efectivo Dólares ($)</option>
+                  <option value="ZELLE">Zelle USD</option>
+                  <option value="WIRE_TRANSFER_USD">Transferencia Extranjera</option>
+                  <option value="CRYPTO">Cripto / USDT</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
+                <span className="font-medium text-neutral-700 dark:text-neutral-300">Origen:</span>
+                <select
+                  value={selectedOrigin}
+                  onChange={(e) => setSelectedOrigin(e.target.value)}
+                  className="h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-xs"
+                >
+                  <option value="ALL">Todos los Orígenes</option>
+                  <option value="POS">Punto de Venta POS</option>
+                  <option value="ADMIN">Venta Administrativa</option>
+                </select>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'payment_methods' && (
+            <>
+              <div className="flex items-center gap-1.5">
+                <ArrowUpDown className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
+                <span className="font-medium text-neutral-700 dark:text-neutral-300">Flujo:</span>
+                <select
+                  value={selectedFlowType}
+                  onChange={(e) => setSelectedFlowType(e.target.value as any)}
+                  className="h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-xs"
+                >
+                  <option value="ALL">Ingresos & Egresos</option>
+                  <option value="IN">Solo Ingresos (Entradas)</option>
+                  <option value="OUT">Solo Egresos (Salidas)</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <CreditCard className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
+                <span className="font-medium text-neutral-700 dark:text-neutral-300">Medio:</span>
+                <select
+                  value={selectedMethod}
+                  onChange={(e) => setSelectedMethod(e.target.value)}
+                  className="h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-xs"
+                >
+                  <option value="all">Todos los Medios</option>
+                  <option value="DEBIT_CARD">Punto Débito (Bs)</option>
+                  <option value="CREDIT_CARD">Punto Crédito (Bs)</option>
+                  <option value="PAGO_MOVIL">Pago Móvil (Bs)</option>
+                  <option value="CASH_USD">Efectivo Divisas ($)</option>
+                  <option value="CASH_VES">Efectivo Bolívares (Bs)</option>
+                  <option value="ZELLE">Zelle USD</option>
+                  <option value="WIRE_TRANSFER">Transferencia Bancaria</option>
+                  <option value="BIOPAGO">Biopago BDV</option>
+                  <option value="CASHEA">Cashea</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
+                <span className="font-medium text-neutral-700 dark:text-neutral-300">Origen:</span>
+                <select
+                  value={selectedOrigin}
+                  onChange={(e) => setSelectedOrigin(e.target.value)}
+                  className="h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-xs"
+                >
+                  <option value="ALL">Todos los Orígenes</option>
+                  <option value="POS">Ventas POS (Caja)</option>
+                  <option value="ADMIN_SALES">Ventas Mayor / Facturación</option>
+                  <option value="COLLECTIONS">Cobranzas de Créditos (CxC)</option>
+                  <option value="PURCHASE_PAYMENTS">Pagos a Proveedores (CxP)</option>
+                  <option value="CASH_MOVEMENTS">Arqueos & Mov. Manuales</option>
+                </select>
+              </div>
+            </>
           )}
 
           {activeTab === 'restaurant_tips' && (
@@ -3139,6 +3326,471 @@ export const ReportsView: React.FC = () => {
                   </div>
                 </Card>
               )}
+            </div>
+          )}
+
+          {/* ============================================================== */}
+          {/* REPORTE 13: PERCEPCIÓN FISCAL IGTF (3%)                        */}
+          {/* ============================================================== */}
+          {activeTab === 'igtf' && igtfData && (
+            <div className="space-y-4">
+              {/* Tarjetas de Resumen KPI */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="p-3 bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs border-l-4 border-l-[#007BFF] dark:border-l-[#3D91FF]">
+                  <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-semibold uppercase tracking-wider block">
+                    Base Imponible Sujeta ($)
+                  </span>
+                  <span className="text-lg font-bold font-mono text-neutral-900 dark:text-neutral-100 block mt-0.5">
+                    {formatMoneyUSD(igtfData.summary?.totalTaxableUSD || 0)}
+                  </span>
+                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono">
+                    {formatMoneyVES(igtfData.summary?.totalTaxableVES || 0)}
+                  </span>
+                </div>
+
+                <div className="p-3 bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs border-l-4 border-l-[#28A745] dark:border-l-[#4ADE80]">
+                  <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-semibold uppercase tracking-wider block">
+                    IGTF 3% Percibido ($)
+                  </span>
+                  <span className="text-lg font-bold font-mono text-[#28A745] dark:text-[#4ADE80] block mt-0.5">
+                    {formatMoneyUSD(igtfData.summary?.totalIgtfUSD || 0)}
+                  </span>
+                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono">
+                    {formatMoneyVES(igtfData.summary?.totalIgtfVES || 0)}
+                  </span>
+                </div>
+
+                <div className="p-3 bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs border-l-4 border-l-purple-500">
+                  <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-semibold uppercase tracking-wider block">
+                    Operaciones Gravadas
+                  </span>
+                  <span className="text-lg font-bold font-mono text-neutral-900 dark:text-neutral-100 block mt-0.5">
+                    {igtfData.summary?.transactionsCount || 0}
+                  </span>
+                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                    {igtfData.summary?.invoicesCount || 0} facturas asociadas
+                  </span>
+                </div>
+
+                <div className="p-3 bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs border-l-4 border-l-amber-500">
+                  <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-semibold uppercase tracking-wider block">
+                    Tasa Oficial Promedio
+                  </span>
+                  <span className="text-lg font-bold font-mono text-neutral-900 dark:text-neutral-100 block mt-0.5">
+                    Bs. {Number(igtfData.summary?.weightedRate || bcvRate || 1).toFixed(4)}
+                  </span>
+                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500">Ponderada por liquidación</span>
+                </div>
+              </div>
+
+              {/* Tabla 1: Resumen Quincenal para Declaración SENIAT */}
+              {igtfData.quincenaSummary && igtfData.quincenaSummary.length > 0 && (
+                <Card
+                  title="Resumen para Declaración Quincenal (SENIAT)"
+                  subtitle="Agrupación por quincena fiscal (01 al 15 y 16 al fin de mes) según normativa tributaria"
+                >
+                  <div className="overflow-x-auto mt-2 border border-neutral-200 dark:border-neutral-800 rounded-lg">
+                    <table className="w-full text-xs text-left">
+                      <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase text-[10px] tracking-wider border-b border-neutral-200 dark:border-neutral-700">
+                        <tr>
+                          <th className="py-2.5 px-3">Período Quincenal</th>
+                          <th className="py-2.5 px-3 text-center">N° Pagos</th>
+                          <th className="py-2.5 px-3 text-right">Base Imponible ($)</th>
+                          <th className="py-2.5 px-3 text-right">Base Imponible (Bs)</th>
+                          <th className="py-2.5 px-3 text-right">IGTF 3% ($)</th>
+                          <th className="py-2.5 px-3 text-right">IGTF 3% (Bs)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                        {igtfData.quincenaSummary.map((q: any) => (
+                          <tr key={q.key} className="hover:bg-neutral-50/60 dark:hover:bg-neutral-800/60 font-mono">
+                            <td className="py-2.5 px-3 font-semibold text-neutral-900 dark:text-neutral-100 font-sans">
+                              {q.periodLabel || q.key}
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-bold text-neutral-700 dark:text-neutral-300">
+                              {q.count}
+                            </td>
+                            <td className="py-2.5 px-3 text-right text-neutral-900 dark:text-neutral-100">
+                              {formatMoneyUSD(q.taxableUSD)}
+                            </td>
+                            <td className="py-2.5 px-3 text-right text-neutral-600 dark:text-neutral-400">
+                              {formatMoneyVES(q.taxableVES)}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-bold text-[#28A745] dark:text-[#4ADE80]">
+                              {formatMoneyUSD(q.igtfUSD)}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-bold text-[#28A745] dark:text-[#4ADE80]">
+                              {formatMoneyVES(q.igtfVES)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-neutral-50 dark:bg-neutral-800 font-bold border-t border-neutral-200 dark:border-neutral-700 font-mono">
+                        <tr>
+                          <td className="py-2.5 px-3 font-sans text-neutral-900 dark:text-neutral-100">TOTAL CONSOLIDADO:</td>
+                          <td className="py-2.5 px-3 text-center text-neutral-900 dark:text-neutral-100">
+                            {igtfData.summary?.transactionsCount || 0}
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-neutral-900 dark:text-neutral-100">
+                            {formatMoneyUSD(igtfData.summary?.totalTaxableUSD || 0)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-neutral-600 dark:text-neutral-400">
+                            {formatMoneyVES(igtfData.summary?.totalTaxableVES || 0)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-[#28A745] dark:text-[#4ADE80]">
+                            {formatMoneyUSD(igtfData.summary?.totalIgtfUSD || 0)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-[#28A745] dark:text-[#4ADE80]">
+                            {formatMoneyVES(igtfData.summary?.totalIgtfVES || 0)}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </Card>
+              )}
+
+              {/* Tabla 2: Detalle Discriminado de Percepción IGTF */}
+              <Card
+                title="Detalle Discriminado de Pagos Sujetos a IGTF"
+                subtitle="Listado cronológico de comprobantes con pago en moneda extranjera y liquidación de IGTF"
+              >
+                <div className="overflow-x-auto mt-2 border border-neutral-200 dark:border-neutral-800 rounded-lg">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase text-[10px] tracking-wider border-b border-neutral-200 dark:border-neutral-700">
+                      <tr>
+                        <th className="py-2.5 px-3">Fecha</th>
+                        <th className="py-2.5 px-3">Factura</th>
+                        <th className="py-2.5 px-3">Control</th>
+                        <th className="py-2.5 px-3">Cliente</th>
+                        <th className="py-2.5 px-3">RIF / C.I.</th>
+                        <th className="py-2.5 px-3">Origen</th>
+                        <th className="py-2.5 px-3">Medio de Pago</th>
+                        <th className="py-2.5 px-3">Referencia</th>
+                        <th className="py-2.5 px-3 text-right">Base ($)</th>
+                        <th className="py-2.5 px-3 text-right">Tasa (Bs)</th>
+                        <th className="py-2.5 px-3 text-right">IGTF ($)</th>
+                        <th className="py-2.5 px-3 text-right">IGTF (Bs)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                      {filteredIgtfRecords.map((r: any) => (
+                        <tr key={r.id} className="hover:bg-neutral-50/60 dark:hover:bg-neutral-800/60 font-mono">
+                          <td className="py-2.5 px-3 whitespace-nowrap text-neutral-700 dark:text-neutral-300">
+                            {r.emissionDate}
+                          </td>
+                          <td className="py-2.5 px-3 font-semibold text-neutral-900 dark:text-neutral-100">
+                            {r.invoiceNumber}
+                          </td>
+                          <td className="py-2.5 px-3 text-neutral-500 dark:text-neutral-400">
+                            {r.controlNumber || '-'}
+                          </td>
+                          <td className="py-2.5 px-3 font-sans text-neutral-900 dark:text-neutral-100 max-w-[160px] truncate">
+                            {r.customerName}
+                          </td>
+                          <td className="py-2.5 px-3 text-neutral-600 dark:text-neutral-400">
+                            {r.customerDoc}
+                          </td>
+                          <td className="py-2.5 px-3 font-sans">
+                            <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                              r.origin === 'POS'
+                                ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300'
+                                : 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300'
+                            }`}>
+                              {r.originLabel || r.origin}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 font-sans font-medium text-neutral-900 dark:text-neutral-100">
+                            {r.methodName || r.method}
+                          </td>
+                          <td className="py-2.5 px-3 text-neutral-500 dark:text-neutral-400">
+                            {r.referenceNumber || '-'}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-semibold text-neutral-900 dark:text-neutral-100">
+                            {formatMoneyUSD(r.baseUSD)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-neutral-600 dark:text-neutral-400">
+                            {Number(r.exchangeRate || 0).toFixed(2)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-bold text-[#28A745] dark:text-[#4ADE80]">
+                            {formatMoneyUSD(r.igtfUSD)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-bold text-[#28A745] dark:text-[#4ADE80]">
+                            {formatMoneyVES(r.igtfVES)}
+                          </td>
+                        </tr>
+                      ))}
+                      {filteredIgtfRecords.length === 0 && (
+                        <tr>
+                          <td colSpan={12} className="py-8 text-center text-neutral-400 dark:text-neutral-500 font-sans">
+                            No se encontraron percepciones de IGTF para los filtros seleccionados
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                    <tfoot className="bg-neutral-50 dark:bg-neutral-800 font-bold border-t border-neutral-200 dark:border-neutral-700 font-mono">
+                      <tr>
+                        <td colSpan={8} className="py-2.5 px-3 text-right font-sans text-neutral-900 dark:text-neutral-100">
+                          TOTALES PERÍODO:
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-neutral-900 dark:text-neutral-100">
+                          {formatMoneyUSD(igtfData.summary?.totalTaxableUSD || 0)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right">-</td>
+                        <td className="py-2.5 px-3 text-right text-[#28A745] dark:text-[#4ADE80]">
+                          {formatMoneyUSD(igtfData.summary?.totalIgtfUSD || 0)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-[#28A745] dark:text-[#4ADE80]">
+                          {formatMoneyVES(igtfData.summary?.totalIgtfVES || 0)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {/* ============================================================== */}
+          {/* REPORTE 14: DISCRIMINADO DE MEDIOS DE PAGO                     */}
+          {/* ============================================================== */}
+          {activeTab === 'payment_methods' && paymentMethodsData && (
+            <div className="space-y-4">
+              {/* Tarjetas de Resumen KPI */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="p-3 bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs border-l-4 border-l-[#28A745] dark:border-l-[#4ADE80]">
+                  <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-semibold uppercase tracking-wider block">
+                    Total Ingresos ($)
+                  </span>
+                  <span className="text-lg font-bold font-mono text-[#28A745] dark:text-[#4ADE80] block mt-0.5">
+                    {formatMoneyUSD(paymentMethodsData.summary?.totalInflowUSD || 0)}
+                  </span>
+                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono">
+                    {formatMoneyVES(paymentMethodsData.summary?.totalInflowVES || 0)} ({paymentMethodsData.summary?.inflowsCount || 0} ops)
+                  </span>
+                </div>
+
+                <div className="p-3 bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs border-l-4 border-l-red-500">
+                  <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-semibold uppercase tracking-wider block">
+                    Total Egresos ($)
+                  </span>
+                  <span className="text-lg font-bold font-mono text-red-600 dark:text-red-400 block mt-0.5">
+                    {formatMoneyUSD(paymentMethodsData.summary?.totalOutflowUSD || 0)}
+                  </span>
+                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono">
+                    {formatMoneyVES(paymentMethodsData.summary?.totalOutflowVES || 0)} ({paymentMethodsData.summary?.outflowsCount || 0} ops)
+                  </span>
+                </div>
+
+                <div className={`p-3 bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs border-l-4 ${
+                  Number(paymentMethodsData.summary?.netUSD || 0) >= 0 ? 'border-l-sky-500' : 'border-l-amber-500'
+                }`}>
+                  <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-semibold uppercase tracking-wider block">
+                    Flujo Neto Consolidado ($)
+                  </span>
+                  <span className={`text-lg font-bold font-mono block mt-0.5 ${
+                    Number(paymentMethodsData.summary?.netUSD || 0) >= 0 ? 'text-sky-600 dark:text-sky-400' : 'text-amber-600 dark:text-amber-400'
+                  }`}>
+                    {formatMoneyUSD(paymentMethodsData.summary?.netUSD || 0)}
+                  </span>
+                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono">
+                    {formatMoneyVES(paymentMethodsData.summary?.netVES || 0)}
+                  </span>
+                </div>
+
+                <div className="p-3 bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs border-l-4 border-l-purple-500">
+                  <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-semibold uppercase tracking-wider block">
+                    Total Operaciones
+                  </span>
+                  <span className="text-lg font-bold font-mono text-neutral-900 dark:text-neutral-100 block mt-0.5">
+                    {paymentMethodsData.summary?.operationsCount || 0}
+                  </span>
+                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                    Tasa Oficial BCV: Bs. {Number(bcvRate || 1).toFixed(4)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Tabla 1: Resumen Consolidado por Medio de Pago */}
+              {paymentMethodsData.byMethod && paymentMethodsData.byMethod.length > 0 && (
+                <Card
+                  title="Resumen Consolidado por Medio de Pago"
+                  subtitle="Ingresos, egresos, flujo neto y distribución porcentual de volumen por cada canal"
+                >
+                  <div className="overflow-x-auto mt-2 border border-neutral-200 dark:border-neutral-800 rounded-lg">
+                    <table className="w-full text-xs text-left">
+                      <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase text-[10px] tracking-wider border-b border-neutral-200 dark:border-neutral-700">
+                        <tr>
+                          <th className="py-2.5 px-3">Medio de Pago</th>
+                          <th className="py-2.5 px-3 text-center">N° Ops</th>
+                          <th className="py-2.5 px-3 text-center">% Volumen</th>
+                          <th className="py-2.5 px-3 text-right">Ingresos ($)</th>
+                          <th className="py-2.5 px-3 text-right">Ingresos (Bs)</th>
+                          <th className="py-2.5 px-3 text-right">Egresos ($)</th>
+                          <th className="py-2.5 px-3 text-right">Egresos (Bs)</th>
+                          <th className="py-2.5 px-3 text-right">Flujo Neto ($)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                        {paymentMethodsData.byMethod.map((m: any) => (
+                          <tr key={m.method} className="hover:bg-neutral-50/60 dark:hover:bg-neutral-800/60 font-mono">
+                            <td className="py-2.5 px-3 font-semibold text-neutral-900 dark:text-neutral-100 font-sans">
+                              {m.methodName || m.label || m.method}
+                            </td>
+                            <td className="py-2.5 px-3 text-center text-neutral-700 dark:text-neutral-300">
+                              {m.count}
+                            </td>
+                            <td className="py-2.5 px-3 text-center">
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200">
+                                {Number(m.percentOfTotal || 0).toFixed(1)}%
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-medium text-emerald-700 dark:text-emerald-400">
+                              {formatMoneyUSD(m.inflowUSD)}
+                            </td>
+                            <td className="py-2.5 px-3 text-right text-neutral-600 dark:text-neutral-400">
+                              {formatMoneyVES(m.inflowVES)}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-medium text-red-600 dark:text-red-400">
+                              {formatMoneyUSD(m.outflowUSD)}
+                            </td>
+                            <td className="py-2.5 px-3 text-right text-neutral-600 dark:text-neutral-400">
+                              {formatMoneyVES(m.outflowVES)}
+                            </td>
+                            <td className={`py-2.5 px-3 text-right font-bold ${
+                              Number(m.netUSD || 0) >= 0 ? 'text-sky-700 dark:text-sky-400' : 'text-amber-600 dark:text-amber-400'
+                            }`}>
+                              {formatMoneyUSD(m.netUSD)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-neutral-50 dark:bg-neutral-800 font-bold border-t border-neutral-200 dark:border-neutral-700 font-mono">
+                        <tr>
+                          <td className="py-2.5 px-3 font-sans text-neutral-900 dark:text-neutral-100">TOTAL CONSOLIDADO:</td>
+                          <td className="py-2.5 px-3 text-center text-neutral-900 dark:text-neutral-100">
+                            {paymentMethodsData.summary?.operationsCount || 0}
+                          </td>
+                          <td className="py-2.5 px-3 text-center">100.0%</td>
+                          <td className="py-2.5 px-3 text-right text-emerald-700 dark:text-emerald-400">
+                            {formatMoneyUSD(paymentMethodsData.summary?.totalInflowUSD || 0)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-neutral-600 dark:text-neutral-400">
+                            {formatMoneyVES(paymentMethodsData.summary?.totalInflowVES || 0)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-red-600 dark:text-red-400">
+                            {formatMoneyUSD(paymentMethodsData.summary?.totalOutflowUSD || 0)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-neutral-600 dark:text-neutral-400">
+                            {formatMoneyVES(paymentMethodsData.summary?.totalOutflowVES || 0)}
+                          </td>
+                          <td className={`py-2.5 px-3 text-right font-bold ${
+                            Number(paymentMethodsData.summary?.netUSD || 0) >= 0 ? 'text-sky-700 dark:text-sky-400' : 'text-amber-600 dark:text-amber-400'
+                          }`}>
+                            {formatMoneyUSD(paymentMethodsData.summary?.netUSD || 0)}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </Card>
+              )}
+
+              {/* Tabla 2: Detalle Cronológico Discriminado de Movimientos */}
+              <Card
+                title="Detalle Cronológico Discriminado de Movimientos"
+                subtitle="Auditoría movimiento por movimiento con documento, cliente/proveedor, método y valores bimonetarios"
+              >
+                <div className="overflow-x-auto mt-2 border border-neutral-200 dark:border-neutral-800 rounded-lg">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase text-[10px] tracking-wider border-b border-neutral-200 dark:border-neutral-700">
+                      <tr>
+                        <th className="py-2.5 px-3">Fecha / Hora</th>
+                        <th className="py-2.5 px-3 text-center">Flujo</th>
+                        <th className="py-2.5 px-3">Origen</th>
+                        <th className="py-2.5 px-3">Documento</th>
+                        <th className="py-2.5 px-3">Cliente / Proveedor / Concepto</th>
+                        <th className="py-2.5 px-3">Medio de Pago</th>
+                        <th className="py-2.5 px-3">Referencia</th>
+                        <th className="py-2.5 px-3 text-right">Monto ($)</th>
+                        <th className="py-2.5 px-3 text-right">Monto (Bs)</th>
+                        <th className="py-2.5 px-3 text-right">Tasa (Bs)</th>
+                        <th className="py-2.5 px-3">Sucursal / Caja</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                      {filteredPaymentMovements.map((mov: any) => (
+                        <tr key={mov.id} className="hover:bg-neutral-50/60 dark:hover:bg-neutral-800/60 font-mono">
+                          <td className="py-2.5 px-3 whitespace-nowrap text-neutral-700 dark:text-neutral-300">
+                            {mov.date} <span className="text-neutral-400 text-[10px]">{mov.time}</span>
+                          </td>
+                          <td className="py-2.5 px-3 text-center font-sans">
+                            <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                              mov.flowType === 'IN'
+                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                : 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
+                            }`}>
+                              {mov.flowType === 'IN' ? 'INGRESO' : 'EGRESO'}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 font-sans text-neutral-700 dark:text-neutral-300">
+                            {mov.originLabel || mov.origin}
+                          </td>
+                          <td className="py-2.5 px-3 font-semibold text-neutral-900 dark:text-neutral-100">
+                            {mov.documentNumber || '-'}
+                          </td>
+                          <td className="py-2.5 px-3 font-sans text-neutral-900 dark:text-neutral-100 max-w-[180px] truncate">
+                            {mov.entityName || '-'}
+                          </td>
+                          <td className="py-2.5 px-3 font-sans font-medium text-neutral-900 dark:text-neutral-100">
+                            {mov.paymentMethodLabel || mov.paymentMethod}
+                          </td>
+                          <td className="py-2.5 px-3 text-neutral-500 dark:text-neutral-400">
+                            {mov.reference || '-'}
+                          </td>
+                          <td className={`py-2.5 px-3 text-right font-bold ${
+                            mov.flowType === 'IN' ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+                          }`}>
+                            {formatMoneyUSD(mov.amountUSD)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-neutral-600 dark:text-neutral-400">
+                            {formatMoneyVES(mov.amountVES)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-neutral-500 dark:text-neutral-400">
+                            {Number(mov.exchangeRate || 0).toFixed(2)}
+                          </td>
+                          <td className="py-2.5 px-3 font-sans text-neutral-500 dark:text-neutral-400 text-[11px] truncate max-w-[140px]">
+                            {mov.branchName || '-'} {mov.cashRegisterName ? `• ${mov.cashRegisterName}` : ''}
+                          </td>
+                        </tr>
+                      ))}
+                      {filteredPaymentMovements.length === 0 && (
+                        <tr>
+                          <td colSpan={11} className="py-8 text-center text-neutral-400 dark:text-neutral-500 font-sans">
+                            No se encontraron movimientos para los filtros seleccionados
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                    <tfoot className="bg-neutral-50 dark:bg-neutral-800 font-bold border-t border-neutral-200 dark:border-neutral-700 font-mono">
+                      <tr>
+                        <td colSpan={7} className="py-2.5 px-3 text-right font-sans text-neutral-900 dark:text-neutral-100">
+                          FLUJO NETO CONSOLIDADO:
+                        </td>
+                        <td className={`py-2.5 px-3 text-right font-bold ${
+                          Number(paymentMethodsData.summary?.netUSD || 0) >= 0 ? 'text-sky-700 dark:text-sky-400' : 'text-amber-600 dark:text-amber-400'
+                        }`}>
+                          {formatMoneyUSD(paymentMethodsData.summary?.netUSD || 0)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-neutral-600 dark:text-neutral-400">
+                          {formatMoneyVES(paymentMethodsData.summary?.netVES || 0)}
+                        </td>
+                        <td colSpan={2} className="py-2.5 px-3"></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </Card>
             </div>
           )}
         </div>

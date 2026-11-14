@@ -139,3 +139,56 @@ export const exchangeDifferenceProcessSchema = z.object({
 });
 export type ExchangeDifferenceProcessInput = z.infer<typeof exchangeDifferenceProcessSchema>;
 
+// ============================================================================
+// MOTOR DE CONTABILIZACIÓN AUTOMÁTICA
+// ============================================================================
+
+export const accountingSettingSchema = z.object({
+  id: z.string().optional(),
+  companyId: z.string().optional(),
+  autoPostingEnabled: z.boolean().default(true),
+  defaultEntryStatus: z.enum(['DRAFT', 'POSTED']).default('POSTED'),
+  postSales: z.boolean().default(true),
+  postPurchases: z.boolean().default(true),
+  postPayments: z.boolean().default(true),
+  postNotes: z.boolean().default(true),
+  postInventoryAdjustments: z.boolean().default(true),
+  postTreasury: z.boolean().default(true),
+});
+export type AccountingSettingInput = z.infer<typeof accountingSettingSchema>;
+
+export const accountingMappingItemSchema = z.object({
+  id: z.string().optional(),
+  mappingKey: z.string().min(1, 'La clave de mapeo es requerida'),
+  accountId: z.string().min(1, 'La cuenta contable es requerida'),
+  accountCode: z.string().optional(),
+  accountName: z.string().optional(),
+  description: z.string().optional(),
+});
+export type AccountingMappingItem = z.infer<typeof accountingMappingItemSchema>;
+
+export const updateAccountingMappingsSchema = z.object({
+  mappings: z.array(accountingMappingItemSchema),
+});
+export type UpdateAccountingMappingsInput = z.infer<typeof updateAccountingMappingsSchema>;
+
+export const batchPostingInputSchema = z.object({
+  originType: z.enum([
+    'ALL',
+    'POS_SALE',
+    'SALE_INVOICE',
+    'PURCHASE_INVOICE',
+    'CUSTOMER_NOTE',
+    'SUPPLIER_NOTE',
+    'AP_PAYMENT',
+    'AR_PAYMENT',
+    'INVENTORY_ADJUST',
+    'BANK_MOVEMENT',
+  ]).default('ALL'),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  limit: z.number().int().min(1).max(500).default(100),
+});
+export type BatchPostingInput = z.infer<typeof batchPostingInputSchema>;
+
+

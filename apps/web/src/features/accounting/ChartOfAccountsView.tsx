@@ -459,7 +459,7 @@ export const ChartOfAccountsView: React.FC = () => {
             <tbody className="divide-y divide-gray-200 dark:divide-gray-800 bg-white dark:bg-[#242526]">
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-gray-500">
+                  <td colSpan={9} className="py-8 text-center text-gray-400">
                     Cargando plan de cuentas oficial...
                   </td>
                 </tr>

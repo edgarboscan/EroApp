@@ -389,10 +389,64 @@ configRouter.put('/exchange-rate', authenticate, async (c) => {
 // ==========================================
 // 6.1 Consulta y Sincronización en Vivo del BCV
 // ==========================================
-configRouter.get('/exchange-rate/bcv-live', authenticate, async (c) => {
+configRouter.get('/exchange-rate/auto-sync', authenticate, async (c) => {
   const user = c.get('user');
   try {
-    const bcvData = await BcvService.getOfficialRate();
+    const enabled = await ConfigService.getAutoSyncBcv(user.companyId);
+    return c.json({ success: true, autoSyncBcv: enabled });
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'AUTO_SYNC_FETCH_ERROR', message: error.message } }, 500);
+  }
+});
+
+configRouter.put('/exchange-rate/auto-sync', authenticate, async (c) => {
+  const user = c.get('user');
+  const isSuperAdmin = isSuperAdminRole(user.role);
+  const hasRatePerm =
+    user.permissions.includes('pricing.exchange_rate') ||
+    user.permissions.includes('pricing.bulk_update') ||
+    user.permissions.includes('config.write');
+
+  if (!isSuperAdmin && !hasRatePerm) {
+    return c.json(
+      {
+        success: false,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'No cuenta con permisos autorizados para modificar la configuración de sincronización de tasa',
+        },
+      },
+      403
+    );
+  }
+
+  try {
+    const body = await c.req.json();
+    const enabled = Boolean(body.enabled !== false);
+    await ConfigService.setAutoSyncBcv(user.companyId, enabled);
+    return c.json({ success: true, autoSyncBcv: enabled });
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'AUTO_SYNC_UPDATE_ERROR', message: error.message } }, 400);
+  }
+});
+
+configRouter.get('/exchange-rate/bcv-live', authenticate, async (c) => {
+  const user = c.get('user');
+  const force = c.req.query('force') === 'true';
+  const isAutoCheck = c.req.query('auto') === 'true';
+
+  try {
+    const autoSyncEnabled = await ConfigService.getAutoSyncBcv(user.companyId);
+
+    if (isAutoCheck && !autoSyncEnabled) {
+      return c.json({
+        success: false,
+        autoSyncDisabled: true,
+        message: 'La sincronización automática de la tasa BCV está desactivada en la empresa',
+      });
+    }
+
+    const bcvData = await BcvService.getOfficialRate(force);
     const currentRateData = await ConfigService.getExchangeRate(user.companyId);
 
     const difference = Number((bcvData.rate - currentRateData.rate).toFixed(4));
@@ -412,8 +466,23 @@ configRouter.get('/exchange-rate/bcv-live', authenticate, async (c) => {
       },
     });
   } catch (error: any) {
+    const autoSyncEnabled = await ConfigService.getAutoSyncBcv(user.companyId).catch(() => true);
+    
+    // Si la actualización automática está activada, registrar formalmente la notificación con el motivo del fallo
+    if (autoSyncEnabled) {
+      await ConfigService.recordBcvSyncFailure(user.companyId, error.message).catch(() => {});
+    }
+
     return c.json(
-      { success: false, error: { code: 'BCV_FETCH_ERROR', message: error.message } },
+      {
+        success: false,
+        error: {
+          code: 'BCV_FETCH_ERROR',
+          message: error.message,
+          reason: error.message,
+          autoSyncEnabled,
+        },
+      },
       502
     );
   }

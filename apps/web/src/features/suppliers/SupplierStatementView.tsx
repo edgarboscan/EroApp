@@ -98,7 +98,7 @@ export const SupplierStatementView: React.FC = () => {
         <div>
           <button
             type="button"
-            onClick={() => navigate('/suppliers')}
+            onClick={() => navigate("/suppliers")}
             className="inline-flex items-center text-xs font-medium text-neutral-500 hover:text-neutral-900 transition-colors mb-2"
           >
             <ArrowLeft className="w-3.5 h-3.5 mr-1" />
@@ -110,13 +110,16 @@ export const SupplierStatementView: React.FC = () => {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold text-neutral-900">{supplier?.name}</h1>
-                <Badge variant={supplier?.isResident ? 'success' : 'neutral'}>
-                  {supplier?.isResident ? 'Domiciliado' : 'No Dom.'}
+                <h1 className="text-xl font-bold text-neutral-900">
+                  {supplier?.name}
+                </h1>
+                <Badge variant={supplier?.isResident ? "success" : "neutral"}>
+                  {supplier?.isResident ? "Domiciliado" : "No Dom."}
                 </Badge>
               </div>
               <p className="text-xs text-neutral-500 font-mono mt-0.5">
-                RIF: {supplier?.rif} | {supplier?.fiscalAddress || 'Sin dirección fiscal'}
+                RIF: {supplier?.rif} |{" "}
+                {supplier?.fiscalAddress || "Sin dirección fiscal"}
               </p>
             </div>
           </div>
@@ -126,7 +129,7 @@ export const SupplierStatementView: React.FC = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate('/supplier-notes')}
+            onClick={() => navigate("/supplier-notes")}
             className="w-full sm:w-auto rounded-lg"
           >
             <FileText className="w-4 h-4 mr-1 text-sky-600" />
@@ -134,7 +137,7 @@ export const SupplierStatementView: React.FC = () => {
           </Button>
           <Button
             size="sm"
-            onClick={() => navigate('/payables/payments')}
+            onClick={() => navigate("/payables/payments")}
             className="w-full sm:w-auto rounded-lg"
           >
             <DollarSign className="w-4 h-4 mr-1" />
@@ -199,7 +202,9 @@ export const SupplierStatementView: React.FC = () => {
               <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
                 Facturas Registradas
               </p>
-              <p className="text-2xl font-bold font-mono text-[#17A2B8] dark:text-[#38C9DD] mt-1">{invoices.length}</p>
+              <p className="text-2xl font-bold font-mono text-[#17A2B8] dark:text-[#38C9DD] mt-1">
+                {invoices.length}
+              </p>
             </div>
             <div className="w-8 h-8 rounded-lg bg-[#17A2B8]/10 text-[#17A2B8] dark:bg-[#38C9DD]/15 dark:text-[#38C9DD] flex items-center justify-center">
               <FileText className="w-4 h-4" />
@@ -211,16 +216,18 @@ export const SupplierStatementView: React.FC = () => {
       {/* Invoices List */}
       <Card className="border-neutral-200 overflow-hidden">
         <div className="p-4 border-b border-neutral-200 flex justify-between items-center">
-          <h2 className="text-sm font-semibold text-neutral-900 flex items-center gap-2">
+          <h2 className="text-sm font-semibold text-neutral-400 flex items-center gap-2">
             <Receipt className="w-4 h-4 text-sky-600" />
             Historial de Facturas de Compra (CxP)
           </h2>
-          <span className="text-xs text-neutral-500">{invoices.length} documentos</span>
+          <span className="text-xs text-neutral-500">
+            {invoices.length} documentos
+          </span>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-neutral-600">
-            <thead className="bg-neutral-50 border-b border-neutral-200 text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+          <table className="w-full text-left text-sm border-collapse">
+            <thead className="bg-[#F4F6F9] dark:bg-[#18191A] text-neutral-700 dark:text-neutral-300 uppercase font-semibold text-[10px] tracking-wider border-b border-gray-200 dark:border-gray-800 sticky top-0 z-10">
               <tr>
                 <th className="py-3 px-4">Factura / Control</th>
                 <th className="py-3 px-4">Emisión</th>
@@ -232,29 +239,35 @@ export const SupplierStatementView: React.FC = () => {
                 <th className="py-3 px-4 text-right">Acción</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-100">
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800/80">
               {invoices.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="text-center py-8 text-neutral-400">
-                    No existen facturas de compra registradas para este proveedor.
+                    No existen facturas de compra registradas para este
+                    proveedor.
                   </td>
                 </tr>
               ) : (
                 invoices.map((inv: any) => (
-                  <tr key={inv.id} className="hover:bg-neutral-50 transition-colors">
+                  <tr
+                    key={inv.id}
+                    className="hover:bg-neutral-50 transition-colors"
+                  >
                     <td className="py-3 px-4">
                       <div className="font-semibold text-neutral-900 font-mono">
                         {inv.invoiceNumber}
                       </div>
                       <div className="text-xs text-neutral-500 font-mono">
-                        Ctrl: {inv.controlNumber || 'S/C'}
+                        Ctrl: {inv.controlNumber || "S/C"}
                       </div>
                     </td>
                     <td className="py-3 px-4 text-xs text-neutral-700">
-                      {new Date(inv.invoiceDate).toLocaleDateString('es-VE')}
+                      {new Date(inv.invoiceDate).toLocaleDateString("es-VE")}
                     </td>
                     <td className="py-3 px-4 text-xs font-mono">
-                      {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString('es-VE') : '-'}
+                      {inv.dueDate
+                        ? new Date(inv.dueDate).toLocaleDateString("es-VE")
+                        : "-"}
                       {inv.daysOverdue > 0 && (
                         <div className="text-[11px] font-bold text-red-600">
                           {inv.daysOverdue} días vencido
@@ -273,24 +286,26 @@ export const SupplierStatementView: React.FC = () => {
                           {formatMoneyUSD(inv.amountBalance)}
                         </span>
                       ) : (
-                        <span className="text-emerald-600 text-xs">Saldado</span>
+                        <span className="text-emerald-600 text-xs">
+                          Saldado
+                        </span>
                       )}
                     </td>
                     <td className="py-3 px-4 text-center">
                       <Badge
                         variant={
-                          inv.status === 'PAID'
-                            ? 'success'
+                          inv.status === "PAID"
+                            ? "success"
                             : inv.daysOverdue > 0
-                            ? 'danger'
-                            : 'warning'
+                              ? "danger"
+                              : "warning"
                         }
                       >
-                        {inv.status === 'PAID'
-                          ? 'Pagado'
+                        {inv.status === "PAID"
+                          ? "Pagado"
                           : inv.daysOverdue > 0
-                          ? 'Vencido'
-                          : 'Pendiente'}
+                            ? "Vencido"
+                            : "Pendiente"}
                       </Badge>
                     </td>
                     <td className="py-3 px-4 text-right">
@@ -298,7 +313,11 @@ export const SupplierStatementView: React.FC = () => {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => navigate(`/payables/payments?payableId=${inv.payableId}`)}
+                          onClick={() =>
+                            navigate(
+                              `/payables/payments?payableId=${inv.payableId}`,
+                            )
+                          }
                           className="h-7 text-xs"
                         >
                           Pagar
@@ -320,7 +339,9 @@ export const SupplierStatementView: React.FC = () => {
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
             Historial de Pagos y Egresos Emitidos
           </h2>
-          <span className="text-xs text-neutral-500">{payments.length} transacciones</span>
+          <span className="text-xs text-neutral-500">
+            {payments.length} transacciones
+          </span>
         </div>
 
         <div className="overflow-x-auto">
@@ -345,24 +366,27 @@ export const SupplierStatementView: React.FC = () => {
                 </tr>
               ) : (
                 payments.map((p: any) => (
-                  <tr key={p.id} className="hover:bg-neutral-50 transition-colors">
+                  <tr
+                    key={p.id}
+                    className="hover:bg-neutral-50 transition-colors"
+                  >
                     <td className="py-3 px-4 text-xs text-neutral-700">
-                      {new Date(p.createdAt).toLocaleDateString('es-VE')}{' '}
+                      {new Date(p.createdAt).toLocaleDateString("es-VE")}{" "}
                       <span className="text-neutral-400 font-mono">
-                        {new Date(p.createdAt).toLocaleTimeString('es-VE', {
-                          hour: '2-digit',
-                          minute: '2-digit',
+                        {new Date(p.createdAt).toLocaleTimeString("es-VE", {
+                          hour: "2-digit",
+                          minute: "2-digit",
                         })}
                       </span>
                     </td>
                     <td className="py-3 px-4 font-mono text-xs font-semibold text-neutral-900">
-                      {p.invoiceNumber || 'Abono General'}
+                      {p.invoiceNumber || "Abono General"}
                     </td>
                     <td className="py-3 px-4">
                       <Badge variant="neutral">{p.method}</Badge>
                     </td>
                     <td className="py-3 px-4 font-mono text-xs text-neutral-600">
-                      {p.referenceNumber || '-'}
+                      {p.referenceNumber || "-"}
                     </td>
                     <td className="py-3 px-4 text-right font-semibold text-neutral-900 font-mono">
                       {formatMoneyUSD(p.amountUsd)}
@@ -370,7 +394,9 @@ export const SupplierStatementView: React.FC = () => {
                     <td className="py-3 px-4 text-right text-xs text-neutral-600 font-mono">
                       {formatMoneyVES(p.amountVes)}
                     </td>
-                    <td className="py-3 px-4 text-xs text-neutral-500">{p.notes || '-'}</td>
+                    <td className="py-3 px-4 text-xs text-neutral-500">
+                      {p.notes || "-"}
+                    </td>
                   </tr>
                 ))
               )}

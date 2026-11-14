@@ -27,6 +27,13 @@ export interface BcvLiveData {
   fetchedAt: string;
 }
 
+export interface CheckBcvResult {
+  success: boolean;
+  data?: BcvLiveData | null;
+  error?: string;
+  autoSyncDisabled?: boolean;
+}
+
 interface ExchangeRateState extends ExchangeRateData {
   isLoading: boolean;
   history: ExchangeRateRecord[];
@@ -34,14 +41,20 @@ interface ExchangeRateState extends ExchangeRateData {
   bcvLiveData: BcvLiveData | null;
   isBcvChecking: boolean;
   isBcvSyncing: boolean;
+  autoSyncBcv: boolean;
+  lastBcvError: string | null;
+  lastBcvAttemptAt: string | null;
   fetchRate: () => Promise<void>;
   fetchHistory: () => Promise<void>;
+  fetchAutoSyncStatus: () => Promise<boolean>;
+  setAutoSyncBcv: (enabled: boolean) => Promise<boolean>;
   updateRate: (newRate: number, source?: string, notes?: string) => Promise<boolean>;
-  checkBcvLiveRate: () => Promise<BcvLiveData | null>;
+  checkBcvLiveRate: (options?: { force?: boolean; isAutoCheck?: boolean }) => Promise<CheckBcvResult>;
   syncWithBcv: () => Promise<boolean>;
 }
 
 const STORAGE_KEY = 'ero_erp_exchange_rate';
+const AUTO_SYNC_KEY = 'ero_erp_auto_sync_bcv';
 
 const loadPersistedRate = (): ExchangeRateData => {
   try {
@@ -67,6 +80,16 @@ const loadPersistedRate = (): ExchangeRateData => {
   };
 };
 
+const loadPersistedAutoSync = (): boolean => {
+  try {
+    const val = localStorage.getItem(AUTO_SYNC_KEY);
+    if (val !== null) {
+      return val === 'true';
+    }
+  } catch {}
+  return true;
+};
+
 const initialData = loadPersistedRate();
 
 export const useExchangeRateStore = create<ExchangeRateState>((set, get) => ({
@@ -74,6 +97,9 @@ export const useExchangeRateStore = create<ExchangeRateState>((set, get) => ({
   isLoading: false,
   history: [],
   isHistoryLoading: false,
+  autoSyncBcv: loadPersistedAutoSync(),
+  lastBcvError: null,
+  lastBcvAttemptAt: null,
 
   fetchRate: async () => {
     const token = useAuthStore.getState().token;
@@ -123,6 +149,63 @@ export const useExchangeRateStore = create<ExchangeRateState>((set, get) => ({
     }
   },
 
+  fetchAutoSyncStatus: async () => {
+    const token = useAuthStore.getState().token;
+    if (!token) return get().autoSyncBcv;
+
+    try {
+      const res = await fetch('/api/config/exchange-rate/auto-sync', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && typeof json.autoSyncBcv === 'boolean') {
+          const enabled = json.autoSyncBcv;
+          try {
+            localStorage.setItem(AUTO_SYNC_KEY, String(enabled));
+          } catch {}
+          set({ autoSyncBcv: enabled });
+          return enabled;
+        }
+      }
+    } catch {
+      // Mantener valor actual
+    }
+    return get().autoSyncBcv;
+  },
+
+  setAutoSyncBcv: async (enabled: boolean) => {
+    const token = useAuthStore.getState().token;
+    try {
+      localStorage.setItem(AUTO_SYNC_KEY, String(enabled));
+    } catch {}
+
+    set({ autoSyncBcv: enabled, ...(enabled ? {} : { lastBcvError: null }) });
+
+    if (token) {
+      try {
+        const res = await fetch('/api/config/exchange-rate/auto-sync', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ enabled }),
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && typeof json.autoSyncBcv === 'boolean') {
+            set({ autoSyncBcv: json.autoSyncBcv });
+            return json.autoSyncBcv;
+          }
+        }
+      } catch {
+        // Fallback local
+      }
+    }
+    return enabled;
+  },
+
   updateRate: async (newRate: number, source?: string, notes?: string) => {
     const token = useAuthStore.getState().token;
     const user = useAuthStore.getState().user;
@@ -167,7 +250,7 @@ export const useExchangeRateStore = create<ExchangeRateState>((set, get) => ({
           try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(syncedData));
           } catch {}
-          set({ ...syncedData });
+          set({ ...syncedData, lastBcvError: null });
         }
 
         // Refrescar historial
@@ -187,29 +270,65 @@ export const useExchangeRateStore = create<ExchangeRateState>((set, get) => ({
   isBcvChecking: false,
   isBcvSyncing: false,
 
-  checkBcvLiveRate: async () => {
+  checkBcvLiveRate: async (options) => {
     const token = useAuthStore.getState().token;
-    if (!token) return null;
+    if (!token) {
+      return { success: false, error: 'Sesión no activa' };
+    }
+
+    const isAutoCheck = options?.isAutoCheck === true;
+    const force = options?.force === true;
+
+    // Si es chequeo automatico y la sincronizacion automatica esta desactivada, omitir
+    if (isAutoCheck && !get().autoSyncBcv) {
+      return { success: false, autoSyncDisabled: true };
+    }
 
     try {
       set({ isBcvChecking: true });
-      const res = await fetch('/api/config/exchange-rate/bcv-live', {
+      const queryParams = new URLSearchParams();
+      if (force) queryParams.set('force', 'true');
+      if (isAutoCheck) queryParams.set('auto', 'true');
+
+      const url = `/api/config/exchange-rate/bcv-live${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && json.data) {
-          const data: BcvLiveData = json.data;
-          set({ bcvLiveData: data });
-          return data;
-        }
+
+      const json = await res.json();
+
+      if (res.ok && json.success && json.data) {
+        const data: BcvLiveData = json.data;
+        set({
+          bcvLiveData: data,
+          lastBcvError: null,
+          lastBcvAttemptAt: new Date().toISOString(),
+        });
+        return { success: true, data };
       }
-    } catch {
-      // ignore network errors
+
+      if (json.autoSyncDisabled) {
+        set({ autoSyncBcv: false });
+        return { success: false, autoSyncDisabled: true };
+      }
+
+      const errorMsg =
+        json.error?.message || json.error?.reason || 'No se pudo obtener la tasa oficial del BCV';
+      set({
+        lastBcvError: errorMsg,
+        lastBcvAttemptAt: new Date().toISOString(),
+      });
+      return { success: false, error: errorMsg };
+    } catch (err: any) {
+      const netError = err.message || 'Error de red al consultar servicio de tasa BCV';
+      set({
+        lastBcvError: netError,
+        lastBcvAttemptAt: new Date().toISOString(),
+      });
+      return { success: false, error: netError };
     } finally {
       set({ isBcvChecking: false });
     }
-    return null;
   },
 
   syncWithBcv: async () => {
@@ -238,6 +357,7 @@ export const useExchangeRateStore = create<ExchangeRateState>((set, get) => ({
         } catch {}
         set({
           ...syncedData,
+          lastBcvError: null,
           bcvLiveData: get().bcvLiveData
             ? { ...get().bcvLiveData!, needsUpdate: false, difference: 0 }
             : null,

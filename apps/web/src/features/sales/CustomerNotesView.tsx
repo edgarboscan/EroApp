@@ -1141,7 +1141,7 @@ export const CustomerNotesView: React.FC = () => {
         onClose={() => setIsCreateModalOpen(false)}
         title={`Emitir ${formType === 'CREDIT' ? 'Nota de Crédito' : 'Nota de Débito'}`}
         subtitle="Ajuste fiscal, devolución de mercancía o recargo comercial a cliente"
-        size="4xl"
+        size="5xl"
         footer={
           <div className="flex justify-end gap-3 w-full">
             <Button
@@ -1382,16 +1382,27 @@ export const CustomerNotesView: React.FC = () => {
                         <div className="col-span-12 sm:col-span-5 space-y-1.5">
                           <div className="flex items-center gap-1.5">
                             <select
-                              value={it.productId || ''}
-                              onChange={(e) => handleProductSelect(idx, e.target.value)}
+                              value={it.productId || ""}
+                              onChange={(e) =>
+                                handleProductSelect(idx, e.target.value)
+                              }
                               className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-2.5 py-1.5 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                             >
-                              <option value="">-- Concepto manual / Seleccionar producto --</option>
+                              <option value="">
+                                -- Concepto manual / Seleccionar producto --
+                              </option>
                               {invoiceItems.length > 0 && (
                                 <optgroup label="Ítems de la Factura de Venta">
                                   {invoiceItems.map((invItem) => (
-                                    <option key={`inv-${invItem.productId || invItem.sku}`} value={invItem.productId}>
-                                      [Facturado] {invItem.sku ? `${invItem.sku} - ` : ''}{invItem.description || invItem.productName} (Disp: {invItem.availableQuantity})
+                                    <option
+                                      key={`inv-${invItem.productId || invItem.sku}`}
+                                      value={invItem.productId}
+                                    >
+                                      [Facturado]{" "}
+                                      {invItem.sku ? `${invItem.sku} - ` : ""}
+                                      {invItem.description ||
+                                        invItem.productName}{" "}
+                                      (Disp: {invItem.availableQuantity})
                                     </option>
                                   ))}
                                 </optgroup>
@@ -1399,7 +1410,8 @@ export const CustomerNotesView: React.FC = () => {
                               <optgroup label="Catálogo de Productos">
                                 {catalogProducts.map((p) => (
                                   <option key={p.id} value={p.id}>
-                                    {p.sku ? `${p.sku} - ` : ''}{p.name}
+                                    {p.sku ? `${p.sku} - ` : ""}
+                                    {p.name}
                                   </option>
                                 ))}
                               </optgroup>
@@ -1419,14 +1431,22 @@ export const CustomerNotesView: React.FC = () => {
                             type="text"
                             placeholder="Descripción o concepto del ítem..."
                             value={it.description}
-                            onChange={(e) => handleUpdateItem(idx, 'description', e.target.value)}
+                            onChange={(e) =>
+                              handleUpdateItem(
+                                idx,
+                                "description",
+                                e.target.value,
+                              )
+                            }
                             className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-2.5 py-1 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                           />
-                          {it.availableQuantity !== undefined && it.availableQuantity <= 0 && (
-                            <span className="text-[10px] text-red-600 font-semibold block mt-0.5">
-                              Facturado: {it.invoicedQuantity} (Acreditado previamente al 100%)
-                            </span>
-                          )}
+                          {it.availableQuantity !== undefined &&
+                            it.availableQuantity <= 0 && (
+                              <span className="text-[10px] text-red-600 font-semibold block mt-0.5">
+                                Facturado: {it.invoicedQuantity} (Acreditado
+                                previamente al 100%)
+                              </span>
+                            )}
                         </div>
 
                         {/* Cantidad */}
@@ -1434,25 +1454,40 @@ export const CustomerNotesView: React.FC = () => {
                           <input
                             type="number"
                             min="0"
-                            max={it.availableQuantity !== undefined ? it.availableQuantity : undefined}
+                            max={
+                              it.availableQuantity !== undefined
+                                ? it.availableQuantity
+                                : undefined
+                            }
                             step="any"
                             placeholder="Cant."
-                            value={it.quantity || ''}
-                            onChange={(e) => handleUpdateItem(idx, 'quantity', parseFloat(e.target.value) || 0)}
+                            value={it.quantity || ""}
+                            onChange={(e) =>
+                              handleUpdateItem(
+                                idx,
+                                "quantity",
+                                parseFloat(e.target.value) || 0,
+                              )
+                            }
                             className={`w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400  dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500 text-right ${
-                              it.availableQuantity !== undefined && it.quantity > it.availableQuantity
-                                ? 'border-red-500 bg-red-50 text-red-700 font-bold'
-                                : 'bg-white border-neutral-300'
+                              it.availableQuantity !== undefined &&
+                              it.quantity > it.availableQuantity
+                                ? "border-red-500 bg-red-50 text-red-700 font-bold"
+                                : "bg-white border-neutral-300"
                             }`}
                           />
                           {it.availableQuantity !== undefined && (
                             <div className="text-[10px] text-neutral-500 text-right mt-0.5 leading-tight font-mono">
                               {it.quantity > it.availableQuantity ? (
-                                <span className="text-red-600 font-bold">Máx: {it.availableQuantity}</span>
+                                <span className="text-red-600 font-bold">
+                                  Máx: {it.availableQuantity}
+                                </span>
                               ) : (
                                 <span>
                                   Disp: {it.availableQuantity}
-                                  {it.alreadyCreditedQuantity ? ` (Prev: ${it.alreadyCreditedQuantity})` : ''}
+                                  {it.alreadyCreditedQuantity
+                                    ? ` (Prev: ${it.alreadyCreditedQuantity})`
+                                    : ""}
                                 </span>
                               )}
                             </div>
@@ -1466,8 +1501,14 @@ export const CustomerNotesView: React.FC = () => {
                             min="0"
                             step="0.01"
                             placeholder="Precio $"
-                            value={it.unitPrice || ''}
-                            onChange={(e) => handleUpdateItem(idx, 'unitPrice', parseFloat(e.target.value) || 0)}
+                            value={it.unitPrice || ""}
+                            onChange={(e) =>
+                              handleUpdateItem(
+                                idx,
+                                "unitPrice",
+                                parseFloat(e.target.value) || 0,
+                              )
+                            }
                             className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400  dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500 text-right"
                           />
                         </div>
@@ -1476,8 +1517,14 @@ export const CustomerNotesView: React.FC = () => {
                         <div className="col-span-3 sm:col-span-1">
                           <select
                             value={it.taxRate}
-                            onChange={(e) => handleUpdateItem(idx, 'taxRate', parseFloat(e.target.value) || 0)}
-                            className="w-full h-8 px-1 text-xs bg-white border border-neutral-300 rounded-lg"
+                            onChange={(e) =>
+                              handleUpdateItem(
+                                idx,
+                                "taxRate",
+                                parseFloat(e.target.value) || 0,
+                              )
+                            }
+                            className="w-full h-8 px-1 w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400  dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500 text-righ"
                           >
                             <option value={16}>16%</option>
                             <option value={8}>8%</option>
@@ -1487,7 +1534,7 @@ export const CustomerNotesView: React.FC = () => {
 
                         {/* Devolución a stock o Subtotal */}
                         <div className="col-span-2 sm:col-span-2 flex items-center justify-between gap-1">
-                          {formType === 'CREDIT' ? (
+                          {formType === "CREDIT" ? (
                             <label
                               className="flex items-center gap-1 text-[10px] text-neutral-400 cursor-pointer"
                               title="Reingresar al inventario"
@@ -1495,7 +1542,13 @@ export const CustomerNotesView: React.FC = () => {
                               <input
                                 type="checkbox"
                                 checked={it.returnToInventory}
-                                onChange={(e) => handleUpdateItem(idx, 'returnToInventory', e.target.checked)}
+                                onChange={(e) =>
+                                  handleUpdateItem(
+                                    idx,
+                                    "returnToInventory",
+                                    e.target.checked,
+                                  )
+                                }
                                 className="rounded text-emerald-600"
                               />
                               Stock

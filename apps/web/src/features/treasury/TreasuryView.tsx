@@ -692,7 +692,7 @@ export const TreasuryView: React.FC = () => {
                   {/* Bank Header */}
                   <div className="flex items-start justify-between">
                     <div>
-                      <span className="text-xs font-bold text-neutral-900 block">
+                      <span className="text-xs font-bold text-[#333333] dark:text-[#E0E0E0] block">
                         {acc.bankName}
                       </span>
                       <span className="text-[11px] text-neutral-500 font-mono">
@@ -744,12 +744,14 @@ export const TreasuryView: React.FC = () => {
                     <div className="mt-2 text-[10px] font-mono flex justify-between text-neutral-500 dark:text-neutral-400">
                       {acc.unclearedDeposits > 0 && (
                         <span className="text-[#28A745] dark:text-[#4ADE80]">
-                          +{formatNumber(acc.unclearedDeposits)} cobros flotantes
+                          +{formatNumber(acc.unclearedDeposits)} cobros
+                          flotantes
                         </span>
                       )}
                       {acc.unclearedWithdrawals > 0 && (
                         <span className="text-red-600 dark:text-red-400">
-                          -{formatNumber(acc.unclearedWithdrawals)} pagos flotantes
+                          -{formatNumber(acc.unclearedWithdrawals)} pagos
+                          flotantes
                         </span>
                       )}
                     </div>
