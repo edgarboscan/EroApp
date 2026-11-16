@@ -1,4 +1,4 @@
-import { query } from '../../db';
+import { query, withTransaction } from '../../db';
 import {
   UpdateCompanyInput,
   BranchInput,
@@ -12,6 +12,7 @@ import { LicensesService } from '../licenses/licenses.service';
 import { syncSystemPermissions, SYSTEM_PERMISSIONS } from '../../db/seedPermissions';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimeService } from '../realtime/realtime.service';
+import { InventoryService } from '../inventory/inventory.service';
 
 export class ConfigService {
   private static logoColumnsEnsured = false;
@@ -1738,7 +1739,8 @@ export class ConfigService {
       adminPassword?: string;
       licenseKey?: string;
       activateTrialLicense?: boolean;
-    }
+    },
+    purgePreviousCompanies: boolean = false
   ) {
     const rifClean = data.rif.trim().toUpperCase();
     if (!rifClean) throw new Error('El RIF de la empresa es obligatorio.');
@@ -1923,6 +1925,14 @@ export class ConfigService {
       [newAdminUserId, newWarehouseId]
     );
 
+    // 8.1 Inicializar Unidades de Medida y Plantillas de Presentaciones estándar
+    try {
+      await InventoryService.seedDefaultUnitsOfMeasure(newCompanyId);
+      await InventoryService.seedDefaultPresentations(newCompanyId);
+    } catch (seedErr: any) {
+      console.error('[initializeNewCompany] Error sembrando unidades y presentaciones:', seedErr.message);
+    }
+
     // 9. Activar Licencia para la nueva empresa
     let activatedLicense: any = null;
     try {
@@ -1970,6 +1980,152 @@ export class ConfigService {
       }
     } catch (licErr: any) {
       console.error('[initializeNewCompany] Error activando licencia:', licErr.message);
+    }
+
+    // 9.1 Sembrar Tasas de Impuesto predeterminadas (IVA 16% y Exento)
+    try {
+      await query(
+        `INSERT INTO tax_rates (id, company_id, code, name, rate, tax_type, is_active)
+         VALUES 
+         (UUID(), ?, 'IVA_16', 'IVA Alícuota General (16%)', 16.00, 'IVA', 1),
+         (UUID(), ?, 'EXENTO', 'Exento de IVA (0%)', 0.00, 'EXEMPT', 1)`,
+        [newCompanyId, newCompanyId]
+      );
+    } catch (taxErr: any) {
+      console.warn('[initializeNewCompany] Nota sobre tasas de impuesto:', taxErr.message);
+    }
+
+    // 9.2 Si el usuario solicitó purgar empresas anteriores (Tenant 100% Limpio)
+    if (purgePreviousCompanies) {
+      console.log(`[initializeNewCompany] Purga de empresas anteriores solicitada por SuperAdmin ${superAdminUserId}`);
+      
+      // Asegurar que el superadmin actual y cualquier otro superadmin se vinculen a la nueva empresa
+      await query(
+        `UPDATE users u
+         INNER JOIN roles r ON u.role_id = r.id
+         SET u.company_id = ?
+         WHERE LOWER(REPLACE(r.name, ' ', '')) IN ('superadmin', 'superadministrador')`,
+        [newCompanyId]
+      ).catch(() => {});
+
+      // Desactivar temporalmente FOREIGN_KEY_CHECKS para eliminar datos de empresas anteriores
+      await withTransaction(async (conn) => {
+        await conn.query(`SET FOREIGN_KEY_CHECKS = 0`);
+
+        // Ventas y cuentas por cobrar
+        await conn.query(`DELETE FROM sales_payments WHERE invoice_id IN (SELECT id FROM sales_invoices WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM sales_invoice_items WHERE invoice_id IN (SELECT id FROM sales_invoices WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM sales_invoices WHERE company_id != ?`, [newCompanyId]);
+        await conn.query(`DELETE FROM sales_quotation_items WHERE quotation_id IN (SELECT id FROM sales_quotations WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM sales_quotations WHERE company_id != ?`, [newCompanyId]);
+        await conn.query(`DELETE FROM delivery_note_items WHERE note_id IN (SELECT id FROM delivery_notes WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM delivery_notes WHERE company_id != ?`, [newCompanyId]);
+        await conn.query(`DELETE FROM customer_note_applications WHERE note_id IN (SELECT id FROM customer_notes WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM customer_note_items WHERE note_id IN (SELECT id FROM customer_notes WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM customer_notes WHERE company_id != ?`, [newCompanyId]);
+        await conn.query(`DELETE FROM receivables WHERE company_id != ?`, [newCompanyId]);
+
+        // Compras y cuentas por pagar
+        await conn.query(`DELETE FROM purchase_payments WHERE invoice_id IN (SELECT id FROM purchase_invoices WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM purchase_invoice_items WHERE invoice_id IN (SELECT id FROM purchase_invoices WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM purchase_invoices WHERE company_id != ?`, [newCompanyId]);
+        await conn.query(`DELETE FROM payables WHERE company_id != ?`, [newCompanyId]);
+        await conn.query(`DELETE FROM supplier_note_applications WHERE note_id IN (SELECT id FROM supplier_notes WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM supplier_note_items WHERE note_id IN (SELECT id FROM supplier_notes WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM supplier_notes WHERE company_id != ?`, [newCompanyId]);
+        await conn.query(`DELETE FROM goods_receipt_items WHERE receipt_id IN (SELECT id FROM goods_receipts WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM goods_receipts WHERE company_id != ?`, [newCompanyId]);
+        await conn.query(`DELETE FROM purchase_order_items WHERE order_id IN (SELECT id FROM purchase_orders WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM purchase_orders WHERE company_id != ?`, [newCompanyId]);
+
+        // Inventario, kardex y catálogos
+        await conn.query(`DELETE FROM inventory_movements WHERE branch_id IN (SELECT id FROM branches WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM inventory_adjustment_items WHERE adjustment_id IN (SELECT id FROM inventory_adjustments WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM inventory_adjustments WHERE company_id != ?`, [newCompanyId]);
+        await conn.query(`DELETE FROM inventory_transfer_items WHERE transfer_id IN (SELECT id FROM inventory_transfers WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM inventory_transfers WHERE company_id != ?`, [newCompanyId]);
+        await conn.query(`DELETE FROM product_lots WHERE product_id IN (SELECT id FROM products WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM product_stocks WHERE product_id IN (SELECT id FROM products WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM product_prices WHERE product_id IN (SELECT id FROM products WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM product_locations WHERE product_id IN (SELECT id FROM products WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM product_presentations WHERE product_id IN (SELECT id FROM products WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM product_skus WHERE product_id IN (SELECT id FROM products WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM price_history WHERE product_id IN (SELECT id FROM products WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM products WHERE company_id != ?`, [newCompanyId]);
+        await conn.query(`DELETE FROM presentations WHERE company_id != ?`, [newCompanyId]);
+        await conn.query(`DELETE FROM units_of_measure WHERE company_id != ?`, [newCompanyId]);
+        await conn.query(`DELETE FROM brands WHERE company_id != ?`, [newCompanyId]);
+        await conn.query(`DELETE FROM subgroups WHERE company_id != ?`, [newCompanyId]);
+        await conn.query(`DELETE FROM \`groups\` WHERE company_id != ?`, [newCompanyId]);
+        await conn.query(`DELETE FROM departments WHERE company_id != ?`, [newCompanyId]);
+
+        // Cajas y tesorería
+        await conn.query(`DELETE FROM cash_shift_deposits WHERE shift_id IN (SELECT id FROM cash_shifts WHERE cash_register_id IN (SELECT id FROM cash_registers WHERE branch_id IN (SELECT id FROM branches WHERE company_id != ?)))`, [newCompanyId]);
+        await conn.query(`DELETE FROM cash_movements WHERE shift_id IN (SELECT id FROM cash_shifts WHERE cash_register_id IN (SELECT id FROM cash_registers WHERE branch_id IN (SELECT id FROM branches WHERE company_id != ?)))`, [newCompanyId]);
+        await conn.query(`DELETE FROM fiscal_reports WHERE cash_register_id IN (SELECT id FROM cash_registers WHERE branch_id IN (SELECT id FROM branches WHERE company_id != ?))`, [newCompanyId]);
+        await conn.query(`DELETE FROM cash_shifts WHERE cash_register_id IN (SELECT id FROM cash_registers WHERE branch_id IN (SELECT id FROM branches WHERE company_id != ?))`, [newCompanyId]);
+        await conn.query(`DELETE FROM cash_registers WHERE branch_id IN (SELECT id FROM branches WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM payment_methods WHERE company_id != ?`, [newCompanyId]);
+
+        // Bancos, clientes, proveedores
+        await conn.query(`DELETE FROM bank_reconciliations WHERE bank_account_id IN (SELECT id FROM bank_accounts WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM bank_movements WHERE bank_account_id IN (SELECT id FROM bank_accounts WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM bank_accounts WHERE company_id != ?`, [newCompanyId]);
+        await conn.query(`DELETE FROM customers WHERE company_id != ?`, [newCompanyId]);
+        await conn.query(`DELETE FROM suppliers WHERE company_id != ?`, [newCompanyId]);
+
+        // Contabilidad
+        await conn.query(`DELETE FROM accounting_journal_lines WHERE entry_id IN (SELECT id FROM accounting_journal_entries WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM accounting_journal_entries WHERE company_id != ?`, [newCompanyId]);
+        await conn.query(`DELETE FROM accounting_auto_mappings WHERE company_id != ?`, [newCompanyId]);
+        await conn.query(`DELETE FROM accounting_auto_posting_settings WHERE company_id != ?`, [newCompanyId]);
+        await conn.query(`DELETE FROM accounting_accounts WHERE company_id != ?`, [newCompanyId]);
+        await conn.query(`DELETE FROM accounting_fiscal_periods WHERE fiscal_year_id IN (SELECT id FROM accounting_fiscal_years WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM accounting_fiscal_years WHERE company_id != ?`, [newCompanyId]);
+
+        // Retenciones e impuestos anteriores
+        await conn.query(`DELETE FROM tax_withholdings_iva WHERE company_id != ?`, [newCompanyId]);
+        await conn.query(`DELETE FROM tax_withholdings_islr WHERE company_id != ?`, [newCompanyId]);
+        await conn.query(`DELETE FROM tax_rates WHERE company_id != ?`, [newCompanyId]);
+
+        // Restaurante
+        await conn.query(`DELETE FROM restaurant_order_items WHERE order_id IN (SELECT id FROM restaurant_orders WHERE branch_id IN (SELECT id FROM branches WHERE company_id != ?))`, [newCompanyId]);
+        await conn.query(`DELETE FROM restaurant_orders WHERE branch_id IN (SELECT id FROM branches WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM restaurant_table_closures WHERE branch_id IN (SELECT id FROM branches WHERE company_id != ?)`, [newCompanyId]);
+
+        // Almacenes y Sucursales
+        await conn.query(`DELETE FROM user_warehouses WHERE warehouse_id IN (SELECT id FROM warehouses WHERE branch_id IN (SELECT id FROM branches WHERE company_id != ?))`, [newCompanyId]);
+        await conn.query(`DELETE FROM warehouses WHERE branch_id IN (SELECT id FROM branches WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM user_branches WHERE branch_id IN (SELECT id FROM branches WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM branches WHERE company_id != ?`, [newCompanyId]);
+
+        // Reglas de negocio y licencias anteriores
+        await conn.query(`DELETE FROM business_rules WHERE company_id != ?`, [newCompanyId]);
+        await conn.query(`DELETE FROM licenses WHERE company_id != ?`, [newCompanyId]);
+
+        // Roles de empresas anteriores
+        await conn.query(`DELETE FROM role_permissions WHERE role_id IN (SELECT id FROM roles WHERE company_id IS NOT NULL AND company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM roles WHERE company_id IS NOT NULL AND company_id != ?`, [newCompanyId]);
+
+        // Usuarios que no son SuperAdmin de empresas anteriores
+        await conn.query(
+          `DELETE FROM users 
+           WHERE company_id != ? 
+             AND id NOT IN (
+               SELECT u.id FROM (
+                 SELECT usr.id FROM users usr
+                 INNER JOIN roles r ON usr.role_id = r.id
+                 WHERE LOWER(REPLACE(r.name, ' ', '')) IN ('superadmin', 'superadministrador')
+               ) as u
+             )`,
+          [newCompanyId]
+        );
+
+        // Eliminar las empresas anteriores
+        await conn.query(`DELETE FROM companies WHERE id != ?`, [newCompanyId]);
+
+        await conn.query(`SET FOREIGN_KEY_CHECKS = 1`);
+      });
     }
 
     // 10. Registrar en auditoría

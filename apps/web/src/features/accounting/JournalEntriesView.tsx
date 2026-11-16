@@ -947,6 +947,7 @@ export const JournalEntriesView: React.FC = () => {
 
               <div className="flex gap-2">
                 <Button
+                  title ="Ver Voucher PDF"
                   variant="outline"
                   onClick={() => {
                     setViewerPdfUrl(
@@ -963,7 +964,7 @@ export const JournalEntriesView: React.FC = () => {
                   className="border-gray-300 dark:border-gray-700 text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5"
                 >
                   <FileText className="w-3.5 h-3.5 text-[#007BFF] dark:text-[#3D91FF]" />
-                  Ver Voucher PDF
+                  Voucher PDF
                 </Button>
 
                 {selectedEntry.status === "DRAFT" && (

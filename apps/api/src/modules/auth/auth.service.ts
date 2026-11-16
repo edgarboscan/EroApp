@@ -2,6 +2,7 @@ import { query } from '../../db';
 import * as jose from 'jose';
 import argon2 from 'argon2';
 import { LoginInput, UserTokenPayload, Verify2faInput, isSuperAdminRole } from '@ero/shared';
+import { verifySuperAdminSignature, computeSuperAdminSignature } from '../../utils/securityIntegrity';
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'ero_erp_enterprise_secret_key_2026_very_long_and_secure');
 
@@ -11,7 +12,7 @@ export class AuthService {
     const users = await query<any>(
       `SELECT u.id, u.company_id, u.role_id, u.username, u.email, u.password_hash, 
               u.full_name, u.is_2fa_enabled, u.two_factor_secret, u.is_active,
-              u.all_branches, u.can_switch_warehouses,
+              u.all_branches, u.can_switch_warehouses, u.can_use_chat, u.superadmin_signature,
               r.name as role_name
        FROM users u
        INNER JOIN roles r ON u.role_id = r.id
@@ -68,7 +69,7 @@ export class AuthService {
     const users = await query<any>(
       `SELECT u.id, u.company_id, u.role_id, u.username, u.email, 
               u.full_name, u.is_2fa_enabled, u.is_active,
-              u.all_branches, u.can_switch_warehouses,
+              u.all_branches, u.can_switch_warehouses, u.can_use_chat, u.superadmin_signature,
               r.name as role_name
        FROM users u
        INNER JOIN roles r ON u.role_id = r.id
@@ -84,7 +85,23 @@ export class AuthService {
   }
 
   private static async buildSession(user: any, preferredBranchId?: string) {
-    const isSuperAdmin = isSuperAdminRole(user.role_name);
+    const isSuperAdminCandidate = isSuperAdminRole(user.role_name);
+    let isSuperAdmin = false;
+
+    if (isSuperAdminCandidate) {
+      const isValidSig = verifySuperAdminSignature(user.id, user.username, user.superadmin_signature);
+      if (!isValidSig) {
+        console.error(`[ALERTA DE SEGURIDAD] Intento de elevación a SuperAdmin no autorizada detectado para usuario: ${user.username} (${user.id}). Firma HMAC inválida o ausente.`);
+        await query(
+          `INSERT INTO audit_logs (id, company_id, user_id, action, entity, entity_id, new_values, ip_address)
+           VALUES (UUID(), ?, ?, 'UNAUTHORIZED_SUPERADMIN_TAMPERING', 'users', ?, ?, '127.0.0.1')`,
+          [user.company_id, user.id, user.id, JSON.stringify({ username: user.username, role: user.role_name })]
+        ).catch(() => {});
+        throw new Error('Alerta de Seguridad: Se ha detectado una alteración no autorizada del rol de este usuario en la base de datos. Acceso denegado.');
+      }
+      isSuperAdmin = true;
+    }
+
     const allBranches = isSuperAdmin ? true : Boolean(user.all_branches ?? 1);
     const canSwitchWarehouses = isSuperAdmin ? true : Boolean(user.can_switch_warehouses ?? 1);
     const canUseChat = isSuperAdmin ? true : Boolean(user.can_use_chat ?? 1);
@@ -419,5 +436,84 @@ export class AuthService {
       success: true,
       message: 'Contraseña restablecida exitosamente. Ya puede iniciar sesión.',
     };
+  }
+
+  /**
+   * Obtiene las empresas disponibles para el contexto del usuario (todas para SuperAdmin, o la suya si es estándar)
+   */
+  static async getCompanies(user: UserTokenPayload) {
+    if (isSuperAdminRole(user.role)) {
+      return await query<any>(
+        `SELECT c.id, c.rif, c.legal_name, c.trade_name, c.is_active,
+                c.currency_base, c.currency_secondary,
+                b.id as main_branch_id, b.name as main_branch_name,
+                (SELECT COUNT(*) FROM branches br WHERE br.company_id = c.id AND br.is_active = 1) as branch_count
+         FROM companies c
+         LEFT JOIN branches b ON b.company_id = c.id AND b.is_main = 1
+         WHERE c.is_active = 1
+         ORDER BY c.legal_name ASC`
+      );
+    }
+    return await query<any>(
+      `SELECT c.id, c.rif, c.legal_name, c.trade_name, c.is_active,
+              c.currency_base, c.currency_secondary,
+              b.id as main_branch_id, b.name as main_branch_name,
+              1 as branch_count
+       FROM companies c
+       LEFT JOIN branches b ON b.company_id = c.id AND b.is_main = 1
+       WHERE c.id = ? AND c.is_active = 1`,
+      [user.companyId]
+    );
+  }
+
+  /**
+   * Alterna el contexto operativo activo del Super Administrador a cualquier empresa en el sistema
+   */
+  static async switchCompany(superAdminUserId: string, targetCompanyId: string) {
+    // 1. Obtener usuario y verificar privilegios de Super Administrador legítimo
+    const users = await query<any>(
+      `SELECT u.id, u.company_id, u.role_id, u.username, u.email, 
+              u.full_name, u.is_2fa_enabled, u.is_active,
+              u.all_branches, u.can_switch_warehouses, u.can_use_chat,
+              u.superadmin_signature,
+              r.name as role_name
+       FROM users u
+       INNER JOIN roles r ON u.role_id = r.id
+       WHERE u.id = ? AND u.is_active = 1`,
+      [superAdminUserId]
+    );
+
+    if (!users || users.length === 0) {
+      throw new Error('Usuario no encontrado o inactivo');
+    }
+
+    const user = users[0];
+    if (!isSuperAdminRole(user.role_name)) {
+      throw new Error('Acceso denegado: Solo el Super Administrador puede alternar entre empresas.');
+    }
+
+    const isValidSig = verifySuperAdminSignature(user.id, user.username, user.superadmin_signature);
+    if (!isValidSig) {
+      throw new Error('Alerta de Seguridad: Se ha detectado una alteración no autorizada de privilegios en la base de datos.');
+    }
+
+    // 2. Verificar que la empresa exista y esté activa
+    const targetComp = await query<any>(
+      `SELECT id, legal_name, trade_name FROM companies WHERE id = ? AND is_active = 1`,
+      [targetCompanyId]
+    );
+    if (!targetComp || targetComp.length === 0) {
+      throw new Error('La empresa de destino no existe o se encuentra inactiva.');
+    }
+
+    // 3. Persistir en la base de datos la empresa activa del Super Administrador
+    await query(`UPDATE users SET company_id = ? WHERE id = ?`, [targetCompanyId, superAdminUserId]);
+
+    const userForNewContext = {
+      ...user,
+      company_id: targetCompanyId,
+    };
+
+    return this.buildSession(userForNewContext);
   }
 }

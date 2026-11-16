@@ -85,6 +85,39 @@ authRouter.get('/branches', authenticate, async (c) => {
   });
 });
 
+// GET /api/auth/companies - Obtiene las empresas accesibles (todas para SuperAdmin)
+authRouter.get('/companies', authenticate, async (c) => {
+  const user = c.get('user');
+  try {
+    const list = await AuthService.getCompanies(user);
+    return c.json({
+      success: true,
+      data: list,
+    });
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'COMPANIES_FETCH_FAILED', message: error.message } }, 500);
+  }
+});
+
+// POST /api/auth/switch-company - Alterna empresa activa (exclusivo SuperAdmin)
+authRouter.post('/switch-company', authenticate, async (c) => {
+  const user = c.get('user');
+  try {
+    const body = await c.req.json();
+    if (!body?.companyId) {
+      return c.json({ success: false, error: { code: 'INVALID_INPUT', message: 'Se requiere companyId' } }, 400);
+    }
+    const result = await AuthService.switchCompany(user.sub, body.companyId);
+    return c.json({
+      success: true,
+      data: result,
+      message: 'Contexto de empresa alternado exitosamente',
+    });
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'SWITCH_COMPANY_FAILED', message: error.message } }, 400);
+  }
+});
+
 // GET /api/auth/me
 authRouter.get('/me', authenticate, async (c) => {
   const user = c.get('user');

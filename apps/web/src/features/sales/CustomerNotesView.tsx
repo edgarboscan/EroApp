@@ -1514,22 +1514,15 @@ export const CustomerNotesView: React.FC = () => {
                         </div>
 
                         {/* IVA */}
-                        <div className="col-span-3 sm:col-span-1">
-                          <select
-                            value={it.taxRate}
-                            onChange={(e) =>
-                              handleUpdateItem(
-                                idx,
-                                "taxRate",
-                                parseFloat(e.target.value) || 0,
-                              )
-                            }
-                            className="w-full h-8 px-1 w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400  dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500 text-righ"
-                          >
-                            <option value={16}>16%</option>
-                            <option value={8}>8%</option>
-                            <option value={0}>0%</option>
-                          </select>
+                        <div className="col-span-3 sm:col-span-1 flex flex-col items-center justify-center bg-neutral-50 dark:bg-neutral-800/60 rounded-lg p-1 border border-neutral-200 dark:border-neutral-700">
+                          <span className="font-mono font-semibold text-xs text-neutral-800 dark:text-neutral-200">
+                            {it.taxRate > 0 ? `${it.taxRate}%` : "Exento"}
+                          </span>
+                          {it.taxRate > 0 && (
+                            <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-mono">
+                              +{formatMoneyUSD(((it.quantity * it.unitPrice) * it.taxRate) / 100)}
+                            </span>
+                          )}
                         </div>
 
                         {/* Devolución a stock o Subtotal */}

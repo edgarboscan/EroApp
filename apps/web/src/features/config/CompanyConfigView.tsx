@@ -114,6 +114,7 @@ export const CompanyConfigView: React.FC = () => {
     securityConfirmation: "",
     activateLicenseMode: "trial" as "trial" | "custom",
     licenseKey: "",
+    purgePreviousCompanies: false,
   });
 
   // Permisos y Tasa Oficial de Cambio
@@ -270,6 +271,17 @@ export const CompanyConfigView: React.FC = () => {
 
     if (!confirmed) return;
 
+    if (initCompanyForm.purgePreviousCompanies) {
+      const purgeConfirmed = await showConfirmQuestion({
+        title: "Confirmar Eliminación de Empresas Anteriores",
+        text: `Atención: Ha seleccionado purgar todas las empresas anteriores. Se eliminarán de forma irreversible todos los datos operativos y empresas previas, estableciendo a ${initCompanyForm.legalName} como nuevo tenant limpio (conservando su usuario Super Administrador). ¿Desea continuar con el borrado?`,
+        confirmButtonText: "Sí, eliminar empresas anteriores",
+        cancelButtonText: "Cancelar",
+        icon: "warning",
+      });
+      if (!purgeConfirmed) return;
+    }
+
     setIsInitializingCompany(true);
     try {
       const res = await fetch("/api/config/database/initialize-company", {
@@ -280,6 +292,7 @@ export const CompanyConfigView: React.FC = () => {
         },
         body: JSON.stringify({
           securityConfirmation: "INICIALIZAR_EMPRESA",
+          purgePreviousCompanies: initCompanyForm.purgePreviousCompanies,
           companyData: {
             legalName: initCompanyForm.legalName.trim(),
             tradeName: initCompanyForm.tradeName.trim() || undefined,
@@ -321,6 +334,9 @@ export const CompanyConfigView: React.FC = () => {
       setShowInitCompanyModal(false);
       setShowInitResultModal(true);
 
+      // Actualizar listado de empresas para el SuperAdmin
+      useAuthStore.getState().fetchCompanies();
+
       // Limpiar formulario
       setInitCompanyForm({
         legalName: "",
@@ -340,6 +356,7 @@ export const CompanyConfigView: React.FC = () => {
         securityConfirmation: "",
         activateLicenseMode: "trial",
         licenseKey: "",
+        purgePreviousCompanies: false,
       });
     } catch (err: unknown) {
       const msg =
@@ -4189,6 +4206,39 @@ export const CompanyConfigView: React.FC = () => {
                   </p>
                 </div>
               )}
+            </div>
+
+            {/* Opción de Purga de Empresas Anteriores (Tenant Limpio Total) */}
+            <div className="border border-neutral-200 dark:border-neutral-700 rounded-lg p-3.5 bg-neutral-50 dark:bg-neutral-800/50 space-y-2">
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={initCompanyForm.purgePreviousCompanies}
+                  onChange={(e) =>
+                    setInitCompanyForm({
+                      ...initCompanyForm,
+                      purgePreviousCompanies: e.target.checked,
+                    })
+                  }
+                  className="mt-0.5 rounded border-neutral-300 dark:border-neutral-600 text-red-600 focus:ring-red-500"
+                />
+                <div className="text-xs">
+                  <span className="font-semibold text-neutral-900 dark:text-neutral-100">
+                    ¿Desea eliminar los datos y registros de las empresas anteriores (Reset Total a Tenant Limpio)?
+                  </span>
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 leading-relaxed">
+                    {initCompanyForm.purgePreviousCompanies ? (
+                      <span className="text-red-600 dark:text-red-400 font-medium">
+                        Atención: Se purgarán todas las empresas existentes y sus tablas operativas (ventas, compras, inventario, clientes, etc.), iniciando el sistema desde cero con esta empresa como tenant limpio (conservando el usuario Super Administrador).
+                      </span>
+                    ) : (
+                      <span>
+                        Modo Multi-empresa (Por defecto): Se añade esta empresa sin borrar las empresas existentes. Podrá alternar entre empresas con la cuenta Super Administrador.
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </label>
             </div>
 
             {/* Confirmación Crítica */}

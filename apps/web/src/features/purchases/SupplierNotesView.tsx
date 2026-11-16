@@ -1455,15 +1455,16 @@ export const SupplierNotesView: React.FC = () => {
                       </td>
 
                       <td className="py-2 px-3 text-center">
-                        <select
-                          value={it.taxRate}
-                          onChange={(e) => handleItemChange(idx, 'taxRate', Number(e.target.value))}
-                          className="w-full px-1.5 py-1 text-xs border border-neutral-300 dark:border-neutral-700 rounded bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 text-center"
-                        >
-                          <option value="16">16%</option>
-                          <option value="8">8%</option>
-                          <option value="0">0%</option>
-                        </select>
+                        <div className="flex flex-col items-center">
+                          <span className="font-mono font-semibold text-neutral-800 dark:text-neutral-200">
+                            {it.taxRate > 0 ? `${it.taxRate}%` : 'Exento'}
+                          </span>
+                          {it.taxRate > 0 && (
+                            <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-mono">
+                              +{formatMoneyUSD((it.quantity * it.unitCost * it.taxRate) / 100)}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       <td className="py-2 px-3 text-right font-mono font-semibold text-neutral-800 dark:text-neutral-200">

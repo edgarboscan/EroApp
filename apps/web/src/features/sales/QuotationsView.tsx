@@ -1650,7 +1650,7 @@ export const QuotationsView: React.FC = () => {
                           <th className="py-2.5 px-3">Producto</th>
                           <th className="py-2.5 px-3 w-24">Cantidad</th>
                           <th className="py-2.5 px-3 w-28">Precio ($)</th>
-                          <th className="py-2.5 px-3 w-24">IVA (%)</th>
+                          <th className="py-2.5 px-3 w-28 text-center">IVA</th>
                           <th className="py-2.5 px-3 w-24">Desc. (%)</th>
                           <th className="py-2.5 px-3 w-28 text-right">
                             Subtotal ($)
@@ -1728,22 +1728,17 @@ export const QuotationsView: React.FC = () => {
                                 className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-2.5 py-1.5 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                               />
                             </td>
-                            <td className="py-2 px-3">
-                              <select
-                                value={item.taxRate}
-                                onChange={(e) =>
-                                  handleItemChange(
-                                    idx,
-                                    "taxRate",
-                                    e.target.value,
-                                  )
-                                }
-                                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-2 py-1.5 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                              >
-                                <option value="0">0%</option>
-                                <option value="8">8%</option>
-                                <option value="16">16%</option>
-                              </select>
+                            <td className="py-2 px-3 text-center">
+                              <div className="flex flex-col items-center">
+                                <span className="font-mono font-semibold text-neutral-800 dark:text-neutral-200">
+                                  {item.taxRate > 0 ? `${item.taxRate}%` : "Exento"}
+                                </span>
+                                {item.taxRate > 0 && (
+                                  <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-mono">
+                                    +{formatMoneyUSD((item.subtotal * item.taxRate) / 100)}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="py-2 px-3">
                               <input

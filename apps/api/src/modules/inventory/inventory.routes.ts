@@ -1,4 +1,10 @@
 import { Hono } from 'hono';
+import net from 'node:net';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
 import { zValidator } from '@hono/zod-validator';
 import {
   departmentSchema,
@@ -869,6 +875,90 @@ inventoryRouter.get('/transfers/:id/pdf', authenticate, authorize('inventory', '
   } catch (error: any) {
     console.error('[Transfer PDF Error]', error);
     return c.json({ success: false, error: { code: 'TRANSFER_PDF_FAILED', message: error.message } }, 500);
+  }
+});
+
+const execAsync = promisify(exec);
+
+// POST /api/inventory/print-raw - Envío de comandos crudos (ZPL / TSPL / ESC-POS) directo a impresora
+inventoryRouter.post('/print-raw', authenticate, authorize('inventory', 'read'), async (c) => {
+  try {
+    const body = await c.req.json();
+    const { data, host, port = 9100, printerName } = body;
+
+    if (!data || typeof data !== 'string') {
+      return c.json({ success: false, error: { code: 'INVALID_DATA', message: 'No se suministraron los comandos a imprimir.' } }, 400);
+    }
+
+    // 1. Envío por Red (Socket TCP RAW puerto 9100 u otro)
+    if (host && host.trim()) {
+      const cleanHost = host.trim();
+      const targetPort = Number(port) || 9100;
+
+      await new Promise<void>((resolve, reject) => {
+        const socket = new net.Socket();
+        socket.setTimeout(4000);
+
+        socket.connect(targetPort, cleanHost, () => {
+          socket.write(data, 'utf-8', () => {
+            socket.end();
+            resolve();
+          });
+        });
+
+        socket.on('error', (err) => {
+          socket.destroy();
+          reject(new Error(`Error de red al conectar a ${cleanHost}:${targetPort} - ${err.message}`));
+        });
+
+        socket.on('timeout', () => {
+          socket.destroy();
+          reject(new Error(`Tiempo de espera agotado al conectar a la impresora ${cleanHost}:${targetPort}`));
+        });
+      });
+
+      return c.json({
+        success: true,
+        message: `Comandos enviados exitosamente a la impresora en red ${cleanHost}:${targetPort}`,
+      });
+    }
+
+    // 2. Envío a Impresora de Windows local (por spool o comando)
+    if (printerName && printerName.trim()) {
+      const cleanPrinter = printerName.trim().replace(/["';`$]/g, '');
+      const tempFile = path.join(os.tmpdir(), `ero_raw_${Date.now()}_${Math.random().toString(36).substring(7)}.raw`);
+      await fs.promises.writeFile(tempFile, data, 'utf-8');
+
+      try {
+        if (os.platform() === 'win32') {
+          // Usar cmd copy /b a la impresora compartida o PowerShell Out-Printer
+          const psCommand = `powershell -NoProfile -Command "Get-Content -Path '${tempFile}' -Raw | Out-Printer -Name '${cleanPrinter}'"`;
+          await execAsync(psCommand, { timeout: 6000 });
+        } else {
+          await execAsync(`lpr -P "${cleanPrinter}" "${tempFile}"`, { timeout: 6000 });
+        }
+      } finally {
+        try {
+          await fs.promises.unlink(tempFile);
+        } catch {}
+      }
+
+      return c.json({
+        success: true,
+        message: `Comandos enviados a la impresora local "${cleanPrinter}"`,
+      });
+    }
+
+    return c.json({
+      success: false,
+      error: { code: 'TARGET_REQUIRED', message: 'Especifique la dirección IP de la impresora o el nombre de la impresora local.' },
+    }, 400);
+  } catch (error: any) {
+    console.error('[Print RAW Error]', error);
+    return c.json({
+      success: false,
+      error: { code: 'PRINT_RAW_FAILED', message: error?.message || 'Fallo al transmitir los comandos a la impresora.' },
+    }, 500);
   }
 });
 

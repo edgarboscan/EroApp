@@ -14,6 +14,7 @@ export interface ModalProps {
   footer?: React.ReactNode;
   maxWidth?: string;
   size?: ModalSize;
+  zIndex?: string;
   headerActions?: React.ReactNode;
   contentClassName?: string;
   className?: string;
@@ -63,6 +64,7 @@ export const Modal: React.FC<ModalProps> = ({
   footer,
   maxWidth,
   size = 'xl',
+  zIndex = 'z-50',
   headerActions,
   contentClassName = '',
   className = '',
@@ -88,7 +90,7 @@ export const Modal: React.FC<ModalProps> = ({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-neutral-900/60 backdrop-blur-xs overflow-y-auto"
+      className={`fixed inset-0 ${zIndex} flex items-center justify-center p-2 sm:p-4 bg-neutral-900/60 backdrop-blur-xs overflow-y-auto`}
     >
       <div
         className="fixed inset-0 transition-opacity"

@@ -166,8 +166,16 @@ export const MainLayout: React.FC = () => {
     };
   }, []);
 
-  const { user, logout, activeBranchId, activeWarehouseId, hasPermission } =
-    useAuthStore();
+  const {
+    user,
+    logout,
+    activeBranchId,
+    activeWarehouseId,
+    hasPermission,
+    companies,
+    fetchCompanies,
+    switchCompany,
+  } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -198,6 +206,29 @@ export const MainLayout: React.FC = () => {
   const [formSource, setFormSource] = useState(source);
   const [formNotes, setFormNotes] = useState("");
   const [isUpdatingRate, setIsUpdatingRate] = useState(false);
+  const [isSwitchingCompany, setIsSwitchingCompany] = useState(false);
+
+  useEffect(() => {
+    if (isSuperAdminRole(user?.role)) {
+      fetchCompanies();
+    }
+  }, [user?.role, user?.companyId, fetchCompanies]);
+
+  const handleCompanyChange = async (targetCompanyId: string) => {
+    if (!targetCompanyId || targetCompanyId === user?.companyId) return;
+    setIsSwitchingCompany(true);
+    try {
+      await switchCompany(targetCompanyId);
+      window.location.reload();
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Error al cambiar de empresa"
+      );
+      setIsSwitchingCompany(false);
+    }
+  };
 
   useEffect(() => {
     fetchRate();
@@ -1015,6 +1046,38 @@ export const MainLayout: React.FC = () => {
             </button>
           </div>
 
+          {/* Selector de Empresa para SuperAdmin (Móvil y Menú lateral) */}
+          {isSuperAdminRole(user?.role) && companies.length > 0 && (
+            <div className="px-3 pt-3 pb-2 border-b border-neutral-800">
+              <label className="block text-[10px] font-semibold tracking-wider uppercase text-neutral-400 mb-1.5">
+                Empresa Activa
+              </label>
+              <div className="flex items-center gap-2 bg-neutral-800/80 px-2.5 py-1.5 rounded-lg border border-neutral-700 text-xs">
+                <Building2 className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                <select
+                  value={user?.companyId || ""}
+                  disabled={isSwitchingCompany}
+                  onChange={(e) => handleCompanyChange(e.target.value)}
+                  className="bg-transparent font-medium text-neutral-200 text-xs focus:outline-none cursor-pointer w-full truncate"
+                  title="Cambiar empresa activa (Acceso Super Administrador)"
+                >
+                  {companies.map((c) => (
+                    <option
+                      key={c.id}
+                      value={c.id}
+                      className="bg-neutral-900 text-neutral-100"
+                    >
+                      {c.trade_name || c.legal_name}
+                    </option>
+                  ))}
+                </select>
+                {isSwitchingCompany && (
+                  <RefreshCw className="w-3 h-3 text-sky-400 animate-spin shrink-0" />
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Navigation Links Grouped by Module */}
           <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
             {filteredGroups.map((group) => {
@@ -1172,6 +1235,36 @@ export const MainLayout: React.FC = () => {
                 <PanelLeftOpen className="w-4 h-4 text-sky-600 dark:text-sky-400" />
               )}
             </button>
+
+            {/* Selector de Empresa para Super Administrador */}
+            {isSuperAdminRole(user?.role) && companies.length > 0 && (
+              <div className="flex items-center gap-1.5 bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1.5 rounded-lg border border-neutral-300 dark:border-neutral-700 text-xs">
+                <Building2 className="w-3.5 h-3.5 text-neutral-600 dark:text-neutral-400 shrink-0" />
+                <span className="font-semibold text-neutral-700 dark:text-neutral-300 hidden md:inline">
+                  Empresa:
+                </span>
+                <select
+                  value={user?.companyId || ""}
+                  disabled={isSwitchingCompany}
+                  onChange={(e) => handleCompanyChange(e.target.value)}
+                  className="bg-transparent font-medium text-neutral-900 dark:text-neutral-100 text-xs focus:outline-none cursor-pointer max-w-[150px] sm:max-w-[190px] truncate"
+                  title="Cambiar empresa activa (Acceso Super Administrador)"
+                >
+                  {companies.map((c) => (
+                    <option
+                      key={c.id}
+                      value={c.id}
+                      className="bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+                    >
+                      {c.trade_name || c.legal_name}
+                    </option>
+                  ))}
+                </select>
+                {isSwitchingCompany && (
+                  <RefreshCw className="w-3 h-3 text-neutral-600 dark:text-neutral-400 animate-spin shrink-0" />
+                )}
+              </div>
+            )}
 
             {/* Selectores de Sucursal y Depósito */}
             <div className="hidden sm:flex items-center gap-2 text-xs">

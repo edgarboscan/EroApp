@@ -25,14 +25,20 @@ import {
   Calendar,
   Check,
   X,
+  ChevronDown,
   Info,
   FolderTree,
+  Printer,
+  Barcode,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "../../stores/authStore";
 import { formatMoneyUSD, formatNumber } from "../../utils/formatters";
 import { showConfirmQuestion } from "../../lib/sweetalert";
 import { ProductStockLotsModal } from "./ProductStockLotsModal";
+import { BarcodeLabelModal } from "./BarcodeLabelModal";
+import { generateEan13 } from "../../utils/barcode";
 import { HierarchySearchModal, HierarchySelection } from "../../components/search";
 
 // Interfaces de Producto
@@ -137,6 +143,17 @@ export interface PresentationTemplateItem {
   requiresAuthorization?: boolean;
 }
 
+const DEFAULT_FALLBACK_TEMPLATES: PresentationTemplateItem[] = [
+  { id: "tmpl-und", name: "Unidad Individual", defaultMultiplier: 1, defaultUnit: "UND", isActive: true, requiresAuthorization: false },
+  { id: "tmpl-disp6", name: "Display x 6", defaultMultiplier: 6, defaultUnit: "UND", isActive: true, requiresAuthorization: false },
+  { id: "tmpl-disp12", name: "Display x 12", defaultMultiplier: 12, defaultUnit: "UND", isActive: true, requiresAuthorization: false },
+  { id: "tmpl-caja24", name: "Caja x 24", defaultMultiplier: 24, defaultUnit: "CAJA", isActive: true, requiresAuthorization: false },
+  { id: "tmpl-caja48", name: "Caja x 48", defaultMultiplier: 48, defaultUnit: "CAJA", isActive: true, requiresAuthorization: false },
+  { id: "tmpl-blt20", name: "Bulto x 20Kg", defaultMultiplier: 20, defaultUnit: "KG", isActive: true, requiresAuthorization: false },
+  { id: "tmpl-blt50", name: "Bulto x 50Kg", defaultMultiplier: 50, defaultUnit: "KG", isActive: true, requiresAuthorization: false },
+  { id: "tmpl-paq10", name: "Paquete x 10", defaultMultiplier: 10, defaultUnit: "PAQ", isActive: true, requiresAuthorization: false },
+];
+
 export interface Department {
   id: string;
   name: string;
@@ -173,6 +190,11 @@ export const ProductCatalog: React.FC = () => {
   const [presentationTemplates, setPresentationTemplates] = useState<
     PresentationTemplateItem[]
   >([]);
+  const effectiveTemplates = useMemo(() => {
+    return presentationTemplates.length > 0
+      ? presentationTemplates
+      : DEFAULT_FALLBACK_TEMPLATES;
+  }, [presentationTemplates]);
   const [taxRates, setTaxRates] = useState<TaxRate[]>([]);
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -199,6 +221,9 @@ export const ProductCatalog: React.FC = () => {
     useState<boolean>(false);
   const [selectedProductForStockLots, setSelectedProductForStockLots] =
     useState<ProductItem | null>(null);
+  const [isLabelModalOpen, setIsLabelModalOpen] = useState<boolean>(false);
+  const [selectedProductForLabels, setSelectedProductForLabels] =
+    useState<any>(null);
 
   // Estado del formulario de producto
   const [isEditingProduct, setIsEditingProduct] = useState<boolean>(false);
@@ -275,6 +300,29 @@ export const ProductCatalog: React.FC = () => {
     isEditing: boolean;
   }>({ name: "", description: "", isEditing: false });
   const [isSavingBrand, setIsSavingBrand] = useState<boolean>(false);
+  const [brandModalSearch, setBrandModalSearch] = useState<string>("");
+
+  // Estado Buscador Desplegable de Marcas en Ficha de Producto
+  const [isBrandSelectOpen, setIsBrandSelectOpen] = useState<boolean>(false);
+  const [brandSearchTerm, setBrandSearchTerm] = useState<string>("");
+  const brandSelectRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        brandSelectRef.current &&
+        !brandSelectRef.current.contains(e.target as Node)
+      ) {
+        setIsBrandSelectOpen(false);
+      }
+    };
+    if (isBrandSelectOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isBrandSelectOpen]);
 
   // Estado Formulario de Unidades
   const [unitForm, setUnitForm] = useState<{
@@ -408,6 +456,28 @@ export const ProductCatalog: React.FC = () => {
     return subgroups.filter((sg) => sg.groupId === productForm.groupId);
   }, [subgroups, productForm.groupId]);
 
+  // Filtrado de marcas para el buscador en Modal de Gestión de Marcas
+  const filteredModalBrands = useMemo(() => {
+    if (!brandModalSearch.trim()) return brands;
+    const q = brandModalSearch.toLowerCase();
+    return brands.filter(
+      (b) =>
+        b.name.toLowerCase().includes(q) ||
+        (b.description && b.description.toLowerCase().includes(q)),
+    );
+  }, [brands, brandModalSearch]);
+
+  // Filtrado de marcas para el selector desplegable en Ficha de Producto
+  const filteredBrandsForProduct = useMemo(() => {
+    if (!brandSearchTerm.trim()) return brands;
+    const term = brandSearchTerm.toLowerCase();
+    return brands.filter(
+      (b) =>
+        b.name.toLowerCase().includes(term) ||
+        (b.description && b.description.toLowerCase().includes(term)),
+    );
+  }, [brands, brandSearchTerm]);
+
   const handleHierarchySelect = (sel: HierarchySelection) => {
     if (hierarchyModalTarget === 'filter') {
       if (sel.level === 'none') {
@@ -485,9 +555,54 @@ export const ProductCatalog: React.FC = () => {
       compartment: "",
       warehouseId: activeWarehouseId || "",
       skus: [],
-      presentations: [],
+      presentations: [
+        {
+          name: "Unidad",
+          sku: "",
+          barcode: "",
+          unitOfMeasure: unitsOfMeasure[0]?.code || "UND",
+          multiplier: 1,
+          costPrice: 0,
+          basePrice: 0,
+          currency: "USD",
+          isDefault: true,
+          isActive: true,
+          requiresAuthorization: false,
+        },
+      ],
     });
     setIsProductModalOpen(true);
+  };
+
+  // Abrir Modal de Impresión de Etiquetas Térmicas (Zebra / TSPL)
+  const handleOpenLabelModal = async (prod: any) => {
+    try {
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const res = await fetch(`/api/inventory/products/${prod.id}`, { headers });
+      if (res.ok) {
+        const json = await res.json();
+        setSelectedProductForLabels(json.data || prod);
+      } else {
+        setSelectedProductForLabels(prod);
+      }
+    } catch {
+      setSelectedProductForLabels(prod);
+    }
+    setIsLabelModalOpen(true);
+  };
+
+  // Generar Código de Barras EAN-13 para Producto (Prefijo 759)
+  const handleGenerateBarcode = () => {
+    const code = generateEan13("759");
+    setProductForm((prev) => ({ ...prev, barcode: code }));
+    toast.success(`Código de barras generado: ${code}`);
+  };
+
+  // Generar Código de Barras EAN-13 para Presentación
+  const handleGeneratePresentationBarcode = (idx: number) => {
+    const code = generateEan13("759");
+    handleUpdatePresentationRow(idx, "barcode", code);
+    toast.success(`Código de barras generado: ${code}`);
   };
 
   // Abrir Modal para Editar Producto
@@ -584,21 +699,69 @@ export const ProductCatalog: React.FC = () => {
       // Sanear y tipar explícitamente las presentaciones y empaques (fuente unificada)
       const cleanPresentations = (productForm.presentations || [])
         .filter((p) => p.name && p.name.trim().length > 0)
-        .map((p) => ({
-          id: p.id?.trim() || undefined,
-          presentationId: p.presentationId?.trim() || null,
-          name: p.name.trim(),
-          sku: p.sku?.trim().toUpperCase() || null,
-          barcode: p.barcode?.trim() || null,
-          unitOfMeasure: p.unitOfMeasure?.trim() || "UND",
-          multiplier: Number(p.multiplier) > 0 ? Number(p.multiplier) : 1,
-          costPrice: Number(p.costPrice) >= 0 ? Number(p.costPrice) : 0,
-          basePrice: Number(p.basePrice) >= 0 ? Number(p.basePrice) : 0,
-          currency: p.currency || productForm.currency || "USD",
-          isDefault: Boolean(p.isDefault),
-          isActive: p.isActive !== false,
-          requiresAuthorization: Boolean(p.requiresAuthorization),
-        }));
+        .map((p) => {
+          const isUnit =
+            Number(p.multiplier) === 1 ||
+            p.name.trim().toLowerCase() === "unidad";
+          return {
+            id: p.id?.trim() || undefined,
+            presentationId: p.presentationId?.trim() || null,
+            name: p.name.trim(),
+            sku:
+              p.sku?.trim().toUpperCase() ||
+              (isUnit ? productForm.sku.trim().toUpperCase() : null),
+            barcode:
+              p.barcode?.trim() ||
+              (isUnit ? productForm.barcode?.trim() || null : null),
+            unitOfMeasure:
+              p.unitOfMeasure?.trim() ||
+              productForm.unitOfMeasure?.trim() ||
+              "UND",
+            multiplier: Number(p.multiplier) > 0 ? Number(p.multiplier) : 1,
+            costPrice:
+              isUnit && (!p.costPrice || Number(p.costPrice) === 0)
+                ? Number(productForm.costPrice) || 0
+                : Number(p.costPrice) >= 0
+                  ? Number(p.costPrice)
+                  : 0,
+            basePrice:
+              isUnit && (!p.basePrice || Number(p.basePrice) === 0)
+                ? Number(productForm.basePrice) || 0
+                : Number(p.basePrice) >= 0
+                  ? Number(p.basePrice)
+                  : 0,
+            currency: p.currency || productForm.currency || "USD",
+            isDefault: Boolean(p.isDefault),
+            isActive: p.isActive !== false,
+            requiresAuthorization: Boolean(p.requiresAuthorization),
+          };
+        });
+
+      if (cleanPresentations.length === 0) {
+        cleanPresentations.push({
+          id: undefined,
+          presentationId: null,
+          name: "Unidad",
+          sku: productForm.sku.trim().toUpperCase(),
+          barcode: productForm.barcode?.trim() || null,
+          unitOfMeasure: productForm.unitOfMeasure?.trim() || "UND",
+          multiplier: 1,
+          costPrice: Number(productForm.costPrice) || 0,
+          basePrice: Number(productForm.basePrice) || 0,
+          currency: productForm.currency || "USD",
+          isDefault: true,
+          isActive: true,
+          requiresAuthorization: false,
+        });
+      } else {
+        const hasDefault = cleanPresentations.some((p) => p.isDefault);
+        if (!hasDefault) {
+          const unit =
+            cleanPresentations.find((p) => Number(p.multiplier) === 1) ||
+            cleanPresentations[0];
+          if (unit) unit.isDefault = true;
+        }
+      }
 
       // Armar SKUs alternativos a partir de las presentaciones para máxima coherencia
       const presentationDerivedSkus = cleanPresentations
@@ -1315,6 +1478,15 @@ export const ProductCatalog: React.FC = () => {
           <Button
             size="sm"
             variant="outline"
+            className="p-0 rounded-lg text-neutral-700 hover:text-amber-700 hover:border-amber-200 hover:bg-amber-50 dark:hover:text-amber-400 dark:hover:border-amber-700 dark:hover:bg-amber-950/40"
+            onClick={() => handleOpenLabelModal(row)}
+            title="Imprimir etiquetas de código de barras (Zebra / Térmica)"
+          >
+            <Printer className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
             className="rounded-lg text-neutral-700 hover:text-emerald-700 hover:bg-emerald-50 px-2 py-1 text-xs dark:hover:text-emerald-600 dark:hover:border-emerald-200 dark:hover:bg-green-100"
             onClick={() => {
               setSelectedProductForStockLots(row);
@@ -1372,6 +1544,7 @@ export const ProductCatalog: React.FC = () => {
             variant="outline"
             onClick={() => {
               setBrandForm({ name: "", description: "", isEditing: false });
+              setBrandModalSearch("");
               setIsBrandModalOpen(true);
             }}
             className="rounded-lg"
@@ -1425,6 +1598,25 @@ export const ProductCatalog: React.FC = () => {
           >
             <FileDown className="w-4 h-4 mr-1.5 text-neutral-600" />
             Reporte PDF
+          </Button>
+
+          {/* Botón Etiquetas Zebra / Código de Barras */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              if (products.length > 0) {
+                handleOpenLabelModal(products[0]);
+              } else {
+                setIsLabelModalOpen(true);
+              }
+            }}
+            disabled={isLoading || products.length === 0}
+            className="rounded-lg"
+            title="Configurar e imprimir etiquetas en impresoras térmicas Zebra / TSPL"
+          >
+            <Printer className="w-4 h-4 mr-1.5 text-neutral-600" />
+            Etiquetas Zebra
           </Button>
 
           {/* Exportar CSV */}
@@ -1716,15 +1908,56 @@ export const ProductCatalog: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Input
-                  label="Código de Barras (EAN-13 / UPC)"
-                  placeholder="Ej: 7591234567890"
-                  value={productForm.barcode}
-                  onChange={(e) =>
-                    setProductForm({ ...productForm, barcode: e.target.value })
-                  }
-                  className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                />
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-[#333333] dark:text-[#E0E0E0]">
+                      Código de Barras (EAN-13 / UPC)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleGenerateBarcode}
+                      className="text-[11px] text-sky-600 hover:text-sky-700 dark:text-sky-400 flex items-center gap-1 font-medium transition-colors"
+                      title="Generar código de barras EAN-13 con prefijo venezolano 759"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      Generar EAN-13
+                    </button>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      placeholder="Ej: 7591234567890"
+                      value={productForm.barcode}
+                      onChange={(e) =>
+                        setProductForm({ ...productForm, barcode: e.target.value })
+                      }
+                      className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono"
+                    />
+                    {isEditingProduct && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="rounded-lg shrink-0 px-2.5 text-neutral-700 hover:text-amber-700 hover:bg-amber-50"
+                        onClick={() => {
+                          setSelectedProductForLabels({
+                            id: currentProductId,
+                            name: productForm.name,
+                            sku: productForm.sku,
+                            barcode: productForm.barcode,
+                            basePrice: productForm.basePrice,
+                            presentations: productForm.presentations,
+                          });
+                          setIsLabelModalOpen(true);
+                        }}
+                        title="Imprimir etiqueta térmica para este producto"
+                      >
+                        <Printer className="w-3.5 h-3.5 text-amber-600 mr-1" />
+                        Etiqueta
+                      </Button>
+                    )}
+                  </div>
+                </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-[#333333] dark:text-[#E0E0E0]  mb-1">
@@ -1752,34 +1985,167 @@ export const ProductCatalog: React.FC = () => {
                   </select>
                 </div>
 
-                {/* Marca con botón rápido */}
-                <div>
+                {/* Marca con buscador integrado y botón rápido */}
+                <div ref={brandSelectRef} className="relative">
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-semibold text-[#333333] dark:text-[#E0E0E0] ">
+                    <label className="text-xs font-semibold text-[#333333] dark:text-[#E0E0E0]">
                       Marca
                     </label>
                     <button
                       type="button"
                       onClick={() => setIsBrandModalOpen(true)}
-                      className="text-[11px] text-sky-600 hover:text-sky-800 font-medium"
+                      className="text-[11px] text-sky-600 hover:text-sky-800 dark:text-sky-400 dark:hover:text-sky-300 font-medium cursor-pointer"
                     >
                       + Gestionar
                     </button>
                   </div>
-                  <select
-                    value={productForm.brand}
-                    onChange={(e) =>
-                      setProductForm({ ...productForm, brand: e.target.value })
-                    }
-                    className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-400 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+
+                  {/* Trigger del Selector */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsBrandSelectOpen(!isBrandSelectOpen);
+                      setBrandSearchTerm("");
+                    }}
+                    className={`w-full text-xs bg-white dark:bg-neutral-800 border rounded-lg px-3 py-2 text-left flex items-center justify-between transition-colors cursor-pointer ${
+                      isBrandSelectOpen
+                        ? "border-sky-500 ring-2 ring-sky-500/20"
+                        : "border-neutral-300 dark:border-neutral-700 hover:border-neutral-400"
+                    }`}
                   >
-                    <option value="">Sin marca específica</option>
-                    {brands.map((b) => (
-                      <option key={b.id} value={b.name}>
-                        {b.name}
-                      </option>
-                    ))}
-                  </select>
+                    <span className="truncate">
+                      {productForm.brand ? (
+                        <span className="font-medium text-neutral-800 dark:text-neutral-200">
+                          {productForm.brand}
+                        </span>
+                      ) : (
+                        <span className="text-neutral-400 dark:text-neutral-500">
+                          Sin marca específica
+                        </span>
+                      )}
+                    </span>
+                    <ChevronDown
+                      className={`w-4 h-4 text-neutral-400 transition-transform ${
+                        isBrandSelectOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+
+                  {/* Desplegable con Buscador */}
+                  {isBrandSelectOpen && (
+                    <div className="absolute z-50 left-0 right-0 mt-1 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg shadow-lg overflow-hidden flex flex-col">
+                      {/* Campo de búsqueda */}
+                      <div className="p-2 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900/50">
+                        <div className="relative">
+                          <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input
+                            type="text"
+                            autoFocus
+                            placeholder="Buscar marca..."
+                            value={brandSearchTerm}
+                            onChange={(e) => setBrandSearchTerm(e.target.value)}
+                            className="w-full h-8 pl-8 pr-7 text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-md text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                          />
+                          {brandSearchTerm && (
+                            <button
+                              type="button"
+                              onClick={() => setBrandSearchTerm("")}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 cursor-pointer"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Lista de Marcas Filtradas */}
+                      <div className="max-h-48 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800">
+                        {/* Opción: Sin marca */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProductForm({ ...productForm, brand: "" });
+                            setIsBrandSelectOpen(false);
+                            setBrandSearchTerm("");
+                          }}
+                          className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between hover:bg-neutral-50 dark:hover:bg-neutral-700/50 cursor-pointer ${
+                            !productForm.brand
+                              ? "bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 font-medium"
+                              : "text-neutral-500 dark:text-neutral-400 italic"
+                          }`}
+                        >
+                          <span>Sin marca específica</span>
+                          {!productForm.brand && (
+                            <Check className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                          )}
+                        </button>
+
+                        {/* Marcas existentes */}
+                        {filteredBrandsForProduct.map((b) => {
+                          const isSelected = productForm.brand === b.name;
+                          return (
+                            <button
+                              key={b.id}
+                              type="button"
+                              onClick={() => {
+                                setProductForm({ ...productForm, brand: b.name });
+                                setIsBrandSelectOpen(false);
+                                setBrandSearchTerm("");
+                              }}
+                              className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between hover:bg-neutral-50 dark:hover:bg-neutral-700/50 cursor-pointer ${
+                                isSelected
+                                  ? "bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 font-semibold"
+                                  : "text-neutral-800 dark:text-neutral-200"
+                              }`}
+                            >
+                              <div className="truncate pr-2">
+                                <div>{b.name}</div>
+                                {b.description && (
+                                  <div className="text-[10px] text-neutral-400 font-normal truncate">
+                                    {b.description}
+                                  </div>
+                                )}
+                              </div>
+                              {isSelected && (
+                                <Check className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                              )}
+                            </button>
+                          );
+                        })}
+
+                        {/* Opción de usar marca personalizada digitada si no coincide */}
+                        {brandSearchTerm.trim() &&
+                          !brands.some(
+                            (b) =>
+                              b.name.toLowerCase() ===
+                              brandSearchTerm.trim().toLowerCase(),
+                          ) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setProductForm({
+                                  ...productForm,
+                                  brand: brandSearchTerm.trim(),
+                                });
+                                setIsBrandSelectOpen(false);
+                                setBrandSearchTerm("");
+                              }}
+                              className="w-full px-3 py-2 text-left text-xs text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/40 font-medium flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>Usar &quot;{brandSearchTerm.trim()}&quot;</span>
+                            </button>
+                          )}
+
+                        {filteredBrandsForProduct.length === 0 &&
+                          !brandSearchTerm.trim() && (
+                            <div className="p-3 text-center text-xs text-neutral-400">
+                              No hay marcas disponibles
+                            </div>
+                          )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2113,18 +2479,18 @@ export const ProductCatalog: React.FC = () => {
                   <select
                     onChange={(e) => {
                       if (!e.target.value) return;
-                      const tmpl = presentationTemplates.find(
+                      const tmpl = effectiveTemplates.find(
                         (t) => t.id === e.target.value,
                       );
                       if (tmpl) handleAddPresentationRow(tmpl);
                       e.target.value = "";
                     }}
-                    className="h-8 px-2.5 text-xs  text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    className="h-8 px-2.5 text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   >
                     <option value="">+ Añadir desde Plantilla...</option>
-                    {presentationTemplates.map((t) => (
+                    {effectiveTemplates.map((t) => (
                       <option key={t.id} value={t.id}>
-                        {t.name} (x{t.defaultMultiplier})
+                        {t.name} (x{t.defaultMultiplier} {t.defaultUnit || "UND"})
                       </option>
                     ))}
                   </select>
@@ -2226,19 +2592,29 @@ export const ProductCatalog: React.FC = () => {
                               />
                             </td>
                             <td className="p-2">
-                              <input
-                                type="text"
-                                value={pres.barcode || ""}
-                                onChange={(e) =>
-                                  handleUpdatePresentationRow(
-                                    idx,
-                                    "barcode",
-                                    e.target.value,
-                                  )
-                                }
-                                placeholder="EAN-13 / Barras..."
-                                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono"
-                              />
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="text"
+                                  value={pres.barcode || ""}
+                                  onChange={(e) =>
+                                    handleUpdatePresentationRow(
+                                      idx,
+                                      "barcode",
+                                      e.target.value,
+                                    )
+                                  }
+                                  placeholder="EAN-13 / Barras..."
+                                  className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleGeneratePresentationBarcode(idx)}
+                                  className="p-2 text-neutral-500 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-neutral-700 rounded-lg border border-neutral-300 dark:border-neutral-700 shrink-0 transition-colors"
+                                  title="Generar código de barras EAN-13 para esta presentación"
+                                >
+                                  <Sparkles className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </td>
                             <td className="p-2 w-32">
                               <input
@@ -2447,7 +2823,10 @@ export const ProductCatalog: React.FC = () => {
       {/* ======================================================== */}
       <Modal
         isOpen={isBrandModalOpen}
-        onClose={() => setIsBrandModalOpen(false)}
+        onClose={() => {
+          setIsBrandModalOpen(false);
+          setBrandModalSearch("");
+        }}
         title="Gestión de Marcas de Productos"
         subtitle="Catálogo de marcas registradas y proveedores de marca"
         icon={<Tag className="w-5 h-5 text-sky-600" />}
@@ -2502,48 +2881,87 @@ export const ProductCatalog: React.FC = () => {
             </div>
           </form>
 
-          <div className="flex flex-col gap-1 max-h-60 overflow-y-auto border border-neutral-200 rounded-lg divide-y divide-neutral-100">
-            {brands.map((b) => (
-              <div
-                key={b.id}
-                className="flex items-center justify-between p-2.5 text-xs hover:bg-neutral-0"
-              >
-                <div>
-                  <span className="font-semibold text-neutral-400">
-                    {b.name}
-                  </span>
-                  {b.description && (
-                    <span className="text-neutral-500 ml-2">
-                      ({b.description})
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      setBrandForm({
-                        id: b.id,
-                        name: b.name,
-                        description: b.description || "",
-                        isEditing: true,
-                      })
-                    }
-                  >
-                    <Edit2 className="w-3 h-3" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-red-600 hover:border-red-600"
-                    onClick={() => handleDeleteBrand(b)}
-                  >
-                    <Trash2 className="w-3 h-3 text-red-500" />
-                  </Button>
-                </div>
+          {/* Buscador de Marcas dentro del Modal */}
+          <div className="space-y-1.5">
+            <div className="relative">
+              <Search className="w-4 h-4 text-neutral-400 dark:text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Buscar marca por nombre o descripción..."
+                value={brandModalSearch}
+                onChange={(e) => setBrandModalSearch(e.target.value)}
+                className="w-full h-9 pl-9 pr-8 text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              />
+              {brandModalSearch && (
+                <button
+                  type="button"
+                  onClick={() => setBrandModalSearch("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 cursor-pointer"
+                  title="Limpiar búsqueda"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between text-[11px] text-neutral-500 dark:text-neutral-400 px-1">
+              <span>
+                Marcas registradas ({filteredModalBrands.length}
+                {brandModalSearch.trim() ? ` de ${brands.length}` : ""})
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1 max-h-60 overflow-y-auto border border-neutral-200 dark:border-neutral-700 rounded-lg divide-y divide-neutral-100 dark:divide-neutral-800">
+            {filteredModalBrands.length === 0 ? (
+              <div className="p-4 text-center text-xs text-neutral-500 dark:text-neutral-400">
+                {brandModalSearch.trim()
+                  ? `No se encontraron marcas que coincidan con "${brandModalSearch}"`
+                  : "No hay marcas registradas"}
               </div>
-            ))}
+            ) : (
+              filteredModalBrands.map((b) => (
+                <div
+                  key={b.id}
+                  className="flex items-center justify-between p-2.5 text-xs hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                >
+                  <div>
+                    <span className="font-semibold text-neutral-800 dark:text-neutral-200">
+                      {b.name}
+                    </span>
+                    {b.description && (
+                      <span className="text-neutral-500 dark:text-neutral-400 ml-2">
+                        ({b.description})
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        setBrandForm({
+                          id: b.id,
+                          name: b.name,
+                          description: b.description || "",
+                          isEditing: true,
+                        })
+                      }
+                    >
+                      <Edit2 className="w-3 h-3" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-red-600 hover:border-red-600 dark:hover:border-red-500"
+                      onClick={() => handleDeleteBrand(b)}
+                    >
+                      <Trash2 className="w-3 h-3 text-red-500" />
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </Modal>
@@ -2846,6 +3264,18 @@ export const ProductCatalog: React.FC = () => {
           setSelectedProductForStockLots(null);
         }}
         product={selectedProductForStockLots}
+      />
+
+      {/* Modal de Impresión de Etiquetas de Códigos de Barra (Zebra / Térmica) */}
+      <BarcodeLabelModal
+        isOpen={isLabelModalOpen}
+        onClose={() => {
+          setIsLabelModalOpen(false);
+          setSelectedProductForLabels(null);
+        }}
+        product={selectedProductForLabels}
+        availablePresentations={selectedProductForLabels?.presentations}
+        currentStock={selectedProductForLabels?.currentStock}
       />
 
       {/* Visor PDF para Exportación */}

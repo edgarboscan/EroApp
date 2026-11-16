@@ -367,6 +367,47 @@ posRouter.post(
   }
 );
 
+// DELETE /api/pos/shifts/:id - Eliminar turno de caja sin ventas
+posRouter.delete('/shifts/:id', authenticate, async (c) => {
+  const user = c.get('user');
+  const canAudit =
+    user.permissions.includes('pos.audit_shifts') ||
+    isSupervisorOrAdminRole(user.role) ||
+    isSuperAdminRole(user.role);
+  if (!canAudit) {
+    return c.json(
+      {
+        success: false,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'No cuenta con permisos para eliminar turnos de caja',
+        },
+      },
+      403
+    );
+  }
+
+  const shiftId = c.req.param('id')!;
+  try {
+    await POSService.deleteShiftWithoutSales(user.companyId, shiftId);
+    return c.json({
+      success: true,
+      message: 'Turno de caja sin ventas eliminado exitosamente',
+    });
+  } catch (error: any) {
+    return c.json(
+      {
+        success: false,
+        error: {
+          code: 'DELETE_SHIFT_FAILED',
+          message: error.message || 'Error al eliminar el turno de caja',
+        },
+      },
+      400
+    );
+  }
+});
+
 // GET /api/pos/shifts/:id/pdf - Descarga / Visualización de comprobante y acta de cierre de caja
 posRouter.get('/shifts/:id/pdf', authenticate, authorize('pos', 'read'), async (c) => {
   const user = c.get('user');

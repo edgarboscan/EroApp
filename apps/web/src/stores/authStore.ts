@@ -80,6 +80,7 @@ interface AuthState {
   expiresAt: number | null;
   lastActivityAt: number | null;
   sessionExpiredReason: string | null;
+  companies: Array<{ id: string; rif: string; legal_name: string; trade_name?: string; is_active: boolean }>;
   setAuth: (user: UserSession, token: string) => void;
   updateCurrentUser: (patch: Partial<UserSession>) => void;
   setRequires2FA: (tempUser: TempAuthUser) => void;
@@ -91,6 +92,8 @@ interface AuthState {
   recordActivity: () => void;
   checkSessionValidity: () => boolean;
   clearSessionExpiredReason: () => void;
+  fetchCompanies: () => Promise<void>;
+  switchCompany: (companyId: string) => Promise<boolean>;
   logout: (reason?: string) => void;
 }
 
@@ -396,6 +399,51 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   clearSessionExpiredReason: () => {
     set({ sessionExpiredReason: null });
+  },
+
+  companies: [],
+
+  fetchCompanies: async () => {
+    const { token } = get();
+    if (!token) return;
+    try {
+      const res = await fetch('/api/auth/companies', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          set({ companies: json.data });
+        }
+      }
+    } catch {
+      // Ignorar
+    }
+  },
+
+  switchCompany: async (companyId: string) => {
+    const { token } = get();
+    if (!token) return false;
+    try {
+      const res = await fetch('/api/auth/switch-company', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ companyId }),
+      });
+      if (!res.ok) return false;
+      const json = await res.json();
+      if (json.success && json.data) {
+        get().setAuth(json.data.user, json.data.accessToken);
+        window.location.reload();
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
   },
 
   logout: (reason?: string) => {

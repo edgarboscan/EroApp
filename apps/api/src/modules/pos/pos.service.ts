@@ -1930,6 +1930,9 @@ export class POSService {
              b.name as branch_name,
              u.full_name as cashier_name,
              u_ver.full_name as verified_by_name,
+             (SELECT COUNT(*) FROM sales_invoices si WHERE si.shift_id = cs.id) as sales_count,
+             (SELECT COALESCE(SUM(CASE WHEN si.currency = 'VES' THEN ROUND(si.total_amount / NULLIF(si.exchange_rate, 0), 2) ELSE si.total_amount END), 0) FROM sales_invoices si WHERE si.shift_id = cs.id AND si.status <> 'ANNULLED') as total_sales_usd,
+             (SELECT COALESCE(SUM(CASE WHEN si.currency = 'USD' THEN ROUND(si.total_amount * si.exchange_rate, 2) ELSE si.total_amount END), 0) FROM sales_invoices si WHERE si.shift_id = cs.id AND si.status <> 'ANNULLED') as total_sales_ves,
              (SELECT COUNT(*) FROM cash_shift_deposits csd WHERE csd.shift_id = cs.id) as deposits_count,
              (SELECT COALESCE(SUM(csd.amount), 0) FROM cash_shift_deposits csd WHERE csd.shift_id = cs.id AND csd.currency = 'USD') as total_deposited_usd,
              (SELECT COALESCE(SUM(csd.amount), 0) FROM cash_shift_deposits csd WHERE csd.shift_id = cs.id AND csd.currency = 'VES') as total_deposited_ves
@@ -1994,6 +1997,9 @@ export class POSService {
       verifiedAt: r.verified_at || null,
       verificationNotes: r.verification_notes || null,
       notes: r.notes || null,
+      salesCount: Number(r.sales_count || 0),
+      totalSalesUSD: Number(r.total_sales_usd || 0),
+      totalSalesVES: Number(r.total_sales_ves || 0),
       depositsCount: Number(r.deposits_count || 0),
       totalDepositedUSD: Number(r.total_deposited_usd || 0),
       totalDepositedVES: Number(r.total_deposited_ves || 0),
@@ -2374,6 +2380,45 @@ export class POSService {
     }
 
     return { id: notificationId, isResolved: true, resolvedAt: new Date().toISOString() };
+  }
+
+  /**
+   * Elimina un turno de caja que no registró ventas ni depósitos bancarios
+   */
+  static async deleteShiftWithoutSales(companyId: string, shiftId: string) {
+    const shift = await this.getShiftById(companyId, shiftId);
+    if (!shift) {
+      throw new Error('Turno de caja no encontrado');
+    }
+
+    // 1. Verificar si existen facturas / ventas registradas en el turno
+    const invoiceRows: any = await query(
+      `SELECT COUNT(*) as count FROM sales_invoices WHERE shift_id = ?`,
+      [shiftId]
+    );
+    const invoiceCount = Number(invoiceRows[0]?.count || 0);
+    if (invoiceCount > 0) {
+      throw new Error(`No se puede eliminar el turno porque posee ${invoiceCount} venta(s) registrada(s).`);
+    }
+
+    // 2. Verificar si existen depósitos bancarios asociados
+    const depositRows: any = await query(
+      `SELECT COUNT(*) as count FROM cash_shift_deposits WHERE shift_id = ?`,
+      [shiftId]
+    );
+    const depositCount = Number(depositRows[0]?.count || 0);
+    if (depositCount > 0) {
+      throw new Error('No se puede eliminar el turno porque posee depósitos bancarios registrados.');
+    }
+
+    // 3. Eliminar notificaciones de auditoría y movimientos de efectivo del turno
+    await query(`DELETE FROM cash_audit_notifications WHERE shift_id = ?`, [shiftId]);
+    await query(`DELETE FROM cash_movements WHERE shift_id = ?`, [shiftId]);
+
+    // 4. Eliminar el registro del turno de caja
+    await query(`DELETE FROM cash_shifts WHERE id = ?`, [shiftId]);
+
+    return { success: true };
   }
 }
 

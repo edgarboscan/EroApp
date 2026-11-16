@@ -19,6 +19,7 @@ import {
   Building2,
   Barcode,
   X,
+  User,
   UserPlus,
   UserCheck,
   RotateCcw,
@@ -35,6 +36,7 @@ import {
   Percent,
   Eye,
   Package,
+  Boxes,
   Utensils,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -146,6 +148,15 @@ export const POSRegister: React.FC = () => {
   const [activeShift, setActiveShift] = useState<any>(null);
   const [loadingShift, setLoadingShift] = useState(true);
 
+  // Información de la empresa para encabezados de tickets fiscales y tickets de venta
+  const [companyInfo, setCompanyInfo] = useState<{
+    tradeName?: string;
+    legalName?: string;
+    rif?: string;
+    fiscalAddress?: string;
+    phone?: string;
+  } | null>(null);
+
   // Atajo de teclado F3 para buscador de catálogo
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -248,6 +259,10 @@ export const POSRegister: React.FC = () => {
   const [customerAddress, setCustomerAddress] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [isSpecialTaxpayer, setIsSpecialTaxpayer] = useState(false);
+
+  // Modal de Búsqueda y Selección de Cliente
+  const [isCustomerSearchModalOpen, setIsCustomerSearchModalOpen] =
+    useState(false);
 
   // Búsqueda de clientes
   const [customerSearchQuery, setCustomerSearchQuery] = useState("");
@@ -425,6 +440,8 @@ export const POSRegister: React.FC = () => {
           setIsInvoiceModalOpen(false);
         } else if (isPaymentModalOpen) {
           setIsPaymentModalOpen(false);
+        } else if (isCustomerSearchModalOpen) {
+          setIsCustomerSearchModalOpen(false);
         } else if (isSupervisorModalOpen) {
           setIsSupervisorModalOpen(false);
           setPendingStockApproval(null);
@@ -443,6 +460,7 @@ export const POSRegister: React.FC = () => {
     isCartReviewModalOpen,
     isInvoiceModalOpen,
     isPaymentModalOpen,
+    isCustomerSearchModalOpen,
     isSupervisorModalOpen,
   ]);
 
@@ -517,6 +535,7 @@ export const POSRegister: React.FC = () => {
     fetchBusinessRules();
     fetchProducts();
     fetchPaymentMethods();
+    fetchCompanyInfo();
   }, [activeBranchId]);
 
   // Búsqueda debounced de clientes (300ms)
@@ -572,6 +591,27 @@ export const POSRegister: React.FC = () => {
       }
     } catch {
       // Usar defaults
+    }
+  };
+
+  const fetchCompanyInfo = async () => {
+    try {
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const res = await fetch("/api/config/company", { headers });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          setCompanyInfo({
+            tradeName: json.data.tradeName || json.data.trade_name,
+            legalName: json.data.legalName || json.data.legal_name,
+            rif: json.data.rif,
+            fiscalAddress: json.data.fiscalAddress || json.data.fiscal_address,
+            phone: json.data.phone,
+          });
+        }
+      }
+    } catch {
+      // Fallback silencioso a defaults
     }
   };
 
@@ -795,6 +835,7 @@ export const POSRegister: React.FC = () => {
     setIsSpecialTaxpayer(Boolean(c.isSpecialTaxpayer));
     setCustomerSearchQuery("");
     setShowCustomerDropdown(false);
+    setIsCustomerSearchModalOpen(false);
     toast.success(`Cliente seleccionado: ${c.name}`);
   };
 
@@ -808,6 +849,8 @@ export const POSRegister: React.FC = () => {
     setIsSpecialTaxpayer(false);
     setCustomerSearchQuery("");
     setShowCustomerDropdown(false);
+    setIsCustomerSearchModalOpen(false);
+    toast.info("Cliente restablecido a Consumidor Final");
   };
 
   const handleCreateCustomer = async (e: React.FormEvent) => {
@@ -1890,12 +1933,23 @@ export const POSRegister: React.FC = () => {
       }
 
       // Preparar datos para el ticket impreso
+      const calculatedTotalDiscount = cart.reduce(
+        (acc, i) => acc + (i.discountAmount || 0),
+        0,
+      );
+
       setInvoiceTicketData({
         invoiceId: json.data.invoiceId,
         invoiceNumber: json.data.invoiceNumber || "FACT-00010452",
         controlNumber: json.data.controlNumber || "00-0010452",
         invoiceDate: new Date().toISOString(),
         cashierName: activeShift?.cashierName || user?.fullName || "Cajero",
+        cashRegisterCode: activeShift?.cashRegisterCode || "CAJA-01",
+        companyTradeName: companyInfo?.tradeName || "ERO DISTRIBUCION",
+        companyLegalName: companyInfo?.legalName || "DISTRIBUIDORA ERO VE C.A.",
+        companyRif: companyInfo?.rif || "J-12345678-9",
+        companyAddress: companyInfo?.fiscalAddress || "Caracas, Venezuela",
+        companyPhone: companyInfo?.phone || "+58 212 555-0199",
         customerName,
         customerRif: `${customerDocType}-${customerDocNumber}`,
         customerAddress: customerAddress || "Caracas, Venezuela",
@@ -1904,12 +1958,15 @@ export const POSRegister: React.FC = () => {
           quantity: i.quantity,
           unitPrice: i.unitPrice,
           taxRate: i.taxRatePercent,
+          discountPercent: i.discountPercent || 0,
+          discountAmount: i.discountAmount || 0,
           total: i.total,
         })),
         baseExempt,
         baseTaxable,
         taxAmount,
         igtfAmount: totalIGTFUSD,
+        totalDiscountUSD: calculatedTotalDiscount,
         totalUSD: finalTotalUSD,
         totalVES: finalTotalVES,
         exchangeRate: exchangeRateBCV,
@@ -2522,11 +2579,13 @@ export const POSRegister: React.FC = () => {
                       {hasPresentations && (
                         <div className="mt-1.5 pt-1 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between text-[10px] text-sky-700 dark:text-sky-300 bg-sky-50/60 dark:bg-sky-950/40 px-1.5 py-0.5 rounded border border-sky-100 dark:border-sky-900/50">
                           <span className="flex items-center gap-1 font-medium">
-                            <Package className="w-3 h-3 text-sky-600 dark:text-sky-400" />
+                          {p.presentations!.length === 1
+                              ?<Package className="w-3 h-3 text-sky-600 dark:text-sky-400" />
+                              : <Boxes className="w-3 h-3 text-sky-600 dark:text-sky-400" />}
                             {p.presentations!.length}{" "}
-                            {p.presentations!.length === 1
+                            {/* {p.presentations!.length === 1
                               ? "presentación"
-                              : "presentaciones"}
+                              : "presentaciones"} */}
                           </span>
                           <span className="text-[9px] font-bold text-sky-800 dark:text-sky-200">
                             Elegir
@@ -2697,179 +2756,48 @@ export const POSRegister: React.FC = () => {
           </div>
         </div>
 
-        {/* Sección de Cliente */}
-        <div className="p-2.5 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/40 space-y-2">
-          {/* Si hay un cliente específico asociado */}
-          {selectedCustomerId ? (
-            <div className="flex items-center justify-between p-2 bg-sky-50/60 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-lg text-xs">
-              <div className="flex items-center gap-2 min-w-0">
-                <UserCheck className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0" />
-                <div className="truncate">
-                  <div className="font-semibold text-neutral-900 dark:text-neutral-100 truncate flex items-center gap-1.5">
-                    <span>{customerName}</span>
-                    {isSpecialTaxpayer && <Badge variant="info">Esp.</Badge>}
-                  </div>
-                  <div className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400">
-                    {customerDocType}-{customerDocNumber}{" "}
-                    {customerPhone ? `• ${customerPhone}` : ""}
-                  </div>
-                </div>
-              </div>
+        {/* Barra compacta de Cliente de la Venta */}
+        <div className="px-3 py-1.5 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-900/60 flex items-center justify-between text-xs">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1 mr-2">
+            <User className="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500 shrink-0" />
+            <span className="text-neutral-500 dark:text-neutral-400 text-[11px] font-medium shrink-0">
+              Cliente:
+            </span>
+            <span
+              className="font-semibold text-neutral-800 dark:text-neutral-200 truncate text-[11px]"
+              title={`${customerDocType}-${customerDocNumber} • ${customerName}`}
+            >
+              {customerName}
+            </span>
+            {isSpecialTaxpayer && (
+              <Badge variant="info" className="text-[9px] px-1 py-0 shrink-0">
+                Esp.
+              </Badge>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            {selectedCustomerId && (
               <button
                 type="button"
                 onClick={handleResetToConsumerFinal}
-                title="Cambiar a Consumidor Final"
+                title="Restablecer a Consumidor Final"
                 className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-1 rounded hover:bg-white dark:hover:bg-neutral-800 transition-colors cursor-pointer"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
+                <RotateCcw className="w-3 h-3" />
               </button>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <div className="flex items-center gap-1.5 relative">
-                <div className="relative flex-1">
-                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-neutral-500" />
-                  <input
-                    type="text"
-                    value={customerSearchQuery}
-                    onChange={(e) => {
-                      setCustomerSearchQuery(e.target.value);
-                      setShowCustomerDropdown(true);
-                    }}
-                    onFocus={() => setShowCustomerDropdown(true)}
-                    placeholder="Buscar cliente (Cédula, RIF, Nombre)..."
-                    className="w-full h-8 pl-8 pr-7 text-xs border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                  {isSearchingCustomer && (
-                    <Loader2 className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-neutral-500 animate-spin" />
-                  )}
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  type="button"
-                  onClick={() => {
-                    setShowCustomerDropdown(false);
-                    setIsNewCustomerModalOpen(true);
-                  }}
-                  className="h-8 px-2 text-xs text-sky-700 dark:text-sky-300 border-sky-300 dark:border-sky-800 hover:bg-sky-50 dark:hover:bg-sky-950/40 whitespace-nowrap"
-                >
-                  <UserPlus className="w-3.5 h-3.5 mr-1" />+ Nuevo
-                </Button>
-
-                {/* Dropdown de Autocompletado */}
-                {showCustomerDropdown && customerSearchQuery.trim() && (
-                  <div className="absolute top-9 left-0 right-16 z-30 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-lg max-h-48 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800 text-xs">
-                    {customerSearchResults.length === 0 ? (
-                      <div className="p-3 text-center text-neutral-400 dark:text-neutral-500">
-                        {isSearchingCustomer ? (
-                          "Buscando clientes..."
-                        ) : (
-                          <div>
-                            <p>No se encontraron clientes.</p>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setNewCustomerName(customerSearchQuery);
-                                setNewCustomerDocNumber("");
-                                setShowCustomerDropdown(false);
-                                setIsNewCustomerModalOpen(true);
-                              }}
-                              className="text-sky-600 dark:text-sky-400 font-semibold hover:underline mt-1 block w-full text-center cursor-pointer"
-                            >
-                              + Registrar nuevo cliente
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      customerSearchResults.map((cust) => {
-                        const isBlocked = Boolean(
-                          cust.isBlocked ||
-                          cust.is_blocked ||
-                          cust.status === "BLOCKED",
-                        );
-                        const blockReason =
-                          cust.blockReason || cust.block_reason;
-
-                        return (
-                          <button
-                            key={cust.id}
-                            type="button"
-                            onClick={() => {
-                              if (isBlocked) {
-                                toast.error(
-                                  `El cliente "${cust.name}" está BLOQUEADO. Motivo: ${blockReason || "Consulte con administración"}. No puede ser seleccionado.`,
-                                );
-                                return;
-                              }
-                              handleSelectCustomer(cust);
-                            }}
-                            className={`w-full text-left p-2.5 flex flex-col transition-colors border-b border-neutral-100 dark:border-neutral-800 last:border-b-0 ${
-                              isBlocked
-                                ? "bg-red-50/60 dark:bg-red-950/30 hover:bg-red-50/80 dark:hover:bg-red-950/50 cursor-not-allowed opacity-90"
-                                : "hover:bg-sky-50/50 dark:hover:bg-neutral-800/60 cursor-pointer"
-                            }`}
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <span
-                                className={`font-semibold ${isBlocked ? "text-red-950 dark:text-red-300" : "text-neutral-800 dark:text-neutral-200"}`}
-                              >
-                                {cust.name}
-                              </span>
-                              {isBlocked && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800 shrink-0">
-                                  Bloqueado
-                                </span>
-                              )}
-                            </div>
-                            <span className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400 mt-0.5">
-                              {cust.docType}-{cust.docNumber}{" "}
-                              {cust.phone ? `• ${cust.phone}` : ""}
-                            </span>
-                            {isBlocked && blockReason && (
-                              <span className="text-[11px] text-red-600 dark:text-red-400 font-medium mt-0.5">
-                                Motivo: {blockReason}
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Campos de edición rápida de Consumidor Final */}
-              <div className="flex gap-1.5 items-center">
-                <select
-                  value={customerDocType}
-                  onChange={(e) => setCustomerDocType(e.target.value as any)}
-                  className="w-14 h-7 px-1 text-[11px] border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                >
-                  <option value="V">V-</option>
-                  <option value="E">E-</option>
-                  <option value="J">J-</option>
-                  <option value="G">G-</option>
-                  <option value="P">P-</option>
-                </select>
-                <input
-                  type="text"
-                  value={customerDocNumber}
-                  onChange={(e) => setCustomerDocNumber(e.target.value)}
-                  placeholder="Doc / RIF"
-                  className="w-24 h-7 px-2 text-[11px] border border-neutral-300 dark:border-neutral-700 rounded-lg font-mono bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                />
-                <input
-                  type="text"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Nombre cliente"
-                  className="flex-1 h-7 px-2 text-[11px] border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                />
-              </div>
-            </div>
-          )}
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              onClick={() => setIsCustomerSearchModalOpen(true)}
+              className="h-6 text-[10px] px-2 border-neutral-300 dark:border-neutral-700 hover:bg-sky-50 dark:hover:bg-neutral-800 text-sky-700 dark:text-sky-300"
+            >
+              <Search className="w-3 h-3 mr-1" />
+              Buscar / Cambiar
+            </Button>
+          </div>
         </div>
 
         {/* Tabla de Items del Carrito de Alta Densidad */}
@@ -3712,6 +3640,7 @@ export const POSRegister: React.FC = () => {
       {/* Modal: Registrar Nuevo Cliente */}
       <Modal
         isOpen={isNewCustomerModalOpen}
+        zIndex="z-[60]"
         onClose={() => setIsNewCustomerModalOpen(false)}
         title="Registrar Nuevo Cliente"
         icon={
@@ -3849,6 +3778,245 @@ export const POSRegister: React.FC = () => {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal de Búsqueda y Selección de Cliente */}
+      <Modal
+        isOpen={isCustomerSearchModalOpen}
+        onClose={() => setIsCustomerSearchModalOpen(false)}
+        title="Buscar y Seleccionar Cliente"
+        subtitle="Asigne el cliente a la venta actual o modifique sus datos fiscales"
+        size="lg"
+        footer={
+          <div className="flex items-center justify-between w-full">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleResetToConsumerFinal}
+              className="text-neutral-700 dark:text-neutral-300"
+            >
+              <RotateCcw className="w-3.5 h-3.5 mr-1" />
+              Consumidor Final
+            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsCustomerSearchModalOpen(false)}
+              >
+                Cerrar
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  setIsCustomerSearchModalOpen(false);
+                  toast.success(`Cliente asignado: ${customerName}`);
+                }}
+              >
+                Listo
+              </Button>
+            </div>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          {/* Barra de Búsqueda y Acción Nuevo */}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-neutral-500" />
+              <input
+                type="text"
+                autoFocus
+                value={customerSearchQuery}
+                onChange={(e) => setCustomerSearchQuery(e.target.value)}
+                placeholder="Buscar cliente por Cédula, RIF, Nombre o Teléfono..."
+                className="w-full h-10 pl-9 pr-8 text-xs border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              />
+              {isSearchingCustomer && (
+                <Loader2 className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-neutral-500 animate-spin" />
+              )}
+            </div>
+            <Button
+              size="sm"
+              type="button"
+              onClick={() => {
+                setNewCustomerName(customerSearchQuery);
+                setIsNewCustomerModalOpen(true);
+              }}
+              className="h-10 px-3 text-xs whitespace-nowrap"
+            >
+              <UserPlus className="w-4 h-4 mr-1.5" />
+              + Nuevo Cliente
+            </Button>
+          </div>
+
+          {/* Resultados de Búsqueda */}
+          {customerSearchQuery.trim() && (
+            <div className="border border-neutral-200 dark:border-neutral-800 rounded-lg max-h-56 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/40">
+              {customerSearchResults.length === 0 ? (
+                <div className="p-4 text-center text-xs text-neutral-500 dark:text-neutral-400">
+                  {isSearchingCustomer ? (
+                    "Buscando clientes..."
+                  ) : (
+                    <div className="space-y-2">
+                      <p>No se encontraron clientes registrados con esa búsqueda.</p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        type="button"
+                        onClick={() => {
+                          setNewCustomerName(customerSearchQuery);
+                          setNewCustomerDocNumber("");
+                          setIsNewCustomerModalOpen(true);
+                        }}
+                      >
+                        <UserPlus className="w-3.5 h-3.5 mr-1" />
+                        Registrar como nuevo cliente
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                customerSearchResults.map((cust) => {
+                  const isBlocked = Boolean(
+                    cust.isBlocked || cust.is_blocked || cust.status === "BLOCKED",
+                  );
+                  const blockReason = cust.blockReason || cust.block_reason;
+                  const isSelected = selectedCustomerId === cust.id;
+
+                  return (
+                    <div
+                      key={cust.id}
+                      className={`p-3 flex items-center justify-between gap-3 text-xs transition-colors ${
+                        isSelected
+                          ? "bg-sky-50 dark:bg-sky-950/40 border-l-4 border-sky-500"
+                          : isBlocked
+                            ? "bg-red-50/50 dark:bg-red-950/20"
+                            : "hover:bg-neutral-100/70 dark:hover:bg-neutral-800/50"
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-neutral-900 dark:text-neutral-100">
+                            {cust.name}
+                          </span>
+                          {cust.isSpecialTaxpayer && (
+                            <Badge variant="info">Esp.</Badge>
+                          )}
+                          {isBlocked && (
+                            <Badge variant="danger">Bloqueado</Badge>
+                          )}
+                        </div>
+                        <div className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400 mt-0.5">
+                          {cust.docType}-{cust.docNumber}{" "}
+                          {cust.phone ? `• ${cust.phone}` : ""}
+                        </div>
+                        {isBlocked && blockReason && (
+                          <div className="text-[11px] text-red-600 dark:text-red-400 font-medium mt-0.5">
+                            Motivo: {blockReason}
+                          </div>
+                        )}
+                      </div>
+
+                      <Button
+                        size="sm"
+                        variant={isSelected ? "primary" : "outline"}
+                        disabled={isBlocked}
+                        type="button"
+                        onClick={() => handleSelectCustomer(cust)}
+                        className="h-8 text-xs shrink-0"
+                      >
+                        {isSelected ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 mr-1" />
+                            Seleccionado
+                          </>
+                        ) : (
+                          "Seleccionar"
+                        )}
+                      </Button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+
+          {/* Datos Fiscales Rápidos del Cliente de la Venta */}
+          <div className="p-3 bg-neutral-100/70 dark:bg-neutral-800/40 rounded-lg border border-neutral-200 dark:border-neutral-700/60 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider">
+                Datos Fiscales para el Comprobante
+              </span>
+              {selectedCustomerId && (
+                <Badge variant="info" className="text-[10px]">
+                  Cliente Registrado
+                </Badge>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+              <div>
+                <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+                  Tipo Doc
+                </label>
+                <select
+                  value={customerDocType}
+                  onChange={(e) => setCustomerDocType(e.target.value as any)}
+                  className="w-full h-8 px-2 text-xs border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                >
+                  <option value="V">V - Venezolano</option>
+                  <option value="E">E - Extranjero</option>
+                  <option value="J">J - Jurídico</option>
+                  <option value="G">G - Gubernamental</option>
+                  <option value="P">P - Pasaporte</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+                  Cédula / RIF
+                </label>
+                <input
+                  type="text"
+                  value={customerDocNumber}
+                  onChange={(e) => setCustomerDocNumber(e.target.value)}
+                  placeholder="Doc / RIF"
+                  className="w-full h-8 px-2.5 text-xs border border-neutral-300 dark:border-neutral-700 rounded-lg font-mono bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+                  Nombre o Razón Social
+                </label>
+                <input
+                  type="text"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Nombre o Razón Social"
+                  className="w-full h-8 px-2.5 text-xs border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+                Dirección Fiscal (Opcional)
+              </label>
+              <input
+                type="text"
+                value={customerAddress}
+                onChange={(e) => setCustomerAddress(e.target.value)}
+                placeholder="Ej: Av. Francisco de Miranda, Caracas"
+                className="w-full h-8 px-2.5 text-xs border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
+              />
+            </div>
+          </div>
+        </div>
       </Modal>
 
       {/* Modal de Ticket Fiscal Emitido / Ticket de Venta */}
@@ -4095,15 +4263,22 @@ export const POSRegister: React.FC = () => {
                           {formatMoneyVES(unitPriceVES)}
                         </td>
                         <td className="py-2 px-3 text-center">
-                          <Badge
-                            variant={
-                              item.taxRatePercent === 0 ? "neutral" : "info"
-                            }
-                          >
-                            {item.taxRatePercent === 0
-                              ? "Exento"
-                              : `${item.taxRatePercent}%`}
-                          </Badge>
+                          <div className="flex flex-col items-center">
+                            <Badge
+                              variant={
+                                item.taxRatePercent === 0 ? "neutral" : "info"
+                              }
+                            >
+                              {item.taxRatePercent === 0
+                                ? "Exento"
+                                : `${item.taxRatePercent}%`}
+                            </Badge>
+                            {item.taxRatePercent > 0 && (
+                              <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-mono mt-0.5">
+                                +{formatMoneyUSD(item.taxAmount)}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-2 px-3 text-right font-mono text-neutral-800 dark:text-neutral-200">
                           {formatMoneyUSD(item.subtotal)}

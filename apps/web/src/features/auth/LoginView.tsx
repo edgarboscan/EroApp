@@ -415,6 +415,7 @@ export const LoginView: React.FC = () => {
               </div>
               <div className="text-left">
                 <span className="text-lg font-bold tracking-tight text-neutral-900 dark:text-neutral-100 leading-tight block">
+                  
                   ERO ERP VE
                 </span>
                 <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 tracking-wide block">

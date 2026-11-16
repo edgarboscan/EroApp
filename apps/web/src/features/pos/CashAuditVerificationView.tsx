@@ -23,6 +23,7 @@ import {
   TrendingUp,
   Receipt,
   Layers,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "../../stores/authStore";
@@ -65,6 +66,9 @@ interface ShiftAuditItem {
   verifiedAt?: string | null;
   verificationNotes?: string | null;
   notes?: string | null;
+  salesCount: number;
+  totalSalesUSD: number;
+  totalSalesVES: number;
   depositsCount: number;
   totalDepositedUSD: number;
   totalDepositedVES: number;
@@ -174,6 +178,14 @@ interface DepositDraftItem {
   notes: string;
 }
 
+const getTodayDateString = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 export const CashAuditVerificationView: React.FC = () => {
   const navigate = useNavigate();
   const { activeBranchId, token, user } = useAuthStore();
@@ -183,14 +195,20 @@ export const CashAuditVerificationView: React.FC = () => {
   const [shifts, setShifts] = useState<ShiftAuditItem[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [branches, setBranches] = useState<Array<{ id: string; name: string; code: string }>>([]);
 
-  // Filtros
+  // Filtros con valores predeterminados solicitados: Fecha de Hoy y Estado PENDIENTE
   const [verificationStatusFilter, setVerificationStatusFilter] =
-    useState<string>("ALL");
+    useState<string>("PENDING");
   const [discrepancyFilter, setDiscrepancyFilter] = useState<string>("ALL");
+  const [branchFilter, setBranchFilter] = useState<string>(activeBranchId || "ALL");
   const [searchTerm, setSearchTerm] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [startDate, setStartDate] = useState(getTodayDateString());
+  const [endDate, setEndDate] = useState(getTodayDateString());
+
+  // Modal para Eliminar Turno / Caja Sin Ventas
+  const [shiftToDelete, setShiftToDelete] = useState<ShiftAuditItem | null>(null);
+  const [isDeletingShift, setIsDeletingShift] = useState(false);
 
   // Modales
   const [selectedShiftForAudit, setSelectedShiftForAudit] =
@@ -237,7 +255,9 @@ export const CashAuditVerificationView: React.FC = () => {
     try {
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
       const params = new URLSearchParams();
-      if (activeBranchId) params.append("branchId", activeBranchId);
+      if (branchFilter && branchFilter !== "ALL") {
+        params.append("branchId", branchFilter);
+      }
       if (verificationStatusFilter !== "ALL")
         params.append("verificationStatus", verificationStatusFilter);
       if (discrepancyFilter === "CON_DISCREPANCIA")
@@ -247,10 +267,11 @@ export const CashAuditVerificationView: React.FC = () => {
       if (startDate) params.append("startDate", startDate);
       if (endDate) params.append("endDate", endDate);
 
-      const [shiftsRes, accsRes, notifsRes] = await Promise.all([
+      const [shiftsRes, accsRes, notifsRes, branchesRes] = await Promise.all([
         fetch(`/api/pos/shifts/audit?${params.toString()}`, { headers }),
         fetch("/api/treasury/accounts", { headers }),
         fetch("/api/pos/audit-notifications", { headers }),
+        fetch("/api/branches", { headers }),
       ]);
 
       if (shiftsRes.ok) {
@@ -258,6 +279,9 @@ export const CashAuditVerificationView: React.FC = () => {
         if (json.success && Array.isArray(json.data)) {
           setShifts(json.data);
         }
+      } else {
+        const errJson = await shiftsRes.json().catch(() => null);
+        console.error("Error al obtener turnos de auditoría:", errJson);
       }
 
       if (accsRes.ok) {
@@ -273,6 +297,13 @@ export const CashAuditVerificationView: React.FC = () => {
           setNotifications(json.data);
         }
       }
+
+      if (branchesRes.ok) {
+        const bJson = await branchesRes.json();
+        if (bJson.success && Array.isArray(bJson.data)) {
+          setBranches(bJson.data);
+        }
+      }
     } catch {
       toast.error("Error al cargar la información de auditoría de turnos");
     } finally {
@@ -283,7 +314,7 @@ export const CashAuditVerificationView: React.FC = () => {
   useEffect(() => {
     fetchAuditData();
   }, [
-    activeBranchId,
+    branchFilter,
     verificationStatusFilter,
     discrepancyFilter,
     startDate,
@@ -357,6 +388,32 @@ export const CashAuditVerificationView: React.FC = () => {
       toast.error(err.message || "Error al dictaminar verificación");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Eliminar turno de caja sin ventas
+  const handleExecuteDeleteShift = async () => {
+    if (!shiftToDelete) return;
+    setIsDeletingShift(true);
+    try {
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const res = await fetch(`/api/pos/shifts/${shiftToDelete.id}`, {
+        method: "DELETE",
+        headers,
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error?.message || "Error al eliminar el turno");
+      }
+      toast.success(
+        `Turno de caja ${shiftToDelete.cashRegisterCode} eliminado exitosamente.`,
+      );
+      setShiftToDelete(null);
+      await fetchAuditData();
+    } catch (err: any) {
+      toast.error(err.message || "Error al eliminar el turno de caja");
+    } finally {
+      setIsDeletingShift(false);
     }
   };
 
@@ -674,7 +731,7 @@ export const CashAuditVerificationView: React.FC = () => {
       header: "Caja & Cajero",
       cell: (r) => (
         <div className="flex flex-col text-xs">
-          <span className="font-semibold text-neutral-300">
+          <span className="font-semibold text-neutral-800 dark:text-neutral-200">
             {r.cashRegisterCode} - {r.cashRegisterName}
           </span>
           <span className="text-[11px] text-neutral-500">
@@ -683,6 +740,15 @@ export const CashAuditVerificationView: React.FC = () => {
           <span className="text-[10px] text-neutral-400">
             Sucursal: {r.branchName}
           </span>
+          {r.salesCount === 0 ? (
+            <span className="inline-flex items-center text-[10px] text-amber-700 dark:text-amber-400 font-medium mt-0.5">
+              Sin ventas registradas
+            </span>
+          ) : (
+            <span className="text-[10px] text-neutral-500 font-mono mt-0.5">
+              {r.salesCount} venta(s) ({formatMoneyUSD(r.totalSalesUSD)})
+            </span>
+          )}
         </div>
       ),
     },
@@ -851,6 +917,17 @@ export const CashAuditVerificationView: React.FC = () => {
           >
             <Printer className="w-3.5 h-3.5" />
           </Button>
+          {r.salesCount === 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShiftToDelete(r)}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 border-red-200 dark:border-red-800"
+              title="Eliminar caja sin ventas de la lista"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </Button>
+          )}
         </div>
       ),
     },
@@ -972,10 +1049,10 @@ export const CashAuditVerificationView: React.FC = () => {
       </div>
 
       {/* Barra de Filtros */}
-      <Card className="p-3.5 rounded-lg border border-neutral-200 bg-white space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+      <Card className="p-3.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#1E1F21] space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 text-xs">
           <div>
-            <label className="block text-neutral-600 font-medium mb-1">
+            <label className="block text-neutral-600 dark:text-neutral-400 font-medium mb-1">
               Buscar por Turno, Caja o Cajero
             </label>
             <div className="relative">
@@ -985,19 +1062,37 @@ export const CashAuditVerificationView: React.FC = () => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Código, caja, cajero..."
-                className="w-full h-9 pl-8 pr-3 border border-neutral-300 rounded-lg text-xs focus-visible:ring-2 focus-visible:ring-sky-500"
+                className="w-full h-9 pl-8 pr-3 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-neutral-600 font-medium mb-1">
+            <label className="block text-neutral-600 dark:text-neutral-400 font-medium mb-1">
+              Sucursal
+            </label>
+            <select
+              value={branchFilter}
+              onChange={(e) => setBranchFilter(e.target.value)}
+              className="w-full h-9 px-3 text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500 cursor-pointer"
+            >
+              <option value="ALL">Todas las Sucursales</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name} ({b.code})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-neutral-600 dark:text-neutral-400 font-medium mb-1">
               Estado de Verificación
             </label>
             <select
               value={verificationStatusFilter}
               onChange={(e) => setVerificationStatusFilter(e.target.value)}
-              className="w-full appearance-none pl-9 pr-8 py-2 text-sm text-neutral-400 border border-neutral-400 rounded-md focus:outline-none focus:ring-2 focus:ring-neutral-700 cursor-pointer disabled:opacity-50"
+              className="w-full h-9 px-3 text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500 cursor-pointer"
             >
               <option value="ALL">Todos los Estados</option>
               <option value="PENDING">Pendientes de Verificación</option>
@@ -1010,13 +1105,13 @@ export const CashAuditVerificationView: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-neutral-600 font-medium mb-1">
+            <label className="block text-neutral-600 dark:text-neutral-400 font-medium mb-1">
               Cuadre / Discrepancias
             </label>
             <select
               value={discrepancyFilter}
               onChange={(e) => setDiscrepancyFilter(e.target.value)}
-              className="w-full appearance-none pl-9 pr-8 py-2 text-sm text-neutral-400 border border-neutral-400 rounded-md focus:outline-none focus:ring-2 focus:ring-neutral-700 cursor-pointer disabled:opacity-50"
+              className="w-full h-9 px-3 text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500 cursor-pointer"
             >
               <option value="ALL">Todos los Turnos</option>
               <option value="CON_DISCREPANCIA">
@@ -1026,28 +1121,68 @@ export const CashAuditVerificationView: React.FC = () => {
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-neutral-600 font-medium mb-1">
-                Desde
-              </label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full h-9 px-2 border border-neutral-400 rounded-lg text-xs focus-visible:ring-2 focus-visible:ring-sky-500"
-              />
+          <div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-neutral-600 dark:text-neutral-400 font-medium mb-1">
+                  Desde
+                </label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full h-9 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
+                />
+              </div>
+              <div>
+                <label className="block text-neutral-600 dark:text-neutral-400 font-medium mb-1">
+                  Hasta
+                </label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full h-9 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-neutral-600 font-medium mb-1">
-                Hasta
-              </label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full h-9 px-2 border border-neutral-400 rounded-lg text-xs focus-visible:ring-2 focus-visible:ring-sky-500"
-              />
+            <div className="flex items-center justify-end gap-2 mt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setStartDate(getTodayDateString());
+                  setEndDate(getTodayDateString());
+                }}
+                className="text-[10px] text-sky-600 dark:text-sky-400 hover:underline font-medium cursor-pointer"
+                title="Filtrar únicamente los cierres de hoy"
+              >
+                Solo Hoy
+              </button>
+              <span className="text-neutral-300 dark:text-neutral-600 text-[10px]">•</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setStartDate("");
+                  setEndDate("");
+                  setVerificationStatusFilter("PENDING");
+                }}
+                className="text-[10px] text-amber-600 dark:text-amber-400 hover:underline font-medium cursor-pointer"
+                title="Ver todos los cierres pendientes acumulados sin filtro de fecha"
+              >
+                Todos Pendientes
+              </button>
+              <span className="text-neutral-300 dark:text-neutral-600 text-[10px]">•</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setStartDate("");
+                  setEndDate("");
+                }}
+                className="text-[10px] text-neutral-500 dark:text-neutral-400 hover:underline cursor-pointer"
+                title="Quitar filtro de fechas"
+              >
+                Todas las fechas
+              </button>
             </div>
           </div>
         </div>
@@ -1794,6 +1929,84 @@ export const CashAuditVerificationView: React.FC = () => {
             ))
           )}
         </div>
+      </Modal>
+
+      {/* Modal de Confirmación: Eliminar Caja / Turno Sin Ventas */}
+      <Modal
+        isOpen={!!shiftToDelete}
+        onClose={() => setShiftToDelete(null)}
+        title="¿Eliminar Caja / Turno de la Lista?"
+        subtitle="Esta acción retira permanentemente el registro de turno de la auditoría"
+        size="sm"
+        footer={
+          <div className="flex items-center justify-end gap-2 w-full">
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              disabled={isDeletingShift}
+              onClick={() => setShiftToDelete(null)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              type="button"
+              disabled={isDeletingShift}
+              onClick={handleExecuteDeleteShift}
+            >
+              {isDeletingShift ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  Eliminando...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                  Eliminar Turno
+                </>
+              )}
+            </Button>
+          </div>
+        }
+      >
+        {shiftToDelete && (
+          <div className="space-y-3 text-xs text-neutral-700 dark:text-neutral-300">
+            <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-amber-900 dark:text-amber-200">
+                  Caja sin ventas registradas
+                </p>
+                <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-0.5">
+                  Este turno no registró ninguna venta ni factura. Puede ser eliminado de la lista de auditorías de forma segura.
+                </p>
+              </div>
+            </div>
+
+            <div className="border border-neutral-200 dark:border-neutral-800 rounded-lg p-3 space-y-1 bg-neutral-50/50 dark:bg-neutral-900/40 text-[11px]">
+              <div>
+                <span className="font-medium text-neutral-500">Caja: </span>
+                <span className="font-semibold text-neutral-900 dark:text-neutral-100">
+                  {shiftToDelete.cashRegisterCode} - {shiftToDelete.cashRegisterName}
+                </span>
+              </div>
+              <div>
+                <span className="font-medium text-neutral-500">Cajero: </span>
+                <span>{shiftToDelete.cashierName}</span>
+              </div>
+              <div>
+                <span className="font-medium text-neutral-500">Cierre: </span>
+                <span className="font-mono">
+                  {shiftToDelete.closedAt
+                    ? new Date(shiftToDelete.closedAt).toLocaleString("es-VE")
+                    : "No registrado"}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Modal Visor de PDF */}

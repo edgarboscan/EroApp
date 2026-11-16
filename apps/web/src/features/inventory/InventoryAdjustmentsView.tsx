@@ -16,6 +16,7 @@ import {
   TrendingDown,
   TrendingUp,
   Search,
+  Package,
 } from 'lucide-react';
 import { ProductSearchModal } from '../../components/search';
 import { toast } from 'sonner';
@@ -76,7 +77,8 @@ export const InventoryAdjustmentsView: React.FC = () => {
   const [items, setItems] = useState<NewAdjustmentItem[]>([]);
 
   // Selección de producto en formulario
-  const [catalog, setCatalog] = useState<{ id: string; sku: string; name: string; cost: number }[]>([]);
+  const [catalog, setCatalog] = useState<{ id: string; sku: string; name: string; cost: number; barcode?: string; currentStock?: number }[]>([]);
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [newProductId, setNewProductId] = useState('');
   const [newMovementType, setNewMovementType] = useState<'ADJUST_IN' | 'ADJUST_OUT'>('ADJUST_OUT');
   const [newQuantity, setNewQuantity] = useState<number>(1);
@@ -95,12 +97,17 @@ export const InventoryAdjustmentsView: React.FC = () => {
               id: p.id,
               sku: p.sku,
               name: p.name,
+              barcode: p.barcode,
               cost: Number(p.costPrice || p.cost_price || 0),
+              costPrice: Number(p.costPrice || p.cost_price || 0),
+              defaultCost: Number(p.costPrice || p.cost_price || 0),
+              currentStock: Number(p.currentStock || p.current_stock || 0),
             }));
             setCatalog(mapped);
             if (mapped.length > 0) {
               setNewProductId(mapped[0].id);
               setNewUnitCost(mapped[0].cost);
+              setSelectedProduct(mapped[0]);
             }
           }
         }
@@ -142,8 +149,11 @@ export const InventoryAdjustmentsView: React.FC = () => {
   };
 
   const handleAddItem = () => {
-    const prod = catalog.find((p) => p.id === newProductId);
-    if (!prod) return;
+    const prod = catalog.find((p) => p.id === newProductId) || selectedProduct;
+    if (!prod) {
+      toast.error('Seleccione un producto del catálogo');
+      return;
+    }
     if (newQuantity <= 0) {
       toast.error('La cantidad debe ser mayor a 0');
       return;
@@ -157,8 +167,8 @@ export const InventoryAdjustmentsView: React.FC = () => {
         productName: prod.name,
         movementType: newMovementType,
         quantity: newQuantity,
-        unitCost: newUnitCost || prod.cost,
-        notes: newNotes || undefined,
+        unitCost: newUnitCost || prod.cost || 0,
+        notes: newNotes.trim() || undefined,
       },
     ]);
 
@@ -262,8 +272,8 @@ export const InventoryAdjustmentsView: React.FC = () => {
       header: 'Fecha / N° Ajuste',
       accessorKey: 'adjustment_number',
       cell: (a) => (
-        <div className="flex flex-col text-xs font-mono">
-          <span className="font-bold text-sky-700">{a.adjustment_number}</span>
+        <div className="flex flex-col text-xs font-mono min-w-[130px]">
+          <span className="font-bold text-sky-700 dark:text-sky-400">{a.adjustment_number}</span>
           <span className="text-[10px] text-neutral-400">
             {new Date(a.adjustment_date).toLocaleDateString('es-VE')} {new Date(a.adjustment_date).toLocaleTimeString('es-VE')}
           </span>
@@ -273,13 +283,17 @@ export const InventoryAdjustmentsView: React.FC = () => {
     {
       header: 'Tipo de Ajuste',
       accessorKey: 'type',
-      cell: (a) => getTypeBadge(a.type),
+      cell: (a) => (
+        <div className="min-w-[140px]">
+          {getTypeBadge(a.type)}
+        </div>
+      ),
     },
     {
       header: 'Depósito / Sucursal',
       cell: (a) => (
-        <div className="flex flex-col text-xs max-w-[160px]">
-          <span className="font-semibold text-neutral-900 truncate">{a.warehouse_name}</span>
+        <div className="flex flex-col text-xs min-w-[160px]">
+          <span className="font-semibold text-neutral-900 dark:text-neutral-100 truncate">{a.warehouse_name}</span>
           <span className="text-[10px] text-neutral-400 truncate">{a.branch_name}</span>
         </div>
       ),
@@ -287,7 +301,11 @@ export const InventoryAdjustmentsView: React.FC = () => {
     {
       header: 'Items',
       accessorKey: 'items_count',
-      cell: (a) => <span className="font-mono text-xs">{a.items_count} prod(s)</span>,
+      cell: (a) => (
+        <div className="min-w-[80px] text-center">
+          <span className="font-mono text-xs">{a.items_count} prod(s)</span>
+        </div>
+      ),
     },
     {
       header: 'Impacto en Costo',
@@ -295,47 +313,63 @@ export const InventoryAdjustmentsView: React.FC = () => {
       cell: (a) => {
         const val = Number(a.total_cost_impact);
         return (
-          <span className={`font-mono font-bold text-xs ${val >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-            {val >= 0 ? `+${formatMoneyUSD(val)}` : `-${formatMoneyUSD(Math.abs(val))}`}
-          </span>
+          <div className="min-w-[110px] text-right">
+            <span className={`font-mono font-bold text-xs ${val >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+              {val >= 0 ? `+${formatMoneyUSD(val)}` : `-${formatMoneyUSD(Math.abs(val))}`}
+            </span>
+          </div>
         );
       },
     },
     {
       header: 'Motivo / Justificación',
       accessorKey: 'reason',
-      cell: (a) => <span className="text-xs text-neutral-600 line-clamp-1 max-w-xs">{a.reason}</span>,
+      cell: (a) => (
+        <div className="min-w-[200px] max-w-sm">
+          <span className="text-xs text-neutral-600 dark:text-neutral-300 line-clamp-2">{a.reason}</span>
+        </div>
+      ),
     },
     {
       header: 'Usuario',
       accessorKey: 'user_name',
-      cell: (a) => <span className="text-xs text-neutral-400">{a.user_name}</span>,
+      cell: (a) => (
+        <div className="min-w-[100px]">
+          <span className="text-xs text-neutral-500 dark:text-neutral-400">{a.user_name}</span>
+        </div>
+      ),
     },
     {
       header: 'Estado',
       accessorKey: 'status',
-      cell: () => <Badge variant="success">APLICADO</Badge>,
+      cell: () => (
+        <div className="min-w-[90px] text-center">
+          <Badge variant="success">APLICADO</Badge>
+        </div>
+      ),
     },
     {
       header: 'Acción',
       cell: (a) => (
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() =>
-            setPdfModal({
-              isOpen: true,
-              endpoint: `/api/inventory/adjustments/${a.id}/pdf`,
-              title: `Comprobante de Ajuste ${a.adjustment_number}`,
-              filename: `comprobante_ajuste_${a.adjustment_number}.pdf`,
-            })
-          }
-          className="h-8 px-2 text-xs text-sky-700 hover:text-sky-800"
-          title="Ver / Reimprimir Comprobante de Ajuste en PDF"
-        >
-          <FileText className="w-3.5 h-3.5 mr-1 text-sky-600" />
-          PDF
-        </Button>
+        <div className="min-w-[80px] text-center">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              setPdfModal({
+                isOpen: true,
+                endpoint: `/api/inventory/adjustments/${a.id}/pdf`,
+                title: `Comprobante de Ajuste ${a.adjustment_number}`,
+                filename: `comprobante_ajuste_${a.adjustment_number}.pdf`,
+              })
+            }
+            className="h-8 px-2 text-xs text-sky-700 hover:text-sky-800 dark:text-sky-400"
+            title="Ver / Reimprimir Comprobante de Ajuste en PDF"
+          >
+            <FileText className="w-3.5 h-3.5 mr-1 text-sky-600 dark:text-sky-400" />
+            PDF
+          </Button>
+        </div>
       ),
     },
   ];
@@ -450,30 +484,39 @@ export const InventoryAdjustmentsView: React.FC = () => {
         isOpen={showModal}
         onClose={() => setShowModal(false)}
         title="Registrar Ajuste de Inventario"
-        description="Ajuste de existencias por mermas, vencimientos o conteo físico"
-        size="2xl"
+        description="Ajuste de existencias por mermas, vencimientos, roturas o conteo físico"
+        size="4xl"
         footer={
-          <div className="flex items-center justify-end gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowModal(false)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              size="sm"
-              disabled={submitting || items.length === 0}
-              onClick={handleSubmitAdjustment}
-            >
-              <Check className="w-4 h-4 mr-1.5" />
-              Aplicar Ajuste a Inventario
-            </Button>
+          <div className="flex items-center justify-between w-full">
+            <div className="text-xs font-mono">
+              {items.length > 0 && (
+                <span className="text-neutral-500">
+                  Total Renglones: <strong className="text-neutral-800 dark:text-neutral-200">{items.length}</strong>
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowModal(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                disabled={submitting || items.length === 0}
+                onClick={handleSubmitAdjustment}
+              >
+                <Check className="w-4 h-4 mr-1.5" />
+                Aplicar Ajuste a Inventario
+              </Button>
+            </div>
           </div>
         }
       >
         <div className="space-y-4 text-xs">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                 Tipo de Ajuste
@@ -496,7 +539,7 @@ export const InventoryAdjustmentsView: React.FC = () => {
 
             <div>
               <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
-                Motivo / Justificación
+                Motivo / Justificación *
               </label>
               <input
                 type="text"
@@ -504,62 +547,81 @@ export const InventoryAdjustmentsView: React.FC = () => {
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Ej: Empaques averiados durante descarga de camión"
                 className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400"
+                required
               />
             </div>
           </div>
 
           {/* Agregar Producto al Ajuste */}
-          <div className="p-3 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg border border-neutral-200 dark:border-neutral-700 space-y-2">
-            <span className="font-semibold text-neutral-800 dark:text-neutral-200 block">
-              Agregar Producto a la Lista:
-            </span>
-            <div className="grid grid-cols-12 gap-2 items-end">
-              <div className="col-span-5">
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-[11px] text-neutral-400 dark:text-neutral-400 block">
-                    Producto
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowProductSearch(true)}
-                    className="text-[11px] text-sky-600 dark:text-sky-400 hover:text-sky-700 font-medium flex items-center gap-1 cursor-pointer"
-                  >
-                    <Search className="w-3 h-3" />
-                    <span>Buscar en catálogo</span>
-                  </button>
+          <div className="p-3 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg border border-neutral-200 dark:border-neutral-700 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-neutral-800 dark:text-neutral-200">
+                Seleccionar Producto:
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowProductSearch(true)}
+                className="h-7 text-xs text-sky-600 dark:text-sky-400 hover:text-sky-700 border-sky-300 dark:border-sky-700 bg-sky-50 dark:bg-sky-950/40"
+              >
+                <Search className="w-3.5 h-3.5 mr-1" />
+                Buscar en Catálogo (Modal)
+              </Button>
+            </div>
+
+            {selectedProduct && (
+              <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Package className="w-4 h-4 text-sky-600 shrink-0" />
+                  <div>
+                    <span className="font-bold text-neutral-900 dark:text-neutral-100">
+                      {selectedProduct.name}
+                    </span>
+                    <span className="ml-2 font-mono text-[11px] text-neutral-500">
+                      SKU: {selectedProduct.sku}
+                    </span>
+                    {selectedProduct.barcode && (
+                      <span className="ml-2 font-mono text-[11px] text-neutral-400">
+                        [{selectedProduct.barcode}]
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <select
-                    value={newProductId}
-                    onChange={(e) => {
-                      setNewProductId(e.target.value);
-                      const p = catalog.find((c) => c.id === e.target.value);
-                      if (p) setNewUnitCost(p.cost);
-                    }}
-                    className="flex-1 h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
-                  >
-                    {catalog.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.sku} - {p.name}
-                      </option>
-                    ))}
-                  </select>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowProductSearch(true)}
-                    title="Buscar producto en modal"
-                    className="h-8 px-2 shrink-0 flex items-center justify-center"
-                  >
-                    <Search className="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-400" />
-                  </Button>
+                <div className="text-right font-mono text-xs text-neutral-600 dark:text-neutral-300">
+                  Costo Ref: <span className="font-bold text-neutral-900 dark:text-neutral-100">{formatMoneyUSD(newUnitCost)}</span>
                 </div>
               </div>
+            )}
 
-              <div className="col-span-3">
-                <label className="text-[11px] text-neutral-400 dark:text-neutral-400 block mb-1">
-                  Acción
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
+              <div className="sm:col-span-4">
+                <label className="text-[11px] text-neutral-500 dark:text-neutral-400 block mb-1">
+                  Producto en Lista Rápida
+                </label>
+                <select
+                  value={newProductId}
+                  onChange={(e) => {
+                    setNewProductId(e.target.value);
+                    const p = catalog.find((c) => c.id === e.target.value);
+                    if (p) {
+                      setNewUnitCost(p.cost);
+                      setSelectedProduct(p);
+                    }
+                  }}
+                  className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+                >
+                  {catalog.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.sku} - {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="sm:col-span-3">
+                <label className="text-[11px] text-neutral-500 dark:text-neutral-400 block mb-1">
+                  Tipo Movimiento
                 </label>
                 <select
                   value={newMovementType}
@@ -571,78 +633,185 @@ export const InventoryAdjustmentsView: React.FC = () => {
                 </select>
               </div>
 
-              <div className="col-span-2">
-                <label className="text-[11px] text-neutral-400 dark:text-neutral-400 block mb-1">
+              <div className="sm:col-span-2">
+                <label className="text-[11px] text-neutral-500 dark:text-neutral-400 block mb-1">
                   Cantidad
                 </label>
                 <input
                   type="number"
-                  min="1"
+                  min="0.01"
+                  step="any"
                   value={newQuantity}
                   onChange={(e) =>
-                    setNewQuantity(parseFloat(e.target.value) || 1)
+                    setNewQuantity(parseFloat(e.target.value) || 0)
                   }
-                  className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs font-mono font-bold bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+                  className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs font-mono font-bold bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-center"
                 />
               </div>
 
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
+                <label className="text-[11px] text-neutral-500 dark:text-neutral-400 block mb-1">
+                  Costo Unit. ($)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={newUnitCost}
+                  onChange={(e) =>
+                    setNewUnitCost(parseFloat(e.target.value) || 0)
+                  }
+                  className="w-full h-8 px-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs font-mono bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-right"
+                />
+              </div>
+
+              <div className="sm:col-span-1">
                 <Button
                   size="sm"
-                  variant="outline"
                   onClick={handleAddItem}
-                  className="w-full h-8"
+                  className="w-full h-8 px-2"
+                  title="Añadir producto a la lista de ajuste"
                 >
-                  <Plus className="w-3.5 h-3.5 mr-1" />
-                  Añadir
+                  <Plus className="w-4 h-4" />
                 </Button>
               </div>
             </div>
+
+            <div>
+              <input
+                type="text"
+                value={newNotes}
+                onChange={(e) => setNewNotes(e.target.value)}
+                placeholder="Observación opcional para este renglón (ej: Lote L-2024 averiado)"
+                className="w-full h-7 px-2 border border-neutral-200 dark:border-neutral-700 rounded-lg text-[11px] bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400"
+              />
+            </div>
           </div>
 
-          {/* Lista de Items */}
+          {/* Tabla de Productos a Ajustar */}
           <div className="space-y-2">
-            <span className="font-semibold text-neutral-800 dark:text-neutral-200 block">
-              Productos a Ajustar ({items.length}):
-            </span>
-            <div className="divide-y divide-neutral-200 dark:divide-neutral-700 border border-neutral-200 dark:border-neutral-700 rounded-lg overflow-hidden max-h-48 overflow-y-auto">
-              {items.map((it, idx) => (
-                <div
-                  key={idx}
-                  className="p-2.5 bg-white dark:bg-neutral-800/80 flex items-center justify-between text-xs"
-                >
-                  <div>
-                    <div className="font-semibold text-neutral-900 dark:text-neutral-100">
-                      {it.productName}
-                    </div>
-                    <div className="text-[11px] text-neutral-400 dark:text-neutral-400 font-mono">
-                      {it.sku} • Costo: {formatMoneyUSD(it.unitCost)}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Badge
-                      variant={
-                        it.movementType === "ADJUST_IN" ? "success" : "danger"
-                      }
-                    >
-                      {it.movementType === "ADJUST_IN"
-                        ? `+${it.quantity}`
-                        : `-${it.quantity}`}
-                    </Badge>
-                    <span className="font-mono font-bold text-xs text-neutral-900 dark:text-neutral-100">
-                      {formatMoneyUSD(it.quantity * it.unitCost)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveItem(idx)}
-                      className="text-neutral-400 hover:text-red-500 p-1"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-neutral-800 dark:text-neutral-200 block">
+                Renglones a Ajustar ({items.length}):
+              </span>
+              {items.length > 0 && (
+                <span className="text-xs font-mono font-bold text-neutral-700 dark:text-neutral-300">
+                  Impacto Neto Total:{" "}
+                  <span
+                    className={
+                      items.reduce(
+                        (sum, it) =>
+                          sum +
+                          (it.movementType === "ADJUST_IN"
+                            ? it.quantity * it.unitCost
+                            : -it.quantity * it.unitCost),
+                        0,
+                      ) >= 0
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-red-600 dark:text-red-400"
+                    }
+                  >
+                    {formatMoneyUSD(
+                      items.reduce(
+                        (sum, it) =>
+                          sum +
+                          (it.movementType === "ADJUST_IN"
+                            ? it.quantity * it.unitCost
+                            : -it.quantity * it.unitCost),
+                        0,
+                      ),
+                    )}
+                  </span>
+                </span>
+              )}
             </div>
+
+            {items.length === 0 ? (
+              <div className="p-8 text-center border border-dashed border-neutral-300 dark:border-neutral-700 rounded-lg text-neutral-400">
+                <Package className="w-6 h-6 mx-auto mb-1 text-neutral-300 dark:text-neutral-600" />
+                No hay productos en la lista. Busque un producto arriba o use el buscador modal y haga clic en el botón de agregar.
+              </div>
+            ) : (
+              <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-700 rounded-lg max-h-56 overflow-y-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-neutral-50 dark:bg-neutral-800/80 text-neutral-600 dark:text-neutral-300 border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
+                    <tr>
+                      <th className="p-2.5 min-w-[200px]">Producto & SKU</th>
+                      <th className="p-2.5 w-32 text-center">Tipo Movimiento</th>
+                      <th className="p-2.5 w-24 text-center">Cantidad</th>
+                      <th className="p-2.5 w-28 text-right">Costo Unit. ($)</th>
+                      <th className="p-2.5 w-32 text-right">Impacto Total ($)</th>
+                      <th className="p-2.5 w-14 text-center">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                    {items.map((it, idx) => {
+                      const lineTotal = it.quantity * it.unitCost;
+                      return (
+                        <tr
+                          key={idx}
+                          className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors"
+                        >
+                          <td className="p-2.5">
+                            <div className="font-semibold text-neutral-900 dark:text-neutral-100">
+                              {it.productName}
+                            </div>
+                            <div className="text-[11px] text-neutral-400 font-mono">
+                              SKU: {it.sku}
+                              {it.notes ? ` • Nota: ${it.notes}` : ""}
+                            </div>
+                          </td>
+                          <td className="p-2.5 text-center">
+                            <Badge
+                              variant={
+                                it.movementType === "ADJUST_IN"
+                                  ? "success"
+                                  : "danger"
+                              }
+                            >
+                              {it.movementType === "ADJUST_IN"
+                                ? "Entrada (+)"
+                                : "Salida (-)"}
+                            </Badge>
+                          </td>
+                          <td className="p-2.5 text-center font-mono font-bold">
+                            {it.movementType === "ADJUST_IN"
+                              ? `+${it.quantity}`
+                              : `-${it.quantity}`}
+                          </td>
+                          <td className="p-2.5 text-right font-mono text-neutral-700 dark:text-neutral-300">
+                            {formatMoneyUSD(it.unitCost)}
+                          </td>
+                          <td className="p-2.5 text-right font-mono font-bold">
+                            <span
+                              className={
+                                it.movementType === "ADJUST_IN"
+                                  ? "text-emerald-600 dark:text-emerald-400"
+                                  : "text-red-600 dark:text-red-400"
+                              }
+                            >
+                              {it.movementType === "ADJUST_IN"
+                                ? `+${formatMoneyUSD(lineTotal)}`
+                                : `-${formatMoneyUSD(lineTotal)}`}
+                            </span>
+                          </td>
+                          <td className="p-2.5 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveItem(idx)}
+                              className="text-neutral-400 hover:text-red-500 p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                              title="Quitar producto de la lista"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       </Modal>
@@ -657,9 +826,11 @@ export const InventoryAdjustmentsView: React.FC = () => {
             prod.defaultCost ?? prod.costPrice ?? (prod as any).cost ?? 0,
           );
           setNewUnitCost(cost);
+          setSelectedProduct(prod);
           setShowProductSearch(false);
         }}
         products={catalog}
+        warehouseId={activeWarehouseId || undefined}
         mode="general"
       />
 

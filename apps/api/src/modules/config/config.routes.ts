@@ -647,7 +647,11 @@ configRouter.post('/database/initialize-company', authenticate, async (c) => {
       );
     }
 
-    const result = await ConfigService.initializeNewCompany(user.sub, body.companyData);
+    const result = await ConfigService.initializeNewCompany(
+      user.sub,
+      body.companyData,
+      Boolean(body.purgePreviousCompanies)
+    );
     return c.json({
       success: true,
       message: 'Nueva empresa inicializada y aprovisionada correctamente.',

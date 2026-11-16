@@ -606,30 +606,57 @@ export class InventoryService {
         );
       }
 
-      // Presentaciones por producto con diferentes factores y precios
-      if (input.presentations && input.presentations.length > 0) {
-        for (const p of input.presentations) {
-          await conn.query(
-            `INSERT INTO product_presentations (id, product_id, presentation_id, name, sku, barcode, unit_of_measure, multiplier, cost_price, base_price, currency, is_default, requires_authorization, is_active)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              p.id || crypto.randomUUID(),
-              id,
-              p.presentationId || null,
-              p.name.trim(),
-              p.sku?.trim().toUpperCase() || null,
-              p.barcode?.trim() || null,
-              p.unitOfMeasure || 'UND',
-              p.multiplier || 1,
-              p.costPrice || 0,
-              p.basePrice || 0,
-              p.currency || input.currency || 'USD',
-              p.isDefault ? 1 : 0,
-              p.requiresAuthorization ? 1 : 0,
-              p.isActive !== undefined ? (p.isActive ? 1 : 0) : 1
-            ]
-          );
-        }
+      // Presentaciones por producto: crear automáticamente la presentación de unidad y establecerla como predeterminada
+      const presentationsToInsert: any[] = (input.presentations && input.presentations.length > 0)
+        ? [...input.presentations]
+        : [];
+
+      const hasDefault = presentationsToInsert.some(p => Boolean(p.isDefault));
+      const hasUnit = presentationsToInsert.some(p => Number(p.multiplier) === 1);
+
+      if (presentationsToInsert.length === 0 || !hasUnit) {
+        // Se asegura la presentación de unidad base y se establece como predeterminada
+        presentationsToInsert.unshift({
+          id: crypto.randomUUID(),
+          presentationId: null,
+          name: 'Unidad',
+          sku: input.sku.trim().toUpperCase(),
+          barcode: input.barcode?.trim() || null,
+          unitOfMeasure: input.unitOfMeasure || 'UND',
+          multiplier: 1,
+          costPrice: input.costPrice || 0,
+          basePrice: input.basePrice || 0,
+          currency: input.currency || 'USD',
+          isDefault: !hasDefault,
+          requiresAuthorization: false,
+          isActive: true
+        });
+      } else if (!hasDefault) {
+        const unitItem = presentationsToInsert.find(p => Number(p.multiplier) === 1) || presentationsToInsert[0];
+        if (unitItem) unitItem.isDefault = true;
+      }
+
+      for (const p of presentationsToInsert) {
+        await conn.query(
+          `INSERT INTO product_presentations (id, product_id, presentation_id, name, sku, barcode, unit_of_measure, multiplier, cost_price, base_price, currency, is_default, requires_authorization, is_active)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            p.id || crypto.randomUUID(),
+            id,
+            p.presentationId || null,
+            p.name.trim(),
+            p.sku?.trim().toUpperCase() || null,
+            p.barcode?.trim() || null,
+            p.unitOfMeasure || input.unitOfMeasure || 'UND',
+            p.multiplier || 1,
+            p.costPrice || 0,
+            p.basePrice || 0,
+            p.currency || input.currency || 'USD',
+            p.isDefault ? 1 : 0,
+            p.requiresAuthorization ? 1 : 0,
+            p.isActive !== undefined ? (p.isActive ? 1 : 0) : 1
+          ]
+        );
       }
 
       // Si se enviaron ubicaciones iniciales, registrarlas
@@ -1168,14 +1195,50 @@ export class InventoryService {
   // ==========================================
   // UNIDADES DE MEDIDA
   // ==========================================
+  static async seedDefaultUnitsOfMeasure(companyId: string) {
+    const defaultUnits = [
+      { code: 'UND', name: 'Unidad', symbol: 'und' },
+      { code: 'KG', name: 'Kilogramo', symbol: 'kg' },
+      { code: 'GR', name: 'Gramo', symbol: 'g' },
+      { code: 'LT', name: 'Litro', symbol: 'l' },
+      { code: 'ML', name: 'Mililitro', symbol: 'ml' },
+      { code: 'CAJA', name: 'Caja', symbol: 'cja' },
+      { code: 'PAQ', name: 'Paquete', symbol: 'paq' },
+      { code: 'BULTO', name: 'Bulto', symbol: 'blt' },
+      { code: 'MTR', name: 'Metro', symbol: 'm' },
+      { code: 'PZA', name: 'Pieza', symbol: 'pza' },
+    ];
+
+    for (const u of defaultUnits) {
+      await query(
+        `INSERT IGNORE INTO units_of_measure (id, company_id, code, name, symbol, is_active)
+         VALUES (?, ?, ?, ?, ?, 1)`,
+        [crypto.randomUUID(), companyId, u.code, u.name, u.symbol]
+      );
+    }
+  }
+
   static async getUnitsOfMeasure(companyId: string) {
-    return await query<any>(
+    let rows = await query<any>(
       `SELECT id, company_id as companyId, code, name, symbol, is_active as isActive, created_at as createdAt
        FROM units_of_measure
        WHERE company_id = ?
        ORDER BY code ASC`,
       [companyId]
     );
+
+    if (rows.length === 0) {
+      await this.seedDefaultUnitsOfMeasure(companyId);
+      rows = await query<any>(
+        `SELECT id, company_id as companyId, code, name, symbol, is_active as isActive, created_at as createdAt
+         FROM units_of_measure
+         WHERE company_id = ?
+         ORDER BY code ASC`,
+        [companyId]
+      );
+    }
+
+    return rows;
   }
 
   static async createUnitOfMeasure(input: UnitOfMeasureInput) {
@@ -1216,10 +1279,31 @@ export class InventoryService {
   }
 
   // ==========================================
-  // CATÁLOGO MAESTRO DE PRESENTACIONES
+  // CATÁLOGO MAESTRO DE PLANTILLAS DE PRESENTACIONES
   // ==========================================
+  static async seedDefaultPresentations(companyId: string) {
+    const defaultTemplates = [
+      { name: 'Unidad Individual', desc: 'Presentación individual al detal', mult: 1, unit: 'UND', auth: 0 },
+      { name: 'Display x 6', desc: 'Empaque intermedio por 6 unidades', mult: 6, unit: 'UND', auth: 0 },
+      { name: 'Display x 12', desc: 'Empaque por 12 unidades', mult: 12, unit: 'UND', auth: 0 },
+      { name: 'Caja x 24', desc: 'Caja corrugada estándar por 24 unidades', mult: 24, unit: 'CAJA', auth: 0 },
+      { name: 'Caja x 48', desc: 'Caja por 48 unidades', mult: 48, unit: 'CAJA', auth: 0 },
+      { name: 'Bulto x 20Kg', desc: 'Saco o bulto por 20 kilogramos', mult: 20, unit: 'KG', auth: 0 },
+      { name: 'Bulto x 50Kg', desc: 'Saco industrial por 50 kilogramos', mult: 50, unit: 'KG', auth: 0 },
+      { name: 'Paquete x 10', desc: 'Paquete por 10 unidades', mult: 10, unit: 'PAQ', auth: 0 },
+    ];
+
+    for (const t of defaultTemplates) {
+      await query(
+        `INSERT IGNORE INTO presentations (id, company_id, name, description, default_multiplier, default_unit, requires_authorization, is_active)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+        [crypto.randomUUID(), companyId, t.name, t.desc, t.mult, t.unit, t.auth]
+      );
+    }
+  }
+
   static async getPresentations(companyId: string) {
-    return await query<any>(
+    let rows = await query<any>(
       `SELECT id, company_id as companyId, name, description, default_multiplier as defaultMultiplier,
               default_unit as defaultUnit, requires_authorization as requiresAuthorization,
               is_active as isActive, created_at as createdAt
@@ -1228,6 +1312,21 @@ export class InventoryService {
        ORDER BY name ASC`,
       [companyId]
     );
+
+    if (rows.length === 0) {
+      await this.seedDefaultPresentations(companyId);
+      rows = await query<any>(
+        `SELECT id, company_id as companyId, name, description, default_multiplier as defaultMultiplier,
+                default_unit as defaultUnit, requires_authorization as requiresAuthorization,
+                is_active as isActive, created_at as createdAt
+         FROM presentations
+         WHERE company_id = ?
+         ORDER BY name ASC`,
+        [companyId]
+      );
+    }
+
+    return rows;
   }
 
   static async createPresentation(input: PresentationInput) {
@@ -1564,6 +1663,34 @@ export class InventoryService {
       let totalCostImpact = 0;
 
       for (const item of data.items) {
+        if (item.movementType === 'ADJUST_IN') {
+          totalCostImpact += item.quantity * item.unitCost;
+        } else {
+          totalCostImpact -= item.quantity * item.unitCost;
+        }
+      }
+
+      // 1. Insertar primero la cabecera en inventory_adjustments para cumplir con la FK de los items
+      await conn.query(
+        `INSERT INTO inventory_adjustments (
+          id, company_id, branch_id, warehouse_id, user_id,
+          adjustment_number, type, total_cost_impact, reason, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'APPLIED')`,
+        [
+          adjustmentId,
+          companyId,
+          data.branchId,
+          data.warehouseId,
+          userId,
+          adjustmentNumber,
+          data.type,
+          totalCostImpact,
+          data.reason,
+        ]
+      );
+
+      // 2. Procesar existencias e insertar items vinculados al adjustment_id
+      for (const item of data.items) {
         const [stockRows]: any = await conn.query(
           `SELECT current_stock FROM product_stocks WHERE product_id = ? AND warehouse_id = ?`,
           [item.productId, data.warehouseId]
@@ -1573,10 +1700,8 @@ export class InventoryService {
 
         if (item.movementType === 'ADJUST_IN') {
           newStock = previousStock + item.quantity;
-          totalCostImpact += item.quantity * item.unitCost;
         } else {
           newStock = Math.max(0, previousStock - item.quantity);
-          totalCostImpact -= item.quantity * item.unitCost;
         }
 
         await conn.query(
@@ -1629,24 +1754,6 @@ export class InventoryService {
           ]
         );
       }
-
-      await conn.query(
-        `INSERT INTO inventory_adjustments (
-          id, company_id, branch_id, warehouse_id, user_id,
-          adjustment_number, type, total_cost_impact, reason, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'APPLIED')`,
-        [
-          adjustmentId,
-          companyId,
-          data.branchId,
-          data.warehouseId,
-          userId,
-          adjustmentNumber,
-          data.type,
-          totalCostImpact,
-          data.reason,
-        ]
-      );
 
       return {
         id: adjustmentId,
