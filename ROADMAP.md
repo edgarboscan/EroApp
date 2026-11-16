@@ -234,13 +234,12 @@ Se completó el análisis arquitectural integral y la implementación base del E
    - [x] Si la actualizacion automatica esta activada y si no se pudo obtener la tasa del dol dolar notificar que no se pudo y porque.
 
 10. **DASHBOARD**
-   - [ ] Poder permitir a usuario que Widgets pueden ver.
-   - [ ] Agregar Widgets para contabilidad.
-   - [ ] Todos los KPIs deben de tener el mismo alto.
-   - [ ] Poder seleccionar si los KPIs se pueden visualizar en 1 o 2 filas.
+   - [x] Poder permitir a usuario que Widgets pueden ver.
+   - [x] Agregar Widgets para contabilidad.
+   - [x] Todos los KPIs deben de tener el mismo alto.
+   - [x] Poder seleccionar si los KPIs se pueden visualizar en 1 o 2 filas.
 
 11. **POS**
-   - [ ] Si el producto tiene 1 sola presentacion.
    - [ ] En el ticket de venta, si el producto se le aplica % de descuento, debe de salir reflejado el descuento.
    - [ ] Organiza mejor el detalle de la venta para que se puedan visualizar mas productos de la lista, puedes quitar la parte del cliente y agregar la busquedad como un modal y que solo salga reflejado el nombre del cliente.
    - [ ] En Verificación de Arqueos & Depósitos el filtro deberia de estar por defecto la fecha del di correspondiente, y el estado pendiente de verificacion
