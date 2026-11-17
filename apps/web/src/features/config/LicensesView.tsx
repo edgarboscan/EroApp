@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import {
   AlertTriangle,
@@ -17,13 +17,18 @@ import {
   CheckSquare,
   Square,
   Check,
+  FileText,
+  Download,
+  DollarSign,
+  Calculator,
+  Receipt,
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
 import { Badge } from '../../components/ui/Badge';
 import { useAuthStore, isSuperAdminRole } from '../../stores/authStore';
-import { LicenseInfo } from '@ero/shared';
+import { LicenseInfo, LicenseCostBreakdown, formatMoneyUSD } from '@ero/shared';
 
 const AVAILABLE_MODULES: Array<{ key: string; label: string }> = [
   { key: 'dashboards', label: 'Dashboards Dinámicos' },
@@ -65,7 +70,13 @@ export const LicensesView: React.FC = () => {
     licenseKey: string;
     licensePackage: string;
     licenseInfo: LicenseInfo;
+    certificatePdfBase64?: string;
   } | null>(null);
+
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [customDiscount, setCustomDiscount] = useState<string>('');
+  const [customTotalCost, setCustomTotalCost] = useState<string>('');
+  const [isManualCost, setIsManualCost] = useState<boolean>(false);
 
   // Formulario de Emisión
   const [issueForm, setIssueForm] = useState({
@@ -82,6 +93,195 @@ export const LicensesView: React.FC = () => {
     modulesAllowed: AVAILABLE_MODULES.map((m) => m.key),
     applyNow: true,
   });
+
+  // Calculadora de Costos reactiva en tiempo real
+  const calculatedCost: LicenseCostBreakdown = useMemo(() => {
+    const isTrial = issueForm.type === 'trial';
+    const isPerpetual = issueForm.type === 'perpetua';
+    const isTemporal = issueForm.type === 'temporal';
+
+    let typeCost = 0;
+    let typeConcept = '';
+    let billingPeriod = 'Gratuito (Trial 30 Días)';
+
+    if (isTrial) {
+      typeCost = 0;
+      typeConcept = 'Licencia de Demostración & Evaluación (30 Días)';
+      billingPeriod = 'Gratuito (30 Días)';
+    } else if (isTemporal) {
+      const months = issueForm.durationMonths || 12;
+      typeCost = Math.round(120 * (months / 12) * 100) / 100;
+      typeConcept = `Licencia Suscripción Temporal (${months} meses - Base 5 usuarios / 1 sede)`;
+      billingPeriod = `${months} Meses`;
+    } else {
+      typeCost = 500;
+      typeConcept = 'Licencia Perpetua Enterprise (Base 5 usuarios / 1 sede)';
+      billingPeriod = 'Pago Único (Perpetua)';
+    }
+
+    const items: Array<{
+      concept: string;
+      category: 'TYPE' | 'USERS' | 'BRANCHES' | 'MODULES' | 'SUPPORT' | 'DISCOUNT' | 'CUSTOM';
+      quantity: number;
+      unitPrice: number;
+      subtotal: number;
+    }> = [
+      {
+        concept: typeConcept,
+        category: 'TYPE',
+        quantity: 1,
+        unitPrice: typeCost,
+        subtotal: typeCost,
+      },
+    ];
+
+    let usersCost = 0;
+    if (!isTrial) {
+      if (issueForm.isUnlimitedUsers || issueForm.maxUsers <= 0) {
+        usersCost = isPerpetual ? 350 : 150;
+        items.push({
+          concept: 'Paquete de Usuarios Concurrentes Ilimitados',
+          category: 'USERS',
+          quantity: 1,
+          unitPrice: usersCost,
+          subtotal: usersCost,
+        });
+      } else if (issueForm.maxUsers > 5) {
+        const extraUsers = issueForm.maxUsers - 5;
+        const unitUserPrice = isPerpetual ? 35 : 12;
+        usersCost = extraUsers * unitUserPrice;
+        items.push({
+          concept: `Usuarios Adicionales (+${extraUsers} sobre los 5 base)`,
+          category: 'USERS',
+          quantity: extraUsers,
+          unitPrice: unitUserPrice,
+          subtotal: usersCost,
+        });
+      }
+    }
+
+    let branchesCost = 0;
+    if (!isTrial) {
+      if (issueForm.isUnlimitedBranches || issueForm.maxBranches <= 0) {
+        branchesCost = isPerpetual ? 400 : 180;
+        items.push({
+          concept: 'Paquete Multi-Sucursal Ilimitado (Sedes sin límite)',
+          category: 'BRANCHES',
+          quantity: 1,
+          unitPrice: branchesCost,
+          subtotal: branchesCost,
+        });
+      } else if (issueForm.maxBranches > 1) {
+        const extraBranches = issueForm.maxBranches - 1;
+        const unitBranchPrice = isPerpetual ? 80 : 36;
+        branchesCost = extraBranches * unitBranchPrice;
+        items.push({
+          concept: `Sucursales Adicionales (+${extraBranches} sobre la sede principal)`,
+          category: 'BRANCHES',
+          quantity: extraBranches,
+          unitPrice: unitBranchPrice,
+          subtotal: branchesCost,
+        });
+      }
+    }
+
+    let modulesCost = 0;
+    if (!isTrial) {
+      const advancedModulesPricing: Record<string, { label: string; temporal: number; perpetua: number }> = {
+        receivables: { label: 'Cuentas por Cobrar & Gestión de Cartera', temporal: 15, perpetua: 30 },
+        payables: { label: 'Cuentas por Pagar & Compromisos', temporal: 15, perpetua: 30 },
+        treasury: { label: 'Tesorería Integral & Conciliación Bancaria', temporal: 20, perpetua: 45 },
+        taxes: { label: 'Tributos SENIAT & Retenciones IVA/ISLR', temporal: 20, perpetua: 45 },
+        reports: { label: 'Reportes Gerenciales & Exportación', temporal: 15, perpetua: 35 },
+        audit: { label: 'Auditoría Integral & Trazabilidad', temporal: 20, perpetua: 40 },
+        restaurant: { label: 'Restaurante & Comandera KDS', temporal: 35, perpetua: 90 },
+        accounting: { label: 'Contabilidad Senior NIIF / VEN-NIF', temporal: 45, perpetua: 120 },
+      };
+
+      for (const modKey of issueForm.modulesAllowed) {
+        const p = advancedModulesPricing[modKey];
+        if (p) {
+          const modPrice = isPerpetual ? p.perpetua : p.temporal;
+          modulesCost += modPrice;
+          items.push({
+            concept: `Módulo Especializado: ${p.label}`,
+            category: 'MODULES',
+            quantity: 1,
+            unitPrice: modPrice,
+            subtotal: modPrice,
+          });
+        }
+      }
+    }
+
+    let supportCost = 0;
+    if (!isTrial && issueForm.hasSupport) {
+      if (isPerpetual) {
+        supportCost = 80;
+        items.push({
+          concept: 'Póliza de Soporte Técnico Prioritario & Actualizaciones (1er Año)',
+          category: 'SUPPORT',
+          quantity: 1,
+          unitPrice: 80,
+          subtotal: 80,
+        });
+      } else {
+        items.push({
+          concept: 'Soporte Técnico Continuo & Actualizaciones (Incluido)',
+          category: 'SUPPORT',
+          quantity: 1,
+          unitPrice: 0,
+          subtotal: 0,
+        });
+      }
+    }
+
+    const calculatedSubtotal = typeCost + usersCost + branchesCost + modulesCost + supportCost;
+    const discountVal = Math.max(0, parseFloat(customDiscount) || 0);
+
+    let finalTotal = Math.max(0, calculatedSubtotal - discountVal);
+
+    if (isManualCost && customTotalCost !== '') {
+      const parsedManual = Math.max(0, parseFloat(customTotalCost) || 0);
+      finalTotal = parsedManual;
+      const difference = calculatedSubtotal - finalTotal;
+      if (difference !== 0) {
+        items.push({
+          concept: difference > 0 ? 'Ajuste / Descuento Comercial Acordado' : 'Ajuste Comercial Especial',
+          category: difference > 0 ? 'DISCOUNT' : 'CUSTOM',
+          quantity: 1,
+          unitPrice: -difference,
+          subtotal: -difference,
+        });
+      }
+    }
+
+    return {
+      currency: 'USD',
+      typeCost,
+      usersCost,
+      branchesCost,
+      modulesCost,
+      supportCost,
+      subtotal: calculatedSubtotal,
+      discount: discountVal,
+      totalCost: finalTotal,
+      billingPeriod,
+      items,
+    };
+  }, [
+    issueForm.type,
+    issueForm.durationMonths,
+    issueForm.isUnlimitedUsers,
+    issueForm.maxUsers,
+    issueForm.isUnlimitedBranches,
+    issueForm.maxBranches,
+    issueForm.hasSupport,
+    issueForm.modulesAllowed,
+    customDiscount,
+    isManualCost,
+    customTotalCost,
+  ]);
 
   const fetchLicenseData = async () => {
     setLoading(true);
@@ -216,6 +416,92 @@ export const LicensesView: React.FC = () => {
     }
   };
 
+  const downloadBase64Pdf = (base64: string, filename: string) => {
+    const byteCharacters = atob(base64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: 'application/pdf' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  };
+
+  const handleDownloadPdf = async (
+    customLicense?: LicenseInfo,
+    customPackage?: string,
+    customBreakdown?: LicenseCostBreakdown | null,
+    customBase64?: string
+  ) => {
+    const targetRif = customLicense?.companyRif || license?.companyRif || 'ERO';
+    const filename = `Certificado_Licencia_${targetRif.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`;
+
+    if (customBase64) {
+      try {
+        downloadBase64Pdf(customBase64, filename);
+        toast.success('Certificado PDF descargado con éxito');
+        return;
+      } catch {
+        // Fallback al endpoint si falla el decodificado local
+      }
+    }
+
+    setIsDownloadingPdf(true);
+    try {
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      let response: Response;
+      if (customLicense) {
+        headers['Content-Type'] = 'application/json';
+        response = await fetch('/api/licenses/certificate-pdf', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            licenseInfo: customLicense,
+            licensePackage: customPackage || '',
+            costBreakdown: customBreakdown || customLicense.costBreakdown,
+          }),
+        });
+      } else {
+        response = await fetch('/api/licenses/certificate-pdf', {
+          method: 'GET',
+          headers,
+        });
+      }
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error?.message || 'Error al generar el certificado PDF');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success('Certificado PDF oficial descargado con éxito');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error al descargar el certificado';
+      toast.error(message);
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
   // Manejador de Emisión de Licencia (Super Administrador)
   const handleIssueLicense = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -263,6 +549,9 @@ export const LicensesView: React.FC = () => {
           hasSupport: Boolean(issueForm.hasSupport),
           modulesAllowed: issueForm.modulesAllowed,
           applyNow: Boolean(issueForm.applyNow),
+          totalCost: calculatedCost.totalCost,
+          discount: calculatedCost.discount,
+          costBreakdown: calculatedCost,
         }),
       });
 
@@ -365,6 +654,18 @@ export const LicensesView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
+          {/* Descargar Certificado PDF Oficial */}
+          <Button
+            variant="outline"
+            onClick={() => handleDownloadPdf()}
+            disabled={isDownloadingPdf || !license}
+            className="flex items-center gap-2 text-xs"
+            title="Descargar Certificado de Licencia en PDF"
+          >
+            <Download className="w-4 h-4" />
+            <span className="hidden sm:inline">{isDownloadingPdf ? 'Generando...' : 'Certificado PDF'}</span>
+          </Button>
+
           {/* Botón exclusivo para Super Administrador */}
           {isSuperAdmin && (
             <Button
@@ -392,7 +693,8 @@ export const LicensesView: React.FC = () => {
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="h-40 bg-neutral-200 dark:bg-neutral-800 animate-pulse rounded-lg" />
           <div className="h-40 bg-neutral-200 dark:bg-neutral-800 animate-pulse rounded-lg" />
           <div className="h-40 bg-neutral-200 dark:bg-neutral-800 animate-pulse rounded-lg" />
           <div className="h-40 bg-neutral-200 dark:bg-neutral-800 animate-pulse rounded-lg" />
@@ -400,7 +702,7 @@ export const LicensesView: React.FC = () => {
       ) : (
         <>
           {/* Tarjetas Principales */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Estado de Licencia y Empresa */}
             <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-5 shadow-sm flex flex-col justify-between">
               <div>
@@ -555,6 +857,55 @@ export const LicensesView: React.FC = () => {
               <div className="mt-4 pt-3 border-t border-neutral-200 dark:border-neutral-800 text-[11px] text-neutral-500 dark:text-neutral-400">
                 Restricciones validadas en tiempo real por el núcleo de
                 seguridad.
+              </div>
+            </div>
+
+            {/* Inversión & Certificado Oficial */}
+            <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-5 shadow-sm flex flex-col justify-between">
+              <div>
+                <div className="flex justify-between items-start">
+                  <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+                    Valor de Licencia
+                  </span>
+                  <DollarSign className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                </div>
+
+                <div className="mt-3">
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+                      {formatMoneyUSD(license?.totalCost || 0)}
+                    </span>
+                    <span className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">
+                      USD
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
+                    {license?.costBreakdown?.billingPeriod ||
+                      (license?.type === 'perpetua'
+                        ? 'Pago Único Perpetuo'
+                        : license?.type === 'trial'
+                          ? 'Periodo Gratuito (Trial)'
+                          : 'Suscripción Anual')}
+                  </p>
+                  {license?.costBreakdown?.discount ? (
+                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5">
+                      Descuento comercial: {formatMoneyUSD(license.costBreakdown.discount)}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-neutral-200 dark:border-neutral-800">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleDownloadPdf()}
+                  disabled={isDownloadingPdf || !license}
+                  className="w-full flex items-center justify-center gap-1.5 text-xs border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>{isDownloadingPdf ? 'Descargando...' : 'Descargar Certificado PDF'}</span>
+                </Button>
               </div>
             </div>
           </div>
@@ -835,24 +1186,51 @@ export const LicensesView: React.FC = () => {
                     habilitados
                   </span>
                 </div>
+                <div className="flex justify-between pt-1 border-t border-blue-200/60 dark:border-blue-800/60">
+                  <span className="text-neutral-500 dark:text-neutral-400">
+                    Inversión Certificada:
+                  </span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                    {formatMoneyUSD(issueResult.licenseInfo.totalCost || 0)} USD ({issueResult.licenseInfo.costBreakdown?.billingPeriod || 'N/A'})
+                  </span>
+                </div>
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 pt-3 border-t border-neutral-200 dark:border-neutral-800">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIssueResult(null)}
-              >
-                Emitir Otra Licencia
-              </Button>
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-3 border-t border-neutral-200 dark:border-neutral-800">
               <Button
                 type="button"
                 variant="primary"
-                onClick={() => setShowIssueModal(false)}
+                onClick={() =>
+                  handleDownloadPdf(
+                    issueResult.licenseInfo,
+                    issueResult.licensePackage,
+                    issueResult.licenseInfo.costBreakdown,
+                    issueResult.certificatePdfBase64
+                  )
+                }
+                className="w-full sm:w-auto flex items-center justify-center gap-2 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
               >
-                Cerrar
+                <Download className="w-4 h-4" />
+                <span>Descargar Certificado PDF para el Cliente</span>
               </Button>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIssueResult(null)}
+                >
+                  Emitir Otra
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowIssueModal(false)}
+                >
+                  Cerrar
+                </Button>
+              </div>
             </div>
           </div>
         ) : (
@@ -1135,6 +1513,137 @@ export const LicensesView: React.FC = () => {
                     </button>
                   );
                 })}
+              </div>
+            </div>
+
+            {/* Sección: Estructura de Costos de la Licencia */}
+            <div className="p-4  border border-neutral-200 dark:border-neutral-700 rounded-lg space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Calculator className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                  <h4 className="text-xs font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider">
+                    Estructura de Costos de la Licencia ($ USD)
+                  </h4>
+                </div>
+                <Badge variant={calculatedCost.totalCost === 0 ? "neutral" : "success"}>
+                  {calculatedCost.billingPeriod}
+                </Badge>
+              </div>
+
+              {/* Detalle de partidas */}
+              <div className="space-y-1.5 text-xs text-neutral-600 dark:text-neutral-300 divide-y divide-neutral-200 dark:divide-neutral-700">
+                <div className="flex justify-between pt-1">
+                  <span>Costo Base ({issueForm.type === 'perpetua' ? 'Perpetua' : issueForm.type === 'trial' ? 'Trial' : `${issueForm.durationMonths} meses`}):</span>
+                  <span className="font-semibold text-neutral-800 dark:text-neutral-200 font-mono">
+                    {formatMoneyUSD(calculatedCost.typeCost)}
+                  </span>
+                </div>
+
+                <div className="flex justify-between pt-1">
+                  <span>Capacidad Usuarios ({issueForm.isUnlimitedUsers ? 'Ilimitados' : `${issueForm.maxUsers} usuarios`}):</span>
+                  <span className="font-semibold text-neutral-800 dark:text-neutral-200 font-mono">
+                    {formatMoneyUSD(calculatedCost.usersCost)}
+                  </span>
+                </div>
+
+                <div className="flex justify-between pt-1">
+                  <span>Capacidad Sucursales ({issueForm.isUnlimitedBranches ? 'Ilimitadas' : `${issueForm.maxBranches} sedes`}):</span>
+                  <span className="font-semibold text-neutral-800 dark:text-neutral-200 font-mono">
+                    {formatMoneyUSD(calculatedCost.branchesCost)}
+                  </span>
+                </div>
+
+                <div className="flex justify-between pt-1">
+                  <span>Módulos Especializados ({calculatedCost.items.filter((i) => i.category === 'MODULES').length} activos):</span>
+                  <span className="font-semibold text-neutral-800 dark:text-neutral-200 font-mono">
+                    {formatMoneyUSD(calculatedCost.modulesCost)}
+                  </span>
+                </div>
+
+                <div className="flex justify-between pt-1">
+                  <span>Póliza de Soporte & Actualizaciones:</span>
+                  <span className="font-semibold text-neutral-800 dark:text-neutral-200 font-mono">
+                    {formatMoneyUSD(calculatedCost.supportCost)}
+                  </span>
+                </div>
+
+                <div className="flex justify-between pt-1.5 font-bold text-neutral-800 dark:text-neutral-200">
+                  <span>Subtotal Calculado:</span>
+                  <span className="font-mono text-sm">
+                    {formatMoneyUSD(calculatedCost.subtotal)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Ajustes comerciales: Descuento o Precio Pactado */}
+              <div className="pt-2 border-t border-neutral-200 dark:border-neutral-700 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                    Descuento Comercial ($ USD)
+                  </label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    placeholder="0.00"
+                    disabled={isManualCost}
+                    value={customDiscount}
+                    onChange={(e) => setCustomDiscount(e.target.value)}
+                    className="text-xs font-mono"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-medium text-neutral-700 dark:text-neutral-300">
+                      Precio Acordado Fijo ($ USD)
+                    </label>
+                    <label className="flex items-center gap-1 text-[10px] text-sky-600 dark:text-sky-400 font-semibold cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isManualCost}
+                        onChange={(e) => {
+                          setIsManualCost(e.target.checked);
+                          if (e.target.checked && customTotalCost === '') {
+                            setCustomTotalCost(calculatedCost.subtotal.toString());
+                          }
+                        }}
+                        className="rounded text-sky-600 focus:ring-sky-500"
+                      />
+                      <span>Manual</span>
+                    </label>
+                  </div>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    placeholder="Precio total personalizado"
+                    disabled={!isManualCost}
+                    value={customTotalCost}
+                    onChange={(e) => setCustomTotalCost(e.target.value)}
+                    className="text-xs font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Total Final */}
+              <div className="p-3 bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 flex items-center justify-between">
+                <div>
+                  <span className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase">
+                    Inversión Total de Licencia
+                  </span>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    Se grabará en la firma criptográfica y en el Certificado PDF oficial
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                    {formatMoneyUSD(calculatedCost.totalCost)}
+                  </span>
+                  <span className="text-[11px] text-neutral-500 dark:text-neutral-400 block font-medium">
+                    USD Netos
+                  </span>
+                </div>
               </div>
             </div>
 

@@ -1,7 +1,8 @@
 import os from 'os';
 import crypto from 'crypto';
 import { query } from '../../db';
-import { LicenseActivationInput, LicenseInfo } from '@ero/shared';
+import { LicenseActivationInput, LicenseInfo, LicenseCostBreakdown, LicenseCostItem } from '@ero/shared';
+import { LicensesPdfEngine } from './licenses-pdf';
 
 export class LicensesService {
   private static licenseColumnsEnsured = false;
@@ -9,7 +10,7 @@ export class LicensesService {
   private static readonly CACHE_TTL_MS = 10000; // 10 segundos de caché de lectura
 
   /**
-   * Garantiza que la tabla licenses cuente con las columnas de cifrado AES-256-GCM
+   * Garantiza que la tabla licenses cuente con las columnas de cifrado AES-256-GCM y costos
    */
   private static async ensureLicenseColumns() {
     if (this.licenseColumnsEnsured) return;
@@ -22,6 +23,8 @@ export class LicensesService {
       if (!existing.has('auth_tag')) toAdd.push('ADD COLUMN auth_tag VARCHAR(64) DEFAULT NULL');
       if (!existing.has('iv')) toAdd.push('ADD COLUMN iv VARCHAR(64) DEFAULT NULL');
       if (!existing.has('integrity_hash')) toAdd.push('ADD COLUMN integrity_hash VARCHAR(128) DEFAULT NULL');
+      if (!existing.has('cost_usd')) toAdd.push('ADD COLUMN cost_usd DECIMAL(12,2) DEFAULT NULL');
+      if (!existing.has('cost_details')) toAdd.push('ADD COLUMN cost_details JSON DEFAULT NULL');
       if (toAdd.length > 0) {
         await query(`ALTER TABLE licenses ${toAdd.join(', ')}`);
       }
@@ -191,6 +194,200 @@ export class LicensesService {
   }
 
   /**
+   * Calcula el desglose detallado de costos de una licencia según tipo, capacidad y módulos
+   */
+  static calculateCostBreakdown(input: {
+    type: 'trial' | 'temporal' | 'perpetua';
+    durationMonths?: number;
+    maxUsers: number;
+    maxBranches: number;
+    hasSupport: boolean;
+    modulesAllowed: string[];
+    manualTotalCost?: number;
+    discount?: number;
+  }): LicenseCostBreakdown {
+    const isTrial = input.type === 'trial';
+    const isPerpetual = input.type === 'perpetua';
+    const isTemporal = input.type === 'temporal';
+
+    const items: LicenseCostItem[] = [];
+
+    // 1. Costo Base según tipo de licencia
+    let typeCost = 0;
+    let typeConcept = '';
+    let billingPeriod = 'Gratuito (Trial 30 Días)';
+
+    if (isTrial) {
+      typeCost = 0;
+      typeConcept = 'Licencia de Demostración & Evaluación (30 Días)';
+      billingPeriod = 'Gratuito (30 Días)';
+    } else if (isTemporal) {
+      const months = input.durationMonths || 12;
+      typeCost = Math.round(120 * (months / 12) * 100) / 100;
+      typeConcept = `Licencia Suscripción Temporal (${months} meses - Base 5 usuarios / 1 sede)`;
+      billingPeriod = `${months} Meses`;
+    } else {
+      typeCost = 500;
+      typeConcept = 'Licencia Perpetua Enterprise (Base 5 usuarios / 1 sede)';
+      billingPeriod = 'Pago Único (Perpetua)';
+    }
+
+    items.push({
+      concept: typeConcept,
+      category: 'TYPE',
+      quantity: 1,
+      unitPrice: typeCost,
+      subtotal: typeCost,
+    });
+
+    // 2. Costo por Usuarios
+    let usersCost = 0;
+    if (!isTrial) {
+      if (input.maxUsers <= 0) {
+        // Paquete usuarios ilimitados
+        usersCost = isPerpetual ? 350 : 150;
+        items.push({
+          concept: 'Paquete de Usuarios Concurrentes Ilimitados',
+          category: 'USERS',
+          quantity: 1,
+          unitPrice: usersCost,
+          subtotal: usersCost,
+        });
+      } else if (input.maxUsers > 5) {
+        const extraUsers = input.maxUsers - 5;
+        const unitUserPrice = isPerpetual ? 35 : 12;
+        usersCost = extraUsers * unitUserPrice;
+        items.push({
+          concept: `Usuarios Adicionales (+${extraUsers} sobre los 5 base)`,
+          category: 'USERS',
+          quantity: extraUsers,
+          unitPrice: unitUserPrice,
+          subtotal: usersCost,
+        });
+      }
+    }
+
+    // 3. Costo por Sucursales
+    let branchesCost = 0;
+    if (!isTrial) {
+      if (input.maxBranches <= 0) {
+        // Paquete multi-sucursal ilimitada
+        branchesCost = isPerpetual ? 400 : 180;
+        items.push({
+          concept: 'Paquete Multi-Sucursal Ilimitado (Sedes sin límite)',
+          category: 'BRANCHES',
+          quantity: 1,
+          unitPrice: branchesCost,
+          subtotal: branchesCost,
+        });
+      } else if (input.maxBranches > 1) {
+        const extraBranches = input.maxBranches - 1;
+        const unitBranchPrice = isPerpetual ? 80 : 36;
+        branchesCost = extraBranches * unitBranchPrice;
+        items.push({
+          concept: `Sucursales Adicionales (+${extraBranches} sobre la sede principal)`,
+          category: 'BRANCHES',
+          quantity: extraBranches,
+          unitPrice: unitBranchPrice,
+          subtotal: branchesCost,
+        });
+      }
+    }
+
+    // 4. Costo por Módulos Avanzados y Especializados
+    let modulesCost = 0;
+    if (!isTrial) {
+      const advancedModulesPricing: Record<string, { label: string; temporal: number; perpetua: number }> = {
+        receivables: { label: 'Cuentas por Cobrar & Gestión de Cartera', temporal: 15, perpetua: 30 },
+        payables: { label: 'Cuentas por Pagar & Compromisos', temporal: 15, perpetua: 30 },
+        treasury: { label: 'Tesorería Integral & Conciliación Bancaria', temporal: 20, perpetua: 45 },
+        taxes: { label: 'Tributos SENIAT & Retenciones IVA/ISLR', temporal: 20, perpetua: 45 },
+        reports: { label: 'Reportes Gerenciales & Exportación', temporal: 15, perpetua: 35 },
+        audit: { label: 'Auditoría Integral & Trazabilidad', temporal: 20, perpetua: 40 },
+        restaurant: { label: 'Restaurante & Comandera KDS', temporal: 35, perpetua: 90 },
+        accounting: { label: 'Contabilidad Senior NIIF / VEN-NIF', temporal: 45, perpetua: 120 },
+      };
+
+      const selectedModules = input.modulesAllowed.includes('*')
+        ? Object.keys(advancedModulesPricing)
+        : input.modulesAllowed;
+
+      for (const modKey of selectedModules) {
+        const p = advancedModulesPricing[modKey];
+        if (p) {
+          const modPrice = isPerpetual ? p.perpetua : p.temporal;
+          modulesCost += modPrice;
+          items.push({
+            concept: `Módulo Especializado: ${p.label}`,
+            category: 'MODULES',
+            quantity: 1,
+            unitPrice: modPrice,
+            subtotal: modPrice,
+          });
+        }
+      }
+    }
+
+    // 5. Soporte Técnico
+    let supportCost = 0;
+    if (!isTrial && input.hasSupport) {
+      if (isPerpetual) {
+        supportCost = 80;
+        items.push({
+          concept: 'Póliza de Soporte Técnico Prioritario & Actualizaciones (1er Año)',
+          category: 'SUPPORT',
+          quantity: 1,
+          unitPrice: 80,
+          subtotal: 80,
+        });
+      } else {
+        // En suscripción temporal el soporte está incluido
+        items.push({
+          concept: 'Soporte Técnico Continuo & Actualizaciones (Incluido)',
+          category: 'SUPPORT',
+          quantity: 1,
+          unitPrice: 0,
+          subtotal: 0,
+        });
+      }
+    }
+
+    const calculatedSubtotal = typeCost + usersCost + branchesCost + modulesCost + supportCost;
+    const discount = Math.max(0, Number(input.discount) || 0);
+
+    let finalTotal = Math.max(0, calculatedSubtotal - discount);
+
+    // Si el Super Administrador introdujo un precio final manual específico
+    if (typeof input.manualTotalCost === 'number' && input.manualTotalCost >= 0) {
+      finalTotal = input.manualTotalCost;
+      const difference = calculatedSubtotal - finalTotal;
+      if (difference !== 0) {
+        items.push({
+          concept: difference > 0 ? 'Ajuste / Descuento Comercial Acordado' : 'Ajuste Comercial Especial',
+          category: difference > 0 ? 'DISCOUNT' : 'CUSTOM',
+          quantity: 1,
+          unitPrice: -difference,
+          subtotal: -difference,
+        });
+      }
+    }
+
+    return {
+      currency: 'USD',
+      typeCost,
+      usersCost,
+      branchesCost,
+      modulesCost,
+      supportCost,
+      subtotal: calculatedSubtotal,
+      discount,
+      totalCost: finalTotal,
+      billingPeriod,
+      items,
+    };
+  }
+
+  /**
    * Emite una nueva licencia empresarial (Exclusivo Super Administrador)
    */
   static async issueLicense(
@@ -204,9 +401,17 @@ export class LicensesService {
       maxBranches: number;
       hasSupport: boolean;
       modulesAllowed: string[];
+      totalCost?: number;
+      discount?: number;
+      costBreakdown?: LicenseCostBreakdown;
     },
     applyToCompanyId?: string
-  ): Promise<{ licenseKey: string; licensePackage: string; licenseInfo: LicenseInfo }> {
+  ): Promise<{
+    licenseKey: string;
+    licensePackage: string;
+    licenseInfo: LicenseInfo;
+    certificatePdfBase64?: string;
+  }> {
     const cleanFp = input.hardwareFingerprint.trim().toUpperCase();
     const cleanRif = input.companyRif.trim().toUpperCase();
     const cleanName = input.companyName.trim().toUpperCase();
@@ -222,6 +427,20 @@ export class LicensesService {
       expiresAt.setDate(expiresAt.getDate() + 30);
     }
 
+    // Calcular estructura de costos asociada a la licencia
+    const costBreakdown =
+      input.costBreakdown ||
+      this.calculateCostBreakdown({
+        type: input.type,
+        durationMonths: input.durationMonths,
+        maxUsers: input.maxUsers,
+        maxBranches: input.maxBranches,
+        hasSupport: Boolean(input.hasSupport),
+        modulesAllowed: input.modulesAllowed,
+        manualTotalCost: input.totalCost,
+        discount: input.discount,
+      });
+
     const payload = {
       v: 2,
       fp: cleanFp,
@@ -235,6 +454,8 @@ export class LicensesService {
       modules: input.modulesAllowed,
       issuedAt: new Date().toISOString(),
       licenseKey: readableKey,
+      totalCost: costBreakdown.totalCost,
+      costBreakdown,
     };
 
     const licensePackage = this.signLicensePackage(payload);
@@ -250,8 +471,8 @@ export class LicensesService {
           `INSERT INTO licenses (
              id, company_id, company_name, company_rif, license_key, type, expires_at,
              hardware_fingerprint, modules_allowed, max_users, max_branches, has_support, is_active,
-             encrypted_payload, auth_tag, iv, integrity_hash
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+             encrypted_payload, auth_tag, iv, integrity_hash, cost_usd, cost_details
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE
              company_name = VALUES(company_name),
              company_rif = VALUES(company_rif),
@@ -267,6 +488,8 @@ export class LicensesService {
              auth_tag = VALUES(auth_tag),
              iv = VALUES(iv),
              integrity_hash = VALUES(integrity_hash),
+             cost_usd = VALUES(cost_usd),
+             cost_details = VALUES(cost_details),
              is_active = 1`,
           [
             licenseId,
@@ -285,6 +508,8 @@ export class LicensesService {
             enc.authTag,
             enc.iv,
             enc.integrityHash,
+            costBreakdown.totalCost,
+            JSON.stringify(costBreakdown),
           ]
         );
 
@@ -319,12 +544,23 @@ export class LicensesService {
       isActive: true,
       status: 'ACTIVE',
       daysRemaining,
+      totalCost: costBreakdown.totalCost,
+      costBreakdown,
     };
+
+    let certificatePdfBase64: string | undefined;
+    try {
+      const pdfBuffer = LicensesPdfEngine.generateLicenseCertificatePDF(licenseInfo, costBreakdown, licensePackage);
+      certificatePdfBase64 = pdfBuffer.toString('base64');
+    } catch (pdfErr: any) {
+      console.warn('[LicensesService.issueLicense] Nota sobre generación de PDF:', pdfErr.message);
+    }
 
     return {
       licenseKey: readableKey,
       licensePackage,
       licenseInfo,
+      certificatePdfBase64,
     };
   }
 
@@ -345,7 +581,7 @@ export class LicensesService {
       const rows = await query<any>(
         `SELECT id, company_id, company_name, company_rif, license_key, type, expires_at, hardware_fingerprint,
                 modules_allowed, max_users, max_branches, has_support, is_active,
-                encrypted_payload, auth_tag, iv, integrity_hash
+                encrypted_payload, auth_tag, iv, integrity_hash, cost_usd, cost_details
          FROM licenses
          WHERE company_id = ?
          LIMIT 1`,
@@ -363,6 +599,10 @@ export class LicensesService {
         let expiresAt = lic.expires_at ? new Date(lic.expires_at) : null;
         let companyName = lic.company_name || undefined;
         let companyRif = lic.company_rif || undefined;
+        let totalCost: number | null = lic.cost_usd !== null && lic.cost_usd !== undefined ? Number(lic.cost_usd) : null;
+        let costBreakdown: LicenseCostBreakdown | null = lic.cost_details
+          ? (typeof lic.cost_details === 'string' ? JSON.parse(lic.cost_details) : lic.cost_details)
+          : null;
 
         if (lic.encrypted_payload && lic.auth_tag && lic.iv && lic.integrity_hash) {
           // Desencriptar usando clave AES-256-GCM derivada del Hardware Fingerprint actual
@@ -399,6 +639,12 @@ export class LicensesService {
             expiresAt = decrypted.expiresAt ? new Date(decrypted.expiresAt) : null;
             companyName = decrypted.companyName || companyName;
             companyRif = decrypted.companyRif || companyRif;
+            if (decrypted.costBreakdown) {
+              costBreakdown = decrypted.costBreakdown;
+            }
+            if (typeof decrypted.totalCost === 'number') {
+              totalCost = decrypted.totalCost;
+            }
           }
         } else {
           // Licencia previa sin payload encriptado: validar fingerprint
@@ -468,6 +714,21 @@ export class LicensesService {
           if (pkg?.licenseKey) {
             displayKey = pkg.licenseKey;
           }
+          if (!costBreakdown && pkg?.costBreakdown) {
+            costBreakdown = pkg.costBreakdown;
+            if (typeof pkg.totalCost === 'number') totalCost = pkg.totalCost;
+          }
+        }
+
+        if (!costBreakdown && licenseType) {
+          costBreakdown = this.calculateCostBreakdown({
+            type: licenseType,
+            maxUsers,
+            maxBranches,
+            hasSupport: lic.has_support !== undefined ? Boolean(lic.has_support) : true,
+            modulesAllowed,
+          });
+          if (totalCost === null) totalCost = costBreakdown.totalCost;
         }
 
         const result: LicenseInfo = {
@@ -486,6 +747,8 @@ export class LicensesService {
           isActive: Boolean(lic.is_active) && status === 'ACTIVE',
           status,
           daysRemaining,
+          totalCost,
+          costBreakdown,
         };
         this.licenseCache.set(companyId, { data: result, cachedAt: Date.now() });
         return result;
@@ -862,5 +1125,24 @@ export class LicensesService {
     } catch {
       return true;
     }
+  }
+
+  /**
+   * Genera el Certificado Oficial de Licencia en PDF para una empresa
+   */
+  static async getCertificatePDF(companyId: string): Promise<Buffer> {
+    const license = await this.getLicense(companyId);
+    return LicensesPdfEngine.generateLicenseCertificatePDF(license, license.costBreakdown);
+  }
+
+  /**
+   * Genera el Certificado Oficial de Licencia en PDF directamente desde datos
+   */
+  static generateCertificatePDFFromData(
+    license: LicenseInfo,
+    costBreakdown?: LicenseCostBreakdown | null,
+    licensePackage?: string
+  ): Buffer {
+    return LicensesPdfEngine.generateLicenseCertificatePDF(license, costBreakdown, licensePackage);
   }
 }

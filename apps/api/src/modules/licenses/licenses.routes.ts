@@ -1,6 +1,13 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { licenseActivationSchema, generateLicenseSchema, isSuperAdminRole, isSupervisorOrAdminRole } from '@ero/shared';
+import {
+  licenseActivationSchema,
+  generateLicenseSchema,
+  isSuperAdminRole,
+  isSupervisorOrAdminRole,
+  LicenseInfo,
+  LicenseCostBreakdown,
+} from '@ero/shared';
 import { LicensesService } from './licenses.service';
 import { authenticate, AppEnv } from '../../middleware/auth';
 
@@ -99,6 +106,98 @@ licensesRouter.post(
     }
   }
 );
+
+/**
+ * Calcula la estimación de costos de licencia según parámetros
+ */
+licensesRouter.post('/estimate-cost', authenticate, async (c) => {
+  const user = c.get('user');
+  const userPerms = user.permissions || [];
+  const canCalculate =
+    isSuperAdminRole(user.role) ||
+    isSupervisorOrAdminRole(user.role) ||
+    userPerms.includes('config.read') ||
+    userPerms.includes('config.write');
+
+  if (!canCalculate) {
+    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'No autorizado' } }, 403);
+  }
+
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const breakdown = LicensesService.calculateCostBreakdown({
+      type: body.type || 'temporal',
+      durationMonths: body.durationMonths ? Number(body.durationMonths) : 12,
+      maxUsers: body.maxUsers !== undefined ? Number(body.maxUsers) : 5,
+      maxBranches: body.maxBranches !== undefined ? Number(body.maxBranches) : 1,
+      hasSupport: body.hasSupport !== undefined ? Boolean(body.hasSupport) : true,
+      modulesAllowed: Array.isArray(body.modulesAllowed) ? body.modulesAllowed : [],
+      manualTotalCost: body.manualTotalCost !== undefined ? Number(body.manualTotalCost) : undefined,
+      discount: body.discount !== undefined ? Number(body.discount) : undefined,
+    });
+    return c.json({ success: true, data: breakdown });
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'ESTIMATE_ERROR', message: error.message } }, 500);
+  }
+});
+
+/**
+ * Genera y descarga el Certificado Oficial de Licencia en PDF para la empresa activa
+ */
+licensesRouter.get('/certificate-pdf', authenticate, async (c) => {
+  const user = c.get('user');
+  const userPerms = user.permissions || [];
+  const canView =
+    isSuperAdminRole(user.role) ||
+    isSupervisorOrAdminRole(user.role) ||
+    userPerms.includes('config.read') ||
+    userPerms.includes('config.write');
+
+  if (!canView) {
+    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'No autorizado para descargar certificado' } }, 403);
+  }
+
+  const targetCompanyId = (isSuperAdminRole(user.role) && c.req.query('companyId'))
+    ? c.req.query('companyId')!
+    : user.companyId;
+
+  try {
+    const pdfBuffer = await LicensesService.getCertificatePDF(targetCompanyId);
+    c.header('Content-Type', 'application/pdf');
+    c.header('Content-Disposition', 'inline; filename="Certificado_Licencia_ERO_ERP.pdf"');
+    return c.body(pdfBuffer as any);
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'PDF_GENERATION_FAILED', message: error.message } }, 500);
+  }
+});
+
+/**
+ * Genera el Certificado Oficial de Licencia en PDF a partir de datos arbitrarios de licencia
+ */
+licensesRouter.post('/certificate-pdf', authenticate, async (c) => {
+  const user = c.get('user');
+  if (!isSuperAdminRole(user.role) && !isSupervisorOrAdminRole(user.role)) {
+    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'No autorizado' } }, 403);
+  }
+
+  try {
+    const body = await c.req.json();
+    const licenseInfo: LicenseInfo = body.licenseInfo || body.license;
+    const costBreakdown: LicenseCostBreakdown = body.costBreakdown || licenseInfo?.costBreakdown || null;
+    const licensePackage: string = body.licensePackage || '';
+
+    if (!licenseInfo) {
+      throw new Error('Información de licencia requerida para generar certificado');
+    }
+
+    const pdfBuffer = LicensesService.generateCertificatePDFFromData(licenseInfo, costBreakdown, licensePackage);
+    c.header('Content-Type', 'application/pdf');
+    c.header('Content-Disposition', `inline; filename="Certificado_Licencia_${licenseInfo.companyRif || 'ERO'}.pdf"`);
+    return c.body(pdfBuffer as any);
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'PDF_GENERATION_FAILED', message: error.message } }, 500);
+  }
+});
 
 licensesRouter.post('/generate-key', authenticate, async (c) => {
   const user = c.get('user');

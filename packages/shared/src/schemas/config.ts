@@ -91,6 +91,28 @@ export const licenseActivationSchema = z.object({
 
 export type LicenseActivationInput = z.infer<typeof licenseActivationSchema>;
 
+export interface LicenseCostItem {
+  concept: string;
+  category: 'TYPE' | 'USERS' | 'BRANCHES' | 'MODULES' | 'SUPPORT' | 'CUSTOM' | 'DISCOUNT';
+  quantity?: number;
+  unitPrice?: number;
+  subtotal: number;
+}
+
+export interface LicenseCostBreakdown {
+  currency: 'USD';
+  typeCost: number;
+  usersCost: number;
+  branchesCost: number;
+  modulesCost: number;
+  supportCost: number;
+  subtotal: number;
+  discount: number;
+  totalCost: number;
+  billingPeriod: string;
+  items: LicenseCostItem[];
+}
+
 export const generateLicenseSchema = z.object({
   companyName: z.string().min(2, 'El nombre de la empresa es requerido'),
   companyRif: z.string().min(3, 'El RIF o Cédula es requerido'),
@@ -101,6 +123,9 @@ export const generateLicenseSchema = z.object({
   maxBranches: z.number().int().min(0, 'Cantidad de sucursales no puede ser negativa (0 = Ilimitado)').max(10000),
   hasSupport: z.boolean().default(true),
   modulesAllowed: z.array(z.string()).min(1, 'Debe incluir al menos un módulo'),
+  totalCost: z.number().min(0).optional(),
+  discount: z.number().min(0).optional(),
+  costBreakdown: z.any().optional(),
 });
 
 export type GenerateLicenseInput = z.infer<typeof generateLicenseSchema>;
@@ -121,6 +146,8 @@ export interface LicenseInfo {
   isActive: boolean;
   status: 'ACTIVE' | 'EXPIRED' | 'INVALID_HARDWARE' | 'INVALID_COMPANY';
   daysRemaining: number | null;
+  totalCost?: number | null;
+  costBreakdown?: LicenseCostBreakdown | null;
 }
 
 // ==========================================

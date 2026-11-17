@@ -1818,11 +1818,12 @@ export class ConfigService {
     // 2. Reglas de Negocio
     await query(
       `INSERT INTO business_rules (
-        company_id, allow_negative_stock, require_supervisor_discount,
-        require_supervisor_credit, max_unsupervised_discount, enable_igtf,
-        igtf_rate, auto_close_shifts, enforce_blind_cash_count
-      ) VALUES (?, 0, 1, 1, 5.00, 1, 3.00, 0, 1)`,
-      [newCompanyId]
+        id, company_id, branch_id, allow_credit_sales, require_approval_discount,
+        max_discount_allowed, pos_invoice_mode, sales_invoice_mode, tax_affects_final_price,
+        enforce_credit_limit, require_approval_credit_exceeded, allow_negative_stock,
+        require_approval_negative_stock, retention_period_years
+      ) VALUES (?, ?, NULL, 1, 1, 10.00, 'normal_printer', 'free_form', 1, 1, 1, 0, 1, 5)`,
+      [crypto.randomUUID(), newCompanyId]
     );
 
     // 3. Sucursal Principal
@@ -1848,20 +1849,22 @@ export class ConfigService {
 
     // 6. Métodos de Pago estándar
     const defaultMethods = [
-      { id: crypto.randomUUID(), code: 'CASH_USD', name: 'Efectivo Divisas ($)', type: 'cash', currency: 'USD', igtf: 1 },
-      { id: crypto.randomUUID(), code: 'CASH_VES', name: 'Efectivo Bolívares (Bs)', type: 'cash', currency: 'VES', igtf: 0 },
-      { id: crypto.randomUUID(), code: 'PAGOMOVIL', name: 'Pago Móvil C2P / P2P', type: 'pagomovil', currency: 'VES', igtf: 0 },
-      { id: crypto.randomUUID(), code: 'DEBIT_VES', name: 'Punto de Venta Débito', type: 'pos_terminal', currency: 'VES', igtf: 0 },
-      { id: crypto.randomUUID(), code: 'CREDIT_VES', name: 'Punto de Venta Crédito', type: 'pos_terminal', currency: 'VES', igtf: 0 },
-      { id: crypto.randomUUID(), code: 'ZELLE', name: 'Zelle USD', type: 'zelle', currency: 'USD', igtf: 0 },
-      { id: crypto.randomUUID(), code: 'TRANSFER_VES', name: 'Transferencia Bancaria Bs', type: 'bank_transfer', currency: 'VES', igtf: 0 },
+      { id: crypto.randomUUID(), code: 'CASH_USD', name: 'Efectivo Divisas ($)', type: 'CASH', currency: 'USD', igtf: 1, reqRef: 0, order: 1 },
+      { id: crypto.randomUUID(), code: 'CASH_VES', name: 'Efectivo Bolívares (Bs)', type: 'CASH', currency: 'VES', igtf: 0, reqRef: 0, order: 2 },
+      { id: crypto.randomUUID(), code: 'PAGOMOVIL', name: 'Pago Móvil C2P / P2P', type: 'ELECTRONIC', currency: 'VES', igtf: 0, reqRef: 1, order: 3 },
+      { id: crypto.randomUUID(), code: 'DEBIT_VES', name: 'Punto de Venta Débito', type: 'CARD', currency: 'VES', igtf: 0, reqRef: 1, order: 4 },
+      { id: crypto.randomUUID(), code: 'CREDIT_VES', name: 'Punto de Venta Crédito', type: 'CARD', currency: 'VES', igtf: 0, reqRef: 1, order: 5 },
+      { id: crypto.randomUUID(), code: 'ZELLE', name: 'Zelle USD', type: 'ELECTRONIC', currency: 'USD', igtf: 1, reqRef: 1, order: 6 },
+      { id: crypto.randomUUID(), code: 'TRANSFER_VES', name: 'Transferencia Bancaria Bs', type: 'ELECTRONIC', currency: 'VES', igtf: 0, reqRef: 1, order: 7 },
+      { id: crypto.randomUUID(), code: 'BIOPAGO', name: 'BioPago BDV (Bs)', type: 'ELECTRONIC', currency: 'VES', igtf: 0, reqRef: 1, order: 8 },
+      { id: crypto.randomUUID(), code: 'CASHEA', name: 'Cashea - Compre Ahora y Pague Después', type: 'CREDIT', currency: 'USD', igtf: 0, reqRef: 1, order: 9 },
     ];
 
     for (const m of defaultMethods) {
       await query(
-        `INSERT INTO payment_methods (id, company_id, code, name, type, currency, applies_igtf, is_active)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
-        [m.id, newCompanyId, m.code, m.name, m.type, m.currency, m.igtf]
+        `INSERT INTO payment_methods (id, company_id, code, name, type, currency, applies_igtf, requires_reference, is_active, display_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+        [m.id, newCompanyId, m.code, m.name, m.type, m.currency, m.igtf, m.reqRef, m.order]
       );
     }
 
@@ -1985,10 +1988,10 @@ export class ConfigService {
     // 9.1 Sembrar Tasas de Impuesto predeterminadas (IVA 16% y Exento)
     try {
       await query(
-        `INSERT INTO tax_rates (id, company_id, code, name, rate, tax_type, is_active)
+        `INSERT INTO tax_rates (id, company_id, code, name, rate, type, is_active)
          VALUES 
          (UUID(), ?, 'IVA_16', 'IVA Alícuota General (16%)', 16.00, 'IVA', 1),
-         (UUID(), ?, 'EXENTO', 'Exento de IVA (0%)', 0.00, 'EXEMPT', 1)`,
+         (UUID(), ?, 'EXENTO', 'Exento de IVA (0%)', 0.00, 'EXENTO', 1)`,
         [newCompanyId, newCompanyId]
       );
     } catch (taxErr: any) {
@@ -2013,23 +2016,23 @@ export class ConfigService {
         await conn.query(`SET FOREIGN_KEY_CHECKS = 0`);
 
         // Ventas y cuentas por cobrar
-        await conn.query(`DELETE FROM sales_payments WHERE invoice_id IN (SELECT id FROM sales_invoices WHERE company_id != ?)`, [newCompanyId]);
-        await conn.query(`DELETE FROM sales_invoice_items WHERE invoice_id IN (SELECT id FROM sales_invoices WHERE company_id != ?)`, [newCompanyId]);
-        await conn.query(`DELETE FROM sales_invoices WHERE company_id != ?`, [newCompanyId]);
+        await conn.query(`DELETE FROM sales_payments WHERE invoice_id IN (SELECT id FROM sales_invoices WHERE branch_id IN (SELECT id FROM branches WHERE company_id != ?))`, [newCompanyId]);
+        await conn.query(`DELETE FROM sales_invoice_items WHERE invoice_id IN (SELECT id FROM sales_invoices WHERE branch_id IN (SELECT id FROM branches WHERE company_id != ?))`, [newCompanyId]);
+        await conn.query(`DELETE FROM receivables WHERE branch_id IN (SELECT id FROM branches WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM sales_invoices WHERE branch_id IN (SELECT id FROM branches WHERE company_id != ?)`, [newCompanyId]);
         await conn.query(`DELETE FROM sales_quotation_items WHERE quotation_id IN (SELECT id FROM sales_quotations WHERE company_id != ?)`, [newCompanyId]);
         await conn.query(`DELETE FROM sales_quotations WHERE company_id != ?`, [newCompanyId]);
-        await conn.query(`DELETE FROM delivery_note_items WHERE note_id IN (SELECT id FROM delivery_notes WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM delivery_note_items WHERE delivery_note_id IN (SELECT id FROM delivery_notes WHERE company_id != ?)`, [newCompanyId]);
         await conn.query(`DELETE FROM delivery_notes WHERE company_id != ?`, [newCompanyId]);
         await conn.query(`DELETE FROM customer_note_applications WHERE note_id IN (SELECT id FROM customer_notes WHERE company_id != ?)`, [newCompanyId]);
         await conn.query(`DELETE FROM customer_note_items WHERE note_id IN (SELECT id FROM customer_notes WHERE company_id != ?)`, [newCompanyId]);
         await conn.query(`DELETE FROM customer_notes WHERE company_id != ?`, [newCompanyId]);
-        await conn.query(`DELETE FROM receivables WHERE company_id != ?`, [newCompanyId]);
 
         // Compras y cuentas por pagar
-        await conn.query(`DELETE FROM purchase_payments WHERE invoice_id IN (SELECT id FROM purchase_invoices WHERE company_id != ?)`, [newCompanyId]);
-        await conn.query(`DELETE FROM purchase_invoice_items WHERE invoice_id IN (SELECT id FROM purchase_invoices WHERE company_id != ?)`, [newCompanyId]);
-        await conn.query(`DELETE FROM purchase_invoices WHERE company_id != ?`, [newCompanyId]);
-        await conn.query(`DELETE FROM payables WHERE company_id != ?`, [newCompanyId]);
+        await conn.query(`DELETE FROM purchase_payments WHERE invoice_id IN (SELECT id FROM purchase_invoices WHERE branch_id IN (SELECT id FROM branches WHERE company_id != ?))`, [newCompanyId]);
+        await conn.query(`DELETE FROM purchase_invoice_items WHERE invoice_id IN (SELECT id FROM purchase_invoices WHERE branch_id IN (SELECT id FROM branches WHERE company_id != ?))`, [newCompanyId]);
+        await conn.query(`DELETE FROM payables WHERE branch_id IN (SELECT id FROM branches WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM purchase_invoices WHERE branch_id IN (SELECT id FROM branches WHERE company_id != ?)`, [newCompanyId]);
         await conn.query(`DELETE FROM supplier_note_applications WHERE note_id IN (SELECT id FROM supplier_notes WHERE company_id != ?)`, [newCompanyId]);
         await conn.query(`DELETE FROM supplier_note_items WHERE note_id IN (SELECT id FROM supplier_notes WHERE company_id != ?)`, [newCompanyId]);
         await conn.query(`DELETE FROM supplier_notes WHERE company_id != ?`, [newCompanyId]);
@@ -2055,8 +2058,8 @@ export class ConfigService {
         await conn.query(`DELETE FROM presentations WHERE company_id != ?`, [newCompanyId]);
         await conn.query(`DELETE FROM units_of_measure WHERE company_id != ?`, [newCompanyId]);
         await conn.query(`DELETE FROM brands WHERE company_id != ?`, [newCompanyId]);
-        await conn.query(`DELETE FROM subgroups WHERE company_id != ?`, [newCompanyId]);
-        await conn.query(`DELETE FROM \`groups\` WHERE company_id != ?`, [newCompanyId]);
+        await conn.query(`DELETE FROM subgroups WHERE group_id IN (SELECT id FROM \`groups\` WHERE department_id IN (SELECT id FROM departments WHERE company_id != ?))`, [newCompanyId]);
+        await conn.query(`DELETE FROM \`groups\` WHERE department_id IN (SELECT id FROM departments WHERE company_id != ?)`, [newCompanyId]);
         await conn.query(`DELETE FROM departments WHERE company_id != ?`, [newCompanyId]);
 
         // Cajas y tesorería
@@ -2068,17 +2071,15 @@ export class ConfigService {
         await conn.query(`DELETE FROM payment_methods WHERE company_id != ?`, [newCompanyId]);
 
         // Bancos, clientes, proveedores
-        await conn.query(`DELETE FROM bank_reconciliations WHERE bank_account_id IN (SELECT id FROM bank_accounts WHERE company_id != ?)`, [newCompanyId]);
-        await conn.query(`DELETE FROM bank_movements WHERE bank_account_id IN (SELECT id FROM bank_accounts WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM bank_reconciliations WHERE account_id IN (SELECT id FROM bank_accounts WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM bank_movements WHERE account_id IN (SELECT id FROM bank_accounts WHERE company_id != ?)`, [newCompanyId]);
         await conn.query(`DELETE FROM bank_accounts WHERE company_id != ?`, [newCompanyId]);
         await conn.query(`DELETE FROM customers WHERE company_id != ?`, [newCompanyId]);
         await conn.query(`DELETE FROM suppliers WHERE company_id != ?`, [newCompanyId]);
 
         // Contabilidad
-        await conn.query(`DELETE FROM accounting_journal_lines WHERE entry_id IN (SELECT id FROM accounting_journal_entries WHERE company_id != ?)`, [newCompanyId]);
+        await conn.query(`DELETE FROM accounting_journal_lines WHERE journal_entry_id IN (SELECT id FROM accounting_journal_entries WHERE company_id != ?)`, [newCompanyId]);
         await conn.query(`DELETE FROM accounting_journal_entries WHERE company_id != ?`, [newCompanyId]);
-        await conn.query(`DELETE FROM accounting_auto_mappings WHERE company_id != ?`, [newCompanyId]);
-        await conn.query(`DELETE FROM accounting_auto_posting_settings WHERE company_id != ?`, [newCompanyId]);
         await conn.query(`DELETE FROM accounting_accounts WHERE company_id != ?`, [newCompanyId]);
         await conn.query(`DELETE FROM accounting_fiscal_periods WHERE fiscal_year_id IN (SELECT id FROM accounting_fiscal_years WHERE company_id != ?)`, [newCompanyId]);
         await conn.query(`DELETE FROM accounting_fiscal_years WHERE company_id != ?`, [newCompanyId]);
