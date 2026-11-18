@@ -1,5 +1,5 @@
 import { query } from '../../db';
-import { SupplierInput, SupplierProductInput } from '@ero/shared';
+import { SupplierInput, SupplierProductInput, analyzeRif } from '@ero/shared';
 import crypto from 'crypto';
 
 export interface SupplierFilters {
@@ -521,5 +521,176 @@ export class SuppliersService {
         invoiceNumber: p.invoice_number,
       })),
     };
+  }
+
+  /**
+   * Consulta inteligente de RIF:
+   * 1. Valida el formato y calcula el dígito verificador oficial SENIAT (Módulo 11).
+   * 2. Determina condición tributaria preliminar (Persona Natural vs Jurídica, Domiciliado).
+   * 3. Busca coincidencias en la base de datos local (proveedores existentes, clientes o histórico).
+   * 4. Si existe una API externa de consulta RIF configurada en .env, la consulta como fallback enriquecedor.
+   * 5. Retorna la información estructurada y la URL directa de verificación en el portal del SENIAT.
+   */
+  static async lookupRif(companyId: string, rawRif: string) {
+    const analysis = analyzeRif(rawRif);
+
+    const result = {
+      ...analysis,
+      foundInDatabase: false,
+      source: 'algorithmic' as 'existing_supplier' | 'existing_customer' | 'existing_company' | 'external_api' | 'algorithmic',
+      supplier: {
+        rif: analysis.formattedRif || rawRif,
+        name: '',
+        commercialName: '',
+        fiscalAddress: '',
+        contactName: '',
+        phone: '',
+        email: '',
+        isPersonNatural: analysis.isPersonNatural,
+        isResident: analysis.isResident,
+        islrConceptCode: analysis.isPersonNatural ? 'HON_PROF' : 'SERV_GEN',
+        creditLimit: 0,
+        paymentTermsDays: 0,
+        isSpecialTaxpayer: analysis.prefix === 'G',
+        suggestedVatRetention: analysis.prefix === 'G' ? 100 : 75,
+      },
+    };
+
+    if (!analysis.cleanRif || analysis.cleanRif.length < 5) {
+      return result;
+    }
+
+    const clean = analysis.cleanRif;
+    const variants = [clean, analysis.formattedRif, rawRif.trim().toUpperCase()];
+
+    // 1. Buscar en proveedores existentes
+    try {
+      const supRows = await query<any>(
+        `SELECT id, rif, name, commercial_name, fiscal_address, contact_name, phone, email,
+                is_person_natural, is_resident, islr_concept_code, credit_limit, payment_terms_days
+         FROM suppliers
+         WHERE company_id = ? AND (
+           rif IN (?, ?, ?) OR
+           REPLACE(REPLACE(rif, '-', ''), ' ', '') = ?
+         )
+         LIMIT 1`,
+        [companyId, variants[0], variants[1], variants[2], clean]
+      );
+
+      if (supRows.length > 0) {
+        const s = supRows[0];
+        result.foundInDatabase = true;
+        result.source = 'existing_supplier';
+        result.supplier = {
+          rif: s.rif,
+          name: s.name,
+          commercialName: s.commercial_name || s.name,
+          fiscalAddress: s.fiscal_address || '',
+          contactName: s.contact_name || '',
+          phone: s.phone || '',
+          email: s.email || '',
+          isPersonNatural: Boolean(s.is_person_natural),
+          isResident: Boolean(s.is_resident),
+          islrConceptCode: s.islr_concept_code || (analysis.isPersonNatural ? 'HON_PROF' : 'SERV_GEN'),
+          creditLimit: Number(s.credit_limit || 0),
+          paymentTermsDays: Number(s.payment_terms_days || 0),
+          isSpecialTaxpayer: analysis.prefix === 'G',
+          suggestedVatRetention: analysis.prefix === 'G' ? 100 : 75,
+        };
+        return result;
+      }
+    } catch (e: any) {
+      console.warn('[SuppliersService] lookupRif error al buscar en suppliers:', e.message);
+    }
+
+    // 2. Buscar en clientes existentes (cruce comercial de RIFs)
+    try {
+      const prefix = analysis.prefix;
+      const numVariants = [
+        analysis.number,
+        clean.slice(1),
+        clean.slice(1, -1),
+        rawRif.replace(/[^0-9]/g, ''),
+      ].filter(Boolean);
+
+      const custRows = await query<any>(
+        `SELECT id, doc_type, doc_number, name, address, phone, email, is_special_taxpayer,
+                credit_limit, payment_terms_days
+         FROM customers
+         WHERE company_id = ? AND doc_type = ? AND (
+           doc_number IN (?, ?, ?, ?) OR
+           doc_number = ?
+         )
+         LIMIT 1`,
+        [companyId, prefix, numVariants[0] || '', numVariants[1] || '', numVariants[2] || '', numVariants[3] || '', clean]
+      );
+
+      if (custRows.length > 0) {
+        const c = custRows[0];
+        result.foundInDatabase = true;
+        result.source = 'existing_customer';
+        result.supplier = {
+          rif: analysis.formattedRif,
+          name: c.name,
+          commercialName: c.name,
+          fiscalAddress: c.address || '',
+          contactName: '',
+          phone: c.phone || '',
+          email: c.email || '',
+          isPersonNatural: analysis.isPersonNatural,
+          isResident: analysis.isResident,
+          islrConceptCode: analysis.isPersonNatural ? 'HON_PROF' : 'SERV_GEN',
+          creditLimit: Number(c.credit_limit || 0),
+          paymentTermsDays: Number(c.payment_terms_days || 0),
+          isSpecialTaxpayer: Boolean(c.is_special_taxpayer) || analysis.prefix === 'G',
+          suggestedVatRetention: c.is_special_taxpayer || analysis.prefix === 'G' ? 100 : 75,
+        };
+        return result;
+      }
+    } catch (e: any) {
+      console.warn('[SuppliersService] lookupRif error al buscar en customers:', e.message);
+    }
+
+    // 3. Fallback a API externa de consulta RIF si está configurada en .env
+    const externalApiUrl = process.env.SENIAT_RIF_API_URL;
+    if (externalApiUrl) {
+      try {
+        const targetUrl = externalApiUrl.replace('{rif}', clean);
+        const headers: Record<string, string> = { 'Accept': 'application/json' };
+        if (process.env.SENIAT_RIF_API_KEY) {
+          headers['Authorization'] = `Bearer ${process.env.SENIAT_RIF_API_KEY}`;
+        }
+        const extRes = await fetch(targetUrl, { headers, signal: AbortSignal.timeout(3000) });
+        if (extRes.ok) {
+          const extJson = await extRes.json();
+          if (extJson && (extJson.name || extJson.razonSocial || extJson.razon_social)) {
+            const extName = extJson.name || extJson.razonSocial || extJson.razon_social;
+            const isSpecial = Boolean(extJson.isSpecialTaxpayer || extJson.contribuyenteEspecial || extJson.agenteRetencion);
+            result.foundInDatabase = true;
+            result.source = 'external_api';
+            result.supplier = {
+              rif: extJson.rif || analysis.formattedRif,
+              name: extName,
+              commercialName: extJson.commercialName || extJson.nombreComercial || extName,
+              fiscalAddress: extJson.fiscalAddress || extJson.direccion || '',
+              contactName: extJson.contactName || '',
+              phone: extJson.phone || extJson.telefono || '',
+              email: extJson.email || '',
+              isPersonNatural: analysis.isPersonNatural,
+              isResident: analysis.isResident,
+              islrConceptCode: analysis.isPersonNatural ? 'HON_PROF' : 'SERV_GEN',
+              creditLimit: 0,
+              paymentTermsDays: 0,
+              isSpecialTaxpayer: isSpecial || analysis.prefix === 'G',
+              suggestedVatRetention: isSpecial || analysis.prefix === 'G' ? 100 : 75,
+            };
+          }
+        }
+      } catch (extErr: any) {
+        console.warn('[SuppliersService] lookupRif error consultando API externa RIF:', extErr.message);
+      }
+    }
+
+    return result;
   }
 }

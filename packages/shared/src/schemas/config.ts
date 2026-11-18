@@ -27,6 +27,32 @@ export const updateCompanySchema = z.object({
 export type UpdateCompanyInput = z.infer<typeof updateCompanySchema>;
 
 // ==========================================
+// 1.1 Configuración de Correo Electrónico (SMTP de Empresa)
+// ==========================================
+export const companySmtpConfigSchema = z.object({
+  smtpHost: z.string().trim().max(150).optional().nullable().or(z.literal('')),
+  smtpPort: z.coerce.number().int().min(1).max(65535).default(587).optional().nullable(),
+  smtpUser: z.string().trim().max(150).optional().nullable().or(z.literal('')),
+  smtpPassword: z.string().max(300).optional().nullable().or(z.literal('')),
+  smtpFromName: z.string().trim().max(150).optional().nullable().or(z.literal('')),
+  smtpSecure: z.enum(['tls', 'ssl', 'none']).default('tls'),
+  smtpEnabled: z.coerce.boolean().default(false),
+});
+
+export type CompanySmtpConfigInput = z.infer<typeof companySmtpConfigSchema>;
+
+export interface CompanySmtpConfigResponse {
+  smtpHost: string;
+  smtpPort: number;
+  smtpUser: string;
+  smtpFromName: string;
+  smtpSecure: 'tls' | 'ssl' | 'none';
+  smtpEnabled: boolean;
+  hasPasswordConfigured: boolean;
+  isUsingEnvFallback: boolean;
+}
+
+// ==========================================
 // 2. Sucursales (Branches)
 // ==========================================
 export const branchSchema = z.object({
@@ -149,6 +175,72 @@ export interface LicenseInfo {
   totalCost?: number | null;
   costBreakdown?: LicenseCostBreakdown | null;
 }
+
+export interface LicensePricingRates {
+  baseAnnualTemporalUSD: number;
+  basePerpetuaUSD: number;
+  baseTrialUSD: number;
+  extraUserTemporalUSD: number;
+  extraUserPerpetuaUSD: number;
+  unlimitedUsersTemporalUSD: number;
+  unlimitedUsersPerpetuaUSD: number;
+  extraBranchTemporalUSD: number;
+  extraBranchPerpetuaUSD: number;
+  unlimitedBranchesTemporalUSD: number;
+  unlimitedBranchesPerpetuaUSD: number;
+  supportPerpetuaUSD: number;
+  modules: Record<string, { label: string; temporalUSD: number; perpetuaUSD: number }>;
+}
+
+export const DEFAULT_LICENSE_PRICING_RATES: LicensePricingRates = {
+  baseAnnualTemporalUSD: 120,
+  basePerpetuaUSD: 500,
+  baseTrialUSD: 0,
+  extraUserTemporalUSD: 12,
+  extraUserPerpetuaUSD: 35,
+  unlimitedUsersTemporalUSD: 150,
+  unlimitedUsersPerpetuaUSD: 350,
+  extraBranchTemporalUSD: 36,
+  extraBranchPerpetuaUSD: 80,
+  unlimitedBranchesTemporalUSD: 180,
+  unlimitedBranchesPerpetuaUSD: 400,
+  supportPerpetuaUSD: 80,
+  modules: {
+    receivables: { label: 'Cuentas por Cobrar & Gestión de Cartera', temporalUSD: 15, perpetuaUSD: 30 },
+    payables: { label: 'Cuentas por Pagar & Compromisos', temporalUSD: 15, perpetuaUSD: 30 },
+    treasury: { label: 'Tesorería Integral & Conciliación Bancaria', temporalUSD: 20, perpetuaUSD: 45 },
+    taxes: { label: 'Tributos SENIAT & Retenciones IVA/ISLR', temporalUSD: 20, perpetuaUSD: 45 },
+    reports: { label: 'Reportes Gerenciales & Exportación', temporalUSD: 15, perpetuaUSD: 35 },
+    audit: { label: 'Auditoría Integral & Trazabilidad', temporalUSD: 20, perpetuaUSD: 40 },
+    restaurant: { label: 'Restaurante & Comandera KDS', temporalUSD: 35, perpetuaUSD: 90 },
+    accounting: { label: 'Contabilidad Senior NIIF / VEN-NIF', temporalUSD: 45, perpetuaUSD: 120 },
+  },
+};
+
+export const updateLicensePricingRatesSchema = z.object({
+  baseAnnualTemporalUSD: z.number().min(0),
+  basePerpetuaUSD: z.number().min(0),
+  baseTrialUSD: z.number().min(0).default(0),
+  extraUserTemporalUSD: z.number().min(0),
+  extraUserPerpetuaUSD: z.number().min(0),
+  unlimitedUsersTemporalUSD: z.number().min(0),
+  unlimitedUsersPerpetuaUSD: z.number().min(0),
+  extraBranchTemporalUSD: z.number().min(0),
+  extraBranchPerpetuaUSD: z.number().min(0),
+  unlimitedBranchesTemporalUSD: z.number().min(0),
+  unlimitedBranchesPerpetuaUSD: z.number().min(0),
+  supportPerpetuaUSD: z.number().min(0),
+  modules: z.record(
+    z.string(),
+    z.object({
+      label: z.string(),
+      temporalUSD: z.number().min(0),
+      perpetuaUSD: z.number().min(0),
+    })
+  ),
+});
+
+export type UpdateLicensePricingRatesInput = z.infer<typeof updateLicensePricingRatesSchema>;
 
 // ==========================================
 // 6. Auditoría Integral (Audit Logs)

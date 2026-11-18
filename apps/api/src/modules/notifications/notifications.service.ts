@@ -7,11 +7,13 @@ import {
   notificationTypeLabels,
   ShareReportInput,
   SendEmailReportInput,
+  SendDirectEmailInput,
   UserNotificationPreferenceItem,
   EmailLogItem,
 } from '@ero/shared';
 import { AuditService } from '../audit/audit.service';
 import { RealtimeService } from '../realtime/realtime.service';
+import { MailerService, MailAttachment } from '../../services/mailer.service';
 
 export class NotificationsService {
   private static tablesEnsured = false;
@@ -69,11 +71,34 @@ export class NotificationsService {
           report_title VARCHAR(255) DEFAULT NULL,
           status VARCHAR(20) NOT NULL DEFAULT 'SENT',
           error_message TEXT DEFAULT NULL,
+          has_attachments TINYINT(1) NOT NULL DEFAULT 0,
+          attachments_count INT NOT NULL DEFAULT 0,
+          attachment_names TEXT DEFAULT NULL,
           created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
           PRIMARY KEY (id),
           INDEX idx_email_company (company_id, created_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
+
+      // Migración progresiva de columnas para adjuntos en email_logs
+      try {
+        const cols = await query<any>(`SHOW COLUMNS FROM email_logs LIKE 'has_attachments'`);
+        if (cols.length === 0) {
+          await query(`ALTER TABLE email_logs ADD COLUMN has_attachments TINYINT(1) NOT NULL DEFAULT 0`);
+          await query(`ALTER TABLE email_logs ADD COLUMN attachments_count INT NOT NULL DEFAULT 0`);
+          await query(`ALTER TABLE email_logs ADD COLUMN attachment_names TEXT DEFAULT NULL`);
+          // Retroalimentar registros previos de reportes oficiales
+          await query(`
+            UPDATE email_logs
+            SET has_attachments = 1,
+                attachments_count = 1,
+                attachment_names = CONCAT(IFNULL(report_title, 'documento_oficial'), '.pdf')
+            WHERE report_title IS NOT NULL AND report_title != 'Mensaje Directo' AND has_attachments = 0
+          `);
+        }
+      } catch (alterErr: any) {
+        console.warn('[NotificationsService] Nota al asegurar columnas de adjuntos:', alterErr.message);
+      }
     } catch (err: any) {
       console.error('[NotificationsService] Error al asegurar tablas:', err.message);
     }
@@ -402,31 +427,97 @@ export class NotificationsService {
   }
 
   /**
-   * Envía un reporte por correo electrónico a clientes, proveedores o correos externos
+   * Envía un reporte por correo electrónico a clientes, proveedores o correos externos con el PDF adjunto
    */
   static async sendEmailReport(
     companyId: string,
     senderUser: { id: string; name: string; email: string },
-    input: SendEmailReportInput
-  ): Promise<{ success: boolean; emailLogId: string; status: 'SENT' | 'SIMULATED'; recipientEmail: string }> {
+    input: SendEmailReportInput,
+    authToken?: string
+  ): Promise<{ success: boolean; emailLogId: string; status: 'SENT' | 'SIMULATED'; recipientEmail: string; messageId?: string }> {
     await this.ensureTables();
 
     const emailLogId = crypto.randomUUID();
     const senderDisplayName = senderUser.name || senderUser.email;
+    const config = await MailerService.getConfig(companyId);
 
-    // Determinamos si el envío es real (SMTP configurado) o simulación controlada
-    const hasSmtpConfigured = Boolean(process.env.SMTP_HOST && process.env.SMTP_USER);
-    const status: 'SENT' | 'SIMULATED' = hasSmtpConfigured ? 'SENT' : 'SIMULATED';
-
-    const defaultBody = `Estimado(a) ${input.recipientName},\n\nLe hacemos llegar el documento oficial correspondiente a "${input.reportTitle}" emitido por el sistema empresarial ERO ERP.\n\n${input.message ? `Mensaje adjunto:\n${input.message}\n\n` : ''}Para cualquier consulta, por favor comuníquese con nuestra administración.\n\nAtentamente,\n${senderDisplayName}\nERO ERP Enterprise`;
+    const defaultBody = `Estimado(a) ${input.recipientName},\n\nLe hacemos llegar el documento oficial correspondiente a "${input.reportTitle || 'Reporte Oficial'}" emitido por el sistema empresarial ERO ERP.\n\n${input.message ? `Mensaje adjunto:\n${input.message}\n\n` : ''}Para cualquier consulta, por favor comuníquese con nuestra administración.\n\nAtentamente,\n${senderDisplayName}\nERO ERP Enterprise`;
 
     const finalBody = input.message && input.message.trim() ? input.message.trim() : defaultBody;
 
+    // Procesar adjuntos si se solicita PDF
+    const attachments: MailAttachment[] = [];
+    if (input.attachPdf !== false) {
+      if (input.pdfBase64) {
+        const cleanName = (input.pdfFilename || input.reportTitle || 'documento_oficial')
+          .replace(/[^a-zA-Z0-9_\-.]/g, '_');
+        attachments.push({
+          filename: cleanName.endsWith('.pdf') ? cleanName : `${cleanName}.pdf`,
+          content: Buffer.from(input.pdfBase64, 'base64'),
+          contentType: 'application/pdf',
+        });
+      } else if (input.reportEndpoint) {
+        try {
+          const port = process.env.PORT || 3000;
+          const fetchUrl = input.reportEndpoint.startsWith('http')
+            ? input.reportEndpoint
+            : `http://127.0.0.1:${port}${input.reportEndpoint}`;
+
+          const res = await fetch(fetchUrl, {
+            headers: authToken ? { Authorization: authToken } : {},
+          });
+
+          if (res.ok) {
+            const arrayBuffer = await res.arrayBuffer();
+            const cleanName = (input.reportTitle || 'documento_oficial')
+              .replace(/[^a-zA-Z0-9_\-.]/g, '_');
+            attachments.push({
+              filename: `${cleanName}.pdf`,
+              content: Buffer.from(arrayBuffer),
+              contentType: 'application/pdf',
+            });
+          }
+        } catch (fetchErr: any) {
+          console.warn('[NotificationsService] No se pudo obtener el PDF interno para adjuntar:', fetchErr.message);
+        }
+      }
+    }
+
+    const hasAttachments = attachments.length > 0;
+    const attachmentsCount = attachments.length;
+    const attachmentNames = attachments.map((a) => a.filename).join(', ');
+
+    let status: 'SENT' | 'SIMULATED' | 'FAILED' = 'SENT';
+    let errorMessage: string | null = null;
+    let messageId: string | undefined = undefined;
+
+    if (config.isConfigured) {
+      try {
+        const mailRes = await MailerService.sendMail({
+          to: input.recipientEmail.trim(),
+          toName: input.recipientName.trim(),
+          subject: input.subject.trim(),
+          text: finalBody,
+          fromName: senderDisplayName,
+          attachments: attachments.length > 0 ? attachments : undefined,
+        }, companyId);
+        messageId = mailRes.messageId;
+        status = 'SENT';
+      } catch (err: any) {
+        status = 'FAILED';
+        errorMessage = err.message || String(err);
+      }
+    } else {
+      status = 'SIMULATED';
+    }
+
+    // SIEMPRE registrar en email_logs, tanto envíos exitosos como simulados o fallidos
     await query(
       `INSERT INTO email_logs (
         id, company_id, sender_user_id, sender_name, recipient_email, recipient_name,
-        recipient_type, subject, body, report_title, status, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+        recipient_type, subject, body, report_title, status, error_message,
+        has_attachments, attachments_count, attachment_names, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
         emailLogId,
         companyId,
@@ -437,8 +528,12 @@ export class NotificationsService {
         input.recipientType,
         input.subject.trim(),
         finalBody,
-        input.reportTitle,
+        input.reportTitle || 'Reporte Oficial',
         status,
+        errorMessage,
+        hasAttachments ? 1 : 0,
+        attachmentsCount,
+        attachmentNames || null,
       ]
     );
 
@@ -455,16 +550,145 @@ export class NotificationsService {
           recipientEmail: input.recipientEmail,
           recipientType: input.recipientType,
           status,
+          hasAttachments,
+          attachmentsCount,
+          attachmentNames,
+          errorMessage,
         },
       });
     } catch {}
+
+    if (errorMessage && status === 'FAILED') {
+      throw new Error(`Error en el servidor de correo SMTP: ${errorMessage}`);
+    }
 
     return {
       success: true,
       emailLogId,
       status,
       recipientEmail: input.recipientEmail,
+      messageId,
     };
+  }
+
+  /**
+   * Envía un correo directo desde el Redactor de Emails dentro de la aplicación
+   */
+  static async sendDirectEmail(
+    companyId: string,
+    senderUser: { id: string; name: string; email: string },
+    input: SendDirectEmailInput
+  ): Promise<{ success: boolean; emailLogId: string; status: 'SENT' | 'SIMULATED' | 'FAILED'; recipientEmail: string; messageId?: string }> {
+    await this.ensureTables();
+
+    const emailLogId = crypto.randomUUID();
+    const senderDisplayName = senderUser.name || senderUser.email;
+    const config = await MailerService.getConfig(companyId);
+
+    const attachments: MailAttachment[] = [];
+    if (input.attachments && input.attachments.length > 0) {
+      for (const att of input.attachments) {
+        attachments.push({
+          filename: att.filename,
+          content: Buffer.from(att.content, 'base64'),
+          contentType: att.contentType || 'application/octet-stream',
+        });
+      }
+    }
+
+    const hasAttachments = attachments.length > 0;
+    const attachmentsCount = attachments.length;
+    const attachmentNames = attachments.map((a) => a.filename).join(', ');
+
+    let status: 'SENT' | 'SIMULATED' | 'FAILED' = 'SENT';
+    let errorMessage: string | null = null;
+    let messageId: string | undefined = undefined;
+
+    if (config.isConfigured) {
+      try {
+        const mailRes = await MailerService.sendMail({
+          to: input.recipientEmail.trim(),
+          toName: input.recipientName?.trim(),
+          cc: input.cc?.trim() || undefined,
+          bcc: input.bcc?.trim() || undefined,
+          subject: input.subject.trim(),
+          text: input.message.trim(),
+          fromName: senderDisplayName,
+          attachments: attachments.length > 0 ? attachments : undefined,
+        }, companyId);
+        messageId = mailRes.messageId;
+        status = 'SENT';
+      } catch (err: any) {
+        status = 'FAILED';
+        errorMessage = err.message || String(err);
+      }
+    } else {
+      status = 'SIMULATED';
+    }
+
+    await query(
+      `INSERT INTO email_logs (
+        id, company_id, sender_user_id, sender_name, recipient_email, recipient_name,
+        recipient_type, subject, body, report_title, status, error_message,
+        has_attachments, attachments_count, attachment_names, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [
+        emailLogId,
+        companyId,
+        senderUser.id,
+        senderDisplayName,
+        input.recipientEmail.trim().toLowerCase(),
+        input.recipientName?.trim() || input.recipientEmail.trim(),
+        input.recipientType || 'custom',
+        input.subject.trim(),
+        input.message.trim(),
+        'Mensaje Directo',
+        status,
+        errorMessage,
+        hasAttachments ? 1 : 0,
+        attachmentsCount,
+        attachmentNames || null,
+      ]
+    );
+
+    // Registro en auditoría
+    try {
+      await AuditService.recordEvent(companyId, {
+        userId: senderUser.id,
+        module: 'notifications',
+        action: 'send_direct_email',
+        entity: 'email_logs',
+        entityId: emailLogId,
+        afterJson: {
+          recipientEmail: input.recipientEmail,
+          subject: input.subject,
+          status,
+          hasAttachments,
+          attachmentsCount,
+          attachmentNames,
+          errorMessage,
+        },
+      });
+    } catch {}
+
+    if (errorMessage && status === 'FAILED') {
+      throw new Error(`Error al enviar correo vía SMTP: ${errorMessage}`);
+    }
+
+    return {
+      success: true,
+      emailLogId,
+      status,
+      recipientEmail: input.recipientEmail,
+      messageId,
+    };
+  }
+
+  /**
+   * Obtiene el estado actual de la configuración del servidor de correo
+   */
+  static async getMailStatus(companyId?: string) {
+    return MailerService.checkStatus(companyId);
   }
 
   /**
@@ -476,7 +700,8 @@ export class NotificationsService {
     try {
       const rows = await query<any>(
         `SELECT id, company_id, sender_user_id, sender_name, recipient_email, recipient_name,
-                recipient_type, subject, body, report_title, status, error_message, created_at
+                recipient_type, subject, body, report_title, status, error_message,
+                has_attachments, attachments_count, attachment_names, created_at
          FROM email_logs
          WHERE company_id = ?
          ORDER BY created_at DESC
@@ -484,21 +709,42 @@ export class NotificationsService {
         [companyId, limit]
       );
 
-      return rows.map((r: any) => ({
-        id: r.id,
-        companyId: r.company_id,
-        senderUserId: r.sender_user_id,
-        senderName: r.sender_name,
-        recipientEmail: r.recipient_email,
-        recipientName: r.recipient_name,
-        recipientType: r.recipient_type,
-        subject: r.subject,
-        body: r.body,
-        reportTitle: r.report_title,
-        status: r.status,
-        errorMessage: r.error_message,
-        createdAt: new Date(r.created_at).toISOString(),
-      }));
+      return rows.map((r: any) => {
+        const attachmentNames = r.attachment_names
+          ? r.attachment_names.split(',').map((s: string) => s.trim()).filter(Boolean)
+          : [];
+        const hasAttachments = Boolean(r.has_attachments) || attachmentNames.length > 0;
+        const attachmentsCount = r.attachments_count || (hasAttachments ? 1 : 0);
+        const createdAtIso = r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString();
+
+        return {
+          id: r.id,
+          companyId: r.company_id,
+          senderUserId: r.sender_user_id,
+          senderName: r.sender_name,
+          recipientEmail: r.recipient_email || '',
+          recipientName: r.recipient_name || '',
+          recipientType: r.recipient_type,
+          subject: r.subject || '',
+          body: r.body,
+          reportTitle: r.report_title,
+          status: r.status,
+          errorMessage: r.error_message,
+          hasAttachments,
+          attachmentsCount,
+          attachmentNames,
+          createdAt: createdAtIso,
+          // Compatibilidad retroactiva snake_case
+          recipient_email: r.recipient_email || '',
+          recipient_name: r.recipient_name || '',
+          report_title: r.report_title,
+          error_message: r.error_message,
+          sender_name: r.sender_name,
+          created_at: createdAtIso,
+          has_attachments: hasAttachments,
+          attachments_count: attachmentsCount,
+        };
+      });
     } catch (error: any) {
       console.error('[NotificationsService] Error al obtener email logs:', error.message);
       return [];

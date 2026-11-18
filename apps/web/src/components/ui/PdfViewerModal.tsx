@@ -157,29 +157,29 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
       headerActions={
         <div className="flex items-center gap-2">
           {endpoint && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowShareModal(true)}
-                disabled={loading}
-                title="Compartir reporte con usuarios del sistema"
-              >
-                <Share2 className="w-3.5 h-3.5 sm:mr-1.5 text-sky-600 dark:text-sky-400" />
-                <span className="hidden sm:inline">Compartir</span>
-              </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowShareModal(true)}
+              disabled={loading}
+              title="Compartir reporte con usuarios del sistema"
+            >
+              <Share2 className="w-3.5 h-3.5 sm:mr-1.5 text-sky-600 dark:text-sky-400" />
+              <span className="hidden sm:inline">Compartir</span>
+            </Button>
+          )}
 
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowEmailModal(true)}
-                disabled={loading}
-                title="Enviar reporte por correo electrónico"
-              >
-                <Mail className="w-3.5 h-3.5 sm:mr-1.5 text-neutral-600 dark:text-neutral-400" />
-                <span className="hidden sm:inline">Enviar Correo</span>
-              </Button>
-            </>
+          {(endpoint || activeBlobUrl) && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowEmailModal(true)}
+              disabled={loading}
+              title="Enviar documento por correo electrónico"
+            >
+              <Mail className="w-3.5 h-3.5 sm:mr-1.5 text-[#007BFF] dark:text-[#3D91FF]" />
+              <span className="hidden sm:inline">Enviar Correo</span>
+            </Button>
           )}
 
           {activeBlobUrl && (
@@ -266,21 +266,22 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
       </div>
 
       {endpoint && (
-        <>
-          <ShareReportModal
-            isOpen={showShareModal}
-            onClose={() => setShowShareModal(false)}
-            reportTitle={title}
-            reportEndpoint={endpoint}
-          />
-          <EmailReportModal
-            isOpen={showEmailModal}
-            onClose={() => setShowEmailModal(false)}
-            reportTitle={title}
-            reportEndpoint={endpoint}
-          />
-        </>
+        <ShareReportModal
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          reportTitle={title}
+          reportEndpoint={endpoint}
+        />
       )}
+
+      <EmailReportModal
+        isOpen={showEmailModal}
+        onClose={() => setShowEmailModal(false)}
+        reportTitle={title}
+        reportEndpoint={endpoint || ''}
+        pdfBlobUrl={activeBlobUrl}
+        filename={filename}
+      />
     </Modal>
   );
 };

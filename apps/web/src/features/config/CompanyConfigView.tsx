@@ -30,6 +30,11 @@ import {
   AlertTriangle,
   Key,
   Copy,
+  Mail,
+  EyeOff,
+  Check,
+  Info,
+  Send,
 } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
@@ -74,7 +79,7 @@ export const CompanyConfigView: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = (searchParams.get("tab") as any) || "company";
   const [activeTab, setActiveTab] = useState<
-    "company" | "branches" | "registers" | "rules" | "payment-methods" | "maintenance"
+    "company" | "branches" | "registers" | "rules" | "payment-methods" | "email" | "maintenance"
   >(
     [
       "company",
@@ -82,6 +87,7 @@ export const CompanyConfigView: React.FC = () => {
       "registers",
       "rules",
       "payment-methods",
+      "email",
       "maintenance",
     ].includes(initialTab)
       ? initialTab
@@ -116,6 +122,30 @@ export const CompanyConfigView: React.FC = () => {
     licenseKey: "",
     purgePreviousCompanies: false,
   });
+
+  // Estados para Configuración de Servidor de Correo (SMTP de Empresa)
+  const [smtpForm, setSmtpForm] = useState({
+    smtpHost: "",
+    smtpPort: 587,
+    smtpUser: "",
+    smtpPassword: "",
+    smtpFromName: "",
+    smtpSecure: "tls" as "tls" | "ssl" | "none",
+    smtpEnabled: false,
+    hasPasswordConfigured: false,
+    isUsingEnvFallback: false,
+    envFallbackHost: null as string | null,
+    envFallbackPort: null as number | null,
+    envFallbackUser: null as string | null,
+  });
+  const [showSmtpPassword, setShowSmtpPassword] = useState(false);
+  const [isSavingSmtp, setIsSavingSmtp] = useState(false);
+  const [isTestingSmtp, setIsTestingSmtp] = useState(false);
+  const [smtpTestResult, setSmtpTestResult] = useState<{
+    tested: boolean;
+    ok: boolean;
+    message: string;
+  } | null>(null);
 
   // Permisos y Tasa Oficial de Cambio
   const user = useAuthStore((s) => s.user);
@@ -576,7 +606,7 @@ export const CompanyConfigView: React.FC = () => {
     setLoading(true);
     try {
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const [compRes, branchRes, whRes, rulesRes, regRes, deptsRes, licRes] =
+      const [compRes, branchRes, whRes, rulesRes, regRes, deptsRes, licRes, smtpRes] =
         await Promise.all([
           fetch("/api/config/company", { headers }),
           fetch("/api/config/branches", { headers }),
@@ -585,7 +615,28 @@ export const CompanyConfigView: React.FC = () => {
           fetch("/api/pos/registers", { headers }),
           fetch("/api/inventory/departments", { headers }),
           fetch("/api/licenses/status", { headers }),
+          fetch("/api/config/smtp", { headers }),
         ]);
+
+      if (smtpRes && smtpRes.ok) {
+        const d = await smtpRes.json();
+        if (d.success && d.data) {
+          setSmtpForm({
+            smtpHost: d.data.smtpHost || "",
+            smtpPort: d.data.smtpPort || 587,
+            smtpUser: d.data.smtpUser || "",
+            smtpPassword: "",
+            smtpFromName: d.data.smtpFromName || "",
+            smtpSecure: d.data.smtpSecure || "tls",
+            smtpEnabled: Boolean(d.data.smtpEnabled),
+            hasPasswordConfigured: Boolean(d.data.hasPasswordConfigured),
+            isUsingEnvFallback: Boolean(d.data.isUsingEnvFallback),
+            envFallbackHost: d.data.envFallbackHost || null,
+            envFallbackPort: d.data.envFallbackPort || null,
+            envFallbackUser: d.data.envFallbackUser || null,
+          });
+        }
+      }
 
       if (deptsRes && deptsRes.ok) {
         const d = await deptsRes.json();
@@ -666,6 +717,106 @@ export const CompanyConfigView: React.FC = () => {
       toast.error("Error al sincronizar configuración con el servidor");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveSmtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingSmtp(true);
+    try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetch("/api/config/smtp", {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          smtpHost: smtpForm.smtpHost,
+          smtpPort: Number(smtpForm.smtpPort),
+          smtpUser: smtpForm.smtpUser,
+          smtpPassword: smtpForm.smtpPassword || undefined,
+          smtpFromName: smtpForm.smtpFromName,
+          smtpSecure: smtpForm.smtpSecure,
+          smtpEnabled: smtpForm.smtpEnabled,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || "Error al guardar la configuración SMTP");
+      }
+
+      setSmtpForm((prev) => ({
+        ...prev,
+        ...data.data,
+        smtpPassword: "",
+      }));
+      toast.success("Configuración del servidor de correo actualizada exitosamente");
+    } catch (err: any) {
+      toast.error(err.message || "Error al guardar la configuración SMTP");
+    } finally {
+      setIsSavingSmtp(false);
+    }
+  };
+
+  const handleTestSmtp = async () => {
+    setIsTestingSmtp(true);
+    setSmtpTestResult(null);
+    try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const body =
+        smtpForm.smtpHost && smtpForm.smtpUser && smtpForm.smtpPassword
+          ? {
+              host: smtpForm.smtpHost,
+              port: Number(smtpForm.smtpPort),
+              user: smtpForm.smtpUser,
+              pass: smtpForm.smtpPassword,
+              secure: smtpForm.smtpSecure === "ssl" || Number(smtpForm.smtpPort) === 465,
+            }
+          : undefined;
+
+      const res = await fetch("/api/config/smtp/test", {
+        method: "POST",
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+
+      const data = await res.json();
+      if (data.success && data.data?.connection?.ok) {
+        setSmtpTestResult({
+          tested: true,
+          ok: true,
+          message: data.data.connection.message,
+        });
+        toast.success(data.data.connection.message);
+      } else {
+        const errorMsg =
+          data.data?.connection?.message ||
+          data.error?.message ||
+          "No se pudo conectar al servidor SMTP";
+        setSmtpTestResult({
+          tested: true,
+          ok: false,
+          message: errorMsg,
+        });
+        toast.error(errorMsg);
+      }
+    } catch (err: any) {
+      const errorMsg = err.message || "Error al realizar el test de conexión";
+      setSmtpTestResult({
+        tested: true,
+        ok: false,
+        message: errorMsg,
+      });
+      toast.error(errorMsg);
+    } finally {
+      setIsTestingSmtp(false);
     }
   };
 
@@ -1204,6 +1355,21 @@ export const CompanyConfigView: React.FC = () => {
           >
             <CreditCard className="w-4 h-4" />
             <span>Medios de Pago</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab("email");
+              setSearchParams({ tab: "email" });
+            }}
+            className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+              activeTab === "email"
+                ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow-sm"
+                : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200"
+            }`}
+          >
+            <Mail className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+            <span>Servidor de Correo (SMTP)</span>
           </button>
 
           {isSuperAdminRole(user?.role) && (
@@ -2855,6 +3021,245 @@ export const CompanyConfigView: React.FC = () => {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      ) : activeTab === "email" ? (
+        /* TAB: SERVIDOR DE CORREO ELECTRÓNICO (SMTP) */
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-6 shadow-sm">
+            <form onSubmit={handleSaveSmtp} className="space-y-6">
+              {/* Encabezado */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-4">
+                <div>
+                  <h2 className="text-sm font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                    Servidor de Correo Saliente (SMTP de la Empresa)
+                  </h2>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                    Configure las credenciales de correo de su empresa para el despacho de facturas, cotizaciones, retenciones y notificaciones directas.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {smtpForm.smtpEnabled ? (
+                    <Badge variant="success">Servidor de Empresa Habilitado</Badge>
+                  ) : smtpForm.isUsingEnvFallback ? (
+                    <Badge variant="info">Modo Fallback Activo (.env)</Badge>
+                  ) : (
+                    <Badge variant="neutral">Sin Servidor Configurado</Badge>
+                  )}
+                </div>
+              </div>
+
+              {/* Banner Informativo de Origen / Fallback */}
+              <div className="p-4 rounded-lg border border-sky-100 dark:border-sky-900/50 bg-sky-50/50 dark:bg-sky-950/20 flex items-start gap-3 text-xs text-neutral-700 dark:text-neutral-300">
+                <Info className="w-5 h-5 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-semibold text-neutral-900 dark:text-neutral-100">
+                    Arquitectura Jerárquica de Despacho:
+                  </p>
+                  <p className="text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                    Si activa el servidor propio de la empresa, todos los correos salientes se enviarán con la identidad corporativa y credenciales configuradas abajo. Si desmarca la casilla, el sistema utilizará de forma transparente el servidor por defecto del archivo de entorno <code className="font-mono bg-sky-100 dark:bg-sky-900 px-1 py-0.5 rounded text-[11px]">.env</code> {smtpForm.envFallbackHost ? `(${smtpForm.envFallbackHost}:${smtpForm.envFallbackPort} - ${smtpForm.envFallbackUser})` : '(No configurado)'}.
+                  </p>
+                </div>
+              </div>
+
+              {/* Interruptor Principal */}
+              <div className="flex items-center justify-between p-4 bg-neutral-50 dark:bg-neutral-800/40 rounded-lg border border-neutral-200 dark:border-neutral-800">
+                <div>
+                  <label htmlFor="smtpEnabledToggle" className="text-xs font-bold text-neutral-900 dark:text-neutral-100 cursor-pointer">
+                    Habilitar Servidor de Correo Propio de esta Empresa
+                  </label>
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                    Activa el uso prioritario de los parámetros SMTP definidos a continuación sobre los del servidor global.
+                  </p>
+                </div>
+                <input
+                  id="smtpEnabledToggle"
+                  type="checkbox"
+                  checked={smtpForm.smtpEnabled}
+                  onChange={(e) => setSmtpForm({ ...smtpForm, smtpEnabled: e.target.checked })}
+                  className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 cursor-pointer"
+                />
+              </div>
+
+              {/* Campos del Servidor SMTP */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Host */}
+                <div>
+                  <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                    Servidor SMTP (Host) *
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="ej. smtp.gmail.com, mail.empresa.com"
+                    value={smtpForm.smtpHost}
+                    onChange={(e) => setSmtpForm({ ...smtpForm, smtpHost: e.target.value })}
+                    required={smtpForm.smtpEnabled}
+                    className="w-full text-xs"
+                  />
+                  <span className="text-[10px] text-neutral-400 mt-0.5 block">
+                    Dirección del servidor saliente
+                  </span>
+                </div>
+
+                {/* Puerto */}
+                <div>
+                  <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                    Puerto SMTP *
+                  </label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="65535"
+                    placeholder="587"
+                    value={smtpForm.smtpPort}
+                    onChange={(e) => setSmtpForm({ ...smtpForm, smtpPort: Number(e.target.value) || 587 })}
+                    required={smtpForm.smtpEnabled}
+                    className="w-full text-xs"
+                  />
+                  <span className="text-[10px] text-neutral-400 mt-0.5 block">
+                    587 (STARTTLS recomendada) o 465 (SSL)
+                  </span>
+                </div>
+
+                {/* Tipo de Cifrado */}
+                <div>
+                  <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                    Seguridad de Conexión
+                  </label>
+                  <select
+                    value={smtpForm.smtpSecure}
+                    onChange={(e) => setSmtpForm({ ...smtpForm, smtpSecure: e.target.value as any })}
+                    className="w-full h-9 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-xs text-neutral-900 dark:text-neutral-100 focus-visible:ring-2 focus-visible:ring-sky-500"
+                  >
+                    <option value="tls">STARTTLS / TLS (Estándar puerto 587)</option>
+                    <option value="ssl">SSL Directo (Estándar puerto 465)</option>
+                    <option value="none">Sin Cifrado (Redes locales puerto 25)</option>
+                  </select>
+                  <span className="text-[10px] text-neutral-400 mt-0.5 block">
+                    Protocolo de negociación TLS/SSL
+                  </span>
+                </div>
+
+                {/* Usuario / Email Remitente */}
+                <div>
+                  <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                    Usuario / Email de Autenticación *
+                  </label>
+                  <Input
+                    type="email"
+                    placeholder="facturacion@empresa.com"
+                    value={smtpForm.smtpUser}
+                    onChange={(e) => setSmtpForm({ ...smtpForm, smtpUser: e.target.value })}
+                    required={smtpForm.smtpEnabled}
+                    className="w-full text-xs"
+                  />
+                  <span className="text-[10px] text-neutral-400 mt-0.5 block">
+                    Dirección que autentica y despacha
+                  </span>
+                </div>
+
+                {/* Contraseña */}
+                <div>
+                  <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1 flex items-center justify-between">
+                    <span>Contraseña SMTP / Contraseña de Aplicación</span>
+                    {smtpForm.hasPasswordConfigured && (
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                        [Contraseña guardada y cifrada]
+                      </span>
+                    )}
+                  </label>
+                  <div className="relative">
+                    <Input
+                      type={showSmtpPassword ? "text" : "password"}
+                      placeholder={
+                        smtpForm.hasPasswordConfigured
+                          ? "•••••••••••••••• (deje en blanco para no modificar)"
+                          : "Contraseña o App Password de 16 caracteres"
+                      }
+                      value={smtpForm.smtpPassword}
+                      onChange={(e) => setSmtpForm({ ...smtpForm, smtpPassword: e.target.value })}
+                      className="w-full text-xs pr-9"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowSmtpPassword(!showSmtpPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 cursor-pointer"
+                    >
+                      {showSmtpPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <span className="text-[10px] text-neutral-400 mt-0.5 block">
+                    Para cuentas Gmail, utilice una Contraseña de Aplicación de 16 letras
+                  </span>
+                </div>
+
+                {/* Nombre de Remitente */}
+                <div>
+                  <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                    Nombre del Remitente en Cabecera
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="ej. ERO ERP - Facturación & Finanzas"
+                    value={smtpForm.smtpFromName}
+                    onChange={(e) => setSmtpForm({ ...smtpForm, smtpFromName: e.target.value })}
+                    className="w-full text-xs"
+                  />
+                  <span className="text-[10px] text-neutral-400 mt-0.5 block">
+                    Nombre que verá el cliente al recibir el correo
+                  </span>
+                </div>
+              </div>
+
+              {/* Resultado del Test de Conexión */}
+              {smtpTestResult && (
+                <div
+                  className={`p-4 rounded-lg border flex items-start gap-3 text-xs ${
+                    smtpTestResult.ok
+                      ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200"
+                      : "bg-red-50 dark:bg-red-950/30 border-red-300 dark:border-red-800 text-red-800 dark:text-red-200"
+                  }`}
+                >
+                  {smtpTestResult.ok ? (
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                  )}
+                  <div>
+                    <p className="font-bold">
+                      {smtpTestResult.ok ? "Test de Conexión Exitoso" : "Fallo en el Test de Conexión"}
+                    </p>
+                    <p className="text-[11px] mt-0.5 opacity-90">{smtpTestResult.message}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Botonera de Acciones */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-neutral-200 dark:border-neutral-800">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleTestSmtp}
+                  disabled={isTestingSmtp}
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isTestingSmtp ? "animate-spin" : ""}`} />
+                  <span>{isTestingSmtp ? "Verificando Servidor..." : "Probar Conexión SMTP en Vivo"}</span>
+                </Button>
+
+                <Button
+                  type="submit"
+                  variant="primary"
+                  disabled={isSavingSmtp}
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{isSavingSmtp ? "Guardando..." : "Guardar Configuración SMTP"}</span>
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
       ) : (

@@ -120,6 +120,8 @@ export const financialStatementFilterSchema = z.object({
   isReexpressed: z.coerce.boolean().optional().default(false), // Ajuste por Inflación VEN-NIF B-10
   targetInpcYear: z.coerce.number().int().optional(),
   targetInpcMonth: z.coerce.number().int().optional(),
+  baseInpcYear: z.coerce.number().int().optional(),
+  baseInpcMonth: z.coerce.number().int().optional(),
 });
 export type FinancialStatementFilter = z.infer<typeof financialStatementFilterSchema>;
 
@@ -127,9 +129,22 @@ export type FinancialStatementFilter = z.infer<typeof financialStatementFilterSc
 export const inflationAdjustmentProcessSchema = z.object({
   targetYear: z.number().int(),
   targetMonth: z.number().int().min(1).max(12),
+  baseYear: z.number().int().optional(),
+  baseMonth: z.number().int().min(1).max(12).optional(),
+  baseInpc: z.number().positive().optional(),
   concept: z.string().optional(),
 });
 export type InflationAdjustmentProcessInput = z.infer<typeof inflationAdjustmentProcessSchema>;
+
+// Entrada para Registrar o Actualizar Índice INPC del BCV
+export const upsertInpcSchema = z.object({
+  year: z.number().int().min(1990).max(2100),
+  month: z.number().int().min(1).max(12),
+  inpcValue: z.number().positive('El valor del INPC debe ser mayor a cero'),
+  variationMonthly: z.number().optional().default(0),
+  publishedDate: z.string().optional(),
+});
+export type UpsertInpcInput = z.infer<typeof upsertInpcSchema>;
 
 // Entrada para Ajuste por Diferencia en Cambio
 export const exchangeDifferenceProcessSchema = z.object({

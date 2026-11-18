@@ -122,3 +122,116 @@ export function calculateISLRRetention(
   return Number(net.toFixed(2));
 }
 
+export interface RifAnalysisResult {
+  rawRif: string;
+  cleanRif: string;
+  formattedRif: string;
+  prefix: 'V' | 'E' | 'J' | 'G' | 'P' | 'C';
+  number: string;
+  checkDigit: string;
+  isValidFormat: boolean;
+  isValidChecksum: boolean;
+  expectedCheckDigit: number;
+  isPersonNatural: boolean;
+  isResident: boolean;
+  personType: 'NATURAL' | 'JURIDICA' | 'GUBERNAMENTAL' | 'COMUNAL';
+  seniatPortalUrl: string;
+}
+
+/**
+ * Valida, formatea y analiza un RIF venezolano según el algoritmo Módulo 11 oficial del SENIAT.
+ */
+export function analyzeRif(rawRif: string): RifAnalysisResult {
+  const clean = (rawRif || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  const defaultRes: RifAnalysisResult = {
+    rawRif,
+    cleanRif: clean,
+    formattedRif: clean,
+    prefix: 'J',
+    number: '',
+    checkDigit: '',
+    isValidFormat: false,
+    isValidChecksum: false,
+    expectedCheckDigit: -1,
+    isPersonNatural: false,
+    isResident: true,
+    personType: 'JURIDICA',
+    seniatPortalUrl: `https://contribuyente.seniat.gob.ve/BuscaRif/BuscaRif.jsp?p_rif=${clean}`,
+  };
+
+  if (!clean || clean.length < 2) return defaultRes;
+
+  const prefixChar = clean[0] as 'V' | 'E' | 'J' | 'G' | 'P' | 'C';
+  const prefixMap: Record<string, number> = { V: 1, E: 2, J: 3, P: 4, G: 5, C: 6 };
+
+  if (!(prefixChar in prefixMap)) return defaultRes;
+
+  const digitsOnly = clean.slice(1);
+  if (!/^\d+$/.test(digitsOnly)) return defaultRes;
+
+  const isPersonNatural = prefixChar === 'V' || prefixChar === 'E';
+  const isResident = prefixChar !== 'P' && prefixChar !== 'E';
+  const personType =
+    prefixChar === 'V' || prefixChar === 'E'
+      ? 'NATURAL'
+      : prefixChar === 'G'
+        ? 'GUBERNAMENTAL'
+        : prefixChar === 'C'
+          ? 'COMUNAL'
+          : 'JURIDICA';
+
+  if (clean.length < 9) {
+    return {
+      ...defaultRes,
+      prefix: prefixChar,
+      number: digitsOnly,
+      formattedRif: `${prefixChar}-${digitsOnly}`,
+      isPersonNatural,
+      isResident,
+      personType,
+    };
+  }
+
+  let coreNumber: string;
+  let checkDigitStr: string;
+
+  if (clean.length === 9) {
+    coreNumber = digitsOnly.slice(0, -1).padStart(8, '0');
+    checkDigitStr = digitsOnly.slice(-1);
+  } else {
+    coreNumber = digitsOnly.slice(0, 8);
+    checkDigitStr = digitsOnly.slice(8, 9);
+  }
+
+  const padded10 = `${prefixChar}${coreNumber}${checkDigitStr}`;
+  const weights = [4, 3, 2, 7, 6, 5, 4, 3, 2];
+  let sum = prefixMap[prefixChar] * weights[0];
+  for (let i = 1; i < 9; i++) {
+    sum += parseInt(padded10[i], 10) * weights[i];
+  }
+
+  const residue = sum % 11;
+  let expectedCheckDigit = 11 - residue;
+  if (expectedCheckDigit >= 10) expectedCheckDigit = 0;
+
+  const providedDigit = parseInt(checkDigitStr, 10);
+  const isValidChecksum = expectedCheckDigit === providedDigit;
+  const formattedRif = `${prefixChar}-${coreNumber}-${checkDigitStr}`;
+
+  return {
+    rawRif,
+    cleanRif: padded10,
+    formattedRif,
+    prefix: prefixChar,
+    number: coreNumber,
+    checkDigit: checkDigitStr,
+    isValidFormat: true,
+    isValidChecksum,
+    expectedCheckDigit,
+    isPersonNatural,
+    isResident,
+    personType,
+    seniatPortalUrl: `https://contribuyente.seniat.gob.ve/BuscaRif/BuscaRif.jsp?p_rif=${padded10}`,
+  };
+}
+

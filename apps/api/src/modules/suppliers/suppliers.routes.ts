@@ -24,6 +24,14 @@ suppliersRouter.get('/', authenticate, authorize('suppliers', 'read'), async (c)
   return c.json({ success: true, data });
 });
 
+// GET /api/suppliers/lookup-rif/:rif - Consulta inteligente de RIF y datos fiscales
+suppliersRouter.get('/lookup-rif/:rif', authenticate, authorize('suppliers', 'read'), async (c) => {
+  const user = c.get('user');
+  const rif = c.req.param('rif');
+  const data = await SuppliersService.lookupRif(user.companyId, rif!);
+  return c.json({ success: true, data });
+});
+
 // GET /api/suppliers/:id - Detalle de un proveedor
 suppliersRouter.get('/:id', authenticate, authorize('suppliers', 'read'), async (c) => {
   const user = c.get('user');

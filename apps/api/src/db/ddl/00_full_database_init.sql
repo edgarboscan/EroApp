@@ -1,7 +1,8 @@
 -- =============================================================================
 -- ERO ERP - BOOTSTRAP UNIFICADO DE BASE DE DATOS (NUEVOS SERVIDORES)
--- Incluye: Esquema Completo + Módulos (Restaurante, Contabilidad, Notificaciones)
+-- Incluye: Esquema Completo + Módulos (Restaurante, Contabilidad, Notificaciones, Contabilización Automática)
 --         + Triggers + Stored Procedures + Vistas + Seeds Base + Datos de Hipermercado
+--         + Plan de Cuentas Estándar VEN-NIF y Mapeos Contables
 -- Fecha: Noviembre 2026
 -- =============================================================================
 
@@ -151,6 +152,7 @@ CREATE TABLE `users` (
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,
   `all_branches` TINYINT(1) NOT NULL DEFAULT 1,
   `can_switch_warehouses` TINYINT(1) NOT NULL DEFAULT 1,
+  `can_use_chat` TINYINT(1) NOT NULL DEFAULT 1,
   `last_login_at` DATETIME DEFAULT NULL,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -1807,46 +1809,26 @@ CREATE TABLE `user_notification_preferences` (
   UNIQUE KEY `uk_user_notif_pref` (`company_id`, `user_id`, `notification_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- TABLAS DE CHAT ENTRE USUARIOS
-DROP TABLE IF EXISTS `chat_messages`;
-DROP TABLE IF EXISTS `chat_conversations`;
-
-CREATE TABLE IF NOT EXISTS `chat_conversations` (
+DROP TABLE IF EXISTS `email_logs`;
+CREATE TABLE `email_logs` (
   `id` VARCHAR(36) NOT NULL,
-  `company_id` CHAR(36) NOT NULL,
-  `user1_id` CHAR(36) NOT NULL,
-  `user2_id` CHAR(36) NOT NULL,
-  `last_message` TEXT DEFAULT NULL,
-  `last_message_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
-  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_chat_participants` (`company_id`, `user1_id`, `user2_id`),
-  KEY `idx_chat_user1` (`company_id`, `user1_id`, `last_message_at`),
-  KEY `idx_chat_user2` (`company_id`, `user2_id`, `last_message_at`),
-  CONSTRAINT `fk_chat_conv_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_chat_conv_user1` FOREIGN KEY (`user1_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_chat_conv_user2` FOREIGN KEY (`user2_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-CREATE TABLE IF NOT EXISTS `chat_messages` (
-  `id` VARCHAR(36) NOT NULL,
-  `conversation_id` VARCHAR(36) NOT NULL,
-  `company_id` CHAR(36) NOT NULL,
-  `sender_id` CHAR(36) NOT NULL,
-  `recipient_id` CHAR(36) NOT NULL,
-  `message` TEXT NOT NULL,
-  `is_read` TINYINT(1) NOT NULL DEFAULT 0,
-  `read_at` DATETIME DEFAULT NULL,
+  `company_id` VARCHAR(36) NOT NULL,
+  `sender_user_id` VARCHAR(36) DEFAULT NULL,
+  `sender_name` VARCHAR(255) DEFAULT NULL,
+  `recipient_email` VARCHAR(255) NOT NULL,
+  `recipient_name` VARCHAR(255) DEFAULT NULL,
+  `recipient_type` VARCHAR(50) DEFAULT 'custom',
+  `subject` VARCHAR(255) NOT NULL,
+  `body` TEXT,
+  `report_title` VARCHAR(255) DEFAULT NULL,
+  `status` VARCHAR(20) NOT NULL DEFAULT 'SENT',
+  `error_message` TEXT DEFAULT NULL,
+  `has_attachments` TINYINT(1) NOT NULL DEFAULT 0,
+  `attachments_count` INT NOT NULL DEFAULT 0,
+  `attachment_names` TEXT DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  KEY `idx_chat_msg_conv` (`conversation_id`, `created_at`),
-  KEY `idx_chat_msg_unread` (`company_id`, `recipient_id`, `is_read`),
-  KEY `idx_chat_msg_audit` (`company_id`, `created_at`),
-  CONSTRAINT `fk_chat_msg_conv` FOREIGN KEY (`conversation_id`) REFERENCES `chat_conversations` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_chat_msg_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_chat_msg_sender` FOREIGN KEY (`sender_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_chat_msg_recipient` FOREIGN KEY (`recipient_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+  KEY `idx_email_company` (`company_id`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;
@@ -1915,6 +1897,7 @@ CREATE TABLE IF NOT EXISTS `restaurant_orders` (
   `waiter_name` VARCHAR(150) DEFAULT NULL,
   `customer_id` CHAR(36) DEFAULT NULL,
   `customer_name` VARCHAR(150) DEFAULT NULL,
+  `cash_register_id` CHAR(36) DEFAULT NULL,
   `status` ENUM('OPEN', 'BILL_REQUESTED', 'PAID', 'CANCELLED') NOT NULL DEFAULT 'OPEN',
   `notes` TEXT DEFAULT NULL,
   `total_usd` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
@@ -2037,9 +2020,31 @@ CREATE TABLE IF NOT EXISTS `restaurant_order_payments` (
   CONSTRAINT `fk_ropayments_customer` FOREIGN KEY (`order_customer_id`) REFERENCES `restaurant_order_customers` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+-- -----------------------------------------------------------------------------
+-- PERMISOS DEL MÓDULO RESTAURANT & COMANDAS (KDS)
+-- -----------------------------------------------------------------------------
+INSERT IGNORE INTO `permissions` (`id`, `module`, `action`, `description`) VALUES
+  (UUID(), 'restaurant', 'read', 'Ver plano de mesas, pedidos abiertos y comandas'),
+  (UUID(), 'restaurant', 'write', 'Crear y editar pedidos de salón/comandas'),
+  (UUID(), 'restaurant', 'items', 'Agregar, despachar o anular platos/ítems de comanda'),
+  (UUID(), 'restaurant', 'payments', 'Procesar pagos y cuentas separadas de comanda'),
+  (UUID(), 'restaurant', 'close', 'Cerrar mesas y turnos de restaurante'),
+  (UUID(), 'restaurant', 'tables', 'Configuración de salones y distribución de mesas'),
+  (UUID(), 'restaurant', 'kds', 'Acceso y operación del Kitchen Display System (KDS)'),
+  (UUID(), 'restaurant', 'settings', 'Configurar parámetros y reglas de restaurante');
+
+-- Asignar permisos de restaurante a roles administrativos
+INSERT IGNORE INTO `role_permissions` (`role_id`, `permission_id`)
+SELECT r.id, p.id 
+FROM `roles` r
+CROSS JOIN `permissions` p
+WHERE r.name IN ('Super Admin', 'Administrador', 'Super Administrador', 'General Manager')
+  AND p.module = 'restaurant';
+
+
 
 -- -----------------------------------------------------------------------------
--- 3. MÓDULO DE CONTABILIDAD Y NIIF (07_accounting.sql)
+-- 3. MÓDULO DE CONTABILIDAD Y NIIF (07_accounting.sql + 09_accounting_auto_posting.sql)
 -- -----------------------------------------------------------------------------
 -- ============================================================================
 -- ERO ERP - MÓDULO CONTABLE SENIOR (VEN-NIF / NIIF PYMES & CÓDIGO DE COMERCIO)
@@ -2196,7 +2201,41 @@ CREATE TABLE IF NOT EXISTS `accounting_revaluation_logs` (
   CONSTRAINT `fk_arl_executed_by` FOREIGN KEY (`executed_by`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- 8. PERMISOS DEL MÓDULO CONTABLE
+-- 8. CONFIGURACIÓN DE CONTABILIZACIÓN AUTOMÁTICA
+CREATE TABLE IF NOT EXISTS `accounting_settings` (
+  `id` CHAR(36) NOT NULL,
+  `company_id` CHAR(36) NOT NULL,
+  `auto_posting_enabled` TINYINT(1) NOT NULL DEFAULT 1 COMMENT '1: Generar asientos automáticamente al procesar operaciones',
+  `default_entry_status` ENUM('DRAFT', 'POSTED') NOT NULL DEFAULT 'POSTED' COMMENT 'Estado por defecto del asiento generado',
+  `post_sales` TINYINT(1) NOT NULL DEFAULT 1,
+  `post_purchases` TINYINT(1) NOT NULL DEFAULT 1,
+  `post_payments` TINYINT(1) NOT NULL DEFAULT 1,
+  `post_notes` TINYINT(1) NOT NULL DEFAULT 1,
+  `post_inventory_adjustments` TINYINT(1) NOT NULL DEFAULT 1,
+  `post_treasury` TINYINT(1) NOT NULL DEFAULT 1,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_as_company` (`company_id`),
+  CONSTRAINT `fk_as_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- 9. TABLA DE MAPEO DE CUENTAS PREDETERMINADAS POR OPERACIÓN
+CREATE TABLE IF NOT EXISTS `accounting_account_mappings` (
+  `id` CHAR(36) NOT NULL,
+  `company_id` CHAR(36) NOT NULL,
+  `mapping_key` VARCHAR(60) NOT NULL,
+  `account_id` CHAR(36) NOT NULL,
+  `description` VARCHAR(150) NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_aam_company_key` (`company_id`, `mapping_key`),
+  CONSTRAINT `fk_aam_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_aam_account` FOREIGN KEY (`account_id`) REFERENCES `accounting_accounts` (`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- 10. PERMISOS DEL MÓDULO CONTABLE
 INSERT IGNORE INTO `permissions` (`id`, `module`, `action`, `description`) VALUES
 ('perm-acc-001', 'accounting', 'read', 'Ver plan de cuentas, comprobantes de diario, mayor y estados financieros'),
 ('perm-acc-002', 'accounting', 'write', 'Crear y modificar cuentas contables y comprobantes de diario en borrador'),
@@ -2210,6 +2249,47 @@ FROM `roles` r
 CROSS JOIN `permissions` p
 WHERE r.name IN ('Super Admin', 'Administrador', 'General Manager', 'Contador')
   AND p.module = 'accounting';
+
+
+-- ============================================================================
+-- ERO ERP - MOTOR DE CONTABILIZACIÓN AUTOMÁTICA
+-- DDL 09: Mapeo de Cuentas, Configuración de Contabilización y Trazabilidad
+-- ============================================================================
+
+-- 1. TABLA DE CONFIGURACIÓN DE CONTABILIZACIÓN AUTOMÁTICA
+CREATE TABLE IF NOT EXISTS `accounting_settings` (
+  `id` CHAR(36) NOT NULL,
+  `company_id` CHAR(36) NOT NULL,
+  `auto_posting_enabled` TINYINT(1) NOT NULL DEFAULT 1 COMMENT '1: Generar asientos automáticamente al procesar operaciones',
+  `default_entry_status` ENUM('DRAFT', 'POSTED') NOT NULL DEFAULT 'POSTED' COMMENT 'Estado por defecto del asiento generado',
+  `post_sales` TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'Contabilizar ventas y costo de ventas',
+  `post_purchases` TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'Contabilizar compras a proveedores',
+  `post_payments` TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'Contabilizar cobros y pagos CxC/CxP',
+  `post_notes` TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'Contabilizar notas de crédito y débito',
+  `post_inventory_adjustments` TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'Contabilizar ajustes de inventario',
+  `post_treasury` TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'Contabilizar transferencias y depósitos bancarios',
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_as_company` (`company_id`),
+  CONSTRAINT `fk_as_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- 2. TABLA DE MAPEO DE CUENTAS PREDETERMINADAS POR OPERACIÓN
+CREATE TABLE IF NOT EXISTS `accounting_account_mappings` (
+  `id` CHAR(36) NOT NULL,
+  `company_id` CHAR(36) NOT NULL,
+  `mapping_key` VARCHAR(60) NOT NULL,
+  `account_id` CHAR(36) NOT NULL,
+  `description` VARCHAR(150) NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_aam_company_key` (`company_id`, `mapping_key`),
+  CONSTRAINT `fk_aam_company` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_aam_account` FOREIGN KEY (`account_id`) REFERENCES `accounting_accounts` (`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 
 
 -- -----------------------------------------------------------------------------
@@ -6029,6 +6109,1225 @@ INSERT INTO product_locations (id, product_id, warehouse_id, aisle, shelf, compa
 SELECT UUID(), 'prd11111-0000-0000-0000-000000000055', @wh_store, 'Área Verduras', 'Góndola Central', 'Frente de Góndola', 'Piso de Venta Exhibición' WHERE @wh_store != @wh_main;
 
 SET FOREIGN_KEY_CHECKS = 1;
+
+
+-- -----------------------------------------------------------------------------
+-- 9. PLAN DE CUENTAS ESTÁNDAR VEN-NIF Y MAPEOS CONTABLES (09_chart_of_accounts)
+-- -----------------------------------------------------------------------------
+
+-- =============================================================================
+-- ERO ERP - PLAN DE CUENTAS ESTÁNDAR VEN-NIF / NIIF Y MAPEOS CONTABLES BASE
+-- Generado para la empresa por defecto @company_id
+-- =============================================================================
+
+-- 1. Ejercicio Fiscal del Año Actual y 12 Períodos Mensuales
+SET @current_fiscal_year = YEAR(CURRENT_DATE());
+SET @fiscal_year_id = UUID();
+
+INSERT INTO accounting_fiscal_years (id, company_id, year, start_date, end_date, status)
+VALUES (@fiscal_year_id, @company_id, @current_fiscal_year, CONCAT(@current_fiscal_year, '-01-01'), CONCAT(@current_fiscal_year, '-12-31'), 'OPEN')
+ON DUPLICATE KEY UPDATE status = VALUES(status);
+
+SELECT id INTO @fiscal_year_id FROM accounting_fiscal_years WHERE company_id = @company_id AND year = @current_fiscal_year LIMIT 1;
+
+-- Períodos 1 a 12
+
+INSERT INTO accounting_fiscal_periods (id, fiscal_year_id, month, start_date, end_date, status)
+VALUES (
+  UUID(), @fiscal_year_id, 1,
+  CONCAT(@current_fiscal_year, '-01-01'),
+  LAST_DAY(CONCAT(@current_fiscal_year, '-01-01')),
+  'OPEN'
+) ON DUPLICATE KEY UPDATE status = VALUES(status);
+
+INSERT INTO accounting_fiscal_periods (id, fiscal_year_id, month, start_date, end_date, status)
+VALUES (
+  UUID(), @fiscal_year_id, 2,
+  CONCAT(@current_fiscal_year, '-02-01'),
+  LAST_DAY(CONCAT(@current_fiscal_year, '-02-01')),
+  'OPEN'
+) ON DUPLICATE KEY UPDATE status = VALUES(status);
+
+INSERT INTO accounting_fiscal_periods (id, fiscal_year_id, month, start_date, end_date, status)
+VALUES (
+  UUID(), @fiscal_year_id, 3,
+  CONCAT(@current_fiscal_year, '-03-01'),
+  LAST_DAY(CONCAT(@current_fiscal_year, '-03-01')),
+  'OPEN'
+) ON DUPLICATE KEY UPDATE status = VALUES(status);
+
+INSERT INTO accounting_fiscal_periods (id, fiscal_year_id, month, start_date, end_date, status)
+VALUES (
+  UUID(), @fiscal_year_id, 4,
+  CONCAT(@current_fiscal_year, '-04-01'),
+  LAST_DAY(CONCAT(@current_fiscal_year, '-04-01')),
+  'OPEN'
+) ON DUPLICATE KEY UPDATE status = VALUES(status);
+
+INSERT INTO accounting_fiscal_periods (id, fiscal_year_id, month, start_date, end_date, status)
+VALUES (
+  UUID(), @fiscal_year_id, 5,
+  CONCAT(@current_fiscal_year, '-05-01'),
+  LAST_DAY(CONCAT(@current_fiscal_year, '-05-01')),
+  'OPEN'
+) ON DUPLICATE KEY UPDATE status = VALUES(status);
+
+INSERT INTO accounting_fiscal_periods (id, fiscal_year_id, month, start_date, end_date, status)
+VALUES (
+  UUID(), @fiscal_year_id, 6,
+  CONCAT(@current_fiscal_year, '-06-01'),
+  LAST_DAY(CONCAT(@current_fiscal_year, '-06-01')),
+  'OPEN'
+) ON DUPLICATE KEY UPDATE status = VALUES(status);
+
+INSERT INTO accounting_fiscal_periods (id, fiscal_year_id, month, start_date, end_date, status)
+VALUES (
+  UUID(), @fiscal_year_id, 7,
+  CONCAT(@current_fiscal_year, '-07-01'),
+  LAST_DAY(CONCAT(@current_fiscal_year, '-07-01')),
+  'OPEN'
+) ON DUPLICATE KEY UPDATE status = VALUES(status);
+
+INSERT INTO accounting_fiscal_periods (id, fiscal_year_id, month, start_date, end_date, status)
+VALUES (
+  UUID(), @fiscal_year_id, 8,
+  CONCAT(@current_fiscal_year, '-08-01'),
+  LAST_DAY(CONCAT(@current_fiscal_year, '-08-01')),
+  'OPEN'
+) ON DUPLICATE KEY UPDATE status = VALUES(status);
+
+INSERT INTO accounting_fiscal_periods (id, fiscal_year_id, month, start_date, end_date, status)
+VALUES (
+  UUID(), @fiscal_year_id, 9,
+  CONCAT(@current_fiscal_year, '-09-01'),
+  LAST_DAY(CONCAT(@current_fiscal_year, '-09-01')),
+  'OPEN'
+) ON DUPLICATE KEY UPDATE status = VALUES(status);
+
+INSERT INTO accounting_fiscal_periods (id, fiscal_year_id, month, start_date, end_date, status)
+VALUES (
+  UUID(), @fiscal_year_id, 10,
+  CONCAT(@current_fiscal_year, '-10-01'),
+  LAST_DAY(CONCAT(@current_fiscal_year, '-10-01')),
+  'OPEN'
+) ON DUPLICATE KEY UPDATE status = VALUES(status);
+
+INSERT INTO accounting_fiscal_periods (id, fiscal_year_id, month, start_date, end_date, status)
+VALUES (
+  UUID(), @fiscal_year_id, 11,
+  CONCAT(@current_fiscal_year, '-11-01'),
+  LAST_DAY(CONCAT(@current_fiscal_year, '-11-01')),
+  'OPEN'
+) ON DUPLICATE KEY UPDATE status = VALUES(status);
+
+INSERT INTO accounting_fiscal_periods (id, fiscal_year_id, month, start_date, end_date, status)
+VALUES (
+  UUID(), @fiscal_year_id, 12,
+  CONCAT(@current_fiscal_year, '-12-01'),
+  LAST_DAY(CONCAT(@current_fiscal_year, '-12-01')),
+  'OPEN'
+) ON DUPLICATE KEY UPDATE status = VALUES(status);
+
+-- 2. Catálogo Jerárquico de Cuentas VEN-NIF (92 Cuentas Estándar)
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1', 'ACTIVO', 1, NULL,
+  'ASSET', 'CURRENT', 'DEBIT',
+  0, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '2', 'PASIVO', 1, NULL,
+  'LIABILITY', 'CURRENT', 'CREDIT',
+  0, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '3', 'PATRIMONIO NETO', 1, NULL,
+  'EQUITY', 'OTHER', 'CREDIT',
+  0, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '4', 'INGRESOS', 1, NULL,
+  'REVENUE', 'OPERATING', 'CREDIT',
+  0, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '5', 'COSTOS DE VENTAS Y OPERACIÓN', 1, NULL,
+  'COST', 'OPERATING', 'DEBIT',
+  0, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '6', 'GASTOS OPERACIONALES', 1, NULL,
+  'EXPENSE', 'OPERATING', 'DEBIT',
+  0, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '7', 'INGRESOS Y EGRESOS EXTRAORDINARIOS Y FINANCIEROS', 1, NULL,
+  'REVENUE', 'FINANCIAL', 'CREDIT',
+  0, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '8', 'CUENTAS DE ORDEN', 1, NULL,
+  'ORDER', 'OTHER', 'DEBIT',
+  0, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1.1', 'ACTIVO CORRIENTE', 2, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '1' LIMIT 1),
+  'ASSET', 'CURRENT', 'DEBIT',
+  0, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1.2', 'ACTIVO NO CORRIENTE', 2, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '1' LIMIT 1),
+  'ASSET', 'NON_CURRENT', 'DEBIT',
+  0, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '2.1', 'PASIVO CORRIENTE', 2, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '2' LIMIT 1),
+  'LIABILITY', 'CURRENT', 'CREDIT',
+  0, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '2.2', 'PASIVO NO CORRIENTE', 2, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '2' LIMIT 1),
+  'LIABILITY', 'NON_CURRENT', 'CREDIT',
+  0, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '3.1', 'Capital Social', 2, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '3' LIMIT 1),
+  'EQUITY', 'OTHER', 'CREDIT',
+  0, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '3.2', 'Reservas de Capital', 2, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '3' LIMIT 1),
+  'EQUITY', 'OTHER', 'CREDIT',
+  0, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '3.3', 'Resultados Acumulados', 2, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '3' LIMIT 1),
+  'EQUITY', 'OTHER', 'CREDIT',
+  0, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '4.1', 'Ingresos Operacionales de Ventas', 2, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '4' LIMIT 1),
+  'REVENUE', 'OPERATING', 'CREDIT',
+  0, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '5.1', 'Costo de Ventas', 2, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '5' LIMIT 1),
+  'COST', 'OPERATING', 'DEBIT',
+  0, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '6.1', 'Gastos de Administración', 2, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '6' LIMIT 1),
+  'EXPENSE', 'OPERATING', 'DEBIT',
+  0, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '6.2', 'Gastos de Ventas y Mercadeo', 2, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '6' LIMIT 1),
+  'EXPENSE', 'OPERATING', 'DEBIT',
+  0, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '7.1', 'Costos y Gastos Financieros', 2, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '7' LIMIT 1),
+  'EXPENSE', 'FINANCIAL', 'DEBIT',
+  0, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '7.2', 'Ingresos Financieros y Cambiarios', 2, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '7' LIMIT 1),
+  'REVENUE', 'FINANCIAL', 'CREDIT',
+  0, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '7.3', 'Resultado por Exposición a la Inflación (REI - VEN-NIF B-10)', 2, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '7' LIMIT 1),
+  'REVENUE', 'OTHER', 'CREDIT',
+  0, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '8.1', 'Cuentas de Orden Deudoras', 2, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '8' LIMIT 1),
+  'ORDER', 'OTHER', 'DEBIT',
+  1, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '8.2', 'Cuentas de Orden Acreedoras', 2, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '8' LIMIT 1),
+  'ORDER', 'OTHER', 'CREDIT',
+  1, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1.1.01', 'Efectivo y Equivalentes de Efectivo', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '1.1' LIMIT 1),
+  'ASSET', 'CURRENT', 'DEBIT',
+  0, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1.1.02', 'Cuentas y Efectos por Cobrar Comerciales', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '1.1' LIMIT 1),
+  'ASSET', 'CURRENT', 'DEBIT',
+  0, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1.1.03', 'Créditos y Anticipos Fiscales', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '1.1' LIMIT 1),
+  'ASSET', 'CURRENT', 'DEBIT',
+  0, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1.1.04', 'Inventarios (Activos No Monetarios)', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '1.1' LIMIT 1),
+  'ASSET', 'CURRENT', 'DEBIT',
+  0, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1.2.01', 'Propiedades, Planta y Equipos (Activos Fijos)', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '1.2' LIMIT 1),
+  'ASSET', 'NON_CURRENT', 'DEBIT',
+  0, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '2.1.01', 'Cuentas y Efectos por Pagar Comerciales', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '2.1' LIMIT 1),
+  'LIABILITY', 'CURRENT', 'CREDIT',
+  0, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '2.1.02', 'Pasivos y Retenciones Fiscales (Tributos por Pagar)', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '2.1' LIMIT 1),
+  'LIABILITY', 'CURRENT', 'CREDIT',
+  0, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '2.1.03', 'Obligaciones Laborales y Nómina', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '2.1' LIMIT 1),
+  'LIABILITY', 'CURRENT', 'CREDIT',
+  0, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '2.2.01', 'Obligaciones Financieras a Largo Plazo', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '2.2' LIMIT 1),
+  'LIABILITY', 'NON_CURRENT', 'CREDIT',
+  0, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '3.1.01', 'Capital Social Suscrito y Pagado', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '3.1' LIMIT 1),
+  'EQUITY', 'OTHER', 'CREDIT',
+  1, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '3.1.02', 'Actualización de Capital Social (Reexpresión VEN-NIF)', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '3.1' LIMIT 1),
+  'EQUITY', 'OTHER', 'CREDIT',
+  1, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '3.2.01', 'Reserva Legal (Código de Comercio Art. 262)', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '3.2' LIMIT 1),
+  'EQUITY', 'OTHER', 'CREDIT',
+  1, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '3.3.01', 'Utilidades No Distribuidas Ejercicios Anteriores', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '3.3' LIMIT 1),
+  'EQUITY', 'OTHER', 'CREDIT',
+  1, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '3.3.02', 'Pérdidas Acumuladas Ejercicios Anteriores', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '3.3' LIMIT 1),
+  'EQUITY', 'OTHER', 'DEBIT',
+  1, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '3.3.03', 'Resultado del Ejercicio Actual', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '3.3' LIMIT 1),
+  'EQUITY', 'OTHER', 'CREDIT',
+  1, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '3.3.04', 'Resultado por Exposición a la Inflación Acumulado (REI)', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '3.3' LIMIT 1),
+  'EQUITY', 'OTHER', 'CREDIT',
+  1, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '4.1.01', 'Ventas de Mercancías Gravadas con IVA', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '4.1' LIMIT 1),
+  'REVENUE', 'OPERATING', 'CREDIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '4.1.02', 'Ventas de Mercancías Exentas / Exoneradas', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '4.1' LIMIT 1),
+  'REVENUE', 'OPERATING', 'CREDIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '4.1.03', 'Descuentos y Rebajas en Ventas', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '4.1' LIMIT 1),
+  'REVENUE', 'OPERATING', 'DEBIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '4.1.04', 'Devoluciones en Ventas', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '4.1' LIMIT 1),
+  'REVENUE', 'OPERATING', 'DEBIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '5.1.01', 'Costo de Mercancía Vendida', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '5.1' LIMIT 1),
+  'COST', 'OPERATING', 'DEBIT',
+  1, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '5.1.02', 'Fletes y Aranceles de Importación', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '5.1' LIMIT 1),
+  'COST', 'OPERATING', 'DEBIT',
+  1, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '6.1.01', 'Sueldos, Salarios y Remuneraciones', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '6.1' LIMIT 1),
+  'EXPENSE', 'OPERATING', 'DEBIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '6.1.02', 'Aportes Patronales Legales (IVSS, FAOV, INCES)', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '6.1' LIMIT 1),
+  'EXPENSE', 'OPERATING', 'DEBIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '6.1.03', 'Honorarios Profesionales Contables y Jurídicos', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '6.1' LIMIT 1),
+  'EXPENSE', 'OPERATING', 'DEBIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '6.1.04', 'Servicios Públicos (Energía, Agua, Conectividad)', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '6.1' LIMIT 1),
+  'EXPENSE', 'OPERATING', 'DEBIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '6.1.05', 'Alquileres y Arrendamientos', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '6.1' LIMIT 1),
+  'EXPENSE', 'OPERATING', 'DEBIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '6.1.06', 'Depreciación de Propiedades, Planta y Equipos', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '6.1' LIMIT 1),
+  'EXPENSE', 'OPERATING', 'DEBIT',
+  1, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '6.1.07', 'Mantenimiento, Reparaciones y Suministros', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '6.1' LIMIT 1),
+  'EXPENSE', 'OPERATING', 'DEBIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '6.2.01', 'Comisiones de Ventas', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '6.2' LIMIT 1),
+  'EXPENSE', 'OPERATING', 'DEBIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '6.2.02', 'Publicidad, Redes y Promoción', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '6.2' LIMIT 1),
+  'EXPENSE', 'OPERATING', 'DEBIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '6.2.03', 'Despachos y Fletes sobre Ventas', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '6.2' LIMIT 1),
+  'EXPENSE', 'OPERATING', 'DEBIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '7.1.01', 'Comisiones Bancarias y Débitos IGTF', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '7.1' LIMIT 1),
+  'EXPENSE', 'FINANCIAL', 'DEBIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '7.1.02', 'Pérdida en Fluctuación Cambiaria (Diferencia de Cambio)', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '7.1' LIMIT 1),
+  'EXPENSE', 'FINANCIAL', 'DEBIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '7.2.01', 'Ganancia en Fluctuación Cambiaria (Diferencia de Cambio)', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '7.2' LIMIT 1),
+  'REVENUE', 'FINANCIAL', 'CREDIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '7.3.01', 'Resultado Monetario del Ejercicio (REI Neto)', 3, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '7.3' LIMIT 1),
+  'REVENUE', 'OTHER', 'CREDIT',
+  1, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1.1.01.01', 'Caja Principal (Efectivo VES)', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '1.1.01' LIMIT 1),
+  'ASSET', 'CURRENT', 'DEBIT',
+  1, 1, 1, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1.1.01.02', 'Caja Chica Sucursal', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '1.1.01' LIMIT 1),
+  'ASSET', 'CURRENT', 'DEBIT',
+  1, 1, 1, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1.1.01.03', 'Caja en Moneda Extranjera (USD)', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '1.1.01' LIMIT 1),
+  'ASSET', 'CURRENT', 'DEBIT',
+  1, 1, 1, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1.1.01.04', 'Banco Mercantil Cta Cte (VES)', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '1.1.01' LIMIT 1),
+  'ASSET', 'CURRENT', 'DEBIT',
+  1, 1, 1, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1.1.01.05', 'Banco Banesco Cta Cte (VES)', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '1.1.01' LIMIT 1),
+  'ASSET', 'CURRENT', 'DEBIT',
+  1, 1, 1, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1.1.01.06', 'Banco en Custodia / Cuenta Especial (USD)', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '1.1.01' LIMIT 1),
+  'ASSET', 'CURRENT', 'DEBIT',
+  1, 1, 1, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1.1.02.01', 'Clientes Nacionales Comerciales', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '1.1.02' LIMIT 1),
+  'ASSET', 'CURRENT', 'DEBIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1.1.02.02', 'Clientes en Moneda Extranjera (USD)', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '1.1.02' LIMIT 1),
+  'ASSET', 'CURRENT', 'DEBIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1.1.02.03', 'Provisión para Cuentas Incobrables', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '1.1.02' LIMIT 1),
+  'ASSET', 'CURRENT', 'CREDIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1.1.03.01', 'IVA Crédito Fiscal', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '1.1.03' LIMIT 1),
+  'ASSET', 'CURRENT', 'DEBIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1.1.03.02', 'Retenciones de IVA Soportadas por Compensar', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '1.1.03' LIMIT 1),
+  'ASSET', 'CURRENT', 'DEBIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1.1.03.03', 'Retenciones de ISLR Acumuladas por Compensar', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '1.1.03' LIMIT 1),
+  'ASSET', 'CURRENT', 'DEBIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1.1.03.04', 'Anticipos de Impuesto sobre la Renta (ISLR)', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '1.1.03' LIMIT 1),
+  'ASSET', 'CURRENT', 'DEBIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1.1.04.01', 'Inventario de Mercancías para la Venta', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '1.1.04' LIMIT 1),
+  'ASSET', 'CURRENT', 'DEBIT',
+  1, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1.1.04.02', 'Mercancías en Tránsito', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '1.1.04' LIMIT 1),
+  'ASSET', 'CURRENT', 'DEBIT',
+  1, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1.2.01.01', 'Terrenos', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '1.2.01' LIMIT 1),
+  'ASSET', 'NON_CURRENT', 'DEBIT',
+  1, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1.2.01.02', 'Edificaciones e Instalaciones', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '1.2.01' LIMIT 1),
+  'ASSET', 'NON_CURRENT', 'DEBIT',
+  1, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1.2.01.03', 'Mobiliario y Equipos de Oficina', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '1.2.01' LIMIT 1),
+  'ASSET', 'NON_CURRENT', 'DEBIT',
+  1, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1.2.01.04', 'Equipos de Computación y Tecnología', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '1.2.01' LIMIT 1),
+  'ASSET', 'NON_CURRENT', 'DEBIT',
+  1, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1.2.01.05', 'Vehículos y Flota de Transporte', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '1.2.01' LIMIT 1),
+  'ASSET', 'NON_CURRENT', 'DEBIT',
+  1, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '1.2.01.06', 'Depreciación Acumulada Propiedad, Planta y Eq.', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '1.2.01' LIMIT 1),
+  'ASSET', 'NON_CURRENT', 'CREDIT',
+  1, 0, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '2.1.01.01', 'Proveedores Nacionales', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '2.1.01' LIMIT 1),
+  'LIABILITY', 'CURRENT', 'CREDIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '2.1.01.02', 'Proveedores Extranjeros / Divisas', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '2.1.01' LIMIT 1),
+  'LIABILITY', 'CURRENT', 'CREDIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '2.1.02.01', 'IVA Débito Fiscal', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '2.1.02' LIMIT 1),
+  'LIABILITY', 'CURRENT', 'CREDIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '2.1.02.02', 'Retenciones de IVA por Enterar al SENIAT', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '2.1.02' LIMIT 1),
+  'LIABILITY', 'CURRENT', 'CREDIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '2.1.02.03', 'Retenciones de ISLR por Enterar al SENIAT', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '2.1.02' LIMIT 1),
+  'LIABILITY', 'CURRENT', 'CREDIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '2.1.02.04', 'Impuestos Municipales y Actividades Económicas', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '2.1.02' LIMIT 1),
+  'LIABILITY', 'CURRENT', 'CREDIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '2.1.02.05', 'IGTF por Enterar al SENIAT', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '2.1.02' LIMIT 1),
+  'LIABILITY', 'CURRENT', 'CREDIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '2.1.03.01', 'Sueldos y Salarios por Pagar', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '2.1.03' LIMIT 1),
+  'LIABILITY', 'CURRENT', 'CREDIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '2.1.03.02', 'Aportes Patronales Legales (IVSS, FAOV, INCES)', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '2.1.03' LIMIT 1),
+  'LIABILITY', 'CURRENT', 'CREDIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '2.1.03.03', 'Prestaciones Sociales y Liquidaciones por Pagar', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '2.1.03' LIMIT 1),
+  'LIABILITY', 'CURRENT', 'CREDIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '2.2.01.01', 'Préstamos Bancarios a Largo Plazo', 4, (SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '2.2.01' LIMIT 1),
+  'LIABILITY', 'NON_CURRENT', 'CREDIT',
+  1, 1, 0, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+-- 3. Configuración del Motor de Contabilización Automática
+INSERT INTO accounting_settings (
+  id, company_id, auto_posting_enabled, default_entry_status,
+  post_sales, post_purchases, post_payments, post_notes,
+  post_inventory_adjustments, post_treasury
+) VALUES (
+  UUID(), @company_id, 1, 'POSTED', 1, 1, 1, 1, 1, 1
+) ON DUPLICATE KEY UPDATE auto_posting_enabled = VALUES(auto_posting_enabled);
+
+-- 4. Mapeos Contables Predeterminados por Operación
+
+INSERT INTO accounting_account_mappings (
+  id, company_id, mapping_key, account_id, description
+) VALUES (
+  UUID(), @company_id, 'CASH_VES',
+  (SELECT id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) acc_m WHERE acc_m.code = '1.1.01.01' LIMIT 1),
+  'Caja Principal (Efectivo VES)'
+) ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+INSERT INTO accounting_account_mappings (
+  id, company_id, mapping_key, account_id, description
+) VALUES (
+  UUID(), @company_id, 'CASH_USD',
+  (SELECT id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) acc_m WHERE acc_m.code = '1.1.01.03' LIMIT 1),
+  'Caja en Moneda Extranjera (USD)'
+) ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+INSERT INTO accounting_account_mappings (
+  id, company_id, mapping_key, account_id, description
+) VALUES (
+  UUID(), @company_id, 'BANK_DEFAULT',
+  (SELECT id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) acc_m WHERE acc_m.code = '1.1.01.04' LIMIT 1),
+  'Banco Mercantil Cta Cte (VES)'
+) ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+INSERT INTO accounting_account_mappings (
+  id, company_id, mapping_key, account_id, description
+) VALUES (
+  UUID(), @company_id, 'ACCOUNTS_RECEIVABLE',
+  (SELECT id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) acc_m WHERE acc_m.code = '1.1.02.01' LIMIT 1),
+  'Clientes Nacionales Comerciales'
+) ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+INSERT INTO accounting_account_mappings (
+  id, company_id, mapping_key, account_id, description
+) VALUES (
+  UUID(), @company_id, 'ACCOUNTS_RECEIVABLE_USD',
+  (SELECT id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) acc_m WHERE acc_m.code = '1.1.02.02' LIMIT 1),
+  'Clientes en Moneda Extranjera (USD)'
+) ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+INSERT INTO accounting_account_mappings (
+  id, company_id, mapping_key, account_id, description
+) VALUES (
+  UUID(), @company_id, 'TAX_CREDIT_IVA',
+  (SELECT id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) acc_m WHERE acc_m.code = '1.1.03.01' LIMIT 1),
+  'IVA Crédito Fiscal'
+) ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+INSERT INTO accounting_account_mappings (
+  id, company_id, mapping_key, account_id, description
+) VALUES (
+  UUID(), @company_id, 'TAX_RETENTION_IVA_RECEIVED',
+  (SELECT id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) acc_m WHERE acc_m.code = '1.1.03.02' LIMIT 1),
+  'Retenciones de IVA Soportadas por Compensar'
+) ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+INSERT INTO accounting_account_mappings (
+  id, company_id, mapping_key, account_id, description
+) VALUES (
+  UUID(), @company_id, 'TAX_RETENTION_ISLR_RECEIVED',
+  (SELECT id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) acc_m WHERE acc_m.code = '1.1.03.03' LIMIT 1),
+  'Retenciones de ISLR Acumuladas por Compensar'
+) ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+INSERT INTO accounting_account_mappings (
+  id, company_id, mapping_key, account_id, description
+) VALUES (
+  UUID(), @company_id, 'INVENTORY',
+  (SELECT id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) acc_m WHERE acc_m.code = '1.1.04.01' LIMIT 1),
+  'Inventario de Mercancías para la Venta'
+) ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+INSERT INTO accounting_account_mappings (
+  id, company_id, mapping_key, account_id, description
+) VALUES (
+  UUID(), @company_id, 'ACCOUNTS_PAYABLE',
+  (SELECT id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) acc_m WHERE acc_m.code = '2.1.01.01' LIMIT 1),
+  'Proveedores Nacionales'
+) ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+INSERT INTO accounting_account_mappings (
+  id, company_id, mapping_key, account_id, description
+) VALUES (
+  UUID(), @company_id, 'ACCOUNTS_PAYABLE_USD',
+  (SELECT id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) acc_m WHERE acc_m.code = '2.1.01.02' LIMIT 1),
+  'Proveedores Extranjeros / Divisas'
+) ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+INSERT INTO accounting_account_mappings (
+  id, company_id, mapping_key, account_id, description
+) VALUES (
+  UUID(), @company_id, 'TAX_DEBIT_IVA',
+  (SELECT id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) acc_m WHERE acc_m.code = '2.1.02.01' LIMIT 1),
+  'IVA Débito Fiscal'
+) ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+INSERT INTO accounting_account_mappings (
+  id, company_id, mapping_key, account_id, description
+) VALUES (
+  UUID(), @company_id, 'TAX_RETENTION_IVA_PAYABLE',
+  (SELECT id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) acc_m WHERE acc_m.code = '2.1.02.02' LIMIT 1),
+  'Retenciones de IVA por Enterar al SENIAT'
+) ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+INSERT INTO accounting_account_mappings (
+  id, company_id, mapping_key, account_id, description
+) VALUES (
+  UUID(), @company_id, 'TAX_RETENTION_ISLR_PAYABLE',
+  (SELECT id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) acc_m WHERE acc_m.code = '2.1.02.03' LIMIT 1),
+  'Retenciones de ISLR por Enterar al SENIAT'
+) ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+INSERT INTO accounting_account_mappings (
+  id, company_id, mapping_key, account_id, description
+) VALUES (
+  UUID(), @company_id, 'TAX_IGTF_PAYABLE',
+  (SELECT id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) acc_m WHERE acc_m.code = '2.1.02.05' LIMIT 1),
+  'IGTF por Enterar al SENIAT'
+) ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+INSERT INTO accounting_account_mappings (
+  id, company_id, mapping_key, account_id, description
+) VALUES (
+  UUID(), @company_id, 'SALES_REVENUE',
+  (SELECT id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) acc_m WHERE acc_m.code = '4.1.01' LIMIT 1),
+  'Ventas de Mercancías Gravadas con IVA'
+) ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+INSERT INTO accounting_account_mappings (
+  id, company_id, mapping_key, account_id, description
+) VALUES (
+  UUID(), @company_id, 'SALES_REVENUE_EXEMPT',
+  (SELECT id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) acc_m WHERE acc_m.code = '4.1.02' LIMIT 1),
+  'Ventas de Mercancías Exentas / Exoneradas'
+) ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+INSERT INTO accounting_account_mappings (
+  id, company_id, mapping_key, account_id, description
+) VALUES (
+  UUID(), @company_id, 'COST_OF_SALES',
+  (SELECT id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) acc_m WHERE acc_m.code = '5.1.01' LIMIT 1),
+  'Costo de Mercancía Vendida'
+) ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+INSERT INTO accounting_account_mappings (
+  id, company_id, mapping_key, account_id, description
+) VALUES (
+  UUID(), @company_id, 'EXCHANGE_DIFF_GAIN',
+  (SELECT id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) acc_m WHERE acc_m.code = '7.2.01' LIMIT 1),
+  'Ganancia en Fluctuación Cambiaria'
+) ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+INSERT INTO accounting_account_mappings (
+  id, company_id, mapping_key, account_id, description
+) VALUES (
+  UUID(), @company_id, 'EXCHANGE_DIFF_LOSS',
+  (SELECT id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) acc_m WHERE acc_m.code = '7.1.02' LIMIT 1),
+  'Pérdida en Fluctuación Cambiaria'
+) ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+INSERT INTO accounting_account_mappings (
+  id, company_id, mapping_key, account_id, description
+) VALUES (
+  UUID(), @company_id, 'REI_RESULT',
+  (SELECT id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) acc_m WHERE acc_m.code = '7.3.01' LIMIT 1),
+  'Resultado Monetario del Ejercicio (REI Neto)'
+) ON DUPLICATE KEY UPDATE description = VALUES(description);
 
 
 SET FOREIGN_KEY_CHECKS = 1;

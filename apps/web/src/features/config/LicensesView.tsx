@@ -22,13 +22,21 @@ import {
   DollarSign,
   Calculator,
   Receipt,
+  Sliders,
+  RotateCcw,
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
 import { Badge } from '../../components/ui/Badge';
 import { useAuthStore, isSuperAdminRole } from '../../stores/authStore';
-import { LicenseInfo, LicenseCostBreakdown, formatMoneyUSD } from '@ero/shared';
+import {
+  LicenseInfo,
+  LicenseCostBreakdown,
+  LicensePricingRates,
+  DEFAULT_LICENSE_PRICING_RATES,
+  formatMoneyUSD,
+} from '@ero/shared';
 
 const AVAILABLE_MODULES: Array<{ key: string; label: string }> = [
   { key: 'dashboards', label: 'Dashboards Dinámicos' },
@@ -78,6 +86,12 @@ export const LicensesView: React.FC = () => {
   const [customTotalCost, setCustomTotalCost] = useState<string>('');
   const [isManualCost, setIsManualCost] = useState<boolean>(false);
 
+  // Tarifario Global de Licencias (Super Administrador)
+  const [pricingRates, setPricingRates] = useState<LicensePricingRates>(DEFAULT_LICENSE_PRICING_RATES);
+  const [pricingForm, setPricingForm] = useState<LicensePricingRates>(DEFAULT_LICENSE_PRICING_RATES);
+  const [showPricingModal, setShowPricingModal] = useState(false);
+  const [isSavingPricing, setIsSavingPricing] = useState(false);
+
   // Formulario de Emisión
   const [issueForm, setIssueForm] = useState({
     companyName: '',
@@ -94,7 +108,7 @@ export const LicensesView: React.FC = () => {
     applyNow: true,
   });
 
-  // Calculadora de Costos reactiva en tiempo real
+  // Calculadora de Costos reactiva en tiempo real vinculada al Tarifario Global
   const calculatedCost: LicenseCostBreakdown = useMemo(() => {
     const isTrial = issueForm.type === 'trial';
     const isPerpetual = issueForm.type === 'perpetua';
@@ -105,16 +119,17 @@ export const LicensesView: React.FC = () => {
     let billingPeriod = 'Gratuito (Trial 30 Días)';
 
     if (isTrial) {
-      typeCost = 0;
+      typeCost = pricingRates.baseTrialUSD || 0;
       typeConcept = 'Licencia de Demostración & Evaluación (30 Días)';
       billingPeriod = 'Gratuito (30 Días)';
     } else if (isTemporal) {
       const months = issueForm.durationMonths || 12;
-      typeCost = Math.round(120 * (months / 12) * 100) / 100;
+      const annualBase = pricingRates.baseAnnualTemporalUSD || 120;
+      typeCost = Math.round(annualBase * (months / 12) * 100) / 100;
       typeConcept = `Licencia Suscripción Temporal (${months} meses - Base 5 usuarios / 1 sede)`;
       billingPeriod = `${months} Meses`;
     } else {
-      typeCost = 500;
+      typeCost = pricingRates.basePerpetuaUSD || 500;
       typeConcept = 'Licencia Perpetua Enterprise (Base 5 usuarios / 1 sede)';
       billingPeriod = 'Pago Único (Perpetua)';
     }
@@ -138,7 +153,9 @@ export const LicensesView: React.FC = () => {
     let usersCost = 0;
     if (!isTrial) {
       if (issueForm.isUnlimitedUsers || issueForm.maxUsers <= 0) {
-        usersCost = isPerpetual ? 350 : 150;
+        usersCost = isPerpetual
+          ? (pricingRates.unlimitedUsersPerpetuaUSD ?? 350)
+          : (pricingRates.unlimitedUsersTemporalUSD ?? 150);
         items.push({
           concept: 'Paquete de Usuarios Concurrentes Ilimitados',
           category: 'USERS',
@@ -148,7 +165,9 @@ export const LicensesView: React.FC = () => {
         });
       } else if (issueForm.maxUsers > 5) {
         const extraUsers = issueForm.maxUsers - 5;
-        const unitUserPrice = isPerpetual ? 35 : 12;
+        const unitUserPrice = isPerpetual
+          ? (pricingRates.extraUserPerpetuaUSD ?? 35)
+          : (pricingRates.extraUserTemporalUSD ?? 12);
         usersCost = extraUsers * unitUserPrice;
         items.push({
           concept: `Usuarios Adicionales (+${extraUsers} sobre los 5 base)`,
@@ -163,7 +182,9 @@ export const LicensesView: React.FC = () => {
     let branchesCost = 0;
     if (!isTrial) {
       if (issueForm.isUnlimitedBranches || issueForm.maxBranches <= 0) {
-        branchesCost = isPerpetual ? 400 : 180;
+        branchesCost = isPerpetual
+          ? (pricingRates.unlimitedBranchesPerpetuaUSD ?? 400)
+          : (pricingRates.unlimitedBranchesTemporalUSD ?? 180);
         items.push({
           concept: 'Paquete Multi-Sucursal Ilimitado (Sedes sin límite)',
           category: 'BRANCHES',
@@ -173,7 +194,9 @@ export const LicensesView: React.FC = () => {
         });
       } else if (issueForm.maxBranches > 1) {
         const extraBranches = issueForm.maxBranches - 1;
-        const unitBranchPrice = isPerpetual ? 80 : 36;
+        const unitBranchPrice = isPerpetual
+          ? (pricingRates.extraBranchPerpetuaUSD ?? 80)
+          : (pricingRates.extraBranchTemporalUSD ?? 36);
         branchesCost = extraBranches * unitBranchPrice;
         items.push({
           concept: `Sucursales Adicionales (+${extraBranches} sobre la sede principal)`,
@@ -187,21 +210,12 @@ export const LicensesView: React.FC = () => {
 
     let modulesCost = 0;
     if (!isTrial) {
-      const advancedModulesPricing: Record<string, { label: string; temporal: number; perpetua: number }> = {
-        receivables: { label: 'Cuentas por Cobrar & Gestión de Cartera', temporal: 15, perpetua: 30 },
-        payables: { label: 'Cuentas por Pagar & Compromisos', temporal: 15, perpetua: 30 },
-        treasury: { label: 'Tesorería Integral & Conciliación Bancaria', temporal: 20, perpetua: 45 },
-        taxes: { label: 'Tributos SENIAT & Retenciones IVA/ISLR', temporal: 20, perpetua: 45 },
-        reports: { label: 'Reportes Gerenciales & Exportación', temporal: 15, perpetua: 35 },
-        audit: { label: 'Auditoría Integral & Trazabilidad', temporal: 20, perpetua: 40 },
-        restaurant: { label: 'Restaurante & Comandera KDS', temporal: 35, perpetua: 90 },
-        accounting: { label: 'Contabilidad Senior NIIF / VEN-NIF', temporal: 45, perpetua: 120 },
-      };
+      const advancedModulesPricing = pricingRates.modules || DEFAULT_LICENSE_PRICING_RATES.modules;
 
       for (const modKey of issueForm.modulesAllowed) {
         const p = advancedModulesPricing[modKey];
         if (p) {
-          const modPrice = isPerpetual ? p.perpetua : p.temporal;
+          const modPrice = isPerpetual ? p.perpetuaUSD : p.temporalUSD;
           modulesCost += modPrice;
           items.push({
             concept: `Módulo Especializado: ${p.label}`,
@@ -217,13 +231,13 @@ export const LicensesView: React.FC = () => {
     let supportCost = 0;
     if (!isTrial && issueForm.hasSupport) {
       if (isPerpetual) {
-        supportCost = 80;
+        supportCost = pricingRates.supportPerpetuaUSD ?? 80;
         items.push({
           concept: 'Póliza de Soporte Técnico Prioritario & Actualizaciones (1er Año)',
           category: 'SUPPORT',
           quantity: 1,
-          unitPrice: 80,
-          subtotal: 80,
+          unitPrice: supportCost,
+          subtotal: supportCost,
         });
       } else {
         items.push({
@@ -281,6 +295,7 @@ export const LicensesView: React.FC = () => {
     customDiscount,
     isManualCost,
     customTotalCost,
+    pricingRates,
   ]);
 
   const fetchLicenseData = async () => {
@@ -320,8 +335,65 @@ export const LicensesView: React.FC = () => {
     }
   };
 
+  const fetchPricingRates = async () => {
+    try {
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const res = await fetch('/api/licenses/pricing-rates', { headers });
+      if (res.ok) {
+        const d = await res.json();
+        if (d.success && d.data) {
+          setPricingRates(d.data);
+          setPricingForm(d.data);
+        }
+      }
+    } catch {}
+  };
+
+  const handleSavePricingRates = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isSuperAdmin) {
+      toast.error('Solo el Super Administrador puede configurar tarifas');
+      return;
+    }
+
+    setIsSavingPricing(true);
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const res = await fetch('/api/licenses/pricing-rates', {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(pricingForm),
+      });
+
+      const d = await res.json();
+      if (d.success && d.data) {
+        setPricingRates(d.data);
+        toast.success('Tarifario de licenciamiento actualizado exitosamente');
+        setShowPricingModal(false);
+      } else {
+        toast.error(d.error?.message || 'Error al guardar el tarifario');
+      }
+    } catch {
+      toast.error('Error de red al guardar tarifas');
+    } finally {
+      setIsSavingPricing(false);
+    }
+  };
+
+  const handleResetPricingRates = () => {
+    setPricingForm(DEFAULT_LICENSE_PRICING_RATES);
+    toast.info('Se cargaron los valores recomendados de fábrica. Haga clic en Guardar para confirmar.');
+  };
+
   useEffect(() => {
     fetchLicenseData();
+    fetchPricingRates();
   }, [token]);
 
   const handleCopyFingerprint = () => {
@@ -665,6 +737,22 @@ export const LicensesView: React.FC = () => {
             <Download className="w-4 h-4" />
             <span className="hidden sm:inline">{isDownloadingPdf ? 'Generando...' : 'Certificado PDF'}</span>
           </Button>
+
+          {/* Botón exclusivo para Super Administrador: Tarifas de Licenciamiento */}
+          {isSuperAdmin && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPricingForm(pricingRates);
+                setShowPricingModal(true);
+              }}
+              className="flex items-center gap-2 text-xs border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+              title="Configurar Tarifas y Precios de Licenciamiento"
+            >
+              <Sliders className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span>Configurar Tarifas</span>
+            </Button>
+          )}
 
           {/* Botón exclusivo para Super Administrador */}
           {isSuperAdmin && (
@@ -1683,6 +1771,748 @@ export const LicensesView: React.FC = () => {
             </div>
           </form>
         )}
+      </Modal>
+
+      {/* Modal de Configuración del Tarifario Global (Super Administrador) */}
+      <Modal
+        isOpen={showPricingModal && isSuperAdmin}
+        onClose={() => setShowPricingModal(false)}
+        title="Tarifario Global de Licenciamiento (Super Administrador)"
+      >
+        <form onSubmit={handleSavePricingRates} className="space-y-5">
+          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+            Configure los precios base y tarifas que utilizará el cotizador automático al emitir licencias empresariales. Todos los valores están expresados en dólares americanos (USD).
+          </p>
+
+          {/* 1. Costos Base */}
+          <div className="space-y-3 p-3.5  rounded-lg border border-neutral-200 dark:border-neutral-700">
+            <h4 className="text-xs font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider flex items-center gap-1.5">
+              <DollarSign className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>Costos Base por Tipo de Licencia</span>
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Suscripción Temporal (Base Anual - USD) *
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  required
+                  value={pricingForm.baseAnnualTemporalUSD}
+                  onChange={(e) =>
+                    setPricingForm({
+                      ...pricingForm,
+                      baseAnnualTemporalUSD: Math.max(0, parseFloat(e.target.value) || 0),
+                    })
+                  }
+                  className="font-mono text-xs"
+                />
+                <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                  Incluye base de 5 usuarios y 1 sucursal por 1 año.
+                </span>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Licencia Perpetua Enterprise (Base Única - USD) *
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  required
+                  value={pricingForm.basePerpetuaUSD}
+                  onChange={(e) =>
+                    setPricingForm({
+                      ...pricingForm,
+                      basePerpetuaUSD: Math.max(0, parseFloat(e.target.value) || 0),
+                    })
+                  }
+                  className="font-mono text-xs"
+                />
+                <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                  Pago único vitalicio con base de 5 usuarios y 1 sucursal.
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Capacidad de Usuarios */}
+          <div className="space-y-3 p-3.5  rounded-lg border border-neutral-200 dark:border-neutral-700">
+            <h4 className="text-xs font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider flex items-center gap-1.5">
+              <Users className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+              <span>Tarifas por Usuarios Concurrentes</span>
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Usuario Adicional (Temporal - USD / año) *
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  required
+                  value={pricingForm.extraUserTemporalUSD}
+                  onChange={(e) =>
+                    setPricingForm({
+                      ...pricingForm,
+                      extraUserTemporalUSD: Math.max(0, parseFloat(e.target.value) || 0),
+                    })
+                  }
+                  className="font-mono text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Usuario Adicional (Perpetua - USD / único) *
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  required
+                  value={pricingForm.extraUserPerpetuaUSD}
+                  onChange={(e) =>
+                    setPricingForm({
+                      ...pricingForm,
+                      extraUserPerpetuaUSD: Math.max(0, parseFloat(e.target.value) || 0),
+                    })
+                  }
+                  className="font-mono text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Paquete Usuarios Ilimitados (Temporal - USD / año) *
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  required
+                  value={pricingForm.unlimitedUsersTemporalUSD}
+                  onChange={(e) =>
+                    setPricingForm({
+                      ...pricingForm,
+                      unlimitedUsersTemporalUSD: Math.max(0, parseFloat(e.target.value) || 0),
+                    })
+                  }
+                  className="font-mono text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Paquete Usuarios Ilimitados (Perpetua - USD / único) *
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  required
+                  value={pricingForm.unlimitedUsersPerpetuaUSD}
+                  onChange={(e) =>
+                    setPricingForm({
+                      ...pricingForm,
+                      unlimitedUsersPerpetuaUSD: Math.max(0, parseFloat(e.target.value) || 0),
+                    })
+                  }
+                  className="font-mono text-xs"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 3. Capacidad de Sucursales */}
+          <div className="space-y-3 p-3.5  rounded-lg border border-neutral-200 dark:border-neutral-700">
+            <h4 className="text-xs font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider flex items-center gap-1.5">
+              <GitBranch className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+              <span>Tarifas por Sucursales Autorizadas</span>
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Sucursal Adicional (Temporal - USD / año) *
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  required
+                  value={pricingForm.extraBranchTemporalUSD}
+                  onChange={(e) =>
+                    setPricingForm({
+                      ...pricingForm,
+                      extraBranchTemporalUSD: Math.max(0, parseFloat(e.target.value) || 0),
+                    })
+                  }
+                  className="font-mono text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Sucursal Adicional (Perpetua - USD / único) *
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  required
+                  value={pricingForm.extraBranchPerpetuaUSD}
+                  onChange={(e) =>
+                    setPricingForm({
+                      ...pricingForm,
+                      extraBranchPerpetuaUSD: Math.max(0, parseFloat(e.target.value) || 0),
+                    })
+                  }
+                  className="font-mono text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Paquete Sucursales Ilimitadas (Temporal - USD / año) *
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  required
+                  value={pricingForm.unlimitedBranchesTemporalUSD}
+                  onChange={(e) =>
+                    setPricingForm({
+                      ...pricingForm,
+                      unlimitedBranchesTemporalUSD: Math.max(0, parseFloat(e.target.value) || 0),
+                    })
+                  }
+                  className="font-mono text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Paquete Sucursales Ilimitadas (Perpetua - USD / único) *
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  required
+                  value={pricingForm.unlimitedBranchesPerpetuaUSD}
+                  onChange={(e) =>
+                    setPricingForm({
+                      ...pricingForm,
+                      unlimitedBranchesPerpetuaUSD: Math.max(0, parseFloat(e.target.value) || 0),
+                    })
+                  }
+                  className="font-mono text-xs"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 4. Soporte Técnico */}
+          <div className="space-y-3 p-3.5  rounded-lg border border-neutral-200 dark:border-neutral-700">
+            <h4 className="text-xs font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider flex items-center gap-1.5">
+              <Shield className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+              <span>Póliza de Soporte Técnico & Actualizaciones</span>
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Soporte Técnico Anual (Perpetua - USD / año) *
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  required
+                  value={pricingForm.supportPerpetuaUSD}
+                  onChange={(e) =>
+                    setPricingForm({
+                      ...pricingForm,
+                      supportPerpetuaUSD: Math.max(0, parseFloat(e.target.value) || 0),
+                    })
+                  }
+                  className="font-mono text-xs"
+                />
+                <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                  En licencias temporales el soporte está 100% incluido en la suscripción.
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* 5. Módulos Especializados */}
+          <div className="space-y-3 p-3.5  rounded-lg border border-neutral-200 dark:border-neutral-700">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <h4 className="text-xs font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                <span>Tarifas por Módulos Especializados</span>
+              </h4>
+              <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                Módulos base (Ventas, Inventario, POS, etc.) están incluidos sin costo
+              </span>
+            </div>
+
+            <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-700 rounded-lg">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200">
+                  <tr>
+                    <th className="py-2.5 px-3 font-semibold">Módulo del Sistema</th>
+                    <th className="py-2.5 px-3 font-semibold w-36">Temporal ($ USD / año)</th>
+                    <th className="py-2.5 px-3 font-semibold w-36">Perpetua ($ USD / único)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-200 dark:divide-neutral-700">
+                  {Object.entries(pricingForm.modules || {}).map(([modKey, modConfig]) => (
+                    <tr key={modKey} className="hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50">
+                      <td className="py-2 px-3 font-medium text-neutral-800 dark:text-neutral-200">
+                        {modConfig.label}
+                      </td>
+                      <td className="py-2 px-3">
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          required
+                          value={modConfig.temporalUSD}
+                          onChange={(e) => {
+                            const val = Math.max(0, parseFloat(e.target.value) || 0);
+                            setPricingForm({
+                              ...pricingForm,
+                              modules: {
+                                ...pricingForm.modules,
+                                [modKey]: { ...modConfig, temporalUSD: val },
+                              },
+                            });
+                          }}
+                          className="font-mono text-xs py-1"
+                        />
+                      </td>
+                      <td className="py-2 px-3">
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          required
+                          value={modConfig.perpetuaUSD}
+                          onChange={(e) => {
+                            const val = Math.max(0, parseFloat(e.target.value) || 0);
+                            setPricingForm({
+                              ...pricingForm,
+                              modules: {
+                                ...pricingForm.modules,
+                                [modKey]: { ...modConfig, perpetuaUSD: val },
+                              },
+                            });
+                          }}
+                          className="font-mono text-xs py-1"
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Botones de acción */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-neutral-200 dark:border-neutral-800">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleResetPricingRates}
+              className="flex items-center gap-1.5 text-xs text-neutral-600 dark:text-neutral-300 w-full sm:w-auto"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Restablecer Fábrica</span>
+            </Button>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowPricingModal(false)}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" variant="primary" disabled={isSavingPricing}>
+                {isSavingPricing ? 'Guardando...' : 'Guardar Tarifario'}
+              </Button>
+            </div>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal de Configuración del Tarifario Global (Super Administrador) */}
+      <Modal
+        isOpen={showPricingModal && isSuperAdmin}
+        onClose={() => setShowPricingModal(false)}
+        title="Tarifario Global de Licenciamiento (Super Administrador)"
+      >
+        <form onSubmit={handleSavePricingRates} className="space-y-5">
+          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+            Configure los precios base y tarifas que utilizará el cotizador automático al emitir licencias empresariales. Todos los valores están expresados en dólares americanos (USD).
+          </p>
+
+          {/* 1. Costos Base */}
+          <div className="space-y-3 p-3.5 bg-neutral-50 dark:bg-neutral-850 rounded-lg border border-neutral-200 dark:border-neutral-700">
+            <h4 className="text-xs font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider flex items-center gap-1.5">
+              <DollarSign className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>Costos Base por Tipo de Licencia</span>
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Suscripción Temporal (Base Anual - USD) *
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  required
+                  value={pricingForm.baseAnnualTemporalUSD}
+                  onChange={(e) =>
+                    setPricingForm({
+                      ...pricingForm,
+                      baseAnnualTemporalUSD: Math.max(0, parseFloat(e.target.value) || 0),
+                    })
+                  }
+                  className="font-mono text-xs"
+                />
+                <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                  Incluye base de 5 usuarios y 1 sucursal por 1 año.
+                </span>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Licencia Perpetua Enterprise (Base Única - USD) *
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  required
+                  value={pricingForm.basePerpetuaUSD}
+                  onChange={(e) =>
+                    setPricingForm({
+                      ...pricingForm,
+                      basePerpetuaUSD: Math.max(0, parseFloat(e.target.value) || 0),
+                    })
+                  }
+                  className="font-mono text-xs"
+                />
+                <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                  Pago único vitalicio con base de 5 usuarios y 1 sucursal.
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Capacidad de Usuarios */}
+          <div className="space-y-3 p-3.5 bg-neutral-50 dark:bg-neutral-850 rounded-lg border border-neutral-200 dark:border-neutral-700">
+            <h4 className="text-xs font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider flex items-center gap-1.5">
+              <Users className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+              <span>Tarifas por Usuarios Concurrentes</span>
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Usuario Adicional (Temporal - USD / año) *
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  required
+                  value={pricingForm.extraUserTemporalUSD}
+                  onChange={(e) =>
+                    setPricingForm({
+                      ...pricingForm,
+                      extraUserTemporalUSD: Math.max(0, parseFloat(e.target.value) || 0),
+                    })
+                  }
+                  className="font-mono text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Usuario Adicional (Perpetua - USD / único) *
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  required
+                  value={pricingForm.extraUserPerpetuaUSD}
+                  onChange={(e) =>
+                    setPricingForm({
+                      ...pricingForm,
+                      extraUserPerpetuaUSD: Math.max(0, parseFloat(e.target.value) || 0),
+                    })
+                  }
+                  className="font-mono text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Paquete Usuarios Ilimitados (Temporal - USD / año) *
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  required
+                  value={pricingForm.unlimitedUsersTemporalUSD}
+                  onChange={(e) =>
+                    setPricingForm({
+                      ...pricingForm,
+                      unlimitedUsersTemporalUSD: Math.max(0, parseFloat(e.target.value) || 0),
+                    })
+                  }
+                  className="font-mono text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Paquete Usuarios Ilimitados (Perpetua - USD / único) *
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  required
+                  value={pricingForm.unlimitedUsersPerpetuaUSD}
+                  onChange={(e) =>
+                    setPricingForm({
+                      ...pricingForm,
+                      unlimitedUsersPerpetuaUSD: Math.max(0, parseFloat(e.target.value) || 0),
+                    })
+                  }
+                  className="font-mono text-xs"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 3. Capacidad de Sucursales */}
+          <div className="space-y-3 p-3.5 bg-neutral-50 dark:bg-neutral-850 rounded-lg border border-neutral-200 dark:border-neutral-700">
+            <h4 className="text-xs font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider flex items-center gap-1.5">
+              <GitBranch className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+              <span>Tarifas por Sucursales Autorizadas</span>
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Sucursal Adicional (Temporal - USD / año) *
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  required
+                  value={pricingForm.extraBranchTemporalUSD}
+                  onChange={(e) =>
+                    setPricingForm({
+                      ...pricingForm,
+                      extraBranchTemporalUSD: Math.max(0, parseFloat(e.target.value) || 0),
+                    })
+                  }
+                  className="font-mono text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Sucursal Adicional (Perpetua - USD / único) *
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  required
+                  value={pricingForm.extraBranchPerpetuaUSD}
+                  onChange={(e) =>
+                    setPricingForm({
+                      ...pricingForm,
+                      extraBranchPerpetuaUSD: Math.max(0, parseFloat(e.target.value) || 0),
+                    })
+                  }
+                  className="font-mono text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Paquete Sucursales Ilimitadas (Temporal - USD / año) *
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  required
+                  value={pricingForm.unlimitedBranchesTemporalUSD}
+                  onChange={(e) =>
+                    setPricingForm({
+                      ...pricingForm,
+                      unlimitedBranchesTemporalUSD: Math.max(0, parseFloat(e.target.value) || 0),
+                    })
+                  }
+                  className="font-mono text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Paquete Sucursales Ilimitadas (Perpetua - USD / único) *
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  required
+                  value={pricingForm.unlimitedBranchesPerpetuaUSD}
+                  onChange={(e) =>
+                    setPricingForm({
+                      ...pricingForm,
+                      unlimitedBranchesPerpetuaUSD: Math.max(0, parseFloat(e.target.value) || 0),
+                    })
+                  }
+                  className="font-mono text-xs"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 4. Soporte Técnico */}
+          <div className="space-y-3 p-3.5 bg-neutral-50 dark:bg-neutral-850 rounded-lg border border-neutral-200 dark:border-neutral-700">
+            <h4 className="text-xs font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider flex items-center gap-1.5">
+              <Shield className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+              <span>Póliza de Soporte Técnico & Actualizaciones</span>
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Soporte Técnico Anual (Perpetua - USD / año) *
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  required
+                  value={pricingForm.supportPerpetuaUSD}
+                  onChange={(e) =>
+                    setPricingForm({
+                      ...pricingForm,
+                      supportPerpetuaUSD: Math.max(0, parseFloat(e.target.value) || 0),
+                    })
+                  }
+                  className="font-mono text-xs"
+                />
+                <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                  En licencias temporales el soporte está 100% incluido en la suscripción.
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* 5. Módulos Especializados */}
+          <div className="space-y-3 p-3.5 bg-neutral-50 dark:bg-neutral-850 rounded-lg border border-neutral-200 dark:border-neutral-700">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <h4 className="text-xs font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                <span>Tarifas por Módulos Especializados</span>
+              </h4>
+              <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                Módulos base (Ventas, Inventario, POS, etc.) están incluidos sin costo
+              </span>
+            </div>
+
+            <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-700 rounded-lg">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200">
+                  <tr>
+                    <th className="py-2.5 px-3 font-semibold">Módulo del Sistema</th>
+                    <th className="py-2.5 px-3 font-semibold w-36">Temporal ($ USD / año)</th>
+                    <th className="py-2.5 px-3 font-semibold w-36">Perpetua ($ USD / único)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-200 dark:divide-neutral-700">
+                  {Object.entries(pricingForm.modules || {}).map(([modKey, modConfig]) => (
+                    <tr key={modKey} className="hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50">
+                      <td className="py-2 px-3 font-medium text-neutral-800 dark:text-neutral-200">
+                        {modConfig.label}
+                      </td>
+                      <td className="py-2 px-3">
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          required
+                          value={modConfig.temporalUSD}
+                          onChange={(e) => {
+                            const val = Math.max(0, parseFloat(e.target.value) || 0);
+                            setPricingForm({
+                              ...pricingForm,
+                              modules: {
+                                ...pricingForm.modules,
+                                [modKey]: { ...modConfig, temporalUSD: val },
+                              },
+                            });
+                          }}
+                          className="font-mono text-xs py-1"
+                        />
+                      </td>
+                      <td className="py-2 px-3">
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          required
+                          value={modConfig.perpetuaUSD}
+                          onChange={(e) => {
+                            const val = Math.max(0, parseFloat(e.target.value) || 0);
+                            setPricingForm({
+                              ...pricingForm,
+                              modules: {
+                                ...pricingForm.modules,
+                                [modKey]: { ...modConfig, perpetuaUSD: val },
+                              },
+                            });
+                          }}
+                          className="font-mono text-xs py-1"
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Botones de acción */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-neutral-200 dark:border-neutral-800">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleResetPricingRates}
+              className="flex items-center gap-1.5 text-xs text-neutral-600 dark:text-neutral-300 w-full sm:w-auto"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Restablecer Fábrica</span>
+            </Button>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowPricingModal(false)}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" variant="primary" disabled={isSavingPricing}>
+                {isSavingPricing ? 'Guardando...' : 'Guardar Tarifario'}
+              </Button>
+            </div>
+          </div>
+        </form>
       </Modal>
     </div>
   );

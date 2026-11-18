@@ -7,6 +7,7 @@ import {
   generalLedgerFilterSchema,
   financialStatementFilterSchema,
   inflationAdjustmentProcessSchema,
+  upsertInpcSchema,
   exchangeDifferenceProcessSchema,
   accountingSettingSchema,
   updateAccountingMappingsSchema,
@@ -77,6 +78,17 @@ accountingRouter.get('/accounts/:id', authenticate, authorize('accounting', 'rea
     return c.json({ success: false, error: { message: 'Cuenta no encontrada' } }, 404);
   }
   return c.json({ success: true, data });
+});
+
+// POST /api/accounting/accounts/seed-default - Inicializar o sembrar el catálogo estándar VEN-NIF
+accountingRouter.post('/accounts/seed-default', authenticate, authorize('accounting', 'write'), async (c) => {
+  const user = c.get('user');
+  const result = await AccountingService.seedDefaultChartOfAccounts(user.companyId);
+  return c.json({
+    success: true,
+    data: result,
+    message: `Plan de cuentas estándar VEN-NIF sembrado exitosamente (${result.accountsCreated} cuentas, ${result.mappingsCreated} mapeos).`,
+  });
 });
 
 // POST /api/accounting/accounts - Crear nueva cuenta en el catálogo
@@ -557,12 +569,50 @@ accountingRouter.get('/inflation/indices', authenticate, authorize('accounting',
   return c.json({ success: true, data });
 });
 
+// POST /api/accounting/inflation/indices - Registrar o actualizar índice INPC del BCV
+accountingRouter.post(
+  '/inflation/indices',
+  authenticate,
+  authorize('accounting', 'write'),
+  zValidator('json', upsertInpcSchema),
+  async (c) => {
+    const body = c.req.valid('json');
+    const data = await AccountingService.upsertInflationIndex(body);
+    return c.json({
+      success: true,
+      data,
+      message: `Índice INPC para ${body.year}-${String(body.month).padStart(2, '0')} guardado exitosamente.`,
+    });
+  }
+);
+
+// DELETE /api/accounting/inflation/indices/:id - Eliminar índice INPC
+accountingRouter.delete('/inflation/indices/:id', authenticate, authorize('accounting', 'write'), async (c) => {
+  const id = c.req.param('id');
+  const result = await AccountingService.deleteInflationIndex(id!);
+  return c.json({ success: true, data: result, message: 'Índice INPC eliminado correctamente.' });
+});
+
 // GET /api/accounting/inflation/calculate - Simulación de Reexpresión VEN-NIF B-10
 accountingRouter.get('/inflation/calculate', authenticate, authorize('accounting', 'read'), async (c) => {
   const user = c.get('user');
   const year = parseInt(c.req.query('year') || `${new Date().getFullYear()}`, 10);
   const month = parseInt(c.req.query('month') || `${new Date().getMonth() + 1}`, 10);
-  const data = await AccountingService.calculateInflationAdjustment(user.companyId, year, month);
+  const baseYearStr = c.req.query('baseYear');
+  const baseMonthStr = c.req.query('baseMonth');
+  const manualBaseInpcStr = c.req.query('manualBaseInpc');
+
+  const baseYear = baseYearStr ? parseInt(baseYearStr, 10) : undefined;
+  const baseMonth = baseMonthStr ? parseInt(baseMonthStr, 10) : undefined;
+  const manualBaseInpc = manualBaseInpcStr ? parseFloat(manualBaseInpcStr) : undefined;
+
+  const data = await AccountingService.calculateInflationAdjustment(user.companyId, {
+    targetYear: year,
+    targetMonth: month,
+    baseYear,
+    baseMonth,
+    manualBaseInpc,
+  });
   return c.json({ success: true, data });
 });
 

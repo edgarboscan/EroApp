@@ -6,6 +6,7 @@ import {
   WarehouseInput,
   UpdateWarehouseInput,
   UpdateBusinessRulesInput,
+  CompanySmtpConfigInput,
 } from '@ero/shared';
 import crypto from 'crypto';
 import { LicensesService } from '../licenses/licenses.service';
@@ -13,9 +14,38 @@ import { syncSystemPermissions, SYSTEM_PERMISSIONS } from '../../db/seedPermissi
 import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { AccountingService } from '../accounting/accounting.service';
+import { MailerService } from '../../services/mailer.service';
 
 export class ConfigService {
   private static logoColumnsEnsured = false;
+  private static smtpColumnsEnsured = false;
+
+  private static async ensureSmtpColumns() {
+    if (this.smtpColumnsEnsured) return;
+    try {
+      await query(`ALTER TABLE companies ADD COLUMN smtp_host VARCHAR(150) DEFAULT NULL`);
+    } catch {}
+    try {
+      await query(`ALTER TABLE companies ADD COLUMN smtp_port INT DEFAULT NULL`);
+    } catch {}
+    try {
+      await query(`ALTER TABLE companies ADD COLUMN smtp_user VARCHAR(150) DEFAULT NULL`);
+    } catch {}
+    try {
+      await query(`ALTER TABLE companies ADD COLUMN smtp_password LONGTEXT DEFAULT NULL`);
+    } catch {}
+    try {
+      await query(`ALTER TABLE companies ADD COLUMN smtp_from_name VARCHAR(150) DEFAULT NULL`);
+    } catch {}
+    try {
+      await query(`ALTER TABLE companies ADD COLUMN smtp_secure VARCHAR(20) NOT NULL DEFAULT 'tls'`);
+    } catch {}
+    try {
+      await query(`ALTER TABLE companies ADD COLUMN smtp_enabled TINYINT(1) NOT NULL DEFAULT 0`);
+    } catch {}
+    this.smtpColumnsEnsured = true;
+  }
 
   private static async ensureLogoColumns() {
     if (this.logoColumnsEnsured) return;
@@ -184,6 +214,107 @@ export class ConfigService {
       autoSyncBcv: input.autoSyncBcv !== false,
       isActive: true,
     };
+  }
+
+  /**
+   * Obtiene la configuración SMTP de la empresa
+   */
+  static async getCompanySmtp(companyId: string) {
+    await this.ensureSmtpColumns();
+
+    const envConfig = await MailerService.getConfig();
+
+    const rows = await query<any>(
+      `SELECT smtp_host, smtp_port, smtp_user, smtp_password, smtp_from_name, smtp_secure, smtp_enabled
+       FROM companies
+       WHERE id = ? LIMIT 1`,
+      [companyId]
+    );
+
+    const c = rows[0] || {};
+    const hasCompanyPassword = Boolean(c.smtp_password);
+    const isCompanyEnabled = Boolean(c.smtp_enabled);
+
+    return {
+      smtpHost: c.smtp_host || '',
+      smtpPort: c.smtp_port ? Number(c.smtp_port) : 587,
+      smtpUser: c.smtp_user || '',
+      smtpFromName: c.smtp_from_name || '',
+      smtpSecure: (c.smtp_secure === 'ssl' ? 'ssl' : c.smtp_secure === 'none' ? 'none' : 'tls') as 'tls' | 'ssl' | 'none',
+      smtpEnabled: isCompanyEnabled,
+      hasPasswordConfigured: hasCompanyPassword,
+      isUsingEnvFallback: !isCompanyEnabled && envConfig.isConfigured,
+      envFallbackHost: envConfig.isConfigured ? envConfig.host : null,
+      envFallbackPort: envConfig.isConfigured ? envConfig.port : null,
+      envFallbackUser: envConfig.isConfigured
+        ? envConfig.user.replace(/^(.)(.*)(@.*)$/, (_, first, middle, domain) => `${first}${'*'.repeat(Math.min(middle.length, 5))}${domain}`)
+        : null,
+    };
+  }
+
+  /**
+   * Actualiza la configuración SMTP de la empresa
+   */
+  static async updateCompanySmtp(companyId: string, input: CompanySmtpConfigInput) {
+    await this.ensureSmtpColumns();
+
+    let passwordClause = '';
+    const params: any[] = [
+      input.smtpHost ? input.smtpHost.trim() : null,
+      input.smtpPort ? Number(input.smtpPort) : 587,
+      input.smtpUser ? input.smtpUser.trim() : null,
+      input.smtpFromName ? input.smtpFromName.trim() : null,
+      input.smtpSecure || 'tls',
+      input.smtpEnabled ? 1 : 0,
+    ];
+
+    if (input.smtpPassword && input.smtpPassword.trim() !== '') {
+      const encryptedPassword = MailerService.encryptPassword(input.smtpPassword.trim());
+      passwordClause = ', smtp_password = ?';
+      params.push(encryptedPassword);
+    }
+
+    params.push(companyId);
+
+    await query(
+      `UPDATE companies
+       SET smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_from_name = ?,
+           smtp_secure = ?, smtp_enabled = ?
+           ${passwordClause}
+       WHERE id = ?`,
+      params
+    );
+
+    return this.getCompanySmtp(companyId);
+  }
+
+  /**
+   * Prueba en vivo la configuración SMTP de la empresa (o credenciales provisionales sin guardar)
+   */
+  static async testCompanySmtp(
+    companyId: string,
+    customParams?: {
+      host?: string;
+      port?: number;
+      user?: string;
+      pass?: string;
+      secure?: boolean;
+    }
+  ) {
+    await this.ensureSmtpColumns();
+
+    if (customParams && customParams.host && customParams.user && customParams.pass) {
+      return MailerService.testCustomConnection({
+        host: customParams.host,
+        port: customParams.port || 587,
+        user: customParams.user,
+        pass: customParams.pass,
+        secure: customParams.secure,
+      });
+    }
+
+    // Probar con la configuración de la empresa (o fallback a .env si está usando fallback)
+    return MailerService.checkStatus(companyId);
   }
 
   // Cache para evitar saturar de notificaciones identicas de fallo a la misma empresa en menos de 20 minutos
@@ -2127,6 +2258,14 @@ export class ConfigService {
 
         await conn.query(`SET FOREIGN_KEY_CHECKS = 1`);
       });
+    }
+
+    // 9.3 Sembrar Plan de Cuentas Estándar (VEN-NIF / NIIF) y Mapeos Automáticos
+    try {
+      const chartResult = await AccountingService.seedDefaultChartOfAccounts(newCompanyId);
+      console.log(`[initializeNewCompany] Catálogo contable VEN-NIF inicializado para la empresa ${newCompanyId}: ${chartResult.accountsCreated} cuentas creadas, ${chartResult.mappingsCreated} mapeos vinculados.`);
+    } catch (chartErr: any) {
+      console.error('[initializeNewCompany] Error sembrando plan de cuentas contable:', chartErr.message);
     }
 
     // 10. Registrar en auditoría

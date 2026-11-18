@@ -3,6 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import {
   shareReportSchema,
   sendEmailReportSchema,
+  sendDirectEmailSchema,
   updateNotificationPreferencesSchema,
 } from '@ero/shared';
 import { NotificationsService } from './notifications.service';
@@ -181,10 +182,21 @@ notificationsRouter.post(
 );
 
 // ==========================================
-// 4. Enviar Reportes por Correo Electrónico
+// 4. Enviar Reportes por Correo Electrónico & Redactor Directo
 // ==========================================
 
-// POST /api/notifications/send-email-report - Enviar reporte por correo a cliente, proveedor o externo
+// GET /api/notifications/mail-status - Estado del servidor SMTP y verificación de conexión
+notificationsRouter.get('/mail-status', authenticate, async (c) => {
+  const user = c.get('user');
+  try {
+    const status = await NotificationsService.getMailStatus(user.companyId);
+    return c.json({ success: true, data: status });
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'MAIL_STATUS_ERROR', message: error.message } }, 500);
+  }
+});
+
+// POST /api/notifications/send-email-report - Enviar reporte con PDF por correo a cliente, proveedor o externo
 notificationsRouter.post(
   '/send-email-report',
   authenticate,
@@ -197,16 +209,44 @@ notificationsRouter.post(
   async (c) => {
     const user = c.get('user');
     const input = c.req.valid('json');
+    const authHeader = c.req.header('Authorization');
     try {
       const sender = {
         id: user.sub,
         name: user.username || user.email || 'Usuario',
         email: user.email || '',
       };
-      const result = await NotificationsService.sendEmailReport(user.companyId, sender, input);
+      const result = await NotificationsService.sendEmailReport(user.companyId, sender, input, authHeader);
       return c.json({ success: true, data: result });
     } catch (error: any) {
       return c.json({ success: false, error: { code: 'SEND_EMAIL_REPORT_ERROR', message: error.message } }, 500);
+    }
+  }
+);
+
+// POST /api/notifications/send-direct-email - Redactar y enviar correo directo desde la aplicación
+notificationsRouter.post(
+  '/send-direct-email',
+  authenticate,
+  zValidator('json', sendDirectEmailSchema, (result, c) => {
+    if (!result.success) {
+      const msg = result.error.issues[0]?.message || 'Datos del correo directo inválidos';
+      return c.json({ success: false, error: { code: 'VALIDATION_ERROR', message: msg } }, 400);
+    }
+  }),
+  async (c) => {
+    const user = c.get('user');
+    const input = c.req.valid('json');
+    try {
+      const sender = {
+        id: user.sub,
+        name: user.username || user.email || 'Usuario',
+        email: user.email || '',
+      };
+      const result = await NotificationsService.sendDirectEmail(user.companyId, sender, input);
+      return c.json({ success: true, data: result });
+    } catch (error: any) {
+      return c.json({ success: false, error: { code: 'SEND_DIRECT_EMAIL_ERROR', message: error.message } }, 500);
     }
   }
 );

@@ -107,56 +107,52 @@ export class LicensesPdfEngine {
     y += 5;
 
     // 3. Ficha de Licencia y Hardware Autorizado (Caja destacada)
+    const cardWidth = pageWidth - (margin * 2);
+    const cardHeight = 38;
     doc.setFillColor(...this.COLOR_BG_LIGHT);
     doc.setDrawColor(...this.COLOR_BORDER);
-    doc.roundedRect(margin, y, pageWidth - (margin * 2), 34, 2, 2, 'FD');
+    doc.roundedRect(margin, y, cardWidth, cardHeight, 2, 2, 'FD');
 
-    const colWidth = (pageWidth - (margin * 2)) / 2;
+    const colWidth = (cardWidth - 4) / 2;
 
     // Columna Izquierda: Datos del Licenciatario
-    let colY = y + 5;
     doc.setTextColor(...this.COLOR_MUTED);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
-    doc.text('EMPRESA TITULAR (LICENCIATARIO):', margin + 4, colY);
-    colY += 4.5;
+    doc.text('EMPRESA TITULAR (LICENCIATARIO):', margin + 4, y + 4.8);
 
     doc.setTextColor(...this.COLOR_PRIMARY);
-    doc.setFontSize(9.5);
-    doc.text(license.companyName || 'EMPRESA TITULAR REGISTRADA', margin + 4, colY);
-    colY += 4.5;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text(license.companyName || 'EMPRESA TITULAR REGISTRADA', margin + 4, y + 9.5, { maxWidth: colWidth - 6 });
 
     doc.setTextColor(...this.COLOR_MUTED);
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.text(`Identificación Fiscal (RIF / Cédula): ${license.companyRif || 'N/A'}`, margin + 4, colY);
-    colY += 4;
-    doc.text(`Hardware Fingerprint (ID Servidor): ${license.hardwareFingerprint}`, margin + 4, colY);
-    colY += 4;
-    doc.text(`Estado de Activación: ${license.isActive ? 'ACTIVA Y AUTORIZADA' : 'INACTIVA'}`, margin + 4, colY);
+    doc.setFontSize(7.5);
+    doc.text(`Identificación Fiscal (RIF / Cédula): ${license.companyRif || 'N/A'}`, margin + 4, y + 14.5);
 
-    // Columna Derecha: Clave y Tipo de Licencia
-    colY = y + 5;
+    const statusText = license.isActive ? 'ACTIVA Y AUTORIZADA' : 'INACTIVA';
+    doc.text(`Estado de Activación: ${statusText}`, margin + 4, y + 19);
+
+    // Columna Derecha: Clave Oficial y Modalidad
     const rightColX = margin + colWidth + 4;
     doc.setTextColor(...this.COLOR_MUTED);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
-    doc.text('CLAVE OFICIAL DE ACTIVACIÓN:', rightColX, colY);
-    colY += 5;
+    doc.text('CLAVE OFICIAL DE ACTIVACIÓN:', rightColX, y + 4.8);
 
     // Badge con la Clave de Licencia
     doc.setFillColor(238, 242, 255); // Indigo-50
     doc.setDrawColor(199, 210, 254); // Indigo-200
-    doc.roundedRect(rightColX, colY - 3.5, colWidth - 8, 8, 1.5, 1.5, 'FD');
+    doc.roundedRect(rightColX, y + 6.8, colWidth - 8, 7.5, 1.5, 1.5, 'FD');
 
     doc.setTextColor(...this.COLOR_ACCENT);
     doc.setFont('courier', 'bold');
-    doc.setFontSize(9);
-    doc.text(license.licenseKey, rightColX + (colWidth - 8) / 2, colY + 1.5, { align: 'center' });
-    colY += 9;
+    doc.setFontSize(8.2);
+    doc.text(license.licenseKey, rightColX + (colWidth - 8) / 2, y + 11.8, { align: 'center' });
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     doc.setTextColor(...this.COLOR_PRIMARY);
 
     const typeLabel =
@@ -166,15 +162,32 @@ export class LicensesPdfEngine {
           ? 'Suscripción Temporal / Anual'
           : 'Demostración / Evaluación (Trial 30 días)';
 
-    doc.text(`Modalidad: ${typeLabel}`, rightColX, colY);
-    colY += 4;
+    doc.text(`Modalidad: ${typeLabel}`, rightColX, y + 18.2, { maxWidth: colWidth - 8 });
 
     const expiresText = license.expiresAt
       ? new Date(license.expiresAt).toLocaleDateString('es-VE', { year: 'numeric', month: 'long', day: 'numeric' })
       : 'Permanente / Sin Vencimiento';
-    doc.text(`Vigencia hasta: ${expiresText}`, rightColX, colY);
+    doc.text(`Vigencia hasta: ${expiresText}`, rightColX, y + 22.2, { maxWidth: colWidth - 8 });
 
-    y += 39;
+    // Franja Inferior a Ancho Completo: Hardware Fingerprint (ID Servidor Autorizado)
+    const stripY = y + 25.5;
+    doc.setFillColor(243, 244, 246); // Gray-100
+    doc.setDrawColor(229, 231, 235); // Gray-200
+    doc.roundedRect(margin + 2.5, stripY, cardWidth - 5, 10, 1.2, 1.2, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.8);
+    doc.setTextColor(...this.COLOR_MUTED);
+    doc.text('HARDWARE FINGERPRINT (ID SERVIDOR AUTORIZADO):', margin + 4.5, stripY + 3.8);
+
+    doc.setFont('courier', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(...this.COLOR_PRIMARY);
+    doc.text(license.hardwareFingerprint || 'N/A (No restringido por hardware)', margin + 4.5, stripY + 7.6, {
+      maxWidth: cardWidth - 9,
+    });
+
+    y += 42;
 
     // 4. Parámetros y Capacidades Operativas Autorizadas
     doc.setTextColor(...this.COLOR_PRIMARY);
@@ -232,23 +245,28 @@ export class LicensesPdfEngine {
 
     const modulesTableData: any[] = [];
     const maxRows = Math.max(leftKeys.length, rightKeys.length);
+    const allowedList = Array.isArray(license.modulesAllowed)
+      ? license.modulesAllowed
+      : typeof (license as any).modulesAllowed === 'string'
+        ? [(license as any).modulesAllowed]
+        : ['*'];
 
     for (let i = 0; i < maxRows; i++) {
       const leftKey = leftKeys[i];
       const rightKey = rightKeys[i];
 
       const leftAllowed = leftKey
-        ? license.modulesAllowed.includes('*') || license.modulesAllowed.includes(leftKey)
+        ? allowedList.includes('*') || allowedList.includes(leftKey)
         : null;
       const rightAllowed = rightKey
-        ? license.modulesAllowed.includes('*') || license.modulesAllowed.includes(rightKey)
+        ? allowedList.includes('*') || allowedList.includes(rightKey)
         : null;
 
       modulesTableData.push([
         leftKey ? this.MODULE_NAMES[leftKey] : '',
-        leftAllowed !== null ? (leftAllowed ? '[✓] HABILITADO' : '[-] No Contratado') : '',
+        leftAllowed !== null ? (leftAllowed ? 'HABILITADO' : 'No Contratado') : '',
         rightKey ? this.MODULE_NAMES[rightKey] : '',
-        rightAllowed !== null ? (rightAllowed ? '[✓] HABILITADO' : '[-] No Contratado') : '',
+        rightAllowed !== null ? (rightAllowed ? 'HABILITADO' : 'No Contratado') : '',
       ]);
     }
 
@@ -278,10 +296,10 @@ export class LicensesPdfEngine {
       },
       didParseCell: (data) => {
         if (data.section === 'body' && (data.column.index === 1 || data.column.index === 3)) {
-          if (data.cell.raw && String(data.cell.raw).includes('[✓]')) {
+          if (data.cell.raw && String(data.cell.raw).includes('HABILITADO')) {
             data.cell.styles.textColor = [22, 163, 74];
             data.cell.styles.fontStyle = 'bold';
-          } else if (data.cell.raw && String(data.cell.raw).includes('[-]')) {
+          } else if (data.cell.raw && String(data.cell.raw).includes('No Contratado')) {
             data.cell.styles.textColor = [156, 163, 175];
           }
         }

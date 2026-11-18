@@ -63,6 +63,8 @@ import { toast } from "sonner";
 import { formatExchangeRate, formatMoneyVES } from "@ero/shared";
 import { NotificationBell } from "../components/notifications/NotificationBell";
 import { ChatButton } from "../features/chat/ChatButton";
+import { MailComposerButton } from "../components/mail/MailComposerButton";
+import { MailComposerModal } from "../components/mail/MailComposerModal";
 import { useNotificationStore } from "../stores/notificationStore";
 import { useRealtimeSync } from "../hooks/useRealtimeSync";
 import { PdfViewerModal } from "../components/ui/PdfViewerModal";
@@ -194,7 +196,9 @@ export const MainLayout: React.FC = () => {
   const autoSyncBcv = useExchangeRateStore((s) => s.autoSyncBcv);
   const setAutoSyncBcv = useExchangeRateStore((s) => s.setAutoSyncBcv);
   const lastBcvError = useExchangeRateStore((s) => s.lastBcvError);
-  const fetchAutoSyncStatus = useExchangeRateStore((s) => s.fetchAutoSyncStatus);
+  const fetchAutoSyncStatus = useExchangeRateStore(
+    (s) => s.fetchAutoSyncStatus,
+  );
 
   const [showRateModal, setShowRateModal] = useState(false);
   const [showBcvPromptModal, setShowBcvPromptModal] = useState(false);
@@ -224,7 +228,7 @@ export const MainLayout: React.FC = () => {
       toast.error(
         err?.response?.data?.message ||
           err?.message ||
-          "Error al cambiar de empresa"
+          "Error al cambiar de empresa",
       );
       setIsSwitchingCompany(false);
     }
@@ -258,7 +262,10 @@ export const MainLayout: React.FC = () => {
       try {
         const result = await checkBcvLiveRate({ isAutoCheck: true });
         if (result.success && result.data) {
-          if (result.data.needsUpdate && !sessionStorage.getItem(dismissedKey)) {
+          if (
+            result.data.needsUpdate &&
+            !sessionStorage.getItem(dismissedKey)
+          ) {
             setShowBcvPromptModal(true);
           }
         } else if (!result.success && !result.autoSyncDisabled) {
@@ -276,7 +283,7 @@ export const MainLayout: React.FC = () => {
               {
                 duration: 9000,
                 id: "bcv-auto-sync-error",
-              }
+              },
             );
           }
         }
@@ -286,7 +293,7 @@ export const MainLayout: React.FC = () => {
           {
             duration: 8000,
             id: "bcv-auto-sync-error",
-          }
+          },
         );
       }
     };
@@ -761,7 +768,7 @@ export const MainLayout: React.FC = () => {
           action: "sales",
           category: "Tesorería & Bancos",
         },
-        
+
         {
           label: "Percepción Fiscal IGTF (3%)",
           to: "/reports/igtf",
@@ -770,7 +777,6 @@ export const MainLayout: React.FC = () => {
           action: "sales",
           category: "Fiscal & Tributario",
         },
-      
       ],
     },
     {
@@ -831,7 +837,10 @@ export const MainLayout: React.FC = () => {
   ];
 
   // Estado de licencia del sistema para bloqueo restrictivo
-  const [licenseStatus, setLicenseStatus] = useState<{ isActive: boolean; status: string } | null>(null);
+  const [licenseStatus, setLicenseStatus] = useState<{
+    isActive: boolean;
+    status: string;
+  } | null>(null);
 
   // Estado de grupos abiertos
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
@@ -874,11 +883,17 @@ export const MainLayout: React.FC = () => {
 
   // Filtrado por permisos y estado de licencia
   const isSuper = isSuperAdminRole(user?.role);
-  const isLicenseLocked = licenseStatus !== null && (!licenseStatus.isActive || licenseStatus.status !== "ACTIVE");
+  const isLicenseLocked =
+    licenseStatus !== null &&
+    (!licenseStatus.isActive || licenseStatus.status !== "ACTIVE");
 
   // Regla: Cuando la licencia esté bloqueada solo se permite abrir el módulo de licenciamiento a un usuario que no sea superadministrador
   useEffect(() => {
-    if (isLicenseLocked && !isSuper && location.pathname !== "/config/licenses") {
+    if (
+      isLicenseLocked &&
+      !isSuper &&
+      location.pathname !== "/config/licenses"
+    ) {
       navigate("/config/licenses", { replace: true });
     }
   }, [isLicenseLocked, isSuper, location.pathname, navigate]);
@@ -890,7 +905,9 @@ export const MainLayout: React.FC = () => {
           .filter((g) => g.id === "config")
           .map((g) => ({
             ...g,
-            children: (g.children || []).filter((c) => c.to === "/config/licenses"),
+            children: (g.children || []).filter(
+              (c) => c.to === "/config/licenses",
+            ),
           }))
           .filter((g) => g.children && g.children.length > 0)
       : navGroups
@@ -1124,7 +1141,9 @@ export const MainLayout: React.FC = () => {
                         {group.children.map((child, idx) => {
                           const showCategoryHeader =
                             !!child.category &&
-                            (idx === 0 || group.children![idx - 1]?.category !== child.category);
+                            (idx === 0 ||
+                              group.children![idx - 1]?.category !==
+                                child.category);
 
                           return (
                             <React.Fragment key={child.to}>
@@ -1348,6 +1367,9 @@ export const MainLayout: React.FC = () => {
             {/* Centro de Notificaciones */}
             <NotificationBell />
 
+            {/* Redactor Directo de Correos Electrónicos */}
+            <MailComposerButton />
+
             {/* Chat Interno entre Usuarios */}
             <ChatButton />
 
@@ -1483,11 +1505,13 @@ export const MainLayout: React.FC = () => {
                         toast.success(
                           nextState
                             ? "Actualización automática de tasa BCV activada"
-                            : "Actualización automática de tasa BCV desactivada"
+                            : "Actualización automática de tasa BCV desactivada",
                         );
                       }}
                       className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus-visible:ring-2 focus-visible:ring-neutral-400 ${
-                        autoSyncBcv ? "bg-neutral-900 dark:bg-neutral-100" : "bg-neutral-300 dark:bg-neutral-700"
+                        autoSyncBcv
+                          ? "bg-neutral-900 dark:bg-neutral-100"
+                          : "bg-neutral-300 dark:bg-neutral-700"
                       }`}
                     >
                       <span
@@ -1517,14 +1541,14 @@ export const MainLayout: React.FC = () => {
                           setFormRate(result.data.bcvRate.toString());
                           setFormSource(result.data.source);
                           setFormNotes(
-                            `Sincronizado desde portal oficial del BCV (${result.data.bcvFormattedDate || result.data.bcvEffectiveDate})`
+                            `Sincronizado desde portal oficial del BCV (${result.data.bcvFormattedDate || result.data.bcvEffectiveDate})`,
                           );
                           toast.success(
-                            `Tasa obtenida del BCV: Bs. ${formatExchangeRate(result.data.bcvRate, 4)}`
+                            `Tasa obtenida del BCV: Bs. ${formatExchangeRate(result.data.bcvRate, 4)}`,
                           );
                         } else {
                           toast.error(
-                            `No se pudo obtener la tasa oficial del dólar desde el BCV. Causa: ${result.error || "Fallo de conexión o timeout"}`
+                            `No se pudo obtener la tasa oficial del dólar desde el BCV. Causa: ${result.error || "Fallo de conexión o timeout"}`,
                           );
                         }
                       }}
@@ -1732,6 +1756,9 @@ export const MainLayout: React.FC = () => {
         isOpen={isBranchModalOpen}
         onClose={() => setIsBranchModalOpen(false)}
       />
+
+      {/* Redactor de Correos Electrónicos Global */}
+      <MailComposerModal />
     </div>
   );
 };

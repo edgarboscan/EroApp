@@ -57,13 +57,37 @@ export const sendEmailReportSchema = z.object({
   recipientName: z.string().trim().min(1, 'El nombre del destinatario es obligatorio'),
   recipientType: z.enum(['customer', 'supplier', 'custom']).default('custom'),
   subject: z.string().trim().min(1, 'El asunto del correo es obligatorio').max(200),
-  message: z.string().max(2000).optional().nullable(),
-  reportEndpoint: z.string().min(1, 'La ruta del reporte es obligatoria'),
-  reportTitle: z.string().min(1, 'El título del reporte es obligatorio'),
+  message: z.string().max(4000).optional().nullable(),
+  reportEndpoint: z.string().optional().nullable(),
+  reportTitle: z.string().optional().nullable(),
   attachPdf: z.coerce.boolean().default(true),
+  pdfBase64: z.string().optional().nullable(),
+  pdfFilename: z.string().optional().nullable(),
 });
 
 export type SendEmailReportInput = z.infer<typeof sendEmailReportSchema>;
+
+export const sendDirectEmailSchema = z.object({
+  recipientEmail: z.string().trim().min(1, 'Dirección de correo electrónico requerida'),
+  recipientName: z.string().optional().nullable(),
+  recipientType: z.enum(['customer', 'supplier', 'custom', 'user']).default('custom'),
+  cc: z.string().optional().nullable(),
+  bcc: z.string().optional().nullable(),
+  subject: z.string().trim().min(1, 'El asunto del correo es obligatorio').max(200),
+  message: z.string().min(1, 'El mensaje es obligatorio').max(10000),
+  attachments: z
+    .array(
+      z.object({
+        filename: z.string(),
+        content: z.string(),
+        contentType: z.string().optional(),
+      })
+    )
+    .optional()
+    .nullable(),
+});
+
+export type SendDirectEmailInput = z.infer<typeof sendDirectEmailSchema>;
 
 export const userNotificationPreferenceItemSchema = z.object({
   type: z.enum(notificationTypes),
@@ -104,12 +128,24 @@ export interface EmailLogItem {
   senderName?: string | null;
   recipientEmail: string;
   recipientName?: string | null;
-  recipientType: 'customer' | 'supplier' | 'custom';
+  recipientType: 'customer' | 'supplier' | 'custom' | 'user';
   subject: string;
   body?: string | null;
   reportTitle?: string | null;
   status: 'SENT' | 'SIMULATED' | 'FAILED';
   errorMessage?: string | null;
+  hasAttachments: boolean;
+  attachmentsCount: number;
+  attachmentNames?: string[] | null;
   createdAt: string;
+  // Aliases para compatibilidad snake_case
+  recipient_email?: string;
+  recipient_name?: string;
+  report_title?: string;
+  error_message?: string;
+  sender_name?: string;
+  created_at?: string;
+  has_attachments?: boolean;
+  attachments_count?: number;
 }
 

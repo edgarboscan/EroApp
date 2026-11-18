@@ -1,7 +1,14 @@
 import os from 'os';
 import crypto from 'crypto';
 import { query } from '../../db';
-import { LicenseActivationInput, LicenseInfo, LicenseCostBreakdown, LicenseCostItem } from '@ero/shared';
+import {
+  LicenseActivationInput,
+  LicenseInfo,
+  LicenseCostBreakdown,
+  LicenseCostItem,
+  LicensePricingRates,
+  DEFAULT_LICENSE_PRICING_RATES,
+} from '@ero/shared';
 import { LicensesPdfEngine } from './licenses-pdf';
 
 export class LicensesService {
@@ -29,6 +36,64 @@ export class LicensesService {
         await query(`ALTER TABLE licenses ${toAdd.join(', ')}`);
       }
     } catch {}
+  }
+
+  private static pricingTableEnsured = false;
+
+  /**
+   * Garantiza la existencia de la tabla para tarifas configurables de licenciamiento
+   */
+  private static async ensurePricingTable() {
+    if (this.pricingTableEnsured) return;
+    this.pricingTableEnsured = true;
+    try {
+      await query(`
+        CREATE TABLE IF NOT EXISTS \`license_pricing_settings\` (
+          \`id\` VARCHAR(50) NOT NULL PRIMARY KEY DEFAULT 'default',
+          \`pricing_json\` JSON NOT NULL,
+          \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          \`updated_by\` VARCHAR(100) DEFAULT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `);
+    } catch {}
+  }
+
+  /**
+   * Obtiene la estructura tarifaria de licencias guardada en base de datos (con fallback a valores base)
+   */
+  static async getPricingRates(): Promise<LicensePricingRates> {
+    await this.ensurePricingTable();
+    try {
+      const rows = await query<any>(`SELECT pricing_json FROM license_pricing_settings WHERE id = 'default' LIMIT 1`);
+      if (rows && rows.length > 0 && rows[0].pricing_json) {
+        const stored = typeof rows[0].pricing_json === 'string'
+          ? JSON.parse(rows[0].pricing_json)
+          : rows[0].pricing_json;
+
+        return {
+          ...DEFAULT_LICENSE_PRICING_RATES,
+          ...stored,
+          modules: {
+            ...DEFAULT_LICENSE_PRICING_RATES.modules,
+            ...(stored.modules || {}),
+          },
+        };
+      }
+    } catch {}
+    return DEFAULT_LICENSE_PRICING_RATES;
+  }
+
+  /**
+   * Guarda o actualiza la estructura tarifaria de licencias en base de datos
+   */
+  static async savePricingRates(rates: LicensePricingRates, updatedBy?: string): Promise<LicensePricingRates> {
+    await this.ensurePricingTable();
+    await query(`
+      INSERT INTO license_pricing_settings (id, pricing_json, updated_by)
+      VALUES ('default', ?, ?)
+      ON DUPLICATE KEY UPDATE pricing_json = VALUES(pricing_json), updated_by = VALUES(updated_by)
+    `, [JSON.stringify(rates), updatedBy || null]);
+    return rates;
   }
 
   /**
@@ -205,7 +270,9 @@ export class LicensesService {
     modulesAllowed: string[];
     manualTotalCost?: number;
     discount?: number;
+    rates?: LicensePricingRates;
   }): LicenseCostBreakdown {
+    const rates = input.rates || DEFAULT_LICENSE_PRICING_RATES;
     const isTrial = input.type === 'trial';
     const isPerpetual = input.type === 'perpetua';
     const isTemporal = input.type === 'temporal';
@@ -218,16 +285,17 @@ export class LicensesService {
     let billingPeriod = 'Gratuito (Trial 30 Días)';
 
     if (isTrial) {
-      typeCost = 0;
+      typeCost = rates.baseTrialUSD || 0;
       typeConcept = 'Licencia de Demostración & Evaluación (30 Días)';
       billingPeriod = 'Gratuito (30 Días)';
     } else if (isTemporal) {
       const months = input.durationMonths || 12;
-      typeCost = Math.round(120 * (months / 12) * 100) / 100;
+      const annualBase = rates.baseAnnualTemporalUSD || 120;
+      typeCost = Math.round(annualBase * (months / 12) * 100) / 100;
       typeConcept = `Licencia Suscripción Temporal (${months} meses - Base 5 usuarios / 1 sede)`;
       billingPeriod = `${months} Meses`;
     } else {
-      typeCost = 500;
+      typeCost = rates.basePerpetuaUSD || 500;
       typeConcept = 'Licencia Perpetua Enterprise (Base 5 usuarios / 1 sede)';
       billingPeriod = 'Pago Único (Perpetua)';
     }
@@ -245,7 +313,7 @@ export class LicensesService {
     if (!isTrial) {
       if (input.maxUsers <= 0) {
         // Paquete usuarios ilimitados
-        usersCost = isPerpetual ? 350 : 150;
+        usersCost = isPerpetual ? (rates.unlimitedUsersPerpetuaUSD ?? 350) : (rates.unlimitedUsersTemporalUSD ?? 150);
         items.push({
           concept: 'Paquete de Usuarios Concurrentes Ilimitados',
           category: 'USERS',
@@ -255,7 +323,7 @@ export class LicensesService {
         });
       } else if (input.maxUsers > 5) {
         const extraUsers = input.maxUsers - 5;
-        const unitUserPrice = isPerpetual ? 35 : 12;
+        const unitUserPrice = isPerpetual ? (rates.extraUserPerpetuaUSD ?? 35) : (rates.extraUserTemporalUSD ?? 12);
         usersCost = extraUsers * unitUserPrice;
         items.push({
           concept: `Usuarios Adicionales (+${extraUsers} sobre los 5 base)`,
@@ -272,7 +340,7 @@ export class LicensesService {
     if (!isTrial) {
       if (input.maxBranches <= 0) {
         // Paquete multi-sucursal ilimitada
-        branchesCost = isPerpetual ? 400 : 180;
+        branchesCost = isPerpetual ? (rates.unlimitedBranchesPerpetuaUSD ?? 400) : (rates.unlimitedBranchesTemporalUSD ?? 180);
         items.push({
           concept: 'Paquete Multi-Sucursal Ilimitado (Sedes sin límite)',
           category: 'BRANCHES',
@@ -282,7 +350,7 @@ export class LicensesService {
         });
       } else if (input.maxBranches > 1) {
         const extraBranches = input.maxBranches - 1;
-        const unitBranchPrice = isPerpetual ? 80 : 36;
+        const unitBranchPrice = isPerpetual ? (rates.extraBranchPerpetuaUSD ?? 80) : (rates.extraBranchTemporalUSD ?? 36);
         branchesCost = extraBranches * unitBranchPrice;
         items.push({
           concept: `Sucursales Adicionales (+${extraBranches} sobre la sede principal)`,
@@ -297,16 +365,7 @@ export class LicensesService {
     // 4. Costo por Módulos Avanzados y Especializados
     let modulesCost = 0;
     if (!isTrial) {
-      const advancedModulesPricing: Record<string, { label: string; temporal: number; perpetua: number }> = {
-        receivables: { label: 'Cuentas por Cobrar & Gestión de Cartera', temporal: 15, perpetua: 30 },
-        payables: { label: 'Cuentas por Pagar & Compromisos', temporal: 15, perpetua: 30 },
-        treasury: { label: 'Tesorería Integral & Conciliación Bancaria', temporal: 20, perpetua: 45 },
-        taxes: { label: 'Tributos SENIAT & Retenciones IVA/ISLR', temporal: 20, perpetua: 45 },
-        reports: { label: 'Reportes Gerenciales & Exportación', temporal: 15, perpetua: 35 },
-        audit: { label: 'Auditoría Integral & Trazabilidad', temporal: 20, perpetua: 40 },
-        restaurant: { label: 'Restaurante & Comandera KDS', temporal: 35, perpetua: 90 },
-        accounting: { label: 'Contabilidad Senior NIIF / VEN-NIF', temporal: 45, perpetua: 120 },
-      };
+      const advancedModulesPricing = rates.modules || DEFAULT_LICENSE_PRICING_RATES.modules;
 
       const selectedModules = input.modulesAllowed.includes('*')
         ? Object.keys(advancedModulesPricing)
@@ -315,7 +374,7 @@ export class LicensesService {
       for (const modKey of selectedModules) {
         const p = advancedModulesPricing[modKey];
         if (p) {
-          const modPrice = isPerpetual ? p.perpetua : p.temporal;
+          const modPrice = isPerpetual ? p.perpetuaUSD : p.temporalUSD;
           modulesCost += modPrice;
           items.push({
             concept: `Módulo Especializado: ${p.label}`,
@@ -332,13 +391,13 @@ export class LicensesService {
     let supportCost = 0;
     if (!isTrial && input.hasSupport) {
       if (isPerpetual) {
-        supportCost = 80;
+        supportCost = rates.supportPerpetuaUSD ?? 80;
         items.push({
           concept: 'Póliza de Soporte Técnico Prioritario & Actualizaciones (1er Año)',
           category: 'SUPPORT',
           quantity: 1,
-          unitPrice: 80,
-          subtotal: 80,
+          unitPrice: supportCost,
+          subtotal: supportCost,
         });
       } else {
         // En suscripción temporal el soporte está incluido
@@ -428,6 +487,7 @@ export class LicensesService {
     }
 
     // Calcular estructura de costos asociada a la licencia
+    const currentRates = await this.getPricingRates();
     const costBreakdown =
       input.costBreakdown ||
       this.calculateCostBreakdown({
@@ -439,6 +499,7 @@ export class LicensesService {
         modulesAllowed: input.modulesAllowed,
         manualTotalCost: input.totalCost,
         discount: input.discount,
+        rates: currentRates,
       });
 
     const payload = {

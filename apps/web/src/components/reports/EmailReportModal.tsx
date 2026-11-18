@@ -20,7 +20,11 @@ export interface EmailReportModalProps {
   isOpen: boolean;
   onClose: () => void;
   reportTitle: string;
-  reportEndpoint: string;
+  reportEndpoint?: string | null;
+  pdfBlobUrl?: string | null;
+  filename?: string;
+  defaultRecipientEmail?: string;
+  defaultRecipientName?: string;
 }
 
 type RecipientType = 'customer' | 'supplier' | 'custom';
@@ -37,6 +41,10 @@ export const EmailReportModal: React.FC<EmailReportModalProps> = ({
   onClose,
   reportTitle,
   reportEndpoint,
+  pdfBlobUrl,
+  filename,
+  defaultRecipientEmail,
+  defaultRecipientName,
 }) => {
   const token = useAuthStore((s) => s.token);
 
@@ -51,6 +59,7 @@ export const EmailReportModal: React.FC<EmailReportModalProps> = ({
   const [message, setMessage] = useState('');
   const [attachPdf, setAttachPdf] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const [smtpStatus, setSmtpStatus] = useState<{ configured: boolean; host: string; user: string } | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
@@ -61,11 +70,31 @@ export const EmailReportModal: React.FC<EmailReportModalProps> = ({
       return;
     }
 
-    setSubject(`Reporte Oficial: ${reportTitle} - ERO ERP`);
+    if (defaultRecipientEmail) {
+      setRecipientEmail(defaultRecipientEmail);
+      setRecipientType('custom');
+    }
+    if (defaultRecipientName) {
+      setRecipientName(defaultRecipientName);
+    }
+
+    setSubject(`Documento Oficial: ${reportTitle} - ERO ERP`);
     setMessage(
-      `Estimado cliente/proveedor,\n\nLe hacemos entrega del documento "${reportTitle}" emitido desde nuestro sistema administrativo.\n\nQuedamos a su completa disposición para cualquier información adicional.`
+      `Estimado cliente/proveedor,\n\nLe hacemos entrega del documento oficial "${reportTitle}" emitido desde nuestro sistema administrativo ERO ERP.\n\nQuedamos a su completa disposición para cualquier información adicional.`
     );
-  }, [isOpen, reportTitle]);
+
+    // Consultar estado SMTP
+    fetch('/api/notifications/mail-status', {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success && json.data?.status) {
+          setSmtpStatus(json.data.status);
+        }
+      })
+      .catch(() => {});
+  }, [isOpen, reportTitle, defaultRecipientEmail, defaultRecipientName, token]);
 
   useEffect(() => {
     if (!isOpen || recipientType === 'custom') return;
@@ -127,6 +156,25 @@ export const EmailReportModal: React.FC<EmailReportModalProps> = ({
 
     setIsSending(true);
     try {
+      let pdfBase64: string | null = null;
+      if (attachPdf && pdfBlobUrl) {
+        try {
+          const blobRes = await fetch(pdfBlobUrl);
+          const blob = await blobRes.blob();
+          const reader = new FileReader();
+          pdfBase64 = await new Promise<string>((resolve, reject) => {
+            reader.onloadend = () => {
+              const resStr = reader.result as string;
+              resolve(resStr.includes(',') ? resStr.split(',')[1] : resStr);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        } catch (bErr) {
+          console.warn('No se pudo convertir blob a base64:', bErr);
+        }
+      }
+
       const res = await fetch('/api/notifications/send-email-report', {
         method: 'POST',
         headers: {
@@ -139,16 +187,18 @@ export const EmailReportModal: React.FC<EmailReportModalProps> = ({
           recipientType,
           subject: subject.trim(),
           message: message.trim() || null,
-          reportEndpoint,
-          reportTitle,
+          reportEndpoint: reportEndpoint || null,
+          reportTitle: reportTitle || 'Documento Oficial',
           attachPdf,
+          pdfBase64,
+          pdfFilename: filename || `${(reportTitle || 'documento').replace(/[^a-zA-Z0-9_\-]/g, '_')}.pdf`,
         }),
       });
 
       const json = await res.json();
       if (res.ok && json.success) {
         toast.success(
-          `Reporte enviado exitosamente a ${recipientName} (${recipientEmail})`
+          `Documento enviado exitosamente por correo a ${recipientName} (${recipientEmail})`
         );
         onClose();
       } else {
@@ -167,12 +217,22 @@ export const EmailReportModal: React.FC<EmailReportModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Enviar Reporte por Correo Electrónico"
-      subtitle="Distribuye este documento a clientes, proveedores o contactos externos."
-      icon={<Mail className="w-5 h-5 text-sky-600 dark:text-sky-400" />}
+      title="Enviar Documento por Correo Electrónico"
+      subtitle="Distribuye este archivo directamente a clientes, proveedores o contactos externos."
+      icon={<Mail className="w-5 h-5 text-[#007BFF] dark:text-[#3D91FF]" />}
       maxWidth="max-w-xl"
     >
       <form onSubmit={handleSendEmail} className="space-y-4">
+        {/* Banner de Estado del Servidor SMTP */}
+        {smtpStatus && smtpStatus.configured && (
+          <div className="flex items-center justify-between p-2.5 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 rounded-lg text-[11px] text-emerald-800 dark:text-emerald-300">
+            <span className="flex items-center gap-1.5 font-medium">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Servidor SMTP Activo: <strong>{smtpStatus.host}</strong> ({smtpStatus.user})</span>
+            </span>
+            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono">Envío Directo</span>
+          </div>
+        )}
         {/* Selector de Tipo de Destinatario */}
         <div>
           <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">

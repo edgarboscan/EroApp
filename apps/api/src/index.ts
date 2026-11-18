@@ -4,6 +4,20 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { prettyJSON } from 'hono/pretty-json';
 import dotenv from 'dotenv';
+import path from 'path';
+import fs from 'fs';
+
+// Cargar variables de entorno desde la raíz del monorepo y desde el paquete local
+const candidateEnvPaths = [
+  path.resolve(process.cwd(), '.env'),
+  path.resolve(process.cwd(), '../../.env'),
+  path.resolve(process.cwd(), '../.env'),
+];
+for (const envPath of candidateEnvPaths) {
+  if (fs.existsSync(envPath)) {
+    dotenv.config({ path: envPath });
+  }
+}
 
 import { authRouter } from './modules/auth/auth.routes';
 import { dashboardsRouter } from './modules/dashboards/dashboards.routes';
@@ -30,8 +44,6 @@ import { accountingRouter } from './modules/accounting/accounting.routes';
 import { notificationsRouter } from './modules/notifications/notifications.routes';
 import { chatRouter } from './modules/chat/chat.routes';
 import { realtimeRouter } from './modules/realtime/realtime.routes';
-
-dotenv.config();
 
 const app = new Hono();
 

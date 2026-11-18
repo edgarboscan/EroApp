@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { STANDARD_CHART_OF_ACCOUNTS, DEFAULT_ACCOUNT_MAPPINGS } from '../modules/accounting/accounting-defaults';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -498,20 +499,112 @@ export function buildFullHypermarketSeedScript(): string {
   return generateHypermarketSeedSql() + generateAllProductsSql();
 }
 
+export function buildStandardChartOfAccountsScript(): string {
+  let sql = `
+-- =============================================================================
+-- ERO ERP - PLAN DE CUENTAS ESTÁNDAR VEN-NIF / NIIF Y MAPEOS CONTABLES BASE
+-- Generado para la empresa por defecto @company_id
+-- =============================================================================
+
+-- 1. Ejercicio Fiscal del Año Actual y 12 Períodos Mensuales
+SET @current_fiscal_year = YEAR(CURRENT_DATE());
+SET @fiscal_year_id = UUID();
+
+INSERT INTO accounting_fiscal_years (id, company_id, year, start_date, end_date, status)
+VALUES (@fiscal_year_id, @company_id, @current_fiscal_year, CONCAT(@current_fiscal_year, '-01-01'), CONCAT(@current_fiscal_year, '-12-31'), 'OPEN')
+ON DUPLICATE KEY UPDATE status = VALUES(status);
+
+SELECT id INTO @fiscal_year_id FROM accounting_fiscal_years WHERE company_id = @company_id AND year = @current_fiscal_year LIMIT 1;
+
+-- Períodos 1 a 12
+`;
+
+  for (let m = 1; m <= 12; m++) {
+    const padM = String(m).padStart(2, '0');
+    sql += `
+INSERT INTO accounting_fiscal_periods (id, fiscal_year_id, month, start_date, end_date, status)
+VALUES (
+  UUID(), @fiscal_year_id, ${m},
+  CONCAT(@current_fiscal_year, '-${padM}-01'),
+  LAST_DAY(CONCAT(@current_fiscal_year, '-${padM}-01')),
+  'OPEN'
+) ON DUPLICATE KEY UPDATE status = VALUES(status);
+`;
+  }
+
+  sql += `
+-- 2. Catálogo Jerárquico de Cuentas VEN-NIF (92 Cuentas Estándar)
+`;
+
+  for (let lvl = 1; lvl <= 4; lvl++) {
+    const levelAccounts = STANDARD_CHART_OF_ACCOUNTS.filter((a) => a.level === lvl);
+    for (const acc of levelAccounts) {
+      const parentExpr = acc.parent
+        ? `(SELECT a_p.id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) a_p WHERE a_p.code = '${acc.parent}' LIMIT 1)`
+        : 'NULL';
+      const postVal = acc.post ? 1 : 0;
+      const monVal = acc.monetary ? 1 : 0;
+      const bankVal = acc.bankCash ? 1 : 0;
+
+      sql += `
+INSERT INTO accounting_accounts (
+  id, company_id, code, name, level, parent_id,
+  account_type, classification, normal_balance,
+  accepts_postings, is_monetary, is_bank_or_cash, is_active
+) VALUES (
+  UUID(), @company_id, '${acc.code}', ${esc(acc.name)}, ${acc.level}, ${parentExpr},
+  '${acc.type}', '${acc.classif}', '${acc.balance}',
+  ${postVal}, ${monVal}, ${bankVal}, 1
+) ON DUPLICATE KEY UPDATE name = VALUES(name);
+`;
+    }
+  }
+
+  sql += `
+-- 3. Configuración del Motor de Contabilización Automática
+INSERT INTO accounting_settings (
+  id, company_id, auto_posting_enabled, default_entry_status,
+  post_sales, post_purchases, post_payments, post_notes,
+  post_inventory_adjustments, post_treasury
+) VALUES (
+  UUID(), @company_id, 1, 'POSTED', 1, 1, 1, 1, 1, 1
+) ON DUPLICATE KEY UPDATE auto_posting_enabled = VALUES(auto_posting_enabled);
+
+-- 4. Mapeos Contables Predeterminados por Operación
+`;
+
+  for (const [key, mapping] of Object.entries(DEFAULT_ACCOUNT_MAPPINGS)) {
+    sql += `
+INSERT INTO accounting_account_mappings (
+  id, company_id, mapping_key, account_id, description
+) VALUES (
+  UUID(), @company_id, '${key}',
+  (SELECT id FROM (SELECT id, code FROM accounting_accounts WHERE company_id = @company_id) acc_m WHERE acc_m.code = '${mapping.code}' LIMIT 1),
+  ${esc(mapping.desc)}
+) ON DUPLICATE KEY UPDATE description = VALUES(description);
+`;
+  }
+
+  return sql;
+}
+
 export function buildFullDatabaseInitScript(): string {
   const schemaSql = fs.readFileSync(path.join(ddlDir, '01_schema.sql'), 'utf8');
   const restaurantSql = fs.readFileSync(path.join(ddlDir, '06_restaurant.sql'), 'utf8');
   const accountingSql = fs.readFileSync(path.join(ddlDir, '07_accounting.sql'), 'utf8');
+  const autoPostingSql = fs.readFileSync(path.join(ddlDir, '09_accounting_auto_posting.sql'), 'utf8');
   const triggersSql = fs.readFileSync(path.join(ddlDir, '02_triggers.sql'), 'utf8');
   const proceduresSql = fs.readFileSync(path.join(ddlDir, '03_procedures.sql'), 'utf8');
   const viewsSql = fs.readFileSync(path.join(ddlDir, '04_views.sql'), 'utf8');
   const seedsSql = fs.readFileSync(path.join(ddlDir, '05_seeds.sql'), 'utf8');
   const hypermarketSql = buildFullHypermarketSeedScript();
+  const chartOfAccountsSql = buildStandardChartOfAccountsScript();
 
   return `-- =============================================================================
 -- ERO ERP - BOOTSTRAP UNIFICADO DE BASE DE DATOS (NUEVOS SERVIDORES)
--- Incluye: Esquema Completo + Módulos (Restaurante, Contabilidad, Notificaciones)
+-- Incluye: Esquema Completo + Módulos (Restaurante, Contabilidad, Notificaciones, Contabilización Automática)
 --         + Triggers + Stored Procedures + Vistas + Seeds Base + Datos de Hipermercado
+--         + Plan de Cuentas Estándar VEN-NIF y Mapeos Contables
 -- Fecha: Noviembre 2026
 -- =============================================================================
 
@@ -535,9 +628,11 @@ ${schemaSql}
 ${restaurantSql}
 
 -- -----------------------------------------------------------------------------
--- 3. MÓDULO DE CONTABILIDAD Y NIIF (07_accounting.sql)
+-- 3. MÓDULO DE CONTABILIDAD Y NIIF (07_accounting.sql + 09_accounting_auto_posting.sql)
 -- -----------------------------------------------------------------------------
 ${accountingSql}
+
+${autoPostingSql}
 
 -- -----------------------------------------------------------------------------
 -- 4. DISPARADORES / TRIGGERS (02_triggers.sql)
@@ -563,6 +658,11 @@ ${seedsSql}
 -- 8. DATOS DE HIPERMERCADO VENEZOLANO (08_hypermarket_seed.sql)
 -- -----------------------------------------------------------------------------
 ${hypermarketSql}
+
+-- -----------------------------------------------------------------------------
+-- 9. PLAN DE CUENTAS ESTÁNDAR VEN-NIF Y MAPEOS CONTABLES (09_chart_of_accounts)
+-- -----------------------------------------------------------------------------
+${chartOfAccountsSql}
 
 SET FOREIGN_KEY_CHECKS = 1;
 `;

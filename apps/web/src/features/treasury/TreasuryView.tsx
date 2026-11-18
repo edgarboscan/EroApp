@@ -674,11 +674,11 @@ export const TreasuryView: React.FC = () => {
             Array.from({ length: 3 }).map((_, i) => (
               <div
                 key={i}
-                className="h-40 bg-neutral-100 rounded-lg animate-pulse"
+                className="h-40 rounded-lg animate-pulse"
               />
             ))
           ) : accounts.length === 0 ? (
-            <div className="col-span-3 text-center py-8 text-neutral-400 bg-neutral-50 border border-neutral-200 rounded-lg text-xs">
+            <div className="col-span-3 text-center py-8 text-neutral-400 border border-neutral-200 rounded-lg text-xs">
               No hay cuentas bancarias registradas para la sucursal
               seleccionada.
             </div>

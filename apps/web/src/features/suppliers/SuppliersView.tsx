@@ -32,6 +32,9 @@ import {
   Trash2,
   User,
   ShoppingBag,
+  ExternalLink,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 
 interface Supplier {
@@ -128,6 +131,70 @@ export const SuppliersView: React.FC = () => {
     isActive: true,
   });
 
+  // Diagnóstico y Autocompletado de RIF SENIAT
+  const [isLookingUpRif, setIsLookingUpRif] = useState(false);
+  const [rifDiagnostic, setRifDiagnostic] = useState<{
+    isValidChecksum?: boolean;
+    source?: string;
+    seniatPortalUrl?: string;
+    message?: string;
+  } | null>(null);
+
+  const handleLookupRif = async (targetRif?: string) => {
+    const queryRif = (targetRif || formData.rif || '').trim();
+    if (!queryRif || queryRif.length < 3) return;
+
+    setIsLookingUpRif(true);
+    try {
+      const res = await fetch(`/api/suppliers/lookup-rif/${encodeURIComponent(queryRif)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          const d = json.data;
+          setFormData((prev) => ({
+            ...prev,
+            rif: d.formattedRif || prev.rif,
+            name: d.supplier?.name || prev.name,
+            commercialName: d.supplier?.commercialName || prev.commercialName,
+            fiscalAddress: d.supplier?.fiscalAddress || prev.fiscalAddress,
+            contactName: d.supplier?.contactName || prev.contactName,
+            phone: d.supplier?.phone || prev.phone,
+            email: d.supplier?.email || prev.email,
+            isPersonNatural: d.supplier?.isPersonNatural ?? d.isPersonNatural ?? prev.isPersonNatural,
+            isResident: d.supplier?.isResident ?? d.isResident ?? prev.isResident,
+            islrConceptCode: d.supplier?.islrConceptCode || prev.islrConceptCode,
+          }));
+
+          let sourceLabel = 'Algoritmo SENIAT (Módulo 11)';
+          if (d.source === 'existing_supplier') sourceLabel = 'Registro previo de proveedor';
+          else if (d.source === 'existing_customer') sourceLabel = 'Directorio de clientes (cruce fiscal)';
+          else if (d.source === 'external_api') sourceLabel = 'API SENIAT Externa';
+
+          setRifDiagnostic({
+            isValidChecksum: d.isValidChecksum,
+            source: d.source,
+            seniatPortalUrl: d.seniatPortalUrl,
+            message: d.foundInDatabase
+              ? `Datos autocompletados desde: ${sourceLabel}`
+              : d.isValidChecksum
+                ? `Formato y Módulo 11 válidos (${d.personType}). Corrobore en SENIAT para verificar razón social.`
+                : `Atención: El dígito verificador no coincide con la fórmula matemática del SENIAT.`,
+          });
+
+          if (d.foundInDatabase) {
+            toast.success(`Datos fiscales autocompletados desde ${sourceLabel}`);
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn('Error en lookup RIF:', err);
+    } finally {
+      setIsLookingUpRif(false);
+    }
+  };
+
   // Supplier Products Modal
   const [isProductsModalOpen, setIsProductsModalOpen] = useState(false);
   const [selectedSupplierForProducts, setSelectedSupplierForProducts] = useState<Supplier | null>(null);
@@ -189,6 +256,7 @@ export const SuppliersView: React.FC = () => {
   // Open Create Modal
   const handleOpenCreateModal = () => {
     setEditingSupplierId(null);
+    setRifDiagnostic(null);
     setFormData({
       rif: "",
       name: "",
@@ -210,6 +278,7 @@ export const SuppliersView: React.FC = () => {
   // Open Edit Modal
   const handleOpenEditModal = (sup: Supplier) => {
     setEditingSupplierId(sup.id);
+    setRifDiagnostic(null);
     setFormData({
       rif: sup.rif || "",
       name: sup.name || "",
@@ -996,7 +1065,7 @@ export const SuppliersView: React.FC = () => {
         onClose={() => setIsFormModalOpen(false)}
         title={editingSupplierId ? "Editar Proveedor" : "Registrar Nuevo Proveedor"}
         subtitle="Gestión de compras, datos fiscales SENIAT y condiciones comerciales"
-        size="lg"
+        size="2xl"
         footer={
           <div className="flex items-center justify-end gap-2 w-full">
             <Button
@@ -1019,20 +1088,108 @@ export const SuppliersView: React.FC = () => {
           onSubmit={handleSubmitSupplier}
           className="space-y-4 text-xs"
         >
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input
-              label="RIF (Fiscal SENIAT) *"
-              placeholder="J-12345678-9"
-              value={formData.rif}
-              onChange={(e) => setFormData({ ...formData, rif: e.target.value.toUpperCase() })}
-              required
-            />
-            <Input
-              label="Nombre Comercial"
-              placeholder="Ej. Distribuidora Polar C.A."
-              value={formData.commercialName}
-              onChange={(e) => setFormData({ ...formData, commercialName: e.target.value })}
-            />
+          {/* RIF y Datos Fiscales SENIAT */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                RIF (Fiscal SENIAT) *
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleLookupRif()}
+                  disabled={isLookingUpRif || !formData.rif.trim()}
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 transition-colors disabled:opacity-50 cursor-pointer"
+                  title="Validar formato Módulo 11 y autocompletar desde el directorio interno"
+                >
+                  {isLookingUpRif ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-3 h-3" />
+                  )}
+                  <span>Autocompletar</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const clean = formData.rif.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+                    window.open(
+                      `https://contribuyente.seniat.gob.ve/BuscaRif/BuscaRif.jsp?p_rif=${clean}`,
+                      "_blank",
+                      "width=780,height=580,scrollbars=yes"
+                    );
+                  }}
+                  disabled={!formData.rif.trim()}
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors disabled:opacity-50 cursor-pointer"
+                  title="Abrir portal oficial del SENIAT para corroborar razón social y condición de contribuyente"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  <span>Portal SENIAT</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Input
+                placeholder="Ej. J-12345678-9"
+                value={formData.rif}
+                onChange={(e) => {
+                  const val = e.target.value.toUpperCase();
+                  setFormData({ ...formData, rif: val });
+                }}
+                onBlur={() => {
+                  const clean = formData.rif.replace(/[^A-Za-z0-9]/g, "");
+                  if (clean.length >= 8 && !formData.name.trim()) {
+                    handleLookupRif(clean);
+                  }
+                }}
+                required
+              />
+              <Input
+                placeholder="Nombre Comercial (ej. Distribuidora Polar C.A.)"
+                value={formData.commercialName}
+                onChange={(e) => setFormData({ ...formData, commercialName: e.target.value })}
+              />
+            </div>
+
+            {/* Banner de diagnóstico y validación tributaria SENIAT */}
+            {rifDiagnostic && (
+              <div
+                className={`p-2.5 rounded-lg border text-[11px] flex items-center justify-between gap-2 ${
+                  rifDiagnostic.source === "existing_supplier" ||
+                  rifDiagnostic.source === "existing_customer" ||
+                  rifDiagnostic.source === "external_api"
+                    ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300"
+                    : rifDiagnostic.isValidChecksum
+                      ? "bg-sky-50 dark:bg-sky-950/40 border-sky-200 dark:border-sky-800/60 text-sky-800 dark:text-sky-300"
+                      : "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300"
+                }`}
+              >
+                <div className="flex items-center gap-1.5 truncate">
+                  {rifDiagnostic.isValidChecksum ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                  ) : (
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                  )}
+                  <span className="truncate">{rifDiagnostic.message}</span>
+                </div>
+                {rifDiagnostic.seniatPortalUrl && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      window.open(
+                        rifDiagnostic.seniatPortalUrl,
+                        "_blank",
+                        "width=780,height=580,scrollbars=yes"
+                      )
+                    }
+                    className="shrink-0 text-[10px] font-semibold underline hover:no-underline cursor-pointer"
+                  >
+                    Ver en SENIAT
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           <Input

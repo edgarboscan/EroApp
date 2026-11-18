@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import {
   updateCompanySchema,
+  companySmtpConfigSchema,
   branchSchema,
   updateBranchSchema,
   warehouseSchema,
@@ -60,6 +61,68 @@ configRouter.put(
     }
   }
 );
+
+// ==========================================
+// 1.1 Configuración de Correo Electrónico (SMTP de Empresa)
+// ==========================================
+
+// GET /api/config/smtp - Obtener configuración SMTP de la empresa
+configRouter.get('/smtp', authenticate, authorize('config', 'read'), async (c) => {
+  const user = c.get('user');
+  try {
+    const smtpConfig = await ConfigService.getCompanySmtp(user.companyId);
+    return c.json({ success: true, data: smtpConfig });
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'SMTP_CONFIG_FETCH_ERROR', message: error.message } }, 500);
+  }
+});
+
+// PUT /api/config/smtp - Actualizar configuración SMTP de la empresa
+configRouter.put(
+  '/smtp',
+  authenticate,
+  authorize('config', 'update'),
+  zValidator('json', companySmtpConfigSchema, (result, c) => {
+    if (!result.success) {
+      const firstIssue = result.error.issues[0];
+      const message = firstIssue ? `${firstIssue.path.join('.')}: ${firstIssue.message}` : 'Error de validación en parámetros SMTP';
+      return c.json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message,
+          issues: result.error.issues,
+        },
+      }, 400);
+    }
+  }),
+  async (c) => {
+    const user = c.get('user');
+    const input = c.req.valid('json');
+    try {
+      const updated = await ConfigService.updateCompanySmtp(user.companyId, input);
+      return c.json({ success: true, data: updated });
+    } catch (error: any) {
+      return c.json({ success: false, error: { code: 'SMTP_CONFIG_UPDATE_ERROR', message: error.message } }, 500);
+    }
+  }
+);
+
+// POST /api/config/smtp/test - Probar conexión SMTP de la empresa (en vivo o parámetros provisionales)
+configRouter.post('/smtp/test', authenticate, authorize('config', 'read'), async (c) => {
+  const user = c.get('user');
+  try {
+    let customParams: any = undefined;
+    try {
+      customParams = await c.req.json();
+    } catch {}
+
+    const result = await ConfigService.testCompanySmtp(user.companyId, customParams);
+    return c.json({ success: true, data: result });
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'SMTP_TEST_ERROR', message: error.message } }, 500);
+  }
+});
 
 // ==========================================
 // 2. Sucursales

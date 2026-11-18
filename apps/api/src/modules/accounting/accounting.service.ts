@@ -9,6 +9,7 @@ import {
   InflationAdjustmentProcessInput,
   ExchangeDifferenceProcessInput,
 } from '@ero/shared';
+import { STANDARD_CHART_OF_ACCOUNTS, DEFAULT_ACCOUNT_MAPPINGS } from './accounting-defaults';
 
 const uuidv4 = () => crypto.randomUUID();
 
@@ -865,9 +866,30 @@ export class AccountingService {
       );
       if (inpcRows.length > 0) {
         const inpcClosing = Number(inpcRows[0].inpc_value);
-        // Supongamos base anterior o enero
-        const inpcBase = 615.63;
-        inflationFactor = inpcClosing / inpcBase;
+        let inpcBase = 1.0;
+        if (filters?.baseInpcYear && filters?.baseInpcMonth) {
+          const baseRows = await query<any>(
+            `SELECT inpc_value FROM accounting_inflation_indices WHERE year = ? AND month = ?`,
+            [filters.baseInpcYear, filters.baseInpcMonth]
+          );
+          if (baseRows.length > 0) {
+            inpcBase = Number(baseRows[0].inpc_value);
+          }
+        }
+        if (inpcBase === 1.0) {
+          const defaultBaseRows = await query<any>(
+            `SELECT inpc_value FROM accounting_inflation_indices 
+             WHERE (year = ? AND month = 1) OR (year < ? OR (year = ? AND month < ?))
+             ORDER BY year ASC, month ASC LIMIT 1`,
+            [year, year, year, month]
+          );
+          if (defaultBaseRows.length > 0) {
+            inpcBase = Number(defaultBaseRows[0].inpc_value);
+          } else {
+            inpcBase = inpcClosing;
+          }
+        }
+        inflationFactor = inpcBase > 0 ? inpcClosing / inpcBase : 1.0;
       }
     }
 
@@ -1272,24 +1294,115 @@ export class AccountingService {
       year: r.year,
       month: r.month,
       inpcValue: Number(r.inpc_value),
-      variationMonthly: Number(r.variation_monthly),
+      variationMonthly: Number(r.variation_monthly || 0),
       publishedDate: r.published_date,
     }));
   }
 
-  static async calculateInflationAdjustment(companyId: string, targetYear: number, targetMonth: number) {
+  static async upsertInflationIndex(data: {
+    id?: string;
+    year: number;
+    month: number;
+    inpcValue: number;
+    variationMonthly?: number;
+    publishedDate?: string;
+  }) {
+    const id = data.id || crypto.randomUUID();
+    const publishedDate = data.publishedDate || `${data.year}-${String(data.month).padStart(2, '0')}-15`;
+    const variationMonthly = data.variationMonthly !== undefined ? data.variationMonthly : 0;
+
+    await query(
+      `INSERT INTO accounting_inflation_indices (id, year, month, inpc_value, variation_monthly, published_date)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         inpc_value = VALUES(inpc_value),
+         variation_monthly = VALUES(variation_monthly),
+         published_date = VALUES(published_date)`,
+      [id, data.year, data.month, data.inpcValue, variationMonthly, publishedDate]
+    );
+
+    const [saved] = await query<any>(
+      `SELECT * FROM accounting_inflation_indices WHERE year = ? AND month = ? LIMIT 1`,
+      [data.year, data.month]
+    );
+
+    return {
+      id: saved.id,
+      year: saved.year,
+      month: saved.month,
+      inpcValue: Number(saved.inpc_value),
+      variationMonthly: Number(saved.variation_monthly),
+      publishedDate: saved.published_date,
+    };
+  }
+
+  static async deleteInflationIndex(id: string) {
+    await query(`DELETE FROM accounting_inflation_indices WHERE id = ?`, [id]);
+    return { success: true, id };
+  }
+
+  static async calculateInflationAdjustment(
+    companyId: string,
+    paramsOrYear: { targetYear: number; targetMonth: number; baseYear?: number; baseMonth?: number; manualBaseInpc?: number } | number,
+    maybeMonth?: number
+  ) {
+    let targetYear: number;
+    let targetMonth: number;
+    let baseYear: number | undefined;
+    let baseMonth: number | undefined;
+    let manualBaseInpc: number | undefined;
+
+    if (typeof paramsOrYear === 'object') {
+      targetYear = paramsOrYear.targetYear;
+      targetMonth = paramsOrYear.targetMonth;
+      baseYear = paramsOrYear.baseYear;
+      baseMonth = paramsOrYear.baseMonth;
+      manualBaseInpc = paramsOrYear.manualBaseInpc;
+    } else {
+      targetYear = paramsOrYear;
+      targetMonth = maybeMonth || 12;
+    }
+
     const inpcRows = await query<any>(
       `SELECT inpc_value FROM accounting_inflation_indices WHERE year = ? AND month = ?`,
       [targetYear, targetMonth]
     );
 
     if (inpcRows.length === 0) {
-      throw new Error(`No existe índice INPC registrado para el período ${targetYear}-${String(targetMonth).padStart(2, '0')}`);
+      throw new Error(`No existe índice INPC registrado en la base de datos para el período de cierre ${targetYear}-${String(targetMonth).padStart(2, '0')}. Por favor regístrelo en el módulo de Índices BCV.`);
     }
 
     const inpcClosing = Number(inpcRows[0].inpc_value);
-    const inpcBase = 615.63; // INPC base ejercicio
-    const factor = inpcClosing / inpcBase;
+    let inpcBase = 0;
+
+    if (manualBaseInpc && manualBaseInpc > 0) {
+      inpcBase = manualBaseInpc;
+    } else if (baseYear && baseMonth) {
+      const baseRows = await query<any>(
+        `SELECT inpc_value FROM accounting_inflation_indices WHERE year = ? AND month = ?`,
+        [baseYear, baseMonth]
+      );
+      if (baseRows.length > 0) {
+        inpcBase = Number(baseRows[0].inpc_value);
+      }
+    }
+
+    if (!inpcBase || inpcBase <= 0) {
+      // Tomar enero del mismo año o índice de inicio del ejercicio
+      const defaultBaseRows = await query<any>(
+        `SELECT inpc_value FROM accounting_inflation_indices 
+         WHERE (year = ? AND month = 1) OR (year < ? OR (year = ? AND month < ?))
+         ORDER BY year ASC, month ASC LIMIT 1`,
+        [targetYear, targetYear, targetYear, targetMonth]
+      );
+      if (defaultBaseRows.length > 0) {
+        inpcBase = Number(defaultBaseRows[0].inpc_value);
+      } else {
+        inpcBase = inpcClosing;
+      }
+    }
+
+    const factor = inpcBase > 0 ? inpcClosing / inpcBase : 1.0;
 
     // Cuentas no monetarias (is_monetary = 0)
     const nonMonetaryAccounts = await query<any>(
@@ -1323,12 +1436,140 @@ export class AccountingService {
     return {
       targetYear,
       targetMonth,
+      baseYear,
+      baseMonth,
       inpcBase,
       inpcClosing,
       factor,
       reexpressions,
       netReiResultVes: netAdjustment,
     };
+  }
+
+  // ==========================================================================
+  // 6.1 SEMILLA DE PLAN DE CUENTAS ESTÁNDAR (VEN-NIF) Y AUTOMATIZACIÓN
+  // ==========================================================================
+
+  static async seedDefaultChartOfAccounts(companyId: string, fiscalYear?: number): Promise<{ accountsCreated: number; mappingsCreated: number }> {
+    const year = fiscalYear || new Date().getFullYear();
+    const fiscalYearId = crypto.randomUUID();
+
+    // 1. Crear año fiscal si no existe
+    await query(
+      `INSERT INTO accounting_fiscal_years (id, company_id, year, start_date, end_date, status)
+       VALUES (?, ?, ?, ?, ?, 'OPEN')
+       ON DUPLICATE KEY UPDATE status = status`,
+      [fiscalYearId, companyId, year, `${year}-01-01`, `${year}-12-31`]
+    );
+
+    const [fyRow]: any = await query(
+      `SELECT id FROM accounting_fiscal_years WHERE company_id = ? AND year = ? LIMIT 1`,
+      [companyId, year]
+    );
+    const actualFiscalYearId = fyRow?.id || fiscalYearId;
+
+    // 2. Crear los 12 períodos mensuales
+    for (let m = 1; m <= 12; m++) {
+      const periodId = crypto.randomUUID();
+      const startMonth = `${year}-${String(m).padStart(2, '0')}-01`;
+      const lastDay = new Date(year, m, 0).getDate();
+      const endMonth = `${year}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+      await query(
+        `INSERT INTO accounting_fiscal_periods (id, fiscal_year_id, month, start_date, end_date, status)
+         VALUES (?, ?, ?, ?, ?, 'OPEN')
+         ON DUPLICATE KEY UPDATE start_date = VALUES(start_date), end_date = VALUES(end_date)`,
+        [periodId, actualFiscalYearId, m, startMonth, endMonth]
+      );
+    }
+
+    // 3. Crear catálogo de cuentas estándar VEN-NIF ordenado por nivel
+    const existingAccounts = await query<any>(
+      `SELECT id, code FROM accounting_accounts WHERE company_id = ?`,
+      [companyId]
+    );
+    const codeToIdMap = new Map<string, string>();
+    for (const ea of existingAccounts) {
+      codeToIdMap.set(ea.code, ea.id);
+    }
+
+    let accountsCreated = 0;
+    for (let level = 1; level <= 4; level++) {
+      const levelAccounts = STANDARD_CHART_OF_ACCOUNTS.filter((a) => a.level === level);
+      for (const acc of levelAccounts) {
+        if (codeToIdMap.has(acc.code)) {
+          continue;
+        }
+
+        let parentId: string | null = null;
+        if (acc.parent && codeToIdMap.has(acc.parent)) {
+          parentId = codeToIdMap.get(acc.parent) || null;
+        } else if (level > 1) {
+          const parts = acc.code.split('.');
+          if (parts.length > 1) {
+            const computedParentCode = parts.slice(0, -1).join('.');
+            parentId = codeToIdMap.get(computedParentCode) || null;
+          }
+        }
+
+        const newAccountId = crypto.randomUUID();
+        await query(
+          `INSERT INTO accounting_accounts (
+            id, company_id, code, name, level, parent_id, account_type,
+            classification, normal_balance, accepts_postings, is_monetary,
+            is_bank_or_cash, is_active, notes
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+          [
+            newAccountId,
+            companyId,
+            acc.code,
+            acc.name,
+            acc.level,
+            parentId,
+            acc.type,
+            acc.classif,
+            acc.balance,
+            acc.post ? 1 : 0,
+            acc.monetary ? 1 : 0,
+            acc.bankCash ? 1 : 0,
+            null,
+          ]
+        );
+        codeToIdMap.set(acc.code, newAccountId);
+        accountsCreated++;
+      }
+    }
+
+    // 4. Asegurar accounting_settings
+    await query(
+      `INSERT INTO accounting_settings (
+        id, company_id, auto_posting_enabled, default_entry_status,
+        post_sales, post_purchases, post_payments, post_notes,
+        post_inventory_adjustments, post_treasury
+      ) VALUES (UUID(), ?, 1, 'POSTED', 1, 1, 1, 1, 1, 1)
+      ON DUPLICATE KEY UPDATE auto_posting_enabled = VALUES(auto_posting_enabled)`,
+      [companyId]
+    );
+
+    // 5. Sembrar mapeos automáticos de cuentas
+    let mappingsCreated = 0;
+    for (const [mappingKey, mappingDef] of Object.entries(DEFAULT_ACCOUNT_MAPPINGS)) {
+      const accountId = codeToIdMap.get(mappingDef.code);
+      if (accountId) {
+        await query(
+          `INSERT INTO accounting_account_mappings (
+            id, company_id, mapping_key, account_id, description
+          ) VALUES (UUID(), ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE 
+            account_id = VALUES(account_id),
+            description = VALUES(description)`,
+          [companyId, mappingKey, accountId, mappingDef.desc]
+        );
+        mappingsCreated++;
+      }
+    }
+
+    return { accountsCreated, mappingsCreated };
   }
 
   static async calculateExchangeDifference(companyId: string, asOfDate: string, newRateBcv: number) {
