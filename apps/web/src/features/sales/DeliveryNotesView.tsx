@@ -39,6 +39,7 @@ import { useAuthStore } from "../../stores/authStore";
 import { showConfirmQuestion } from "../../lib/sweetalert";
 import { formatMoneyUSD, formatMoneyVES } from "@ero/shared";
 import { PdfViewerModal } from "../../components/ui/PdfViewerModal";
+import { useExchangeRateStore } from "../../stores/exchangeRateStore";
 
 interface DeliveryNoteRecord {
   id: string;
@@ -146,7 +147,7 @@ export const DeliveryNotesView: React.FC = () => {
   const { activeBranchId, activeWarehouseId, token } = useAuthStore();
   const [deliveries, setDeliveries] = useState<DeliveryNoteRecord[]>([]);
   const [loading, setLoading] = useState(false);
-
+  const currentBcvRate = useExchangeRateStore((s) => s.rate);
   // Catálogos desde BD
   const [availableProducts, setAvailableProducts] = useState<
     {
@@ -158,9 +159,17 @@ export const DeliveryNotesView: React.FC = () => {
     }[]
   >([]);
   const [availableCustomers, setAvailableCustomers] = useState<
-    { id: string; name: string; doc: string; isBlocked?: boolean; blockReason?: string }[]
+    {
+      id: string;
+      name: string;
+      doc: string;
+      isBlocked?: boolean;
+      blockReason?: string;
+    }[]
   >([]);
-  const [customersSummary, setCustomersSummary] = useState<CustomerSummary[]>([]);
+  const [customersSummary, setCustomersSummary] = useState<CustomerSummary[]>(
+    [],
+  );
   const [warehouses, setWarehouses] = useState<{ id: string; name: string }[]>(
     [],
   );
@@ -210,8 +219,6 @@ export const DeliveryNotesView: React.FC = () => {
     title: "",
   });
 
-
-
   // Formulario Nueva Nota de Entrega
   const [customerId, setCustomerId] = useState("");
   const [driverName, setDriverName] = useState("");
@@ -223,7 +230,9 @@ export const DeliveryNotesView: React.FC = () => {
     total: number;
     status: string;
   } | null>(null);
-  const [exchangeRate, setExchangeRate] = useState(36.85);
+  const [exchangeRate, setExchangeRate] = useState<number>(
+    currentBcvRate || 75.5,
+  );
   const [deliveryNotesText, setDeliveryNotesText] = useState("");
   const [deliveryItems, setDeliveryItems] = useState<NewDeliveryItem[]>([]);
 
@@ -242,7 +251,8 @@ export const DeliveryNotesView: React.FC = () => {
       if (activeWarehouseId) params.append("warehouseId", activeWarehouseId);
       if (statusFilter !== "ALL") params.append("status", statusFilter);
       if (selectedCustomerId) params.append("customerId", selectedCustomerId);
-      if (originFilter === "FROM_QUOTATION") params.append("hasQuotation", "true");
+      if (originFilter === "FROM_QUOTATION")
+        params.append("hasQuotation", "true");
       if (originFilter === "DIRECT") params.append("hasQuotation", "false");
       if (startDate) params.append("startDate", startDate);
       if (endDate) params.append("endDate", endDate);
@@ -284,7 +294,9 @@ export const DeliveryNotesView: React.FC = () => {
             id: c.id,
             name: c.name,
             doc: `${c.docType || "J"}-${c.docNumber || ""}`,
-            isBlocked: Boolean(c.isBlocked ?? c.is_blocked ?? (c.status === 'BLOCKED')),
+            isBlocked: Boolean(
+              c.isBlocked ?? c.is_blocked ?? c.status === "BLOCKED",
+            ),
             blockReason: c.blockReason || c.block_reason,
           }));
           setAvailableCustomers(mapped);
@@ -473,10 +485,12 @@ export const DeliveryNotesView: React.FC = () => {
       }
 
       const targetCustomerId = fullQuot.customerId || quot.customerId;
-      const targetCust = availableCustomers.find((c) => c.id === targetCustomerId);
+      const targetCust = availableCustomers.find(
+        (c) => c.id === targetCustomerId,
+      );
       if (targetCust?.isBlocked) {
         toast.error(
-          `La cotización ${fullQuot.quotationNumber} pertenece al cliente "${targetCust.name}" que se encuentra BLOQUEADO. Motivo: ${targetCust.blockReason || 'Consulte con administración'}. No se permite emitir notas de entrega.`
+          `La cotización ${fullQuot.quotationNumber} pertenece al cliente "${targetCust.name}" que se encuentra BLOQUEADO. Motivo: ${targetCust.blockReason || "Consulte con administración"}. No se permite emitir notas de entrega.`,
         );
         return;
       }
@@ -539,7 +553,6 @@ export const DeliveryNotesView: React.FC = () => {
         const json = await res.json();
         if (json.success && json.data) {
           setViewingDelivery(json.data);
-
         } else {
           toast.error("No se pudo obtener el detalle de la nota de entrega");
         }
@@ -632,7 +645,7 @@ export const DeliveryNotesView: React.FC = () => {
     const customer = availableCustomers.find((c) => c.id === customerId);
     if (customer?.isBlocked) {
       toast.error(
-        `El cliente "${customer.name}" está BLOQUEADO. Motivo: ${customer.blockReason || 'Consulte con administración'}. No puede emitirse la nota de entrega.`
+        `El cliente "${customer.name}" está BLOQUEADO. Motivo: ${customer.blockReason || "Consulte con administración"}. No puede emitirse la nota de entrega.`,
       );
       return;
     }
@@ -820,11 +833,11 @@ export const DeliveryNotesView: React.FC = () => {
 
   const hasActiveFilters = Boolean(
     statusFilter !== "ALL" ||
-      customerFilterType !== "ALL" ||
-      selectedCustomerId ||
-      originFilter !== "ALL" ||
-      startDate ||
-      endDate,
+    customerFilterType !== "ALL" ||
+    selectedCustomerId ||
+    originFilter !== "ALL" ||
+    startDate ||
+    endDate,
   );
 
   const handleClearFilters = () => {
@@ -1215,28 +1228,27 @@ export const DeliveryNotesView: React.FC = () => {
               Cliente:
             </label>
             <div className="flex items-center gap-1.5  px-2.5 py-1.5  p-4 rounded-lg">
-            <select
-              value={selectedCustomerId}
-              onChange={(e) => setSelectedCustomerId(e.target.value)}
-              className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
-            >
-              <option value="">
-                {customerFilterType === "WITH_DELIVERIES"
-                  ? "Todos los clientes con notas"
-                  : customerFilterType === "WITH_QUOTATIONS"
-                    ? "Todos los clientes con cotizaciones"
-                    : "Todos los clientes"}
-              </option>
-              {filteredCustomersForDropdown.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.doc})
-                  {"deliveryNotesCount" in c && (
-                    ` - ${c.deliveryNotesCount} notas / ${c.quotationsCount} cotiz.`
-                  )}
+              <select
+                value={selectedCustomerId}
+                onChange={(e) => setSelectedCustomerId(e.target.value)}
+                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              >
+                <option value="">
+                  {customerFilterType === "WITH_DELIVERIES"
+                    ? "Todos los clientes con notas"
+                    : customerFilterType === "WITH_QUOTATIONS"
+                      ? "Todos los clientes con cotizaciones"
+                      : "Todos los clientes"}
                 </option>
-              ))}
-            </select>
-          </div>
+                {filteredCustomersForDropdown.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.doc})
+                    {"deliveryNotesCount" in c &&
+                      ` - ${c.deliveryNotesCount} notas / ${c.quotationsCount} cotiz.`}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Filtro por Origen */}
@@ -1245,19 +1257,19 @@ export const DeliveryNotesView: React.FC = () => {
               Origen del Despacho:
             </label>
             <div className="flex items-center gap-1.5  px-2.5 py-1.5  p-4 rounded-lg">
-            <select
-              value={originFilter}
-              onChange={(e) =>
-                setOriginFilter(
-                  e.target.value as "ALL" | "FROM_QUOTATION" | "DIRECT",
-                )
-              }
-              className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
-            >
-              <option value="ALL">Todos los orígenes</option>
-              <option value="FROM_QUOTATION">Desde Cotización</option>
-              <option value="DIRECT">Despacho Directo</option>
-            </select>
+              <select
+                value={originFilter}
+                onChange={(e) =>
+                  setOriginFilter(
+                    e.target.value as "ALL" | "FROM_QUOTATION" | "DIRECT",
+                  )
+                }
+                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              >
+                <option value="ALL">Todos los orígenes</option>
+                <option value="FROM_QUOTATION">Desde Cotización</option>
+                <option value="DIRECT">Despacho Directo</option>
+              </select>
             </div>
           </div>
 
@@ -1352,274 +1364,263 @@ export const DeliveryNotesView: React.FC = () => {
           onSubmit={handleCreateDelivery}
           className="space-y-4 text-xs"
         >
-                {/* Banner de Cotización Vinculada si aplica */}
-                {selectedQuotation && (
-                  <div className="bg-sky-50 border border-sky-200 rounded-lg p-3 flex items-center justify-between text-xs text-sky-900">
-                    <div className="flex items-center gap-2">
-                      <FileCheck className="w-4 h-4 text-sky-700 shrink-0" />
-                      <span>
-                        Despachando según Cotización{" "}
-                        <strong>{selectedQuotation.number}</strong> (Total
-                        cotizado: {formatMoneyUSD(selectedQuotation.total)})
-                      </span>
-                      {renderQuotationStatusBadge(selectedQuotation.status)}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleClearQuotationBinding}
-                      className="text-sky-700 hover:text-sky-900 text-[11px] font-medium underline cursor-pointer"
-                    >
-                      Desvincular
-                    </button>
-                  </div>
-                )}
+          {/* Banner de Cotización Vinculada si aplica */}
+          {selectedQuotation && (
+            <div className="bg-sky-50 border border-sky-200 rounded-lg p-3 flex items-center justify-between text-xs text-sky-900">
+              <div className="flex items-center gap-2">
+                <FileCheck className="w-4 h-4 text-sky-700 shrink-0" />
+                <span>
+                  Despachando según Cotización{" "}
+                  <strong>{selectedQuotation.number}</strong> (Total cotizado:{" "}
+                  {formatMoneyUSD(selectedQuotation.total)})
+                </span>
+                {renderQuotationStatusBadge(selectedQuotation.status)}
+              </div>
+              <button
+                type="button"
+                onClick={handleClearQuotationBinding}
+                className="text-sky-700 hover:text-sky-900 text-[11px] font-medium underline cursor-pointer"
+              >
+                Desvincular
+              </button>
+            </div>
+          )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-neutral-700 mb-1">
-                      Cliente Destinatario *
-                    </label>
-                    <div className="flex items-center gap-1.5">
-                      <select
-                        value={customerId}
-                        onChange={(e) => {
-                          const targetCustomer = availableCustomers.find((c) => c.id === e.target.value);
-                          if (targetCustomer?.isBlocked) {
-                            toast.error(
-                              `El cliente "${targetCustomer.name}" está BLOQUEADO. Motivo: ${targetCustomer.blockReason || 'Consulte con administración'}. No puede ser seleccionado.`
-                            );
-                            return;
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-neutral-700 mb-1">
+                Cliente Destinatario *
+              </label>
+              <div className="flex items-center gap-1.5">
+                <select
+                  value={customerId}
+                  onChange={(e) => {
+                    const targetCustomer = availableCustomers.find(
+                      (c) => c.id === e.target.value,
+                    );
+                    if (targetCustomer?.isBlocked) {
+                      toast.error(
+                        `El cliente "${targetCustomer.name}" está BLOQUEADO. Motivo: ${targetCustomer.blockReason || "Consulte con administración"}. No puede ser seleccionado.`,
+                      );
+                      return;
+                    }
+                    setCustomerId(e.target.value);
+                  }}
+                  className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                >
+                  {availableCustomers.length === 0 ? (
+                    <option value="">No hay clientes registrados</option>
+                  ) : (
+                    availableCustomers.map((c) => (
+                      <option key={c.id} value={c.id} disabled={c.isBlocked}>
+                        {c.name} ({c.doc}){c.isBlocked ? " — [BLOQUEADO]" : ""}
+                      </option>
+                    ))
+                  )}
+                </select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowCustomerSearch(true)}
+                  title="Buscar cliente en modal"
+                  className="px-2.5 py-2 shrink-0 flex items-center gap-1 text-xs"
+                >
+                  <Search className="w-3.5 h-3.5 text-neutral-500" />
+                </Button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-neutral-700 mb-1">
+                Depósito de Despacho *
+              </label>
+              <select
+                value={selectedWarehouseId}
+                onChange={(e) => setSelectedWarehouseId(e.target.value)}
+                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              >
+                <option value="">Seleccione depósito...</option>
+                {warehouses.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-neutral-700 mb-1">
+                Nombre del Conductor
+              </label>
+              <input
+                type="text"
+                placeholder="Ej. Juan Pérez"
+                value={driverName}
+                onChange={(e) => setDriverName(e.target.value)}
+                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-neutral-700 mb-1">
+                Placa del Vehículo
+              </label>
+              <input
+                type="text"
+                placeholder="Ej. A88CK2D"
+                value={vehiclePlate}
+                onChange={(e) => setVehiclePlate(e.target.value)}
+                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-neutral-700 mb-1">
+                Cotización Ref. (Opcional)
+              </label>
+              <input
+                type="text"
+                placeholder="Ej. COT-2026-0001"
+                value={quotationRef}
+                onChange={(e) => setQuotationRef(e.target.value)}
+                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
+          </div>
+
+          {/* Detalle de Productos a Despachar */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">
+                Productos a Despachar ({deliveryItems.length})
+              </h4>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsAddingFromSearch(true)}
+                  className="text-xs rounded-lg py-1 px-2.5 flex items-center gap-1.5"
+                >
+                  <Search className="w-3.5 h-3.5 text-neutral-500" />
+                  <span>Buscar en Catálogo</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddItem}
+                  className="text-xs rounded-lg py-1 px-2.5 flex items-center gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Agregar Fila</span>
+                </Button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto border border-neutral-200 rounded-lg">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase text-[10px] tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
+                  <tr>
+                    <th className="py-2.5 px-3">Producto</th>
+                    <th className="py-2.5 px-3 w-32">Cant. Despachar</th>
+                    <th className="py-2.5 px-3 w-32">Precio Unit. ($)</th>
+                    <th className="py-2.5 px-3 w-32 text-right">Total ($)</th>
+                    <th className="py-2.5 px-3 w-12"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100">
+                  {deliveryItems.map((item, idx) => (
+                    <tr key={idx} className="hover:bg-neutral-50/50">
+                      <td className="py-2 px-3">
+                        <div className="flex items-center gap-1.5">
+                          <select
+                            value={item.productId}
+                            onChange={(e) =>
+                              handleItemChange(idx, "productId", e.target.value)
+                            }
+                            className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                          >
+                            {availableProducts.length === 0 ? (
+                              <option value="">Sin productos</option>
+                            ) : (
+                              availableProducts.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.sku} - {p.name} (Disp: {p.availableStock})
+                                </option>
+                              ))
+                            )}
+                          </select>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setProductSearchRowIdx(idx)}
+                            title="Buscar producto en modal"
+                            className="p-1.5 shrink-0"
+                          >
+                            <Search className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </td>
+                      <td className="py-2 px-3">
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={item.quantityDelivered}
+                          onChange={(e) =>
+                            handleItemChange(
+                              idx,
+                              "quantityDelivered",
+                              e.target.value,
+                            )
                           }
-                          setCustomerId(e.target.value);
-                        }}
-                        className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                      >
-                        {availableCustomers.length === 0 ? (
-                          <option value="">No hay clientes registrados</option>
-                        ) : (
-                          availableCustomers.map((c) => (
-                            <option key={c.id} value={c.id} disabled={c.isBlocked}>
-                              {c.name} ({c.doc}){c.isBlocked ? ' — [BLOQUEADO]' : ''}
-                            </option>
-                          ))
-                        )}
-                      </select>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowCustomerSearch(true)}
-                        title="Buscar cliente en modal"
-                        className="px-2.5 py-2 shrink-0 flex items-center gap-1 text-xs"
-                      >
-                        <Search className="w-3.5 h-3.5 text-neutral-500" />
-                      </Button>
-                    </div>
-                  </div>
+                          className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        />
+                      </td>
+                      <td className="py-2 px-3">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={item.unitPrice}
+                          onChange={(e) =>
+                            handleItemChange(idx, "unitPrice", e.target.value)
+                          }
+                          className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        />
+                      </td>
+                      <td className="py-2 px-3 text-right font-medium text-[#333333] dark:text-[#E0E0E0] font-mono">
+                        {formatMoneyUSD(item.total)}
+                      </td>
+                      <td className="py-2 px-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItem(idx)}
+                          className="text-neutral-400 hover:text-red-500 p-1 cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-                  <div>
-                    <label className="block text-xs font-medium text-neutral-700 mb-1">
-                      Depósito de Despacho *
-                    </label>
-                    <select
-                      value={selectedWarehouseId}
-                      onChange={(e) => setSelectedWarehouseId(e.target.value)}
-                      className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    >
-                      <option value="">Seleccione depósito...</option>
-                      {warehouses.map((w) => (
-                        <option key={w.id} value={w.id}>
-                          {w.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-neutral-700 mb-1">
-                      Nombre del Conductor
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ej. Juan Pérez"
-                      value={driverName}
-                      onChange={(e) => setDriverName(e.target.value)}
-                      className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-neutral-700 mb-1">
-                      Placa del Vehículo
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ej. A88CK2D"
-                      value={vehiclePlate}
-                      onChange={(e) => setVehiclePlate(e.target.value)}
-                      className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-neutral-700 mb-1">
-                      Cotización Ref. (Opcional)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ej. COT-2026-0001"
-                      value={quotationRef}
-                      onChange={(e) => setQuotationRef(e.target.value)}
-                      className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    />
-                  </div>
-                </div>
-
-                {/* Detalle de Productos a Despachar */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">
-                      Productos a Despachar ({deliveryItems.length})
-                    </h4>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setIsAddingFromSearch(true)}
-                        className="text-xs rounded-lg py-1 px-2.5 flex items-center gap-1.5"
-                      >
-                        <Search className="w-3.5 h-3.5 text-neutral-500" />
-                        <span>Buscar en Catálogo</span>
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={handleAddItem}
-                        className="text-xs rounded-lg py-1 px-2.5 flex items-center gap-1.5"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Agregar Fila</span>
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="overflow-x-auto border border-neutral-200 rounded-lg">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase text-[10px] tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
-                        <tr>
-                          <th className="py-2.5 px-3">Producto</th>
-                          <th className="py-2.5 px-3 w-32">Cant. Despachar</th>
-                          <th className="py-2.5 px-3 w-32">Precio Unit. ($)</th>
-                          <th className="py-2.5 px-3 w-32 text-right">
-                            Total ($)
-                          </th>
-                          <th className="py-2.5 px-3 w-12"></th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-neutral-100">
-                        {deliveryItems.map((item, idx) => (
-                          <tr key={idx} className="hover:bg-neutral-50/50">
-                            <td className="py-2 px-3">
-                              <div className="flex items-center gap-1.5">
-                                <select
-                                  value={item.productId}
-                                  onChange={(e) =>
-                                    handleItemChange(
-                                      idx,
-                                      "productId",
-                                      e.target.value,
-                                    )
-                                  }
-                                  className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                                >
-                                  {availableProducts.length === 0 ? (
-                                    <option value="">Sin productos</option>
-                                  ) : (
-                                    availableProducts.map((p) => (
-                                      <option key={p.id} value={p.id}>
-                                        {p.sku} - {p.name} (Disp:{" "}
-                                        {p.availableStock})
-                                      </option>
-                                    ))
-                                  )}
-                                </select>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => setProductSearchRowIdx(idx)}
-                                  title="Buscar producto en modal"
-                                  className="p-1.5 shrink-0"
-                                >
-                                  <Search className="w-3.5 h-3.5" />
-                                </Button>
-                              </div>
-                            </td>
-                            <td className="py-2 px-3">
-                              <input
-                                type="number"
-                                min="1"
-                                step="1"
-                                value={item.quantityDelivered}
-                                onChange={(e) =>
-                                  handleItemChange(
-                                    idx,
-                                    "quantityDelivered",
-                                    e.target.value,
-                                  )
-                                }
-                                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                              />
-                            </td>
-                            <td className="py-2 px-3">
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={item.unitPrice}
-                                onChange={(e) =>
-                                  handleItemChange(
-                                    idx,
-                                    "unitPrice",
-                                    e.target.value,
-                                  )
-                                }
-                                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                              />
-                            </td>
-                            <td className="py-2 px-3 text-right font-medium text-[#333333] dark:text-[#E0E0E0] font-mono">
-                              {formatMoneyUSD(item.total)}
-                            </td>
-                            <td className="py-2 px-3 text-center">
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveItem(idx)}
-                                className="text-neutral-400 hover:text-red-500 p-1 cursor-pointer"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Banner Informativo de Descuento de Stock */}
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 flex items-start gap-2.5">
-                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <p>
-                    <strong>Aviso de Inventario:</strong> Al emitir esta Nota de
-                    Entrega, las cantidades serán rebajadas físicamente del
-                    stock disponible en el depósito de forma inmediata, evitando
-                    doble facturación de inventario cuando se procese la factura
-                    fiscal.
-                  </p>
-                </div>
-
+          {/* Banner Informativo de Descuento de Stock */}
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 flex items-start gap-2.5">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <p>
+              <strong>Aviso de Inventario:</strong> Al emitir esta Nota de
+              Entrega, las cantidades serán rebajadas físicamente del stock
+              disponible en el depósito de forma inmediata, evitando doble
+              facturación de inventario cuando se procese la factura fiscal.
+            </p>
+          </div>
         </form>
       </Modal>
 
@@ -1644,145 +1645,156 @@ export const DeliveryNotesView: React.FC = () => {
         }
       >
         <div className="space-y-4 text-xs">
-
-            {/* Search & Notice */}
-            <div className="p-4 space-y-3 bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
-              <div className="flex items-center gap-2 shadow-2xs">
-                <Search className="w-4 h-4 text-neutral-400 shrink-0" />
-                <input
-                  type="text"
-                  placeholder="Buscar cotización por número o nombre de cliente..."
-                  value={quotationSearch}
-                  onChange={(e) => setQuotationSearch(e.target.value)}
-                  className="w-full text-xs bg-white dark:bg-[#242526] border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-[#333333] dark:text-[#E0E0E0] placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-[#007BFF] dark:focus:ring-[#3D91FF] focus:border-[#007BFF]"
-                  autoFocus
-                />
-                {quotationSearch && (
-                  <button
-                    type="button"
-                    onClick={() => setQuotationSearch("")}
-                    className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-
-              <div className="flex items-start gap-2 text-xs text-[#007BFF] dark:text-[#3D91FF] bg-[#007BFF]/10 dark:bg-[#3D91FF]/15 p-2.5 rounded-lg border border-[#007BFF]/25 dark:border-[#3D91FF]/30">
-                <Info className="w-4 h-4 text-[#007BFF] dark:text-[#3D91FF] shrink-0 mt-0.5" />
-                <p>
-                  <strong className="font-semibold">Regla de Despacho:</strong> Únicamente se permite importar cotizaciones previamente <strong>Facturadas</strong> y que cuenten con mercancía pendiente por despachar. Las cotizaciones entregadas al 100% no se muestran.
-                </p>
-              </div>
-            </div>
-
-            {/* List Table */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-5">
-              {loadingQuotations ? (
-                <div className="py-12 text-center text-xs text-neutral-500">
-                  Cargando cotizaciones facturadas disponibles...
-                </div>
-              ) : filteredQuotationsForImport.length === 0 ? (
-                <div className="py-12 text-center text-xs text-neutral-500 space-y-1">
-                  <FileText className="w-8 h-8 text-neutral-300 mx-auto" />
-                  <p className="font-medium text-neutral-700 dark:text-neutral-300">
-                    No se encontraron cotizaciones facturadas pendientes
-                  </p>
-                  <p className="text-[11px] text-neutral-400 dark:text-neutral-500">
-                    No hay propuestas comerciales facturadas con mercancía pendiente por despachar
-                  </p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-[#1E1F21] shadow-xs">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-[#F4F6F9] dark:bg-[#18191A] text-neutral-700 dark:text-neutral-300 uppercase text-[10px] font-semibold tracking-wider border-b border-gray-200 dark:border-gray-800">
-                      <tr>
-                        <th className="py-2.5 px-3">Nº Cotización</th>
-                        <th className="py-2.5 px-3">Fecha</th>
-                        <th className="py-2.5 px-3">Cliente</th>
-                        <th className="py-2.5 px-3 text-right">Monto Facturado ($)</th>
-                        <th className="py-2.5 px-3 text-center">Estado</th>
-                        <th className="py-2.5 px-3 text-center">Mercancía</th>
-                        <th className="py-2.5 px-3 text-right">Acción</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800/80">
-                      {filteredQuotationsForImport.map((q) => {
-                        const totalQuotQty = Number(q.totalQuotedQuantity || 0);
-                        const totalDelivQty = Number(q.totalDeliveredQuantity || 0);
-                        const pendingQty = Math.max(0, totalQuotQty - totalDelivQty);
-                        const pctDelivered =
-                          totalQuotQty > 0
-                            ? Math.round((totalDelivQty / totalQuotQty) * 100)
-                            : 0;
-
-                        return (
-                          <tr key={q.id} className="hover:bg-[#F4F6F9]/80 dark:hover:bg-neutral-800/50 transition-colors">
-                            <td className="py-2.5 px-3 font-mono font-bold text-[#007BFF] dark:text-[#3D91FF]">
-                              {q.quotationNumber}
-                            </td>
-                            <td className="py-2.5 px-3 text-[#333333] dark:text-[#E0E0E0]">
-                              {new Date(q.quotationDate).toLocaleDateString(
-                                "es-VE",
-                              )}
-                            </td>
-                            <td className="py-2.5 px-3">
-                              <p className="font-semibold text-[#333333] dark:text-[#E0E0E0]">
-                                {q.customerName}
-                              </p>
-                              <span className="font-mono text-[10px] text-neutral-500 dark:text-neutral-400">
-                                {q.customerDoc}
-                              </span>
-                            </td>
-                            <td className="py-2.5 px-3 text-right font-mono font-bold text-[#333333] dark:text-[#E0E0E0]">
-                              {formatMoneyUSD(q.totalAmount)}
-                            </td>
-                            <td className="py-2.5 px-3 text-center">
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#28A745]/15 dark:bg-[#4ADE80]/20 text-[#28A745] dark:text-[#4ADE80] border border-[#28A745]/30 dark:border-[#4ADE80]/35">
-                                <CheckCircle2 className="w-3 h-3 text-[#28A745] dark:text-[#4ADE80]" />
-                                <span>Facturada</span>
-                              </span>
-                            </td>
-                            <td className="py-2.5 px-3 text-center">
-                              {totalQuotQty > 0 ? (
-                                <div className="inline-flex flex-col items-center">
-                                  <span className="text-[11px] font-semibold text-[#333333] dark:text-[#E0E0E0]">
-                                    {pendingQty} pend. / {totalQuotQty} total
-                                  </span>
-                                  {pctDelivered > 0 && (
-                                    <span className="text-[10px] text-[#b28500] dark:text-[#FBBF24] font-medium">
-                                      ({pctDelivered}% ya despachado)
-                                    </span>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-neutral-400 text-[11px]">
-                                  -
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-2.5 px-3 text-right">
-                              <Button
-                                type="button"
-                                size="sm"
-                                onClick={() =>
-                                  handleSelectQuotationToImport(q)
-                                }
-                                className="text-xs bg-[#007BFF] hover:bg-[#0069d9] text-white dark:bg-[#3D91FF] dark:hover:bg-[#297be6] dark:text-white rounded-lg py-1 px-2.5 shadow-xs flex items-center gap-1 ml-auto cursor-pointer"
-                              >
-                                <span>Importar</span>
-                                <ArrowRight className="w-3.5 h-3.5" />
-                              </Button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+          {/* Search & Notice */}
+          <div className="p-4 space-y-3 bg-white dark:bg-[#1E1F21] rounded-lg border border-gray-200 dark:border-gray-800 shadow-xs">
+            <div className="flex items-center gap-2 shadow-2xs">
+              <Search className="w-4 h-4 text-neutral-400 shrink-0" />
+              <input
+                type="text"
+                placeholder="Buscar cotización por número o nombre de cliente..."
+                value={quotationSearch}
+                onChange={(e) => setQuotationSearch(e.target.value)}
+                className="w-full text-xs bg-white dark:bg-[#242526] border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-[#333333] dark:text-[#E0E0E0] placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-[#007BFF] dark:focus:ring-[#3D91FF] focus:border-[#007BFF]"
+                autoFocus
+              />
+              {quotationSearch && (
+                <button
+                  type="button"
+                  onClick={() => setQuotationSearch("")}
+                  className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               )}
             </div>
 
+            <div className="flex items-start gap-2 text-xs text-[#007BFF] dark:text-[#3D91FF] bg-[#007BFF]/10 dark:bg-[#3D91FF]/15 p-2.5 rounded-lg border border-[#007BFF]/25 dark:border-[#3D91FF]/30">
+              <Info className="w-4 h-4 text-[#007BFF] dark:text-[#3D91FF] shrink-0 mt-0.5" />
+              <p>
+                <strong className="font-semibold">Regla de Despacho:</strong>{" "}
+                Únicamente se permite importar cotizaciones previamente{" "}
+                <strong>Facturadas</strong> y que cuenten con mercancía
+                pendiente por despachar. Las cotizaciones entregadas al 100% no
+                se muestran.
+              </p>
+            </div>
+          </div>
+
+          {/* List Table */}
+          <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+            {loadingQuotations ? (
+              <div className="py-12 text-center text-xs text-neutral-500">
+                Cargando cotizaciones facturadas disponibles...
+              </div>
+            ) : filteredQuotationsForImport.length === 0 ? (
+              <div className="py-12 text-center text-xs text-neutral-500 space-y-1">
+                <FileText className="w-8 h-8 text-neutral-300 mx-auto" />
+                <p className="font-medium text-neutral-700 dark:text-neutral-300">
+                  No se encontraron cotizaciones facturadas pendientes
+                </p>
+                <p className="text-[11px] text-neutral-400 dark:text-neutral-500">
+                  No hay propuestas comerciales facturadas con mercancía
+                  pendiente por despachar
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-[#1E1F21] shadow-xs">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#F4F6F9] dark:bg-[#18191A] text-neutral-700 dark:text-neutral-300 uppercase text-[10px] font-semibold tracking-wider border-b border-gray-200 dark:border-gray-800">
+                    <tr>
+                      <th className="py-2.5 px-3">Nº Cotización</th>
+                      <th className="py-2.5 px-3">Fecha</th>
+                      <th className="py-2.5 px-3">Cliente</th>
+                      <th className="py-2.5 px-3 text-right">
+                        Monto Facturado ($)
+                      </th>
+                      <th className="py-2.5 px-3 text-center">Estado</th>
+                      <th className="py-2.5 px-3 text-center">Mercancía</th>
+                      <th className="py-2.5 px-3 text-right">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800/80">
+                    {filteredQuotationsForImport.map((q) => {
+                      const totalQuotQty = Number(q.totalQuotedQuantity || 0);
+                      const totalDelivQty = Number(
+                        q.totalDeliveredQuantity || 0,
+                      );
+                      const pendingQty = Math.max(
+                        0,
+                        totalQuotQty - totalDelivQty,
+                      );
+                      const pctDelivered =
+                        totalQuotQty > 0
+                          ? Math.round((totalDelivQty / totalQuotQty) * 100)
+                          : 0;
+
+                      return (
+                        <tr
+                          key={q.id}
+                          className="hover:bg-[#F4F6F9]/80 dark:hover:bg-neutral-800/50 transition-colors"
+                        >
+                          <td className="py-2.5 px-3 font-mono font-bold text-[#007BFF] dark:text-[#3D91FF]">
+                            {q.quotationNumber}
+                          </td>
+                          <td className="py-2.5 px-3 text-[#333333] dark:text-[#E0E0E0]">
+                            {new Date(q.quotationDate).toLocaleDateString(
+                              "es-VE",
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <p className="font-semibold text-[#333333] dark:text-[#E0E0E0]">
+                              {q.customerName}
+                            </p>
+                            <span className="font-mono text-[10px] text-neutral-500 dark:text-neutral-400">
+                              {q.customerDoc}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono font-bold text-[#333333] dark:text-[#E0E0E0]">
+                            {formatMoneyUSD(q.totalAmount)}
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#28A745]/15 dark:bg-[#4ADE80]/20 text-[#28A745] dark:text-[#4ADE80] border border-[#28A745]/30 dark:border-[#4ADE80]/35">
+                              <CheckCircle2 className="w-3 h-3 text-[#28A745] dark:text-[#4ADE80]" />
+                              <span>Facturada</span>
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
+                            {totalQuotQty > 0 ? (
+                              <div className="inline-flex flex-col items-center">
+                                <span className="text-[11px] font-semibold text-[#333333] dark:text-[#E0E0E0]">
+                                  {pendingQty} pend. / {totalQuotQty} total
+                                </span>
+                                {pctDelivered > 0 && (
+                                  <span className="text-[10px] text-[#b28500] dark:text-[#FBBF24] font-medium">
+                                    ({pctDelivered}% ya despachado)
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-neutral-400 text-[11px]">
+                                -
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => handleSelectQuotationToImport(q)}
+                              className="text-xs bg-[#007BFF] hover:bg-[#0069d9] text-white dark:bg-[#3D91FF] dark:hover:bg-[#297be6] dark:text-white rounded-lg py-1 px-2.5 shadow-xs flex items-center gap-1 ml-auto cursor-pointer"
+                            >
+                              <span>Importar</span>
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       </Modal>
 
@@ -1865,7 +1877,9 @@ export const DeliveryNotesView: React.FC = () => {
                     <span className="font-mono text-xs font-bold text-sky-800 dark:text-sky-300">
                       {viewingDelivery.quotationNumber}
                     </span>
-                    {renderQuotationStatusBadge(viewingDelivery.quotationStatus)}
+                    {renderQuotationStatusBadge(
+                      viewingDelivery.quotationStatus,
+                    )}
                   </div>
                   <div className="text-xs text-neutral-600 dark:text-neutral-400 flex flex-wrap items-center gap-x-3 gap-y-1">
                     <span>
@@ -1920,7 +1934,9 @@ export const DeliveryNotesView: React.FC = () => {
                         ? Math.min(
                             100,
                             Number(
-                              ((deliveredTotal / subtotalQuot) * 100).toFixed(1),
+                              ((deliveredTotal / subtotalQuot) * 100).toFixed(
+                                1,
+                              ),
                             ),
                           )
                         : 100;
@@ -2079,9 +2095,13 @@ export const DeliveryNotesView: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                    {viewingDelivery.items && viewingDelivery.items.length > 0 ? (
+                    {viewingDelivery.items &&
+                    viewingDelivery.items.length > 0 ? (
                       viewingDelivery.items.map((i, idx) => (
-                        <tr key={idx} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/40">
+                        <tr
+                          key={idx}
+                          className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/40"
+                        >
                           <td className="py-2 px-3 font-mono text-neutral-500 dark:text-neutral-400">
                             {i.productSku}
                           </td>
@@ -2182,84 +2202,81 @@ export const DeliveryNotesView: React.FC = () => {
             onSubmit={handleInvoiceDelivery}
             className="space-y-4 text-xs"
           >
-                <div className="bg-neutral-50 p-3 rounded-lg border border-neutral-200 text-xs">
-                  <p className="font-semibold text-neutral-400">
-                    {invoicingDelivery.customerName}
-                  </p>
-                  <p className="text-neutral-500">
-                    {invoicingDelivery.customerDoc}
-                  </p>
-                  <p className="text-neutral-700 mt-1">
-                    Monto a Facturar:{" "}
-                    <strong>
-                      {formatMoneyUSD(invoicingDelivery.totalAmount)}
-                    </strong>{" "}
-                    (
-                    {formatMoneyVES(
-                      invoicingDelivery.totalAmount *
-                        invoicingDelivery.exchangeRate,
-                    )}
-                    )
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-neutral-700 mb-1">
-                    Nº Factura de Venta *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ej. FACT-001096"
-                    value={invoiceNumber}
-                    onChange={(e) => setInvoiceNumber(e.target.value)}
-                    className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-neutral-700 mb-1">
-                    Nº de Control Fiscal SENIAT
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ej. 00-112233"
-                    value={controlNumber}
-                    onChange={(e) => setControlNumber(e.target.value)}
-                    className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2 pt-1">
-                  <input
-                    type="checkbox"
-                    id="creditToggle"
-                    checked={isCredit}
-                    onChange={(e) => setIsCredit(e.target.checked)}
-                    className="rounded-lg text-sky-600 focus:ring-sky-500"
-                  />
-                  <label
-                    htmlFor="creditToggle"
-                    className="text-xs text-neutral-700 font-medium"
-                  >
-                    Venta a Crédito (Registrar obligación pendiente en CxC)
-                  </label>
-                </div>
-
-                {isCredit && (
-                  <div>
-                    <label className="block text-xs font-medium text-neutral-700 mb-1">
-                      Fecha de Vencimiento de Factura
-                    </label>
-                    <input
-                      type="date"
-                      value={dueDate}
-                      onChange={(e) => setDueDate(e.target.value)}
-                      className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    />
-                  </div>
+            <div className="bg-neutral-50 p-3 rounded-lg border border-neutral-200 text-xs">
+              <p className="font-semibold text-neutral-400">
+                {invoicingDelivery.customerName}
+              </p>
+              <p className="text-neutral-500">
+                {invoicingDelivery.customerDoc}
+              </p>
+              <p className="text-neutral-700 mt-1">
+                Monto a Facturar:{" "}
+                <strong>{formatMoneyUSD(invoicingDelivery.totalAmount)}</strong>{" "}
+                (
+                {formatMoneyVES(
+                  invoicingDelivery.totalAmount *
+                    invoicingDelivery.exchangeRate,
                 )}
+                )
+              </p>
+            </div>
 
+            <div>
+              <label className="block text-xs font-medium text-neutral-700 mb-1">
+                Nº Factura de Venta *
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="Ej. FACT-001096"
+                value={invoiceNumber}
+                onChange={(e) => setInvoiceNumber(e.target.value)}
+                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-neutral-700 mb-1">
+                Nº de Control Fiscal SENIAT
+              </label>
+              <input
+                type="text"
+                placeholder="Ej. 00-112233"
+                value={controlNumber}
+                onChange={(e) => setControlNumber(e.target.value)}
+                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                type="checkbox"
+                id="creditToggle"
+                checked={isCredit}
+                onChange={(e) => setIsCredit(e.target.checked)}
+                className="rounded-lg text-sky-600 focus:ring-sky-500"
+              />
+              <label
+                htmlFor="creditToggle"
+                className="text-xs text-neutral-700 font-medium"
+              >
+                Venta a Crédito (Registrar obligación pendiente en CxC)
+              </label>
+            </div>
+
+            {isCredit && (
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 mb-1">
+                  Fecha de Vencimiento de Factura
+                </label>
+                <input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                />
+              </div>
+            )}
           </form>
         )}
       </Modal>
@@ -2270,7 +2287,9 @@ export const DeliveryNotesView: React.FC = () => {
         onClose={() => setShowCustomerSearch(false)}
         onSelect={(c) => {
           if (c.isBlocked) {
-            toast.error(`El cliente "${c.name}" está BLOQUEADO. No puede ser seleccionado.`);
+            toast.error(
+              `El cliente "${c.name}" está BLOQUEADO. No puede ser seleccionado.`,
+            );
             return;
           }
           setCustomerId(c.id);

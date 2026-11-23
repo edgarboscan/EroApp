@@ -893,7 +893,8 @@ export const UsersAndRolesView: React.FC = () => {
     setFormFullName("");
     setFormEmail("");
     setFormPassword("");
-    setFormRoleId(roles[0]?.id || "");
+    const assignableRoles = roles.filter((r) => !isSuperAdminRole(r.name));
+    setFormRoleId(assignableRoles[0]?.id || "");
     setFormIs2fa(false);
     setFormIsActive(true);
     setFormAllBranches(true);
@@ -910,7 +911,8 @@ export const UsersAndRolesView: React.FC = () => {
     setFormFullName(userToEdit.fullName);
     setFormEmail(userToEdit.email);
     setFormPassword("");
-    setFormRoleId(userToEdit.roleId || roles[0]?.id || "");
+    const assignableRoles = roles.filter((r) => !isSuperAdminRole(r.name));
+    setFormRoleId(userToEdit.roleId || assignableRoles[0]?.id || "");
     setFormIs2fa(userToEdit.is2faEnabled);
     setFormIsActive(userToEdit.isActive);
     setFormAllBranches(userToEdit.allBranches ?? true);
@@ -1382,9 +1384,10 @@ export const UsersAndRolesView: React.FC = () => {
 
   // Filtrado de roles
   const filteredRoles = useMemo(() => {
-    if (!roleSearchTerm.trim()) return roles;
+    const list = roles.filter((r) => !isSuperAdminRole(r.name));
+    if (!roleSearchTerm.trim()) return list;
     const q = roleSearchTerm.toLowerCase();
-    return roles.filter(
+    return list.filter(
       (r) =>
         r.name.toLowerCase().includes(q) ||
         r.description.toLowerCase().includes(q),
@@ -1485,7 +1488,7 @@ export const UsersAndRolesView: React.FC = () => {
               }`}
             >
               <Shield className="w-4 h-4" />
-              <span>Roles y Permisos ({roles.length})</span>
+              <span>Roles y Permisos ({roles.filter((r) => !isSuperAdminRole(r.name)).length})</span>
             </button>
           </div>
         </div>
@@ -1519,10 +1522,12 @@ export const UsersAndRolesView: React.FC = () => {
                 className="px-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
               >
                 <option value="ALL">Todos los roles</option>
-                {roles.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}
-                  </option>
+                {roles
+                  .filter((r) => !isSuperAdminRole(r.name))
+                  .map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
                 ))}
               </select>
 
@@ -1748,7 +1753,7 @@ export const UsersAndRolesView: React.FC = () => {
             </div>
 
             <div className="text-xs text-neutral-500 dark:text-neutral-400">
-              Mostrando {filteredRoles.length} de {roles.length} roles
+              Mostrando {filteredRoles.length} de {roles.filter((r) => !isSuperAdminRole(r.name)).length} roles
               configurados
             </div>
           </div>
@@ -1933,10 +1938,12 @@ export const UsersAndRolesView: React.FC = () => {
                 onChange={(e) => setFormRoleId(e.target.value)}
                 className="w-full px-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
               >
-                {roles.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}
-                  </option>
+                {roles
+                  .filter((r) => !isSuperAdminRole(r.name))
+                  .map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
                 ))}
               </select>
             </div>
@@ -2412,7 +2419,7 @@ export const UsersAndRolesView: React.FC = () => {
               >
                 <option value="">-- Seleccionar rol de origen --</option>
                 {roles
-                  .filter((r) => !editingRole || r.id !== editingRole.id)
+                  .filter((r) => !isSuperAdminRole(r.name) && (!editingRole || r.id !== editingRole.id))
                   .map((r) => {
                     const count = Array.isArray(r.permissions) && r.permissions.length > 0
                       ? r.permissions.length

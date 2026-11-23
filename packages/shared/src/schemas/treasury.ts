@@ -10,6 +10,7 @@ export const bankAccountSchema = z.object({
   description: z.string().min(2, 'La descripción o alias de la cuenta es requerida'),
   initialBalance: z.number().default(0),
   isActive: z.boolean().default(true),
+  accountingAccountId: z.string().uuid().optional().nullable(),
 });
 
 export type BankAccountInput = z.infer<typeof bankAccountSchema>;
@@ -26,7 +27,7 @@ export const bankMovementSchema = z.object({
     'TAX_DEBIT',
   ]),
   amount: z.number().positive('El monto debe ser un valor positivo'),
-  movementDate: z.string().default(() => new Date().toISOString()),
+  movementDate: z.string().default(() => new Date().toISOString().slice(0, 19).replace('T', ' ')),
   referenceNumber: z.string().optional().nullable(),
   concept: z.string().min(2, 'El concepto del movimiento es obligatorio'),
   isReconciled: z.boolean().optional().default(false),

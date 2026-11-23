@@ -434,7 +434,7 @@ export class NotificationsService {
     senderUser: { id: string; name: string; email: string },
     input: SendEmailReportInput,
     authToken?: string
-  ): Promise<{ success: boolean; emailLogId: string; status: 'SENT' | 'SIMULATED'; recipientEmail: string; messageId?: string }> {
+  ): Promise<{ success: boolean; emailLogId: string; status: 'SENT' | 'SIMULATED' | 'FAILED'; recipientEmail: string; messageId?: string }> {
     await this.ensureTables();
 
     const emailLogId = crypto.randomUUID();

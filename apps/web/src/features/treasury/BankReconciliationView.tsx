@@ -1576,7 +1576,7 @@ export const BankReconciliationView: React.FC = () => {
                   movementType: e.target.value as any,
                 })
               }
-              className="w-full h-9 px-3 text-xs border border-neutral-300 rounded-lg bg-white focus:outline-none"
+              className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg text-neutral-400 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
             >
               <option value="FEE">Comisión Bancaria (-)</option>
               <option value="TAX_DEBIT">Débito Tributario / IGTF (-)</option>

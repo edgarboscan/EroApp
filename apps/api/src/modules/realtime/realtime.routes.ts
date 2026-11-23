@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import * as jose from 'jose';
 import { RealtimeService, RealtimePayload } from './realtime.service';
+import { ChatService } from '../chat/chat.service';
 import { UserTokenPayload } from '@ero/shared';
 
 const JWT_SECRET = new TextEncoder().encode(
@@ -34,6 +35,18 @@ realtimeRouter.get('/stream', async (c) => {
   c.header('X-Accel-Buffering', 'no');
 
   return streamSSE(c, async (stream) => {
+    // 0. Registrar conexión del usuario para seguimiento de presencia en tiempo real
+    const { isFirstConnection } = RealtimeService.registerConnection(user.companyId, user.sub);
+    if (isFirstConnection) {
+      ChatService.getUserStatus(user.companyId, user.sub)
+        .then((userStatus) => {
+          RealtimeService.emitToCompany(user.companyId, 'chat:presence', userStatus);
+        })
+        .catch((err) => {
+          console.error('[Realtime] Error broadcasting initial presence:', err);
+        });
+    }
+
     // 1. Notificar conexión inicial
     await stream.writeSSE({
       event: 'connected',
@@ -80,11 +93,21 @@ realtimeRouter.get('/stream', async (c) => {
       }
     }, 20000);
 
-    // 5. Limpieza de listeners al abortar el stream
+    // 5. Limpieza de listeners y desregistro de presencia al abortar el stream
     stream.onAbort(() => {
       clearInterval(pingInterval);
       unsubscribeUser();
       unsubscribeCompany();
+      const { isLastConnection } = RealtimeService.unregisterConnection(user.companyId, user.sub);
+      if (isLastConnection) {
+        ChatService.getUserStatus(user.companyId, user.sub)
+          .then((userStatus) => {
+            RealtimeService.emitToCompany(user.companyId, 'chat:presence', userStatus);
+          })
+          .catch((err) => {
+            console.error('[Realtime] Error broadcasting disconnect presence:', err);
+          });
+      }
     });
 
     // Mantener la ejecución viva mientras el stream esté activo

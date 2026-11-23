@@ -225,8 +225,9 @@ taxesRouter.get('/export/seniat', authenticate, authorize('taxes', 'read'), asyn
     const currentPeriod = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
     const period = c.req.query('period') || currentPeriod;
     const type = (c.req.query('type') as 'ISLR' | 'IVA') || 'ISLR';
+    const fortnight = (c.req.query('fortnight') as '1' | '2' | 'ALL') || 'ALL';
 
-    const fileData = await TaxesService.exportSENIAT(user.companyId, period, type);
+    const fileData = await TaxesService.exportSENIAT(user.companyId, period, type, fortnight);
 
     c.header('Content-Disposition', `attachment; filename="${fileData.filename}"`);
     if (fileData.format === 'xml') {

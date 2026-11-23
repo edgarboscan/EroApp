@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
-import { Printer, Copy, Check } from 'lucide-react';
+import { Printer, Copy, Check, FileCode } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatMoneyUSD, formatMoneyVES, formatExchangeRate } from '../../utils/formatters';
 
@@ -239,6 +239,78 @@ export const FiscalInvoiceModal: React.FC<FiscalInvoiceModalProps> = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleDownloadFiscalXML = () => {
+    if (!data) return;
+
+    const cleanCompanyRif = (data.companyRif || 'J-00000000-0').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    const cleanCustomerRif = (data.customerRif || 'V-00000000').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    const invoiceNum = data.invoiceNumber || 'FAC-0001';
+
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+    xml += `<FacturaElectronica xmlns="urn:seniat:factura:v1.0">\n`;
+    xml += `  <Encabezado>\n`;
+    xml += `    <NumeroFactura>${invoiceNum}</NumeroFactura>\n`;
+    xml += `    <NumeroControl>${data.controlNumber || '00'}</NumeroControl>\n`;
+    xml += `    <FechaEmision>${data.invoiceDate}</FechaEmision>\n`;
+    xml += `    <TipoDocumento>${isFiscal ? 'FACTURA_FISCAL' : 'COMPROBANTE_VENTA'}</TipoDocumento>\n`;
+    xml += `    <MonedaReferencia>USD</MonedaReferencia>\n`;
+    xml += `    <TasaCambioBCV>${Number(data.exchangeRate).toFixed(4)}</TasaCambioBCV>\n`;
+    xml += `    <Cajero>${data.cashierName || 'Caja Principal'}</Cajero>\n`;
+    xml += `  </Encabezado>\n`;
+    xml += `  <Emisor>\n`;
+    xml += `    <Rif>${cleanCompanyRif}</Rif>\n`;
+    xml += `    <RazonSocial>${data.companyLegalName || data.companyTradeName || 'EMPRESA'}</RazonSocial>\n`;
+    xml += `    <NombreComercial>${data.companyTradeName || ''}</NombreComercial>\n`;
+    xml += `    <DireccionFiscal>${data.companyAddress || ''}</DireccionFiscal>\n`;
+    xml += `    <Telefono>${data.companyPhone || ''}</Telefono>\n`;
+    xml += `  </Emisor>\n`;
+    xml += `  <Receptor>\n`;
+    xml += `    <Rif>${cleanCustomerRif}</Rif>\n`;
+    xml += `    <NombreRazonSocial>${data.customerName}</NombreRazonSocial>\n`;
+    xml += `    <DireccionFiscal>${data.customerAddress || 'Ciudad'}</DireccionFiscal>\n`;
+    xml += `  </Receptor>\n`;
+    xml += `  <Items>\n`;
+    data.items.forEach((item, idx) => {
+      xml += `    <Item Linea="${idx + 1}">\n`;
+      xml += `      <Descripcion>${item.name.replace(/[<>&'"]/g, '')}</Descripcion>\n`;
+      xml += `      <Cantidad>${Number(item.quantity).toFixed(2)}</Cantidad>\n`;
+      xml += `      <PrecioUnitarioUSD>${Number(item.unitPrice).toFixed(4)}</PrecioUnitarioUSD>\n`;
+      xml += `      <AlicuotaIVA>${Number(item.taxRate).toFixed(2)}</AlicuotaIVA>\n`;
+      xml += `      <DescuentoUSD>${Number(item.discountAmount || 0).toFixed(2)}</DescuentoUSD>\n`;
+      xml += `      <TotalUSD>${Number(item.total).toFixed(2)}</TotalUSD>\n`;
+      xml += `    </Item>\n`;
+    });
+    xml += `  </Items>\n`;
+    xml += `  <Totales>\n`;
+    xml += `    <BaseExentaUSD>${Number(data.baseExempt).toFixed(2)}</BaseExentaUSD>\n`;
+    xml += `    <BaseImponibleUSD>${Number(data.baseTaxable).toFixed(2)}</BaseImponibleUSD>\n`;
+    xml += `    <MontoIVAUSD>${Number(data.taxAmount).toFixed(2)}</MontoIVAUSD>\n`;
+    xml += `    <MontoIGTFUSD>${Number(data.igtfAmount).toFixed(2)}</MontoIGTFUSD>\n`;
+    xml += `    <TotalUSD>${Number(data.totalUSD).toFixed(2)}</TotalUSD>\n`;
+    xml += `    <TotalVES>${Number(data.totalVES).toFixed(2)}</TotalVES>\n`;
+    xml += `  </Totales>\n`;
+    xml += `  <FormasPago>\n`;
+    data.payments.forEach((p, idx) => {
+      xml += `    <Pago Linea="${idx + 1}">\n`;
+      xml += `      <Metodo>${p.method}</Metodo>\n`;
+      xml += `      <MontoUSD>${Number(p.amountUSD).toFixed(2)}</MontoUSD>\n`;
+      xml += `      <MontoVES>${Number(p.amountVES).toFixed(2)}</MontoVES>\n`;
+      xml += `    </Pago>\n`;
+    });
+    xml += `  </FormasPago>\n`;
+    xml += `</FacturaElectronica>`;
+
+    const blob = new Blob([xml], { type: 'application/xml;charset=utf-8' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Factura_${cleanCompanyRif}_${invoiceNum}.xml`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    toast.success('Factura electrónica en formato XML descargada exitosamente');
+  };
+
   return (
     <>
       {/* Reglas de impresión en caso de activación por teclado (Ctrl+P) */}
@@ -309,10 +381,16 @@ export const FiscalInvoiceModal: React.FC<FiscalInvoiceModalProps> = ({
         size="md"
         footer={
           <div className="flex items-center justify-between w-full print:hidden">
-            <Button variant="outline" size="sm" onClick={handleCopy}>
-              {copied ? <Check className="w-4 h-4 mr-1 text-emerald-600 dark:text-emerald-400" /> : <Copy className="w-4 h-4 mr-1" />}
-              {copied ? 'Copiado' : 'Copiar'}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handleCopy}>
+                {copied ? <Check className="w-4 h-4 mr-1 text-emerald-600 dark:text-emerald-400" /> : <Copy className="w-4 h-4 mr-1" />}
+                {copied ? 'Copiado' : 'Copiar'}
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleDownloadFiscalXML} title="Descargar Factura Electrónica en formato XML estructurado">
+                <FileCode className="w-4 h-4 mr-1 text-sky-600 dark:text-sky-400" />
+                XML Fiscal
+              </Button>
+            </div>
 
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={onClose}>

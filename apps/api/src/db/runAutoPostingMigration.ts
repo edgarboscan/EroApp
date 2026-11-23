@@ -89,6 +89,19 @@ export async function runAutoPostingMigration() {
     console.log('✓ Columna accounting_account_id agregada a bank_accounts');
   }
 
+  // 3.1. Modificaciones a purchase_payments (cuenta bancaria para contabilización de pagos CxP)
+  const [ppCols]: any = await pool.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'purchase_payments' AND COLUMN_NAME = 'bank_account_id'`
+  );
+  if (ppCols.length === 0) {
+    await pool.query(
+      `ALTER TABLE purchase_payments 
+       ADD COLUMN bank_account_id CHAR(36) NULL AFTER payable_id`
+    );
+    console.log('✓ Columna bank_account_id agregada a purchase_payments');
+  }
+
   // 4. Sembrar configuración y mapeos predeterminados para todas las empresas existentes
   const [companies]: any = await pool.query(`SELECT id, legal_name FROM companies`);
   for (const comp of companies) {

@@ -113,9 +113,9 @@ async function runAccountingMigration() {
     { code: '1.1.01.01', name: 'Caja Principal (Efectivo VES)', level: 4, parent: '1.1.01', type: 'ASSET', classif: 'CURRENT', balance: 'DEBIT', post: true, monetary: true, bankCash: true },
     { code: '1.1.01.02', name: 'Caja Chica Sucursal', level: 4, parent: '1.1.01', type: 'ASSET', classif: 'CURRENT', balance: 'DEBIT', post: true, monetary: true, bankCash: true },
     { code: '1.1.01.03', name: 'Caja en Moneda Extranjera (USD)', level: 4, parent: '1.1.01', type: 'ASSET', classif: 'CURRENT', balance: 'DEBIT', post: true, monetary: true, bankCash: true },
-    { code: '1.1.01.04', name: 'Banco Mercantil Cta Cte (VES)', level: 4, parent: '1.1.01', type: 'ASSET', classif: 'CURRENT', balance: 'DEBIT', post: true, monetary: true, bankCash: true },
-    { code: '1.1.01.05', name: 'Banco Banesco Cta Cte (VES)', level: 4, parent: '1.1.01', type: 'ASSET', classif: 'CURRENT', balance: 'DEBIT', post: true, monetary: true, bankCash: true },
-    { code: '1.1.01.06', name: 'Banco en Custodia / Cuenta Especial (USD)', level: 4, parent: '1.1.01', type: 'ASSET', classif: 'CURRENT', balance: 'DEBIT', post: true, monetary: true, bankCash: true },
+    { code: '1.1.01.04', name: 'Bancos Nacionales Moneda Local (VES)', level: 4, parent: '1.1.01', type: 'ASSET', classif: 'CURRENT', balance: 'DEBIT', post: true, monetary: true, bankCash: true },
+    { code: '1.1.01.05', name: 'Bancos Nacionales Auxiliar (VES)', level: 4, parent: '1.1.01', type: 'ASSET', classif: 'CURRENT', balance: 'DEBIT', post: true, monetary: true, bankCash: true },
+    { code: '1.1.01.06', name: 'Bancos Moneda Extranjera / Divisas (USD)', level: 4, parent: '1.1.01', type: 'ASSET', classif: 'CURRENT', balance: 'DEBIT', post: true, monetary: true, bankCash: true },
     
     { code: '1.1.02', name: 'Cuentas y Efectos por Cobrar Comerciales', level: 3, parent: '1.1', type: 'ASSET', classif: 'CURRENT', balance: 'DEBIT', post: false, monetary: true },
     { code: '1.1.02.01', name: 'Clientes Nacionales Comerciales', level: 4, parent: '1.1.02', type: 'ASSET', classif: 'CURRENT', balance: 'DEBIT', post: true, monetary: true },

@@ -46,6 +46,77 @@ export async function migrateChat(): Promise<void> {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
   `);
 
+  await query(`
+    CREATE TABLE IF NOT EXISTS \`user_chat_statuses\` (
+      \`user_id\` CHAR(36) NOT NULL,
+      \`company_id\` CHAR(36) NOT NULL,
+      \`status\` ENUM('ONLINE', 'AWAY', 'BUSY', 'OFFLINE') NOT NULL DEFAULT 'ONLINE',
+      \`status_message\` VARCHAR(150) DEFAULT NULL,
+      \`updated_at\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (\`user_id\`),
+      KEY \`idx_user_chat_status_company\` (\`company_id\`),
+      CONSTRAINT \`fk_user_chat_status_user\` FOREIGN KEY (\`user_id\`) REFERENCES \`users\` (\`id\`) ON DELETE CASCADE,
+      CONSTRAINT \`fk_user_chat_status_company\` FOREIGN KEY (\`company_id\`) REFERENCES \`companies\` (\`id\`) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  `);
+
+  // Columnas para soporte de grupos y auditoría en chat_conversations
+  try {
+    await query(`ALTER TABLE \`chat_conversations\` ADD COLUMN \`type\` ENUM('DIRECT', 'GROUP') NOT NULL DEFAULT 'DIRECT' AFTER \`company_id\``);
+  } catch {}
+  try {
+    await query(`ALTER TABLE \`chat_conversations\` ADD COLUMN \`title\` VARCHAR(150) DEFAULT NULL AFTER \`type\``);
+  } catch {}
+  try {
+    await query(`ALTER TABLE \`chat_conversations\` ADD COLUMN \`created_by\` CHAR(36) DEFAULT NULL AFTER \`title\``);
+  } catch {}
+  try {
+    await query(`ALTER TABLE \`chat_conversations\` MODIFY \`user1_id\` CHAR(36) NULL`);
+  } catch {}
+  try {
+    await query(`ALTER TABLE \`chat_conversations\` MODIFY \`user2_id\` CHAR(36) NULL`);
+  } catch {}
+
+  // Permitir recipient_id nulo para mensajes en grupos
+  try {
+    await query(`ALTER TABLE \`chat_messages\` MODIFY \`recipient_id\` CHAR(36) NULL`);
+  } catch {}
+
+  // Tabla de participantes por conversación (soporta grupos y ocultamiento/eliminación por usuario)
+  await query(`
+    CREATE TABLE IF NOT EXISTS \`chat_conversation_participants\` (
+      \`id\` VARCHAR(36) NOT NULL,
+      \`conversation_id\` VARCHAR(36) NOT NULL,
+      \`company_id\` CHAR(36) NOT NULL,
+      \`user_id\` CHAR(36) NOT NULL,
+      \`is_admin\` TINYINT(1) NOT NULL DEFAULT 0,
+      \`hidden_at\` DATETIME DEFAULT NULL,
+      \`joined_at\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (\`id\`),
+      UNIQUE KEY \`uk_conv_participant\` (\`conversation_id\`, \`user_id\`),
+      KEY \`idx_participant_lookup\` (\`company_id\`, \`user_id\`, \`hidden_at\`),
+      CONSTRAINT \`fk_part_conv\` FOREIGN KEY (\`conversation_id\`) REFERENCES \`chat_conversations\` (\`id\`) ON DELETE CASCADE,
+      CONSTRAINT \`fk_part_company\` FOREIGN KEY (\`company_id\`) REFERENCES \`companies\` (\`id\`) ON DELETE CASCADE,
+      CONSTRAINT \`fk_part_user\` FOREIGN KEY (\`user_id\`) REFERENCES \`users\` (\`id\`) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  `);
+
+  // Migrar participantes existentes de chats 1-a-1
+  try {
+    await query(`
+      INSERT IGNORE INTO \`chat_conversation_participants\` (\`id\`, \`conversation_id\`, \`company_id\`, \`user_id\`, \`is_admin\`, \`joined_at\`)
+      SELECT UUID(), \`id\`, \`company_id\`, \`user1_id\`, 0, \`created_at\`
+      FROM \`chat_conversations\` WHERE \`user1_id\` IS NOT NULL
+    `);
+    await query(`
+      INSERT IGNORE INTO \`chat_conversation_participants\` (\`id\`, \`conversation_id\`, \`company_id\`, \`user_id\`, \`is_admin\`, \`joined_at\`)
+      SELECT UUID(), \`id\`, \`company_id\`, \`user2_id\`, 0, \`created_at\`
+      FROM \`chat_conversations\` WHERE \`user2_id\` IS NOT NULL
+    `);
+  } catch (err) {
+    console.warn('[MigrateChat] Nota durante sincronización de participantes:', err);
+  }
+
   console.log('[MigrateChat] Sincronizando permisos de chat en la base de datos...');
   await syncSystemPermissions();
 

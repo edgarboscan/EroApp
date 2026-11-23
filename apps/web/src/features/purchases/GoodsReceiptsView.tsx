@@ -21,6 +21,9 @@ import {
   Download,
   AlertTriangle,
   RotateCcw,
+  TrendingUp,
+  TrendingDown,
+  Percent,
 } from 'lucide-react';
 import {
   SupplierSearchModal,
@@ -73,6 +76,25 @@ interface NewReceiptItem {
   notes?: string;
 }
 
+interface CostVariationItem {
+  productId: string;
+  sku: string;
+  productName: string;
+  hierarchy: string;
+  hierarchyMargin: number;
+  currentCost: number;
+  newCost: number;
+  costDifference: number;
+  costPercentageChange: number;
+  currentPrice: number;
+  suggestedPrice: number;
+  currentMargin: number;
+  projectedMarginIfKept: number;
+  hasVariation: boolean;
+  action: 'KEEP' | 'ADJUST' | 'CUSTOM';
+  customPrice?: number;
+}
+
 export const GoodsReceiptsView: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { activeBranchId, activeWarehouseId, token, user } = useAuthStore();
@@ -81,7 +103,7 @@ export const GoodsReceiptsView: React.FC = () => {
 
   // Catálogos desde BD
   const [availableProducts, setAvailableProducts] = useState<
-    { id: string; sku: string; name: string; defaultCost: number }[]
+    { id: string; sku: string; name: string; defaultCost: number; basePrice?: number; hierarchyMargin?: number }[]
   >([]);
   const [availableSuppliers, setAvailableSuppliers] = useState<
     { id: string; name: string; rif: string }[]
@@ -95,6 +117,9 @@ export const GoodsReceiptsView: React.FC = () => {
   const [showOrderSearch, setShowOrderSearch] = useState(false);
   const [productSearchRowIdx, setProductSearchRowIdx] = useState<number | null>(null);
   const [isAddingFromSearch, setIsAddingFromSearch] = useState(false);
+  const [isCostVariationsModalOpen, setIsCostVariationsModalOpen] = useState(false);
+  const [costVariations, setCostVariations] = useState<CostVariationItem[]>([]);
+  const [isCheckingVariations, setIsCheckingVariations] = useState(false);
   const [pdfModal, setPdfModal] = useState<{
     isOpen: boolean;
     endpoint: string | null;
@@ -142,7 +167,13 @@ export const GoodsReceiptsView: React.FC = () => {
       const res = await fetch(`/api/purchases/receipts?${params.toString()}`, { headers });
       if (res.ok) {
         const json = await res.json();
-        setReceipts(Array.isArray(json.data) ? json.data : []);
+        const rawList = Array.isArray(json.data) ? json.data : [];
+        const normalized = rawList.map((r: any) => ({
+          ...r,
+          totalCost: Number(r.totalCost) || 0,
+          exchangeRate: Number(r.exchangeRate) || 1,
+        }));
+        setReceipts(normalized);
       } else {
         setReceipts([]);
       }
@@ -236,6 +267,8 @@ export const GoodsReceiptsView: React.FC = () => {
               sku: p.sku,
               name: p.name,
               defaultCost: Number(p.costPrice || p.cost_price || 0),
+              basePrice: Number(p.basePrice || p.base_price || 0),
+              hierarchyMargin: Number(p.hierarchyMargin || 0),
             }));
             setAvailableProducts(mappedProds);
           }
@@ -480,6 +513,60 @@ export const GoodsReceiptsView: React.FC = () => {
       return;
     }
 
+    // Análisis de variación de costos con la API antes de confirmar
+    setIsCheckingVariations(true);
+    let variationsData: CostVariationItem[] = [];
+    try {
+      const varRes = await fetch('/api/purchases/receipts/check-cost-variations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          items: receiptItems.map((i) => ({
+            productId: i.productId,
+            unitCost: Number(i.unitCost),
+          })),
+        }),
+      });
+
+      if (varRes.ok) {
+        const varJson = await varRes.json();
+        if (varJson.success && Array.isArray(varJson.data)) {
+          variationsData = varJson.data;
+        }
+      }
+    } catch {
+      // Continuar con flujo regular si la verificación previa falla
+    } finally {
+      setIsCheckingVariations(false);
+    }
+
+    const itemsWithVariations = variationsData.filter((v) => v.hasVariation);
+    if (itemsWithVariations.length > 0) {
+      setCostVariations(
+        variationsData.map((v) => ({
+          ...v,
+          action: v.hierarchyMargin > 0 ? 'ADJUST' : 'KEEP',
+          customPrice: v.suggestedPrice > 0 ? v.suggestedPrice : v.currentPrice,
+        }))
+      );
+      setIsCostVariationsModalOpen(true);
+      return;
+    }
+
+    // Si no hay variaciones de costo detectadas, proceder a confirmación directa
+    await doSubmitReceipt([]);
+  };
+
+  const doSubmitReceipt = async (
+    priceAdjustments: Array<{
+      productId: string;
+      action: 'KEEP' | 'ADJUST' | 'CUSTOM';
+      newPrice?: number | null;
+    }> = []
+  ) => {
     const supplier = availableSuppliers.find((s) => s.id === supplierId);
 
     const docTypeLabel =
@@ -487,9 +574,14 @@ export const GoodsReceiptsView: React.FC = () => {
         ? `Factura Fiscal N° ${directInvoiceNumber.trim()}`
         : `Guía / Nota de Entrega N° ${deliveryNote || 'S/N'}`;
 
+    const adjustmentsNotice =
+      priceAdjustments.filter((a) => a.action !== 'KEEP').length > 0
+        ? ` Se actualizarán los precios de venta de ${priceAdjustments.filter((a) => a.action !== 'KEEP').length} producto(s).`
+        : '';
+
     const confirmed = await showConfirmQuestion({
       title: '¿Confirmar recepción de mercancía?',
-      text: `Se registrará la entrada física de ${receiptItems.length} producto(s) (${totalReceivedQty} unidades) por un total de $${totalReceiptCost.toFixed(2)} (${docTypeLabel}) a favor de ${supplier?.name || 'proveedor'}. Se afectará el inventario físico y costo promedio ponderado.`,
+      text: `Se registrará la entrada física de ${receiptItems.length} producto(s) (${totalReceivedQty} unidades) por un total de $${totalReceiptCost.toFixed(2)} (${docTypeLabel}) a favor de ${supplier?.name || 'proveedor'}. Se afectará el inventario físico y costo promedio ponderado.${adjustmentsNotice}`,
       confirmButtonText: 'Sí, confirmar recepción',
       cancelButtonText: 'Cancelar',
       icon: 'question',
@@ -534,11 +626,13 @@ export const GoodsReceiptsView: React.FC = () => {
             unitCost: Number(i.unitCost),
             notes: i.notes || undefined,
           })),
+          priceAdjustments: priceAdjustments.length > 0 ? priceAdjustments : undefined,
         }),
       });
 
       const json = await res.json();
       if (res.ok && json.success) {
+        setIsCostVariationsModalOpen(false);
         const invoicedMsg =
           json.data?.status === 'INVOICED'
             ? ' y factura fiscal asentada en CxP'
@@ -581,9 +675,11 @@ export const GoodsReceiptsView: React.FC = () => {
       return;
     }
 
+    const totalCostNumber = Number(invoicingReceipt.totalCost) || 0;
+
     const confirmed = await showConfirmQuestion({
       title: '¿Generar factura y cuenta por pagar?',
-      text: `Se creará la cuenta por pagar vinculada a la factura ${invoiceNumber} por $${invoicingReceipt.totalCost.toFixed(2)}.`,
+      text: `Se creará la cuenta por pagar vinculada a la factura ${invoiceNumber} por $${totalCostNumber.toFixed(2)}.`,
       confirmButtonText: 'Sí, generar factura',
       cancelButtonText: 'Cancelar',
       icon: 'question',
@@ -591,13 +687,14 @@ export const GoodsReceiptsView: React.FC = () => {
     if (!confirmed) return;
 
     try {
-      const res = await fetch(`/api/purchases/receipts/${invoicingReceipt.id}/invoice`, {
+      const res = await fetch(`/api/purchases/receipts/to-invoice`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
+          receiptId: invoicingReceipt.id,
           invoiceNumber: invoiceNumber.trim(),
           controlNumber: controlNumber.trim() || undefined,
           isCredit,
@@ -823,7 +920,7 @@ export const GoodsReceiptsView: React.FC = () => {
             </div>
           </div>
           <p className="text-2xl font-bold text-[#28A745] dark:text-[#4ADE80] mt-2 font-mono">
-            {formatMoneyUSD(receipts.reduce((acc, r) => acc + r.totalCost, 0))}
+            {formatMoneyUSD(receipts.reduce((acc, r) => acc + (Number(r.totalCost) || 0), 0))}
           </p>
           <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">Costo total incorporado al inventario</p>
         </Card>
@@ -1332,6 +1429,25 @@ export const GoodsReceiptsView: React.FC = () => {
                             onChange={(e) => handleItemChange(idx, 'unitCost', e.target.value)}
                             className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-2.5 py-1.5 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500 text-right font-mono"
                           />
+                          {(() => {
+                            const p = availableProducts.find((ap) => ap.id === item.productId);
+                            if (!p || !p.defaultCost || p.defaultCost === 0) return null;
+                            const diff = Number(item.unitCost) - p.defaultCost;
+                            if (Math.abs(diff) < 0.001) return null;
+                            const isHigher = diff > 0;
+                            return (
+                              <span
+                                className={`text-[10px] font-mono block mt-0.5 ${
+                                  isHigher
+                                    ? 'text-amber-600 dark:text-amber-400'
+                                    : 'text-emerald-600 dark:text-emerald-400'
+                                }`}
+                                title={`Costo histórico: $${p.defaultCost.toFixed(2)}`}
+                              >
+                                {isHigher ? '+ ' : '- '}${Math.abs(diff).toFixed(2)}
+                              </span>
+                            );
+                          })()}
                         </td>
 
                         <td className="py-2 px-3 text-right font-mono font-medium text-neutral-800 dark:text-neutral-200">
@@ -1425,8 +1541,8 @@ export const GoodsReceiptsView: React.FC = () => {
               </p>
               <p className="text-neutral-500">{invoicingReceipt.supplierRif}</p>
               <p className="text-neutral-700 dark:text-neutral-300 mt-1">
-                Monto a Facturar: <strong>{formatMoneyUSD(invoicingReceipt.totalCost)} USD</strong>{' '}
-                ({formatMoneyVES(invoicingReceipt.totalCost * invoicingReceipt.exchangeRate)})
+                Monto a Facturar: <strong>{formatMoneyUSD(Number(invoicingReceipt.totalCost) || 0)} USD</strong>{' '}
+                ({formatMoneyVES((Number(invoicingReceipt.totalCost) || 0) * (Number(invoicingReceipt.exchangeRate) || 1))})
               </p>
             </div>
 
@@ -1540,6 +1656,245 @@ export const GoodsReceiptsView: React.FC = () => {
         products={availableProducts}
         mode="purchase"
       />
+
+      {/* Modal Análisis de Variación de Costos y Decisión de Precios */}
+      <Modal
+        isOpen={isCostVariationsModalOpen}
+        onClose={() => setIsCostVariationsModalOpen(false)}
+        title="Variación de Costos y Ajuste de Precios de Venta"
+        subtitle="Se detectaron variaciones entre el costo facturado/recibido y el costo registrado en catálogo. Indique si desea ajustar los precios de venta según los márgenes de la jerarquía."
+        size="4xl"
+        footer={
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 w-full">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setCostVariations((prev) =>
+                    prev.map((v) => ({ ...v, action: 'ADJUST', customPrice: v.suggestedPrice }))
+                  );
+                }}
+                className="text-xs"
+              >
+                Ajustar Todos al Margen Sugerido
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setCostVariations((prev) =>
+                    prev.map((v) => ({ ...v, action: 'KEEP', customPrice: v.currentPrice }))
+                  );
+                }}
+                className="text-xs"
+              >
+                Mantener Todos los Precios Actuales
+              </Button>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsCostVariationsModalOpen(false)}
+              >
+                Volver a Revisar
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  const adjustments = costVariations.map((v) => {
+                    let newPrice = v.currentPrice;
+                    if (v.action === 'ADJUST') newPrice = v.suggestedPrice;
+                    else if (v.action === 'CUSTOM') newPrice = Number(v.customPrice) || v.currentPrice;
+                    return {
+                      productId: v.productId,
+                      action: v.action,
+                      newPrice,
+                    };
+                  });
+                  doSubmitReceipt(adjustments);
+                }}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs px-4"
+              >
+                Confirmar y Procesar Recepción
+              </Button>
+            </div>
+          </div>
+        }
+      >
+        <div className="space-y-4 text-xs">
+          <div className="p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800 flex items-start gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="font-semibold text-amber-900 dark:text-amber-200">
+                Variación de costos detectada en {costVariations.filter((v) => v.hasVariation).length} producto(s)
+              </p>
+              <p className="text-amber-800 dark:text-amber-300 text-[11px] leading-relaxed">
+                El nuevo costo afectará el costo promedio ponderado. Puede mantener el precio de venta actual (afectando el margen de ganancia proyectado), ajustar al precio calculado con el margen preestablecido de su jerarquía (departamento / grupo / subgrupo), o definir un precio personalizado.
+              </p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto border border-neutral-200 dark:border-neutral-800 rounded-lg">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="bg-[#F4F6F9] dark:bg-[#18191A] text-neutral-700 dark:text-neutral-300 uppercase font-semibold text-[10px] tracking-wider border-b border-neutral-200 dark:border-neutral-800">
+                <tr>
+                  <th className="py-2.5 px-3">Producto / Jerarquía</th>
+                  <th className="py-2.5 px-3 text-right">Costo Ant.</th>
+                  <th className="py-2.5 px-3 text-right">Nuevo Costo</th>
+                  <th className="py-2.5 px-3 text-center">Variación</th>
+                  <th className="py-2.5 px-3 text-center">Margen Jerárquico</th>
+                  <th className="py-2.5 px-3 text-right">Precio Actual</th>
+                  <th className="py-2.5 px-3 text-right">Precio Sugerido</th>
+                  <th className="py-2.5 px-3">Decisión sobre Precio</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                {costVariations.map((v, idx) => {
+                  const isUp = v.costDifference > 0;
+
+                  return (
+                    <tr
+                      key={v.productId}
+                      className={v.hasVariation ? 'bg-amber-50/20 dark:bg-amber-950/10' : ''}
+                    >
+                      <td className="py-2.5 px-3">
+                        <div className="font-semibold text-neutral-900 dark:text-neutral-100">
+                          {v.productName}
+                        </div>
+                        <div className="text-[10px] text-neutral-400 font-mono">
+                          SKU: {v.sku} &bull; <span className="text-neutral-500">{v.hierarchy}</span>
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono text-neutral-600 dark:text-neutral-400">
+                        {formatMoneyUSD(v.currentCost)}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono font-semibold text-neutral-900 dark:text-neutral-100">
+                        {formatMoneyUSD(v.newCost)}
+                      </td>
+                      <td className="py-2.5 px-3 text-center font-mono">
+                        {v.hasVariation ? (
+                          <span
+                            className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                              isUp
+                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300'
+                                : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
+                            }`}
+                          >
+                            {isUp ? '+' : ''}{v.costPercentageChange.toFixed(1)}%
+                          </span>
+                        ) : (
+                          <span className="text-neutral-400 text-[11px]">Sin cambio</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <span className="px-2 py-0.5 rounded bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 font-medium font-mono text-[11px]">
+                          {v.hierarchyMargin > 0 ? `${v.hierarchyMargin.toFixed(1)}%` : 'No def.'}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono text-neutral-700 dark:text-neutral-300">
+                        <div>{formatMoneyUSD(v.currentPrice)}</div>
+                        <span className="text-[10px] text-neutral-400">
+                          Margen proyectado: {v.projectedMarginIfKept.toFixed(1)}%
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                        {formatMoneyUSD(v.suggestedPrice)}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="space-y-1.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <label className="flex items-center gap-1 cursor-pointer">
+                              <input
+                                type="radio"
+                                name={`action-${v.productId}`}
+                                value="KEEP"
+                                checked={v.action === 'KEEP'}
+                                onChange={() => {
+                                  const updated = [...costVariations];
+                                  updated[idx] = { ...updated[idx], action: 'KEEP', customPrice: v.currentPrice };
+                                  setCostVariations(updated);
+                                }}
+                                className="text-sky-600 focus:ring-sky-500"
+                              />
+                              <span className="text-[11px] text-neutral-700 dark:text-neutral-300">
+                                Mantener ({formatMoneyUSD(v.currentPrice)})
+                              </span>
+                            </label>
+
+                            <label className="flex items-center gap-1 cursor-pointer">
+                              <input
+                                type="radio"
+                                name={`action-${v.productId}`}
+                                value="ADJUST"
+                                checked={v.action === 'ADJUST'}
+                                onChange={() => {
+                                  const updated = [...costVariations];
+                                  updated[idx] = { ...updated[idx], action: 'ADJUST', customPrice: v.suggestedPrice };
+                                  setCostVariations(updated);
+                                }}
+                                className="text-emerald-600 focus:ring-emerald-500"
+                              />
+                              <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+                                Ajustar ({formatMoneyUSD(v.suggestedPrice)})
+                              </span>
+                            </label>
+
+                            <label className="flex items-center gap-1 cursor-pointer">
+                              <input
+                                type="radio"
+                                name={`action-${v.productId}`}
+                                value="CUSTOM"
+                                checked={v.action === 'CUSTOM'}
+                                onChange={() => {
+                                  const updated = [...costVariations];
+                                  updated[idx] = { ...updated[idx], action: 'CUSTOM' };
+                                  setCostVariations(updated);
+                                }}
+                                className="text-neutral-600 focus:ring-neutral-500"
+                              />
+                              <span className="text-[11px] text-neutral-700 dark:text-neutral-300">
+                                Personalizado
+                              </span>
+                            </label>
+                          </div>
+
+                          {v.action === 'CUSTOM' && (
+                            <div className="flex items-center gap-1 pt-1">
+                              <span className="text-[11px] text-neutral-400 font-mono">$</span>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={v.customPrice ?? v.suggestedPrice}
+                                onChange={(e) => {
+                                  const updated = [...costVariations];
+                                  updated[idx] = {
+                                    ...updated[idx],
+                                    customPrice: parseFloat(e.target.value) || 0,
+                                  };
+                                  setCostVariations(updated);
+                                }}
+                                className="w-24 text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-2 py-1 text-neutral-800 dark:text-neutral-200 font-mono font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </Modal>
 
       {/* Modal Visor / Descarga PDF de Recepción de Mercancía */}
       <PdfViewerModal

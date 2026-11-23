@@ -261,3 +261,13 @@ Se completó el análisis arquitectural integral y la implementación base del E
    - [x] En registrar un ajuste permitir buscar producto por modal y ajustar el tamaño de las columnas.
    - [x] Al procesar un ajuste muestra el siguiente error: Cannot add or update a child row: a foreign key constraint fails (`ero_erp_db`.`inventory_adjustment_items`, CONSTRAINT `fk_adji_adjustment` FOREIGN KEY (`adjustment_id`) REFERENCES `inventory_adjustments` (`id`) ON DELETE CASCADE)
 
+14. **Pendiente**
+   - [x] Cuando se realiza un pago a algun proveedor, se debe de generar la orden a contabilidad y generar el reporte del pago en pdf y en tesoreria debe de mostrarse el listado de pagos por procesar y poder realizar el pago parar que asi se pueda utilizar las cuentas bancarias y tener la tesorreria actualizada.
+   - [x] Verica el contraste de Colores para todo los elementos, verifica los colores de los skeletom, todo debe de quedar perfecto, para el dark theme y el light theme. 
+   - [x] Al registrar un movimiento bancario, en este caso un deposito,  muestra el siguiente error: 
+      Incorrect datetime value: '2026-11-23T16:30:49.657Z' for column 'movement_date' at row 1
+   - [ ] Como asociar las cuentas bancarias a la contabilidad
+   - [x] Al procesar un pago a proveedor muestra el siguiente error en el visor pdf:
+      Unknown column 'pi.total_amount_usd' in 'field list'
+   - [x] en el catalago de cuentas en la columna Saldo(USD) se muestra lo siguiente {formatMoneyUSD(acc.balanceUsd)}
+   - [x] En tesoreria se debe permitir agregar cuentas zelle y ademas al mommento de realizar un movimiento de egreso poder seleccionar el medio de pago si es pago movil, tansferencia, deposito o un pago por zelle, al igual, que un ingreso especificar

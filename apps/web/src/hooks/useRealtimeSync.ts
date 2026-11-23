@@ -110,6 +110,29 @@ export function useRealtimeSync() {
       } catch {}
     });
 
+    // 3.1. Estado de presencia y cambios en tiempo real
+    es.addEventListener('presence:update', (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        window.dispatchEvent(
+          new CustomEvent('ero:chat:presence', {
+            detail: data,
+          })
+        );
+      } catch {}
+    });
+
+    es.addEventListener('chat:presence', (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        window.dispatchEvent(
+          new CustomEvent('ero:chat:presence', {
+            detail: data,
+          })
+        );
+      } catch {}
+    });
+
     // 4. Notificaciones del sistema y reportes compartidos
     es.addEventListener('notification:new', (e: MessageEvent) => {
       try {

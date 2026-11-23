@@ -10,7 +10,9 @@ export default defineConfig({
     },
   },
   server: {
+    host: '0.0.0.0', // Escucha en todas las interfaces (LAN + localhost)
     port: 5173,
+    strictPort: true, // Evita que cambie de puerto silenciosamente si el 5173 está ocupado
     proxy: {
       '/api': {
         target: 'http://localhost:3000',

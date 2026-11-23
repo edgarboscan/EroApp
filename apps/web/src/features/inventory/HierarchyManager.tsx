@@ -32,6 +32,10 @@ interface HierarchyNode {
   code: string;
   name: string;
   description?: string | null;
+  profitMargin?: number | null;
+  effectiveMargin?: number | null;
+  departmentMargin?: number | null;
+  groupMargin?: number | null;
   type?: "department" | "group" | "subgroup";
   parentId?: string;
   groupsCount?: number;
@@ -51,6 +55,7 @@ interface ModalState {
   code: string;
   name: string;
   description: string;
+  profitMargin: string;
 }
 
 const normalizeString = (value: string): string => {
@@ -91,6 +96,7 @@ export const HierarchyManager: React.FC = () => {
     code: "",
     name: "",
     description: "",
+    profitMargin: "",
   });
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
@@ -285,6 +291,7 @@ export const HierarchyManager: React.FC = () => {
       code: "",
       name: "",
       description: "",
+      profitMargin: "",
     });
   };
 
@@ -298,6 +305,10 @@ export const HierarchyManager: React.FC = () => {
       code: item.code,
       name: item.name,
       description: item.description || "",
+      profitMargin:
+        item.profitMargin !== null && item.profitMargin !== undefined
+          ? String(item.profitMargin)
+          : "",
     });
   };
 
@@ -309,11 +320,17 @@ export const HierarchyManager: React.FC = () => {
       return;
     }
 
-    const { level, isEdit, id, code, name, description } = modalState;
+    const { level, isEdit, id, code, name, description, profitMargin } = modalState;
     const headers = {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
+
+    const parsedMargin = profitMargin.trim() !== "" ? parseFloat(profitMargin) : null;
+    if (parsedMargin !== null && (isNaN(parsedMargin) || parsedMargin < 0 || parsedMargin > 999.99)) {
+      toast.error("El margen de ganancia debe ser un porcentaje válido entre 0 y 999.99%");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -323,6 +340,7 @@ export const HierarchyManager: React.FC = () => {
         code: code.trim().toUpperCase(),
         name: name.trim(),
         description: description.trim() || null,
+        profitMargin: parsedMargin,
       };
 
       if (level === "department") {
@@ -735,6 +753,11 @@ export const HierarchyManager: React.FC = () => {
                             &bull; {productsCount} {productsCount === 1 ? "prod." : "prods."}
                           </span>
                         )}
+                        {dept.profitMargin !== null && dept.profitMargin !== undefined && (
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-medium">
+                            Margen: {Number(dept.profitMargin).toFixed(1)}%
+                          </span>
+                        )}
                       </div>
                       <div className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">
                         {dept.name}
@@ -930,6 +953,18 @@ export const HierarchyManager: React.FC = () => {
                             &bull; {productsCount} {productsCount === 1 ? "prod." : "prods."}
                           </span>
                         )}
+                        {grp.profitMargin !== null && grp.profitMargin !== undefined ? (
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-medium">
+                            Margen: {Number(grp.profitMargin).toFixed(1)}%
+                          </span>
+                        ) : grp.effectiveMargin ? (
+                          <span
+                            className="text-[10px] px-1.5 py-0.2 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700 font-normal"
+                            title="Heredado del departamento"
+                          >
+                            Heredado: {Number(grp.effectiveMargin).toFixed(1)}%
+                          </span>
+                        ) : null}
                       </div>
                       <div className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">
                         {grp.name}
@@ -1111,6 +1146,18 @@ export const HierarchyManager: React.FC = () => {
                             &bull; {productsCount} {productsCount === 1 ? "prod." : "prods."}
                           </span>
                         )}
+                        {sub.profitMargin !== null && sub.profitMargin !== undefined ? (
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-medium">
+                            Margen: {Number(sub.profitMargin).toFixed(1)}%
+                          </span>
+                        ) : sub.effectiveMargin ? (
+                          <span
+                            className="text-[10px] px-1.5 py-0.2 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700 font-normal"
+                            title="Heredado del grupo o departamento"
+                          >
+                            Heredado: {Number(sub.effectiveMargin).toFixed(1)}%
+                          </span>
+                        ) : null}
                       </div>
                       <div className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">
                         {sub.name}
@@ -1239,6 +1286,40 @@ export const HierarchyManager: React.FC = () => {
               }
               disabled={isSubmitting}
             />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                Margen de Ganancia Preestablecido (%)
+              </label>
+              {modalState.level !== "department" && (
+                <span className="text-[11px] text-neutral-400">
+                  Hereda del nivel superior si se deja vacío
+                </span>
+              )}
+            </div>
+            <div className="relative">
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                max="999.99"
+                placeholder={modalState.level === "department" ? "Ej. 30.00" : "Heredar del nivel superior"}
+                value={modalState.profitMargin}
+                onChange={(e) =>
+                  setModalState({ ...modalState, profitMargin: e.target.value })
+                }
+                disabled={isSubmitting}
+                className="pr-8"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-neutral-400 pointer-events-none">
+                %
+              </span>
+            </div>
+            <span className="text-[11px] text-neutral-400 mt-1 block">
+              Margen sugerido para calcular precios de venta en recepciones y compras de productos pertenecientes a este nivel.
+            </span>
           </div>
 
           <div className="flex justify-end gap-3 pt-3 border-t border-neutral-200 dark:border-neutral-800">

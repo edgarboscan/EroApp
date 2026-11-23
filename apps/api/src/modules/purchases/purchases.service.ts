@@ -511,6 +511,24 @@ export class PurchasesService {
         }
       }
 
+      // 2.1 Procesar ajustes o actualizaciones de precio de venta decididas por el usuario
+      if (input.priceAdjustments && input.priceAdjustments.length > 0) {
+        for (const adj of input.priceAdjustments) {
+          if ((adj.action === 'ADJUST' || adj.action === 'CUSTOM') && adj.newPrice && Number(adj.newPrice) > 0) {
+            await conn.execute(
+              `UPDATE products SET base_price = ?, updated_at = NOW() WHERE id = ? AND company_id = ?`,
+              [Number(adj.newPrice), adj.productId, companyId]
+            );
+
+            // Actualizar presentación principal (unidad)
+            await conn.execute(
+              `UPDATE product_presentations SET base_price = ? WHERE product_id = ? AND multiplier = 1`,
+              [Number(adj.newPrice), adj.productId]
+            );
+          }
+        }
+      }
+
       // 3. Si hay orden de compra asociada, evaluar si se completó o quedó parcial
       if (input.purchaseOrderId) {
         const [orderItems] = await conn.execute<any[]>(
@@ -779,12 +797,13 @@ export class PurchasesService {
 
         await conn.execute(
           `INSERT INTO purchase_payments (
-            id, invoice_id, payable_id, method, amount_ves, amount_usd,
+            id, invoice_id, payable_id, bank_account_id, method, amount_ves, amount_usd,
             exchange_rate, reference_number, notes
-          ) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?)`,
+          ) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)`,
           [
             paymentId,
             invoiceId,
+            input.bankAccountId || null,
             pMethod,
             amountVES,
             amountUSD,
@@ -851,5 +870,90 @@ export class PurchasesService {
         status: input.isCredit ? 'PENDING' : 'PAID',
       };
     });
+  }
+
+  /**
+   * Analiza variaciones de costos de productos recibidos en comparación con el costo registrado
+   * y calcula los precios de venta sugeridos basados en la jerarquía de clasificación
+   */
+  static async checkCostVariations(companyId: string, items: Array<{ productId: string; unitCost: number }>) {
+    if (!items || items.length === 0) return [];
+
+    const productIds = Array.from(new Set(items.map((i) => i.productId)));
+    const rows = await query<any>(
+      `SELECT p.id, p.sku, p.name, p.cost_price as currentCost, p.base_price as currentPrice,
+              p.department_id, p.group_id, p.subgroup_id,
+              d.name as departmentName, g.name as groupName, sg.name as subgroupName,
+              COALESCE(p.profit_margin, sg.profit_margin, g.profit_margin, d.profit_margin, 0) as hierarchyMargin,
+              p.profit_margin as productMargin,
+              sg.profit_margin as subgroupMargin,
+              g.profit_margin as groupMargin,
+              d.profit_margin as departmentMargin
+       FROM products p
+       LEFT JOIN departments d ON p.department_id = d.id
+       LEFT JOIN \`groups\` g ON p.group_id = g.id
+       LEFT JOIN subgroups sg ON p.subgroup_id = sg.id
+       WHERE p.id IN (${productIds.map(() => '?').join(',')}) AND p.company_id = ?`,
+      [...productIds, companyId]
+    );
+
+    const productMap = new Map<string, any>();
+    for (const r of rows) {
+      productMap.set(r.id, r);
+    }
+
+    const variations = [];
+    for (const item of items) {
+      const prod = productMap.get(item.productId);
+      if (!prod) continue;
+
+      const currentCost = Number(prod.currentCost || 0);
+      const newCost = Number(item.unitCost || 0);
+      const currentPrice = Number(prod.currentPrice || 0);
+      const hierarchyMargin = Number(prod.hierarchyMargin || 0);
+
+      // Variación de costo
+      const costDifference = Number((newCost - currentCost).toFixed(4));
+      const hasVariation = currentCost > 0 ? Math.abs(costDifference) > 0.001 : newCost > 0;
+      const costPercentageChange = currentCost > 0 ? Number(((costDifference / currentCost) * 100).toFixed(2)) : 0;
+
+      // Margen previo que tenía el producto respecto a su costo
+      const previousMargin = currentCost > 0 && currentPrice > currentCost
+        ? Number((((currentPrice - currentCost) / currentCost) * 100).toFixed(2))
+        : 0;
+
+      // Margen a aplicar: si la jerarquía tiene margen preestablecido (> 0) se usa, de lo contrario se usa el margen anterior
+      const effectiveMarginToUse = hierarchyMargin > 0 ? hierarchyMargin : previousMargin;
+
+      const suggestedPrice = effectiveMarginToUse > 0
+        ? Number((newCost * (1 + effectiveMarginToUse / 100)).toFixed(2))
+        : currentPrice;
+
+      const projectedMarginIfKept = newCost > 0
+        ? Number((((currentPrice - newCost) / newCost) * 100).toFixed(2))
+        : 0;
+
+      const hierarchyParts = [prod.departmentName, prod.groupName, prod.subgroupName].filter(Boolean);
+      const hierarchyPath = hierarchyParts.length > 0 ? hierarchyParts.join(' > ') : 'General';
+
+      variations.push({
+        productId: prod.id,
+        sku: prod.sku,
+        productName: prod.name,
+        hierarchy: hierarchyPath,
+        hierarchyMargin,
+        currentCost,
+        newCost,
+        costDifference,
+        costPercentageChange,
+        currentPrice,
+        suggestedPrice,
+        currentMargin: previousMargin,
+        projectedMarginIfKept,
+        hasVariation,
+      });
+    }
+
+    return variations;
   }
 }

@@ -38,6 +38,9 @@ import {
   Package,
   Boxes,
   Utensils,
+  Sparkles,
+  ExternalLink,
+  CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { showLeaveCartAlert, showClearCartAlert } from "../../lib/sweetalert";
@@ -284,6 +287,76 @@ export const POSRegister: React.FC = () => {
     useState(false);
   const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
   const [newCustomerError, setNewCustomerError] = useState<string | null>(null);
+  const [isLookingUpPosRif, setIsLookingUpPosRif] = useState(false);
+  const [posRifDiagnostic, setPosRifDiagnostic] = useState<{
+    isValidChecksum?: boolean;
+    source?: string;
+    seniatPortalUrl?: string;
+    message?: string;
+  } | null>(null);
+
+  const handlePosLookupRif = async (targetRif?: string) => {
+    const rawRif = (targetRif || `${newCustomerDocType}${newCustomerDocNumber}`).trim();
+    if (!rawRif || rawRif.length < 3) return;
+
+    setIsLookingUpPosRif(true);
+    try {
+      const res = await fetch(`/api/customers/lookup-rif/${encodeURIComponent(rawRif)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          const d = json.data;
+          if (d.docType && ["V", "E", "J", "G", "P"].includes(d.docType)) {
+            setNewCustomerDocType(d.docType as any);
+          }
+          if (d.docNumber) {
+            setNewCustomerDocNumber(d.docNumber);
+          }
+          if (d.customer?.name) {
+            setNewCustomerName(d.customer.name);
+          }
+          if (d.customer?.phone) {
+            setNewCustomerPhone(d.customer.phone);
+          }
+          if (d.customer?.email) {
+            setNewCustomerEmail(d.customer.email);
+          }
+          if (d.customer?.address) {
+            setNewCustomerAddress(d.customer.address);
+          }
+          if (d.customer?.isSpecialTaxpayer !== undefined) {
+            setNewCustomerIsSpecialTaxpayer(Boolean(d.customer.isSpecialTaxpayer));
+          }
+
+          let sourceLabel = "Algoritmo SENIAT (Módulo 11)";
+          if (d.source === "existing_customer") sourceLabel = "Registro previo de cliente";
+          else if (d.source === "existing_supplier") sourceLabel = "Directorio de proveedores";
+          else if (d.source === "external_api") sourceLabel = "API SENIAT Externa";
+
+          setPosRifDiagnostic({
+            isValidChecksum: d.isValidChecksum,
+            source: d.source,
+            seniatPortalUrl: d.seniatPortalUrl,
+            message: d.foundInDatabase
+              ? `Datos autocompletados desde: ${sourceLabel}`
+              : d.isValidChecksum
+                ? `Módulo 11 válido (${d.personType}). Corrobore en SENIAT.`
+                : `Atención: El dígito verificador no coincide con la fórmula matemática del SENIAT.`,
+          });
+
+          if (d.foundInDatabase) {
+            toast.success(`Datos fiscales autocompletados desde ${sourceLabel}`);
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn("Error en lookup RIF en POS:", err);
+    } finally {
+      setIsLookingUpPosRif(false);
+    }
+  };
 
   // Modal de Pago
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -3672,19 +3745,94 @@ export const POSRegister: React.FC = () => {
               </select>
             </div>
             <div className="col-span-2">
-              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
-                Cédula / RIF *
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block font-semibold text-neutral-700 dark:text-neutral-300">
+                  Cédula / RIF *
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handlePosLookupRif()}
+                    disabled={isLookingUpPosRif || !newCustomerDocNumber.trim()}
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-600 dark:text-sky-400 hover:text-sky-700 disabled:opacity-50 cursor-pointer"
+                    title="Validar formato Módulo 11 y autocompletar desde el directorio interno"
+                  >
+                    {isLookingUpPosRif ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Sparkles className="w-3 h-3" />
+                    )}
+                    <span>Autocompletar</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const clean = `${newCustomerDocType}${newCustomerDocNumber}`.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+                      window.open(
+                        `https://contribuyente.seniat.gob.ve/BuscaRif/BuscaRif.jsp?p_rif=${clean}`,
+                        "_blank",
+                        "width=780,height=580,scrollbars=yes"
+                      );
+                    }}
+                    disabled={!newCustomerDocNumber.trim()}
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 disabled:opacity-50 cursor-pointer"
+                    title="Verificar en portal oficial SENIAT"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    <span>SENIAT</span>
+                  </button>
+                </div>
+              </div>
               <input
                 type="text"
                 required
                 value={newCustomerDocNumber}
-                onChange={(e) => setNewCustomerDocNumber(e.target.value)}
-                placeholder="Ej: 18222333 ó 30555666-0"
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  const cleanUpper = raw.trim().toUpperCase();
+                  const match = cleanUpper.match(/^([VEJGP])[- ]?(\d+[-]?\d*)$/);
+                  if (match) {
+                    setNewCustomerDocType(match[1] as any);
+                    setNewCustomerDocNumber(match[2].replace(/[^0-9]/g, ""));
+                    handlePosLookupRif(`${match[1]}${match[2].replace(/[^0-9]/g, "")}`);
+                  } else {
+                    setNewCustomerDocNumber(raw);
+                  }
+                }}
+                onBlur={() => {
+                  const clean = newCustomerDocNumber.replace(/[^0-9]/g, "");
+                  if (clean.length >= 7 && !newCustomerName.trim()) {
+                    handlePosLookupRif(`${newCustomerDocType}${clean}`);
+                  }
+                }}
+                placeholder="Ej: 18222333 ó J-30555666-0"
                 className="w-full h-9 px-3 border border-neutral-300 dark:border-neutral-700 rounded-lg font-mono bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
               />
             </div>
           </div>
+
+          {posRifDiagnostic && (
+            <div
+              className={`p-2 rounded-lg border text-[11px] flex items-center justify-between gap-2 ${
+                posRifDiagnostic.source === "existing_customer" ||
+                posRifDiagnostic.source === "existing_supplier" ||
+                posRifDiagnostic.source === "external_api"
+                  ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200"
+                  : posRifDiagnostic.isValidChecksum
+                    ? "bg-sky-50 dark:bg-sky-950/40 border-sky-300 dark:border-sky-800 text-sky-800 dark:text-sky-200"
+                    : "bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-200"
+              }`}
+            >
+              <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                {posRifDiagnostic.isValidChecksum ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                ) : (
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                )}
+                <span className="truncate">{posRifDiagnostic.message}</span>
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
@@ -3844,6 +3992,7 @@ export const POSRegister: React.FC = () => {
               type="button"
               onClick={() => {
                 setNewCustomerName(customerSearchQuery);
+                setPosRifDiagnostic(null);
                 setIsNewCustomerModalOpen(true);
               }}
               className="h-10 px-3 text-xs whitespace-nowrap"
@@ -3870,6 +4019,7 @@ export const POSRegister: React.FC = () => {
                         onClick={() => {
                           setNewCustomerName(customerSearchQuery);
                           setNewCustomerDocNumber("");
+                          setPosRifDiagnostic(null);
                           setIsNewCustomerModalOpen(true);
                         }}
                       >
@@ -3983,7 +4133,17 @@ export const POSRegister: React.FC = () => {
                 <input
                   type="text"
                   value={customerDocNumber}
-                  onChange={(e) => setCustomerDocNumber(e.target.value)}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    const cleanUpper = raw.trim().toUpperCase();
+                    const match = cleanUpper.match(/^([VEJGP])[- ]?(\d+[-]?\d*)$/);
+                    if (match) {
+                      setCustomerDocType(match[1] as any);
+                      setCustomerDocNumber(match[2].replace(/[^0-9]/g, ""));
+                    } else {
+                      setCustomerDocNumber(raw);
+                    }
+                  }}
                   placeholder="Doc / RIF"
                   className="w-full h-8 px-2.5 text-xs border border-neutral-300 dark:border-neutral-700 rounded-lg font-mono bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 />

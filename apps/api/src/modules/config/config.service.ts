@@ -7,6 +7,7 @@ import {
   UpdateWarehouseInput,
   UpdateBusinessRulesInput,
   CompanySmtpConfigInput,
+  isSuperAdminRole,
 } from '@ero/shared';
 import crypto from 'crypto';
 import { LicensesService } from '../licenses/licenses.service';
@@ -1086,6 +1087,7 @@ export class ConfigService {
          LEFT JOIN role_permissions rp ON r.id = rp.role_id
          LEFT JOIN permissions p ON rp.permission_id = p.id
          WHERE (r.company_id = ? OR r.is_system = 1 OR r.company_id IS NULL)
+           AND LOWER(TRIM(REPLACE(r.name, ' ', ''))) NOT IN ('superadmin', 'superadministrador', 'super_admin')
          GROUP BY r.id
          ORDER BY r.is_system DESC, r.name ASC`,
         [companyId]
@@ -1172,6 +1174,13 @@ export class ConfigService {
   }) {
     if (input.isActive !== false) {
       await LicensesService.checkUserLimit(companyId);
+    }
+
+    if (input.roleId) {
+      const roleCheck = await query<any>(`SELECT name FROM roles WHERE id = ? LIMIT 1`, [input.roleId]);
+      if (roleCheck.length > 0 && isSuperAdminRole(roleCheck[0].name)) {
+        throw new Error('No está permitido asignar el rol de Super Administrador.');
+      }
     }
 
     const id = crypto.randomUUID();
@@ -1313,6 +1322,10 @@ export class ConfigService {
         values.push(input.fullName.trim());
       }
       if (input.roleId) {
+        const roleCheck = await query<any>(`SELECT name FROM roles WHERE id = ? LIMIT 1`, [input.roleId]);
+        if (roleCheck.length > 0 && isSuperAdminRole(roleCheck[0].name)) {
+          throw new Error('No está permitido asignar el rol de Super Administrador.');
+        }
         updates.push('role_id = ?');
         values.push(input.roleId);
       }

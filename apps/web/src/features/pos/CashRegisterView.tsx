@@ -339,6 +339,16 @@ export const CashRegisterView: React.FC = () => {
   // Cierre de turno (Arqueo de cajero)
   const handleCloseShift = async () => {
     if (!currentShift) return;
+
+    const shiftDiffUSD = Number(((Number(countedCashUSD) || 0) - (currentShift.expectedCashUSD || 0)).toFixed(2));
+    const shiftDiffVES = Number(((Number(countedCashVES) || 0) - (currentShift.expectedCashVES || 0)).toFixed(2));
+    const isMajorDiscrepancy = Math.abs(shiftDiffUSD) >= 1.00 || Math.abs(shiftDiffVES) >= 50.00;
+
+    if (isMajorDiscrepancy && !closeNotes.trim()) {
+      toast.error('El arqueo presenta un descuadre significativo. Debe ingresar una justificación obligatoria en las observaciones antes de confirmar el cierre.');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const res = await fetch('/api/pos/shifts/close', {
@@ -756,12 +766,12 @@ export const CashRegisterView: React.FC = () => {
 
       {loading ? (
         <div className="space-y-4">
-          <div className="h-28 bg-neutral-200 rounded-lg animate-pulse" />
+          <div className="h-28 bg-neutral-200/80 dark:bg-neutral-800 rounded-lg animate-pulse" />
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="h-24 bg-neutral-200 rounded-lg animate-pulse" />
-            <div className="h-24 bg-neutral-200 rounded-lg animate-pulse" />
-            <div className="h-24 bg-neutral-200 rounded-lg animate-pulse" />
-            <div className="h-24 bg-neutral-200 rounded-lg animate-pulse" />
+            <div className="h-24 bg-neutral-200/60 dark:bg-neutral-800/60 rounded-lg animate-pulse" />
+            <div className="h-24 bg-neutral-200/60 dark:bg-neutral-800/60 rounded-lg animate-pulse" />
+            <div className="h-24 bg-neutral-200/60 dark:bg-neutral-800/60 rounded-lg animate-pulse" />
+            <div className="h-24 bg-neutral-200/60 dark:bg-neutral-800/60 rounded-lg animate-pulse" />
           </div>
         </div>
       ) : activeTab === 'SHIFT' ? (
@@ -1183,36 +1193,61 @@ export const CashRegisterView: React.FC = () => {
               </div>
             </div>
 
-            {/* Dictamen de Cuadre / Alerta de Auditoría */}
-            {diffUSD !== 0 || diffVES !== 0 ? (
-              <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 rounded-lg border border-amber-300 dark:border-amber-700 flex items-start gap-2.5">
-                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <p className="font-bold text-amber-900 dark:text-amber-200 text-xs">
-                    Aviso de Discrepancia en Arqueo
-                  </p>
-                  <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
-                    El conteo físico de gaveta no coincide con el saldo esperado del sistema (
-                    {diffUSD !== 0 ? `USD: ${diffUSD > 0 ? '+' : ''}${formatMoneyUSD(diffUSD)} ` : ''}
-                    {diffVES !== 0 ? `VES: ${diffVES > 0 ? '+' : ''}${formatMoneyVES(diffVES)}` : ''}
-                    ).
-                  </p>
-                  <p className="text-[11px] text-amber-900 dark:text-amber-200 font-medium">
-                    Al confirmar el cierre, el sistema generará automáticamente un <strong>Reporte de Auditoría</strong> y notificará al personal supervisor y gerencia para su revisión y dictamen.
-                  </p>
+            {/* Dictamen de Cuadre / Alerta de Auditoría con Semáforo */}
+            {(() => {
+              const isMajor = Math.abs(diffUSD) >= 1.00 || Math.abs(diffVES) >= 50.00;
+              const hasDiff = diffUSD !== 0 || diffVES !== 0;
+
+              if (!hasDiff) {
+                return (
+                  <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg border border-emerald-300 dark:border-emerald-700 flex items-start gap-2.5">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold text-emerald-900 dark:text-emerald-200 text-xs">Arqueo Cuadrado Exitosamente</p>
+                      <p className="text-[11px] text-emerald-800 dark:text-emerald-300 leading-relaxed mt-0.5">
+                        El efectivo físico contado coincide exactamente con las ventas en efectivo y movimientos registrados durante el turno.
+                      </p>
+                    </div>
+                  </div>
+                );
+              }
+
+              if (isMajor) {
+                return (
+                  <div className="p-3.5 bg-rose-50 dark:bg-rose-950/40 rounded-lg border border-rose-300 dark:border-rose-700 flex items-start gap-2.5">
+                    <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="font-bold text-rose-900 dark:text-rose-200 text-xs">
+                        Alerta: Descuadre Significativo Detectado (Justificación Obligatoria)
+                      </p>
+                      <p className="text-[11px] text-rose-800 dark:text-rose-300 leading-relaxed">
+                        La diferencia supera el umbral de tolerancia permitido (
+                        {diffUSD !== 0 ? `USD: ${diffUSD > 0 ? '+' : ''}${formatMoneyUSD(diffUSD)} ` : ''}
+                        {diffVES !== 0 ? `VES: ${diffVES > 0 ? '+' : ''}${formatMoneyVES(diffVES)}` : ''}
+                        ). Es obligatorio ingresar la justificación del motivo en el campo inferior antes de confirmar el cierre.
+                      </p>
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 rounded-lg border border-amber-300 dark:border-amber-700 flex items-start gap-2.5">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="font-bold text-amber-900 dark:text-amber-200 text-xs">
+                      Aviso de Discrepancia Menor en Arqueo
+                    </p>
+                    <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
+                      El conteo físico de gaveta presenta una diferencia menor dentro de tolerancia (
+                      {diffUSD !== 0 ? `USD: ${diffUSD > 0 ? '+' : ''}${formatMoneyUSD(diffUSD)} ` : ''}
+                      {diffVES !== 0 ? `VES: ${diffVES > 0 ? '+' : ''}${formatMoneyVES(diffVES)}` : ''}
+                      ). Se registrará en la bitácora de auditoría para revisión de supervisión.
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg border border-emerald-300 dark:border-emerald-700 flex items-start gap-2.5">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold text-emerald-900 dark:text-emerald-200 text-xs">Arqueo Cuadrado Exitosamente</p>
-                  <p className="text-[11px] text-emerald-800 dark:text-emerald-300 leading-relaxed mt-0.5">
-                    El efectivo físico contado coincide exactamente con las ventas en efectivo y movimientos registrados durante el turno.
-                  </p>
-                </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Nota sobre el flujo de depósitos bancarios */}
             <div className="p-3 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg border border-neutral-200 dark:border-neutral-700 flex items-center gap-2 text-neutral-600 dark:text-neutral-400 text-[11px]">
@@ -1224,14 +1259,18 @@ export const CashRegisterView: React.FC = () => {
 
             <div>
               <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
-                Observaciones / Justificación del Cajero
+                Observaciones / Justificación del Cajero {(Math.abs(diffUSD) >= 1.00 || Math.abs(diffVES) >= 50.00) && <span className="text-red-500 font-bold">* (Obligatorio por Descuadre)</span>}
               </label>
               <input
                 type="text"
                 value={closeNotes}
                 onChange={(e) => setCloseNotes(e.target.value)}
-                className="w-full h-9 px-3 border border-neutral-300 dark:border-neutral-700 rounded-lg text-xs bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 focus-visible:ring-2 focus-visible:ring-sky-500"
-                placeholder="Ej: Justificación de diferencias en conteo, billetes deteriorados o incidencias en turno"
+                className={`w-full h-9 px-3 border rounded-lg text-xs bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 focus-visible:ring-2 focus-visible:ring-sky-500 ${
+                  (Math.abs(diffUSD) >= 1.00 || Math.abs(diffVES) >= 50.00) && !closeNotes.trim()
+                    ? 'border-red-500 focus-visible:ring-red-500'
+                    : 'border-neutral-300 dark:border-neutral-700'
+                }`}
+                placeholder="Ej: Justificación detallada de diferencias en conteo, billetes falsificados o incidencias en turno"
               />
             </div>
           </div>

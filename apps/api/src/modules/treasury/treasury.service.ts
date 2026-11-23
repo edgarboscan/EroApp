@@ -214,12 +214,25 @@ export class TreasuryService {
     const accountId = data.id || crypto.randomUUID();
     const initBalance = data.initialBalance || 0;
 
+    // Resolver cuenta contable automáticamente por moneda si no se especificó
+    let accountingAccId = data.accountingAccountId || null;
+    if (!accountingAccId) {
+      const defaultCode = data.currency === 'USD' ? '1.1.01.06' : '1.1.01.04';
+      const accRows = await query<any>(
+        'SELECT id FROM accounting_accounts WHERE company_id = ? AND code = ? LIMIT 1',
+        [companyId, defaultCode]
+      );
+      if (accRows && accRows.length > 0) {
+        accountingAccId = accRows[0].id;
+      }
+    }
+
     return await withTransaction(async (conn) => {
       await conn.query(
         `INSERT INTO bank_accounts (
           id, company_id, bank_id, branch_id, account_number, account_type, currency,
-          description, current_balance, is_active
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          description, current_balance, is_active, accounting_account_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           accountId,
           companyId,
@@ -231,6 +244,7 @@ export class TreasuryService {
           data.description.trim(),
           initBalance,
           data.isActive !== undefined ? (data.isActive ? 1 : 0) : 1,
+          accountingAccId,
         ]
       );
 
@@ -357,6 +371,16 @@ export class TreasuryService {
     const movementId = crypto.randomUUID();
     const isReconciled = Boolean(data.isReconciled);
 
+    let formattedMovementDate: string;
+    try {
+      const d = data.movementDate ? new Date(data.movementDate) : new Date();
+      formattedMovementDate = isNaN(d.getTime())
+        ? new Date().toISOString().slice(0, 19).replace('T', ' ')
+        : d.toISOString().slice(0, 19).replace('T', ' ');
+    } catch {
+      formattedMovementDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    }
+
     return await withTransaction(async (conn) => {
       // 1. Update account balance
       await conn.query(
@@ -377,7 +401,7 @@ export class TreasuryService {
           data.movementType,
           delta,
           balanceAfter,
-          data.movementDate || new Date().toISOString().slice(0, 19).replace('T', ' '),
+          formattedMovementDate,
           data.referenceNumber || null,
           data.concept.trim(),
           isReconciled ? 1 : 0,

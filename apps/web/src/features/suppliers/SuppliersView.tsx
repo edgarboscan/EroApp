@@ -35,6 +35,11 @@ import {
   ExternalLink,
   Sparkles,
   Loader2,
+  Landmark,
+  CreditCard,
+  Smartphone,
+  Copy,
+  Check,
 } from "lucide-react";
 
 interface Supplier {
@@ -59,6 +64,17 @@ interface Supplier {
   totalPurchasesCount?: number;
   lastPurchaseDate?: string;
   productsCount?: number;
+  bankName?: string | null;
+  accountNumber?: string | null;
+  accountType?: string | null;
+  accountHolderName?: string | null;
+  accountHolderId?: string | null;
+  pagoMovilBank?: string | null;
+  pagoMovilPhone?: string | null;
+  pagoMovilId?: string | null;
+  zelleEmail?: string | null;
+  zelleHolderName?: string | null;
+  bankNotes?: string | null;
 }
 
 interface SupplierProduct {
@@ -99,6 +115,30 @@ interface CatalogProduct {
   costPriceUsd?: number;
 }
 
+export const VENEZUELAN_BANKS = [
+  { code: '0102', name: 'Banco de Venezuela S.A.C.A.' },
+  { code: '0134', name: 'Banesco Banco Universal' },
+  { code: '0105', name: 'Banco Mercantil C.A.' },
+  { code: '0108', name: 'BBVA Banco Provincial' },
+  { code: '0172', name: 'Bancamiga Banco Universal' },
+  { code: '0191', name: 'Banco Nacional de Crédito (BNC)' },
+  { code: '0114', name: 'Bancaribe C.A.' },
+  { code: '0115', name: 'Banco Exterior C.A.' },
+  { code: '0171', name: 'Banco Activo Banco Universal' },
+  { code: '0166', name: 'Banco Agrícola de Venezuela' },
+  { code: '0175', name: 'Banco Bicentenario del Pueblo' },
+  { code: '0128', name: 'Banco Caroní C.A.' },
+  { code: '0163', name: 'Banco del Tesoro' },
+  { code: '0174', name: 'Banplus Banco Universal' },
+  { code: '0151', name: 'BFC Banco Fondo Común' },
+  { code: '0156', name: '100% Banco' },
+  { code: '0138', name: 'Banco Plaza' },
+  { code: '0137', name: 'Banco Sofitasa' },
+  { code: '0169', name: 'Mi Banco' },
+  { code: '0177', name: 'BANFANB' },
+  { code: 'OTHER', name: 'Otro Banco / Internacional' },
+];
+
 export const SuppliersView: React.FC = () => {
   const navigate = useNavigate();
   const { token, hasPermission } = useAuthStore();
@@ -115,6 +155,7 @@ export const SuppliersView: React.FC = () => {
   // Supplier Form Modal (Create / Edit)
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingSupplierId, setEditingSupplierId] = useState<string | null>(null);
+  const [formActiveTab, setFormActiveTab] = useState<"fiscal" | "banking">("fiscal");
   const [formData, setFormData] = useState({
     rif: "",
     name: "",
@@ -129,7 +170,31 @@ export const SuppliersView: React.FC = () => {
     creditLimit: 0,
     paymentTermsDays: 15,
     isActive: true,
+    bankName: "",
+    accountNumber: "",
+    accountType: "CURRENT",
+    accountHolderName: "",
+    accountHolderId: "",
+    pagoMovilBank: "",
+    pagoMovilPhone: "",
+    pagoMovilId: "",
+    zelleEmail: "",
+    zelleHolderName: "",
+    bankNotes: "",
   });
+
+  // Modal Ficha Bancaria Rápida
+  const [selectedSupplierForBankInfo, setSelectedSupplierForBankInfo] = useState<Supplier | null>(null);
+  const [isBankModalOpen, setIsBankModalOpen] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const handleCopyText = (text: string, key: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    toast.success("Copiado al portapapeles");
+    setTimeout(() => setCopiedKey(null), 2000);
+  };
 
   // Diagnóstico y Autocompletado de RIF SENIAT
   const [isLookingUpRif, setIsLookingUpRif] = useState(false);
@@ -257,6 +322,7 @@ export const SuppliersView: React.FC = () => {
   const handleOpenCreateModal = () => {
     setEditingSupplierId(null);
     setRifDiagnostic(null);
+    setFormActiveTab("fiscal");
     setFormData({
       rif: "",
       name: "",
@@ -271,6 +337,17 @@ export const SuppliersView: React.FC = () => {
       creditLimit: 0,
       paymentTermsDays: 15,
       isActive: true,
+      bankName: "",
+      accountNumber: "",
+      accountType: "CURRENT",
+      accountHolderName: "",
+      accountHolderId: "",
+      pagoMovilBank: "",
+      pagoMovilPhone: "",
+      pagoMovilId: "",
+      zelleEmail: "",
+      zelleHolderName: "",
+      bankNotes: "",
     });
     setIsFormModalOpen(true);
   };
@@ -279,6 +356,7 @@ export const SuppliersView: React.FC = () => {
   const handleOpenEditModal = (sup: Supplier) => {
     setEditingSupplierId(sup.id);
     setRifDiagnostic(null);
+    setFormActiveTab("fiscal");
     setFormData({
       rif: sup.rif || "",
       name: sup.name || "",
@@ -293,6 +371,17 @@ export const SuppliersView: React.FC = () => {
       creditLimit: sup.creditLimit || 0,
       paymentTermsDays: sup.paymentTermsDays || 0,
       isActive: Boolean(sup.isActive),
+      bankName: sup.bankName || "",
+      accountNumber: sup.accountNumber || "",
+      accountType: sup.accountType || "CURRENT",
+      accountHolderName: sup.accountHolderName || "",
+      accountHolderId: sup.accountHolderId || "",
+      pagoMovilBank: sup.pagoMovilBank || "",
+      pagoMovilPhone: sup.pagoMovilPhone || "",
+      pagoMovilId: sup.pagoMovilId || "",
+      zelleEmail: sup.zelleEmail || "",
+      zelleHolderName: sup.zelleHolderName || "",
+      bankNotes: sup.bankNotes || "",
     });
     setIsFormModalOpen(true);
   };
@@ -778,6 +867,43 @@ export const SuppliersView: React.FC = () => {
                       )}
                     </div>
 
+                    {/* Banking Details Preview */}
+                    {Boolean(sup.bankName || sup.accountNumber || sup.pagoMovilPhone || sup.zelleEmail) && (
+                      <div className="mt-2.5 p-2 rounded-lg bg-sky-50/70 dark:bg-sky-950/20 border border-sky-100 dark:border-sky-900/40 text-[11px]">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-semibold text-sky-800 dark:text-sky-300 flex items-center gap-1 text-[11px]">
+                            <Landmark className="w-3 h-3 text-sky-600" />
+                            Datos Bancarios
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedSupplierForBankInfo(sup);
+                              setIsBankModalOpen(true);
+                            }}
+                            className="text-[10px] text-sky-600 dark:text-sky-400 font-medium hover:underline cursor-pointer"
+                          >
+                            Ver Ficha
+                          </button>
+                        </div>
+                        {sup.accountNumber && (
+                          <div className="font-mono text-neutral-700 dark:text-neutral-300 truncate" title={`${sup.bankName || 'Banco'}: ${sup.accountNumber}`}>
+                            {sup.bankName ? `${sup.bankName}: ` : ''}{sup.accountNumber}
+                          </div>
+                        )}
+                        {sup.pagoMovilPhone && !sup.accountNumber && (
+                          <div className="text-neutral-700 dark:text-neutral-300 truncate">
+                            Pago Móvil: {sup.pagoMovilPhone} ({sup.pagoMovilBank || 'Banco'})
+                          </div>
+                        )}
+                        {sup.zelleEmail && !sup.accountNumber && !sup.pagoMovilPhone && (
+                          <div className="text-neutral-700 dark:text-neutral-300 truncate">
+                            Zelle: {sup.zelleEmail}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Financial & Catalog Stats */}
                     <div className="mt-4 pt-3 border-t border-neutral-100 dark:border-neutral-800 grid grid-cols-2 gap-2 text-xs">
                       <div>
@@ -835,6 +961,19 @@ export const SuppliersView: React.FC = () => {
                       >
                         <History className="w-3.5 h-3.5 mr-1 text-amber-600" />
                         Histórico
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedSupplierForBankInfo(sup);
+                          setIsBankModalOpen(true);
+                        }}
+                        className="h-7 text-xs px-2 rounded-lg"
+                        title="Ver ficha bancaria del proveedor"
+                      >
+                        <Landmark className="w-3.5 h-3.5 mr-1 text-emerald-600" />
+                        Bancos
                       </Button>
                     </div>
 
@@ -1027,6 +1166,20 @@ export const SuppliersView: React.FC = () => {
                             Histórico
                           </Button>
 
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedSupplierForBankInfo(sup);
+                              setIsBankModalOpen(true);
+                            }}
+                            className="h-8 text-xs px-2 rounded-lg"
+                            title="Ver ficha bancaria del proveedor"
+                          >
+                            <Landmark className="w-3.5 h-3.5 text-emerald-600 mr-1" />
+                            Bancos
+                          </Button>
+
                           {canUpdate && (
                             <Button
                               variant="outline"
@@ -1088,214 +1241,523 @@ export const SuppliersView: React.FC = () => {
           onSubmit={handleSubmitSupplier}
           className="space-y-4 text-xs"
         >
-          {/* RIF y Datos Fiscales SENIAT */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
-                RIF (Fiscal SENIAT) *
-              </label>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleLookupRif()}
-                  disabled={isLookingUpRif || !formData.rif.trim()}
-                  className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 transition-colors disabled:opacity-50 cursor-pointer"
-                  title="Validar formato Módulo 11 y autocompletar desde el directorio interno"
-                >
-                  {isLookingUpRif ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                  ) : (
-                    <Sparkles className="w-3 h-3" />
-                  )}
-                  <span>Autocompletar</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const clean = formData.rif.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
-                    window.open(
-                      `https://contribuyente.seniat.gob.ve/BuscaRif/BuscaRif.jsp?p_rif=${clean}`,
-                      "_blank",
-                      "width=780,height=580,scrollbars=yes"
-                    );
-                  }}
-                  disabled={!formData.rif.trim()}
-                  className="inline-flex items-center gap-1 text-[11px] font-medium text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors disabled:opacity-50 cursor-pointer"
-                  title="Abrir portal oficial del SENIAT para corroborar razón social y condición de contribuyente"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                  <span>Portal SENIAT</span>
-                </button>
-              </div>
-            </div>
+          {/* Navegación por Pestañas: Fiscal/Comercial vs Información Bancaria */}
+          <div className="flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-2">
+            <button
+              type="button"
+              onClick={() => setFormActiveTab("fiscal")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                formActiveTab === "fiscal"
+                  ? "bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800"
+                  : "text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5" />
+              <span>Datos Fiscales y Comerciales</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFormActiveTab("banking")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                formActiveTab === "banking"
+                  ? "bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800"
+                  : "text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
+              }`}
+            >
+              <Landmark className="w-3.5 h-3.5" />
+              <span>Información Bancaria para Pagos</span>
+              {Boolean(formData.accountNumber || formData.pagoMovilPhone || formData.zelleEmail) && (
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+              )}
+            </button>
+          </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Input
-                placeholder="Ej. J-12345678-9"
-                value={formData.rif}
-                onChange={(e) => {
-                  const val = e.target.value.toUpperCase();
-                  setFormData({ ...formData, rif: val });
-                }}
-                onBlur={() => {
-                  const clean = formData.rif.replace(/[^A-Za-z0-9]/g, "");
-                  if (clean.length >= 8 && !formData.name.trim()) {
-                    handleLookupRif(clean);
-                  }
-                }}
-                required
-              />
-              <Input
-                placeholder="Nombre Comercial (ej. Distribuidora Polar C.A.)"
-                value={formData.commercialName}
-                onChange={(e) => setFormData({ ...formData, commercialName: e.target.value })}
-              />
-            </div>
-
-            {/* Banner de diagnóstico y validación tributaria SENIAT */}
-            {rifDiagnostic && (
-              <div
-                className={`p-2.5 rounded-lg border text-[11px] flex items-center justify-between gap-2 ${
-                  rifDiagnostic.source === "existing_supplier" ||
-                  rifDiagnostic.source === "existing_customer" ||
-                  rifDiagnostic.source === "external_api"
-                    ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300"
-                    : rifDiagnostic.isValidChecksum
-                      ? "bg-sky-50 dark:bg-sky-950/40 border-sky-200 dark:border-sky-800/60 text-sky-800 dark:text-sky-300"
-                      : "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300"
-                }`}
-              >
-                <div className="flex items-center gap-1.5 truncate">
-                  {rifDiagnostic.isValidChecksum ? (
-                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                  ) : (
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
-                  )}
-                  <span className="truncate">{rifDiagnostic.message}</span>
+          {formActiveTab === "fiscal" ? (
+            <div className="space-y-4">
+              {/* RIF y Datos Fiscales SENIAT */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                    RIF (Fiscal SENIAT) *
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleLookupRif()}
+                      disabled={isLookingUpRif || !formData.rif.trim()}
+                      className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 transition-colors disabled:opacity-50 cursor-pointer"
+                      title="Validar formato Módulo 11 y autocompletar desde el directorio interno"
+                    >
+                      {isLookingUpRif ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Sparkles className="w-3 h-3" />
+                      )}
+                      <span>Autocompletar</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const clean = formData.rif.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+                        window.open(
+                          `https://contribuyente.seniat.gob.ve/BuscaRif/BuscaRif.jsp?p_rif=${clean}`,
+                          "_blank",
+                          "width=780,height=580,scrollbars=yes"
+                        );
+                      }}
+                      disabled={!formData.rif.trim()}
+                      className="inline-flex items-center gap-1 text-[11px] font-medium text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors disabled:opacity-50 cursor-pointer"
+                      title="Abrir portal oficial del SENIAT para corroborar razón social y condición de contribuyente"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      <span>Portal SENIAT</span>
+                    </button>
+                  </div>
                 </div>
-                {rifDiagnostic.seniatPortalUrl && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      window.open(
-                        rifDiagnostic.seniatPortalUrl,
-                        "_blank",
-                        "width=780,height=580,scrollbars=yes"
-                      )
-                    }
-                    className="shrink-0 text-[10px] font-semibold underline hover:no-underline cursor-pointer"
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Input
+                    placeholder="Ej. J-12345678-9"
+                    value={formData.rif}
+                    onChange={(e) => {
+                      const val = e.target.value.toUpperCase();
+                      setFormData({ ...formData, rif: val });
+                    }}
+                    onBlur={() => {
+                      const clean = formData.rif.replace(/[^A-Za-z0-9]/g, "");
+                      if (clean.length >= 8 && !formData.name.trim()) {
+                        handleLookupRif(clean);
+                      }
+                    }}
+                    required
+                  />
+                  <Input
+                    placeholder="Nombre Comercial (ej. Distribuidora Polar C.A.)"
+                    value={formData.commercialName}
+                    onChange={(e) => setFormData({ ...formData, commercialName: e.target.value })}
+                  />
+                </div>
+
+                {/* Banner de diagnóstico y validación tributaria SENIAT */}
+                {rifDiagnostic && (
+                  <div
+                    className={`p-2.5 rounded-lg border text-[11px] flex items-center justify-between gap-2 ${
+                      rifDiagnostic.source === "existing_supplier" ||
+                      rifDiagnostic.source === "existing_customer" ||
+                      rifDiagnostic.source === "external_api"
+                        ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300"
+                        : rifDiagnostic.isValidChecksum
+                          ? "bg-sky-50 dark:bg-sky-950/40 border-sky-200 dark:border-sky-800/60 text-sky-800 dark:text-sky-300"
+                          : "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300"
+                    }`}
                   >
-                    Ver en SENIAT
-                  </button>
+                    <div className="flex items-center gap-1.5 truncate">
+                      {rifDiagnostic.isValidChecksum ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                      ) : (
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                      )}
+                      <span className="truncate">{rifDiagnostic.message}</span>
+                    </div>
+                    {rifDiagnostic.seniatPortalUrl && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          window.open(
+                            rifDiagnostic.seniatPortalUrl,
+                            "_blank",
+                            "width=780,height=580,scrollbars=yes"
+                          )
+                        }
+                        className="shrink-0 text-[10px] font-semibold underline hover:no-underline cursor-pointer"
+                      >
+                        Ver en SENIAT
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
 
-          <Input
-            label="Razón Social Completa *"
-            placeholder="Razón social registrada ante el SENIAT"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            required
-          />
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Input
-              label="Persona de Contacto"
-              placeholder="Nombre del asesor o vendedor"
-              value={formData.contactName}
-              onChange={(e) => setFormData({ ...formData, contactName: e.target.value })}
-            />
-            <Input
-              label="Teléfono de Contacto"
-              placeholder="+58 412 1234567"
-              value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-            />
-            <Input
-              label="Correo Electrónico"
-              type="email"
-              placeholder="ventas@proveedor.com"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-            />
-          </div>
-
-          <Input
-            label="Dirección Fiscal"
-            placeholder="Dirección fiscal completa, ciudad, estado"
-            value={formData.fiscalAddress}
-            onChange={(e) => setFormData({ ...formData, fiscalAddress: e.target.value })}
-          />
-
-          {/* Tax Conditions & Active Status */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg border border-neutral-200 dark:border-neutral-700">
-            <label className="flex items-center gap-2 text-xs font-medium text-neutral-700 dark:text-neutral-300 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={formData.isPersonNatural}
-                onChange={(e) =>
-                  setFormData({ ...formData, isPersonNatural: e.target.checked })
-                }
-                className="w-4 h-4 text-sky-600 rounded accent-sky-600"
+              <Input
+                label="Razón Social Completa *"
+                placeholder="Razón social registrada ante el SENIAT"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                required
               />
-              Persona Natural
-            </label>
-            <label className="flex items-center gap-2 text-xs font-medium text-neutral-700 dark:text-neutral-300 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={formData.isResident}
-                onChange={(e) =>
-                  setFormData({ ...formData, isResident: e.target.checked })
-                }
-                className="w-4 h-4 text-sky-600 rounded accent-sky-600"
-              />
-              Domiciliado en Vzla
-            </label>
-            <label className="flex items-center gap-2 text-xs font-medium text-neutral-700 dark:text-neutral-300 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={formData.isActive}
-                onChange={(e) =>
-                  setFormData({ ...formData, isActive: e.target.checked })
-                }
-                className="w-4 h-4 text-sky-600 rounded accent-sky-600"
-              />
-              Proveedor Activo
-            </label>
-          </div>
 
-          {/* Commercial & Payment Terms */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Input
-              label="Límite de Crédito ($ USD)"
-              type="number"
-              min="0"
-              step="0.01"
-              value={formData.creditLimit}
-              onChange={(e) =>
-                setFormData({ ...formData, creditLimit: Number(e.target.value) })
-              }
-            />
-            <Input
-              label="Plazo de Crédito (Días)"
-              type="number"
-              min="0"
-              value={formData.paymentTermsDays}
-              onChange={(e) =>
-                setFormData({ ...formData, paymentTermsDays: Number(e.target.value) })
-              }
-            />
-            <Input
-              label="Concepto Retención ISLR"
-              placeholder="SERV_IND, BIENES, etc."
-              value={formData.islrConceptCode}
-              onChange={(e) =>
-                setFormData({ ...formData, islrConceptCode: e.target.value })
-              }
-            />
-          </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Input
+                  label="Persona de Contacto"
+                  placeholder="Nombre del asesor o vendedor"
+                  value={formData.contactName}
+                  onChange={(e) => setFormData({ ...formData, contactName: e.target.value })}
+                />
+                <Input
+                  label="Teléfono de Contacto"
+                  placeholder="+58 412 1234567"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                />
+                <Input
+                  label="Correo Electrónico"
+                  type="email"
+                  placeholder="ventas@proveedor.com"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                />
+              </div>
+
+              <Input
+                label="Dirección Fiscal"
+                placeholder="Dirección fiscal completa, ciudad, estado"
+                value={formData.fiscalAddress}
+                onChange={(e) => setFormData({ ...formData, fiscalAddress: e.target.value })}
+              />
+
+              {/* Tax Conditions & Active Status */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-neutral-50 dark:bg-neutral-800/50 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                <label className="flex items-center gap-2 text-xs font-medium text-neutral-700 dark:text-neutral-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.isPersonNatural}
+                    onChange={(e) =>
+                      setFormData({ ...formData, isPersonNatural: e.target.checked })
+                    }
+                    className="w-4 h-4 text-sky-600 rounded accent-sky-600"
+                  />
+                  Persona Natural
+                </label>
+                <label className="flex items-center gap-2 text-xs font-medium text-neutral-700 dark:text-neutral-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.isResident}
+                    onChange={(e) =>
+                      setFormData({ ...formData, isResident: e.target.checked })
+                    }
+                    className="w-4 h-4 text-sky-600 rounded accent-sky-600"
+                  />
+                  Domiciliado en Vzla
+                </label>
+                <label className="flex items-center gap-2 text-xs font-medium text-neutral-700 dark:text-neutral-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.isActive}
+                    onChange={(e) =>
+                      setFormData({ ...formData, isActive: e.target.checked })
+                    }
+                    className="w-4 h-4 text-sky-600 rounded accent-sky-600"
+                  />
+                  Proveedor Activo
+                </label>
+              </div>
+
+              {/* Commercial & Payment Terms */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Input
+                  label="Límite de Crédito ($ USD)"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.creditLimit}
+                  onChange={(e) =>
+                    setFormData({ ...formData, creditLimit: Number(e.target.value) })
+                  }
+                />
+                <Input
+                  label="Plazo de Crédito (Días)"
+                  type="number"
+                  min="0"
+                  value={formData.paymentTermsDays}
+                  onChange={(e) =>
+                    setFormData({ ...formData, paymentTermsDays: Number(e.target.value) })
+                  }
+                />
+                <Input
+                  label="Concepto Retención ISLR"
+                  placeholder="SERV_IND, BIENES, etc."
+                  value={formData.islrConceptCode}
+                  onChange={(e) =>
+                    setFormData({ ...formData, islrConceptCode: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Sección 1: Transferencia Bancaria Nacional */}
+              <div className="p-3.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/30 space-y-3">
+                <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-700/60 pb-2">
+                  <div className="flex items-center gap-1.5 font-semibold text-neutral-800 dark:text-neutral-200">
+                    <CreditCard className="w-4 h-4 text-sky-600" />
+                    <span>Transferencia Bancaria (VES / USD)</span>
+                  </div>
+                  <span className="text-[11px] text-neutral-500">Cuenta de recepción</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                      Banco Receptor
+                    </label>
+                    <select
+                      value={formData.bankName}
+                      onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
+                      className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-2.5 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    >
+                      <option value="">-- Seleccionar Banco --</option>
+                      {VENEZUELAN_BANKS.map((b) => (
+                        <option key={b.code} value={b.name}>
+                          {b.code !== 'OTHER' ? `${b.code} - ` : ''}{b.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                      Tipo de Cuenta
+                    </label>
+                    <select
+                      value={formData.accountType}
+                      onChange={(e) => setFormData({ ...formData, accountType: e.target.value })}
+                      className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-2.5 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    >
+                      <option value="CURRENT">Cuenta Corriente</option>
+                      <option value="SAVINGS">Cuenta de Ahorros</option>
+                      <option value="CUSTODY_USD">Custodia Moneda Extranjera (USD)</option>
+                      <option value="INTERNATIONAL">Cuenta Internacional (SWIFT / ABA)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                      Número de Cuenta (20 Dígitos)
+                    </label>
+                    <span className="text-[10px] font-mono text-neutral-400">
+                      {formData.accountNumber.replace(/\D/g, '').length} / 20 dígitos
+                    </span>
+                  </div>
+                  <Input
+                    placeholder="Ej. 01340001234567890123"
+                    value={formData.accountNumber}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^0-9]/g, '').slice(0, 20);
+                      let newBank = formData.bankName;
+                      if (val.length >= 4) {
+                        const code = val.slice(0, 4);
+                        const matched = VENEZUELAN_BANKS.find((b) => b.code === code);
+                        if (matched && !formData.bankName) {
+                          newBank = matched.name;
+                        }
+                      }
+                      setFormData({ ...formData, accountNumber: val, bankName: newBank });
+                    }}
+                    className="font-mono"
+                  />
+                  {formData.accountNumber.length > 0 && formData.accountNumber.length !== 20 && (
+                    <span className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 block">
+                      Atención: El estándar bancario venezolano consta de 20 dígitos numéricos.
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                        Titular de la Cuenta
+                      </label>
+                      {formData.name.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData((p) => ({ ...p, accountHolderName: p.name }))}
+                          className="text-[10px] text-sky-600 dark:text-sky-400 hover:underline cursor-pointer"
+                        >
+                          Usar Razón Social
+                        </button>
+                      )}
+                    </div>
+                    <Input
+                      placeholder="Nombre o Razón Social del titular"
+                      value={formData.accountHolderName}
+                      onChange={(e) => setFormData({ ...formData, accountHolderName: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                        C.I. / RIF del Titular
+                      </label>
+                      {formData.rif.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData((p) => ({ ...p, accountHolderId: p.rif }))}
+                          className="text-[10px] text-sky-600 dark:text-sky-400 hover:underline cursor-pointer"
+                        >
+                          Usar RIF
+                        </button>
+                      )}
+                    </div>
+                    <Input
+                      placeholder="Ej. J-12345678-9 o V-12345678"
+                      value={formData.accountHolderId}
+                      onChange={(e) => setFormData({ ...formData, accountHolderId: e.target.value.toUpperCase() })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Sección 2: Pago Móvil Interbancario */}
+              <div className="p-3.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/30 space-y-3">
+                <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-700/60 pb-2">
+                  <div className="flex items-center gap-1.5 font-semibold text-neutral-800 dark:text-neutral-200">
+                    <Smartphone className="w-4 h-4 text-emerald-600" />
+                    <span>Pago Móvil Interbancario</span>
+                  </div>
+                  <span className="text-[11px] text-neutral-500">Pagos al instante en VES</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                      Banco Pago Móvil
+                    </label>
+                    <select
+                      value={formData.pagoMovilBank}
+                      onChange={(e) => setFormData({ ...formData, pagoMovilBank: e.target.value })}
+                      className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-2.5 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    >
+                      <option value="">-- Seleccionar Banco --</option>
+                      {VENEZUELAN_BANKS.filter((b) => b.code !== 'OTHER').map((b) => (
+                        <option key={b.code} value={b.name}>
+                          {b.code} - {b.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                        Teléfono Celular
+                      </label>
+                      {formData.phone.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData((p) => ({ ...p, pagoMovilPhone: p.phone }))}
+                          className="text-[10px] text-sky-600 dark:text-sky-400 hover:underline cursor-pointer"
+                        >
+                          Usar Teléfono
+                        </button>
+                      )}
+                    </div>
+                    <Input
+                      placeholder="04141234567"
+                      value={formData.pagoMovilPhone}
+                      onChange={(e) => setFormData({ ...formData, pagoMovilPhone: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                        Cédula / RIF Pago Móvil
+                      </label>
+                      {formData.rif.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData((p) => ({ ...p, pagoMovilId: p.rif }))}
+                          className="text-[10px] text-sky-600 dark:text-sky-400 hover:underline cursor-pointer"
+                        >
+                          Usar RIF
+                        </button>
+                      )}
+                    </div>
+                    <Input
+                      placeholder="Ej. J-12345678-9 o V-12345678"
+                      value={formData.pagoMovilId}
+                      onChange={(e) => setFormData({ ...formData, pagoMovilId: e.target.value.toUpperCase() })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Sección 3: Pagos en Divisas / Zelle / Internacional */}
+              <div className="p-3.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/30 space-y-3">
+                <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-700/60 pb-2">
+                  <div className="flex items-center gap-1.5 font-semibold text-neutral-800 dark:text-neutral-200">
+                    <DollarSign className="w-4 h-4 text-amber-600" />
+                    <span>Zelle / Cuentas en Divisas</span>
+                  </div>
+                  <span className="text-[11px] text-neutral-500">Transferencias en USD</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                        Correo o Identificador Zelle
+                      </label>
+                      {formData.email.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData((p) => ({ ...p, zelleEmail: p.email }))}
+                          className="text-[10px] text-sky-600 dark:text-sky-400 hover:underline cursor-pointer"
+                        >
+                          Usar Correo
+                        </button>
+                      )}
+                    </div>
+                    <Input
+                      placeholder="pagos@proveedor.com o teléfono"
+                      value={formData.zelleEmail}
+                      onChange={(e) => setFormData({ ...formData, zelleEmail: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                        Titular de la Cuenta Zelle
+                      </label>
+                      {formData.name.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData((p) => ({ ...p, zelleHolderName: p.name }))}
+                          className="text-[10px] text-sky-600 dark:text-sky-400 hover:underline cursor-pointer"
+                        >
+                          Usar Razón Social
+                        </button>
+                      )}
+                    </div>
+                    <Input
+                      placeholder="Nombre registrado en Zelle"
+                      value={formData.zelleHolderName}
+                      onChange={(e) => setFormData({ ...formData, zelleHolderName: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Sección 4: Instrucciones Bancarias Adicionales */}
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                  Instrucciones Especiales de Pago
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Ej. Enviar comprobante al correo pagos@polar.com indicando número de factura. Cuenta bancaria de tercero autorizada según poder."
+                  value={formData.bankNotes}
+                  onChange={(e) => setFormData({ ...formData, bankNotes: e.target.value })}
+                  className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg p-2.5 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500 resize-none"
+                />
+              </div>
+            </div>
+          )}
         </form>
       </Modal>
 
@@ -1305,7 +1767,7 @@ export const SuppliersView: React.FC = () => {
         onClose={() => setIsProductsModalOpen(false)}
         title={`Productos de ${selectedSupplierForProducts?.name || "Proveedor"}`}
         subtitle={`RIF: ${selectedSupplierForProducts?.rif || ""} - Catálogo de insumos y precios pactados`}
-        size="xl"
+        size="2xl"
         footer={
           <div className="flex items-center justify-end w-full">
             <Button
@@ -1526,7 +1988,7 @@ export const SuppliersView: React.FC = () => {
         onClose={() => setIsHistoryModalOpen(false)}
         title={`Histórico de ${selectedSupplierForHistory?.name || "Proveedor"}`}
         subtitle={`RIF: ${selectedSupplierForHistory?.rif || ""} - Cronología de compras, recepciones y pagos`}
-        size="xl"
+        size="3xl"
         footer={
           <div className="flex items-center justify-end w-full">
             <Button
@@ -1697,6 +2159,306 @@ export const SuppliersView: React.FC = () => {
             </table>
           </div>
         </div>
+      </Modal>
+
+      {/* MODAL: FICHA BANCARIA DEL PROVEEDOR */}
+      <Modal
+        isOpen={isBankModalOpen}
+        onClose={() => setIsBankModalOpen(false)}
+        title={`Ficha Bancaria: ${selectedSupplierForBankInfo?.name || "Proveedor"}`}
+        subtitle={`RIF: ${selectedSupplierForBankInfo?.rif || ""} - Datos registrados para pagos y transferencias`}
+        size="lg"
+        footer={
+          <div className="flex items-center justify-between w-full">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (selectedSupplierForBankInfo) {
+                  setIsBankModalOpen(false);
+                  handleOpenEditModal(selectedSupplierForBankInfo);
+                  setFormActiveTab("banking");
+                }
+              }}
+              className="text-xs"
+            >
+              <Edit2 className="w-3.5 h-3.5 mr-1" />
+              Editar Datos Bancarios
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsBankModalOpen(false)}
+              className="rounded-lg"
+            >
+              Cerrar
+            </Button>
+          </div>
+        }
+      >
+        {selectedSupplierForBankInfo && (
+          <div className="space-y-4 text-xs">
+            {/* Header con Razón Social y RIF */}
+            <div className="p-3 bg-neutral-50 dark:bg-neutral-800/60 rounded-lg border border-neutral-200 dark:border-neutral-700 flex items-center justify-between">
+              <div>
+                <h4 className="font-bold text-neutral-900 dark:text-neutral-100 text-sm">
+                  {selectedSupplierForBankInfo.name}
+                </h4>
+                {selectedSupplierForBankInfo.commercialName && (
+                  <p className="text-neutral-500 font-medium">
+                    {selectedSupplierForBankInfo.commercialName}
+                  </p>
+                )}
+                <span className="font-mono font-bold text-sky-600 dark:text-sky-400">
+                  {selectedSupplierForBankInfo.rif}
+                </span>
+              </div>
+              <Badge variant={selectedSupplierForBankInfo.isActive ? "success" : "neutral"}>
+                {selectedSupplierForBankInfo.isActive ? "Activo" : "Inactivo"}
+              </Badge>
+            </div>
+
+            {/* Verificación si no tiene datos bancarios */}
+            {!selectedSupplierForBankInfo.bankName &&
+             !selectedSupplierForBankInfo.accountNumber &&
+             !selectedSupplierForBankInfo.pagoMovilPhone &&
+             !selectedSupplierForBankInfo.zelleEmail ? (
+              <div className="p-8 text-center border border-dashed border-neutral-200 dark:border-neutral-800 rounded-lg space-y-2">
+                <Landmark className="w-8 h-8 text-neutral-400 mx-auto opacity-60" />
+                <p className="font-semibold text-neutral-700 dark:text-neutral-300">
+                  Sin información bancaria registrada
+                </p>
+                <p className="text-neutral-500 text-[11px] max-w-sm mx-auto">
+                  Este proveedor aún no posee cuentas bancarias, datos de Pago Móvil o Zelle configurados en su ficha.
+                </p>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={() => {
+                    setIsBankModalOpen(false);
+                    handleOpenEditModal(selectedSupplierForBankInfo);
+                    setFormActiveTab("banking");
+                  }}
+                  className="mt-2 text-xs"
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  Registrar Datos Bancarios
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* 1. Transferencia Bancaria */}
+                {(selectedSupplierForBankInfo.accountNumber || selectedSupplierForBankInfo.bankName) && (
+                  <div className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-xs space-y-2">
+                    <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-2">
+                      <div className="flex items-center gap-1.5 font-semibold text-neutral-800 dark:text-neutral-200">
+                        <CreditCard className="w-4 h-4 text-sky-600" />
+                        <span>Transferencia Bancaria Nacional</span>
+                      </div>
+                      <Badge variant="neutral" className="text-[10px]">
+                        {selectedSupplierForBankInfo.accountType === "SAVINGS"
+                          ? "Ahorro"
+                          : selectedSupplierForBankInfo.accountType === "CUSTODY_USD"
+                          ? "Custodia USD"
+                          : selectedSupplierForBankInfo.accountType === "INTERNATIONAL"
+                          ? "Internacional"
+                          : "Corriente"}
+                      </Badge>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px]">
+                      <div>
+                        <span className="text-neutral-500 block">Banco:</span>
+                        <span className="font-semibold text-neutral-900 dark:text-neutral-100">
+                          {selectedSupplierForBankInfo.bankName || "No especificado"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-neutral-500 block">Titular:</span>
+                        <span className="font-medium text-neutral-900 dark:text-neutral-100">
+                          {selectedSupplierForBankInfo.accountHolderName || selectedSupplierForBankInfo.name}
+                        </span>
+                      </div>
+                    </div>
+
+                    {selectedSupplierForBankInfo.accountNumber && (
+                      <div className="p-2.5 rounded-lg bg-neutral-50 dark:bg-neutral-800/70 border border-neutral-200 dark:border-neutral-700 flex items-center justify-between gap-2">
+                        <div>
+                          <span className="text-[10px] text-neutral-500 block uppercase font-medium">
+                            Número de Cuenta (20 Dígitos)
+                          </span>
+                          <span className="font-mono text-xs font-bold text-neutral-900 dark:text-neutral-100 tracking-wider">
+                            {selectedSupplierForBankInfo.accountNumber}
+                          </span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleCopyText(selectedSupplierForBankInfo.accountNumber!, "account")}
+                          className="h-7 px-2.5 text-xs rounded-lg flex items-center gap-1 cursor-pointer"
+                        >
+                          {copiedKey === "account" ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5 text-neutral-500" />
+                          )}
+                          <span>{copiedKey === "account" ? "Copiado" : "Copiar"}</span>
+                        </Button>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-1 text-[11px]">
+                      <div>
+                        <span className="text-neutral-500">C.I. / RIF Titular: </span>
+                        <span className="font-mono font-semibold text-neutral-800 dark:text-neutral-200">
+                          {selectedSupplierForBankInfo.accountHolderId || selectedSupplierForBankInfo.rif}
+                        </span>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          const fullDetails = `Banco: ${selectedSupplierForBankInfo.bankName || ""}\nCuenta: ${selectedSupplierForBankInfo.accountNumber || ""}\nTipo: ${selectedSupplierForBankInfo.accountType || "Corriente"}\nTitular: ${selectedSupplierForBankInfo.accountHolderName || selectedSupplierForBankInfo.name}\nRIF: ${selectedSupplierForBankInfo.accountHolderId || selectedSupplierForBankInfo.rif}`;
+                          handleCopyText(fullDetails, "full_transfer");
+                        }}
+                        className="h-6 text-[11px] text-sky-600 dark:text-sky-400 p-1 cursor-pointer"
+                      >
+                        {copiedKey === "full_transfer" ? "Copiado todo" : "Copiar todo el bloque"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Pago Móvil */}
+                {(selectedSupplierForBankInfo.pagoMovilPhone || selectedSupplierForBankInfo.pagoMovilBank) && (
+                  <div className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-xs space-y-2">
+                    <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-2">
+                      <div className="flex items-center gap-1.5 font-semibold text-neutral-800 dark:text-neutral-200">
+                        <Smartphone className="w-4 h-4 text-emerald-600" />
+                        <span>Pago Móvil Interbancario</span>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const pmData = `Banco: ${selectedSupplierForBankInfo.pagoMovilBank || selectedSupplierForBankInfo.bankName || ""}\nTeléfono: ${selectedSupplierForBankInfo.pagoMovilPhone || ""}\nC.I./RIF: ${selectedSupplierForBankInfo.pagoMovilId || selectedSupplierForBankInfo.rif}`;
+                          handleCopyText(pmData, "pm_all");
+                        }}
+                        className="h-6 px-2 text-[11px] rounded-lg flex items-center gap-1 cursor-pointer"
+                      >
+                        {copiedKey === "pm_all" ? (
+                          <Check className="w-3 h-3 text-emerald-600" />
+                        ) : (
+                          <Copy className="w-3 h-3 text-neutral-500" />
+                        )}
+                        <span>{copiedKey === "pm_all" ? "Copiado" : "Copiar Datos"}</span>
+                      </Button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[11px]">
+                      <div>
+                        <span className="text-neutral-500 block">Banco:</span>
+                        <span className="font-semibold text-neutral-900 dark:text-neutral-100">
+                          {selectedSupplierForBankInfo.pagoMovilBank || selectedSupplierForBankInfo.bankName || "No especificado"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-neutral-500 block">Teléfono:</span>
+                        <div className="flex items-center gap-1">
+                          <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100">
+                            {selectedSupplierForBankInfo.pagoMovilPhone || "-"}
+                          </span>
+                          {selectedSupplierForBankInfo.pagoMovilPhone && (
+                            <button
+                              type="button"
+                              onClick={() => handleCopyText(selectedSupplierForBankInfo.pagoMovilPhone!, "pm_phone")}
+                              className="text-neutral-400 hover:text-sky-600 cursor-pointer"
+                              title="Copiar teléfono"
+                            >
+                              {copiedKey === "pm_phone" ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-neutral-500 block">Cédula / RIF:</span>
+                        <div className="flex items-center gap-1">
+                          <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100">
+                            {selectedSupplierForBankInfo.pagoMovilId || selectedSupplierForBankInfo.rif}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyText(selectedSupplierForBankInfo.pagoMovilId || selectedSupplierForBankInfo.rif, "pm_id")}
+                            className="text-neutral-400 hover:text-sky-600 cursor-pointer"
+                            title="Copiar RIF/C.I."
+                          >
+                            {copiedKey === "pm_id" ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. Zelle / Moneda Extranjera */}
+                {selectedSupplierForBankInfo.zelleEmail && (
+                  <div className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-xs space-y-2">
+                    <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-2">
+                      <div className="flex items-center gap-1.5 font-semibold text-neutral-800 dark:text-neutral-200">
+                        <DollarSign className="w-4 h-4 text-amber-600" />
+                        <span>Zelle / Transferencias USD</span>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleCopyText(selectedSupplierForBankInfo.zelleEmail!, "zelle_email")}
+                        className="h-6 px-2 text-[11px] rounded-lg flex items-center gap-1 cursor-pointer"
+                      >
+                        {copiedKey === "zelle_email" ? (
+                          <Check className="w-3 h-3 text-emerald-600" />
+                        ) : (
+                          <Copy className="w-3 h-3 text-neutral-500" />
+                        )}
+                        <span>{copiedKey === "zelle_email" ? "Copiado" : "Copiar Zelle"}</span>
+                      </Button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px]">
+                      <div>
+                        <span className="text-neutral-500 block">Correo / Identificador:</span>
+                        <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100">
+                          {selectedSupplierForBankInfo.zelleEmail}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-neutral-500 block">Titular:</span>
+                        <span className="font-medium text-neutral-900 dark:text-neutral-100">
+                          {selectedSupplierForBankInfo.zelleHolderName || selectedSupplierForBankInfo.accountHolderName || selectedSupplierForBankInfo.name}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. Instrucciones Adicionales */}
+                {selectedSupplierForBankInfo.bankNotes && (
+                  <div className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/40 space-y-1">
+                    <span className="font-semibold text-neutral-700 dark:text-neutral-300 block text-[11px]">
+                      Instrucciones Especiales de Pago:
+                    </span>
+                    <p className="text-neutral-600 dark:text-neutral-400 text-[11px] whitespace-pre-wrap leading-relaxed">
+                      {selectedSupplierForBankInfo.bankNotes}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
     </div>
   );

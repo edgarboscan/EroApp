@@ -51,6 +51,15 @@ export const createGoodsReceiptSchema = z.object({
   autoInvoice: z.boolean().optional().default(false),
   isCredit: z.boolean().optional().default(false),
   dueDate: z.string().optional().nullable(),
+  priceAdjustments: z
+    .array(
+      z.object({
+        productId: z.string().min(1),
+        action: z.enum(['KEEP', 'ADJUST', 'CUSTOM']),
+        newPrice: z.number().min(0).optional().nullable(),
+      })
+    )
+    .optional(),
 });
 
 export type GoodsReceiptItemInput = z.infer<typeof goodsReceiptItemSchema>;

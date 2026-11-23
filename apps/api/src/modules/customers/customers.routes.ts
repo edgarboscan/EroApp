@@ -16,6 +16,14 @@ customersRouter.get('/', authenticate, authorize(['customers.read', 'pos.read', 
   return c.json({ success: true, data });
 });
 
+// GET /api/customers/lookup-rif/:rif - Consulta y validación de RIF (SENIAT Módulo 11 + cruce comercial)
+customersRouter.get('/lookup-rif/:rif', authenticate, authorize(['customers.read', 'pos.read', 'sales.read']), async (c) => {
+  const user = c.get('user');
+  const rif = c.req.param('rif');
+  const data = await CustomersService.lookupRif(user.companyId, rif!);
+  return c.json({ success: true, data });
+});
+
 // GET /api/customers/:id - Detalle de un cliente
 customersRouter.get('/:id', authenticate, authorize(['customers.read', 'pos.read', 'sales.read']), async (c) => {
   const user = c.get('user');

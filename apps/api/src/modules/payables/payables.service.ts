@@ -4,17 +4,21 @@ import crypto from 'crypto';
 import { AccountingAutoPostingService } from '../accounting/accounting-auto-posting.service';
 
 export class PayablesService {
-  static async getPayables(companyId: string, branchId?: string, supplierId?: string, status?: string) {
+  static async getPayables(companyId: string, branchId?: string, supplierId?: string, status?: string, isVerified?: boolean) {
     let sql = `
       SELECT p.id, p.branch_id, b.name as branch_name,
              p.supplier_id, s.rif as supplier_rif, s.name as supplier_name,
+             s.bank_name, s.account_number, s.account_type, s.account_holder_name, s.account_holder_id,
+             s.pago_movil_bank, s.pago_movil_phone, s.pago_movil_id, s.zelle_email, s.zelle_holder_name, s.bank_notes,
              p.invoice_id, pi.invoice_number, pi.control_number, pi.invoice_date,
              p.amount_total, p.amount_paid, p.amount_balance, p.due_date, p.status,
+             p.is_verified, p.verified_at, p.verified_by, vu.full_name as verified_by_name,
              DATEDIFF(CURRENT_DATE(), p.due_date) as days_overdue
       FROM payables p
       INNER JOIN branches b ON p.branch_id = b.id
       INNER JOIN suppliers s ON p.supplier_id = s.id
       INNER JOIN purchase_invoices pi ON p.invoice_id = pi.id
+      LEFT JOIN users vu ON p.verified_by = vu.id
       WHERE b.company_id = ?
     `;
     const params: any[] = [companyId];
@@ -36,6 +40,11 @@ export class PayablesService {
       sql += ` AND p.status IN ('PENDING', 'PARTIAL', 'OVERDUE')`;
     }
 
+    if (isVerified !== undefined) {
+      sql += ` AND p.is_verified = ?`;
+      params.push(isVerified ? 1 : 0);
+    }
+
     sql += ` ORDER BY p.due_date ASC`;
 
     const rows = await query<any>(sql, params);
@@ -46,6 +55,17 @@ export class PayablesService {
       supplierId: r.supplier_id,
       supplierRif: r.supplier_rif,
       supplierName: r.supplier_name,
+      bankName: r.bank_name || undefined,
+      accountNumber: r.account_number || undefined,
+      accountType: r.account_type || undefined,
+      accountHolderName: r.account_holder_name || undefined,
+      accountHolderId: r.account_holder_id || undefined,
+      pagoMovilBank: r.pago_movil_bank || undefined,
+      pagoMovilPhone: r.pago_movil_phone || undefined,
+      pagoMovilId: r.pago_movil_id || undefined,
+      zelleEmail: r.zelle_email || undefined,
+      zelleHolderName: r.zelle_holder_name || undefined,
+      bankNotes: r.bank_notes || undefined,
       invoiceId: r.invoice_id,
       invoiceNumber: r.invoice_number,
       controlNumber: r.control_number,
@@ -55,6 +75,10 @@ export class PayablesService {
       amountBalance: Number(r.amount_balance),
       dueDate: r.due_date,
       status: r.status,
+      isVerified: Boolean(r.is_verified),
+      verifiedAt: r.verified_at || undefined,
+      verifiedBy: r.verified_by || undefined,
+      verifiedByName: r.verified_by_name || undefined,
       daysOverdue: Number(r.days_overdue),
     }));
   }
@@ -64,6 +88,7 @@ export class PayablesService {
       SELECT p.branch_id, b.name AS branch_name,
              s.id AS supplier_id, s.rif AS supplier_rif, s.name AS supplier_name,
              p.id AS payable_id, pi.invoice_number, pi.invoice_date, p.due_date,
+             p.is_verified, p.verified_at, p.verified_by, vu.full_name as verified_by_name,
              DATEDIFF(CURRENT_DATE(), p.due_date) AS days_overdue,
              p.amount_total, p.amount_paid, p.amount_balance,
              CASE WHEN DATEDIFF(CURRENT_DATE(), p.due_date) <= 0 THEN p.amount_balance ELSE 0 END AS current_due,
@@ -75,6 +100,7 @@ export class PayablesService {
       INNER JOIN branches b ON p.branch_id = b.id
       INNER JOIN suppliers s ON p.supplier_id = s.id
       INNER JOIN purchase_invoices pi ON p.invoice_id = pi.id
+      LEFT JOIN users vu ON p.verified_by = vu.id
       WHERE b.company_id = ?
         AND p.status IN ('PENDING', 'PARTIAL', 'OVERDUE')
     `;
@@ -130,6 +156,10 @@ export class PayablesService {
         days31_60: d2,
         days61_90: d3,
         days90Plus: d4,
+        isVerified: Boolean(r.is_verified),
+        verifiedAt: r.verified_at || undefined,
+        verifiedBy: r.verified_by || undefined,
+        verifiedByName: r.verified_by_name || undefined,
       };
     });
 
@@ -143,6 +173,33 @@ export class PayablesService {
         grandTotal: Number(grandTotal.toFixed(2)),
       },
       items,
+    };
+  }
+
+  static async verifyPayable(companyId: string, payableId: string, userId: string) {
+    const rows = await query<any>(
+      `SELECT p.id, p.is_verified, p.status, p.amount_balance
+       FROM payables p
+       INNER JOIN branches b ON p.branch_id = b.id
+       WHERE b.company_id = ? AND p.id = ?`,
+      [companyId, payableId]
+    );
+
+    if (!rows || rows.length === 0) {
+      throw new Error('Cuenta por pagar no encontrada');
+    }
+
+    await query(
+      `UPDATE payables
+       SET is_verified = 1, verified_at = NOW(), verified_by = ?
+       WHERE id = ?`,
+      [userId, payableId]
+    );
+
+    return {
+      payableId,
+      isVerified: true,
+      verifiedBy: userId,
     };
   }
 
@@ -187,7 +244,7 @@ export class PayablesService {
     return await withTransaction(async (conn) => {
       // 1. Update payable
       await conn.query(
-        `UPDATE payables SET amount_paid = ?, status = ? WHERE id = ?`,
+        `UPDATE payables SET amount_paid = ?, status = ?, is_verified = 1 WHERE id = ?`,
         [newAmountPaid, newStatus, payable.id]
       );
 
@@ -195,13 +252,14 @@ export class PayablesService {
       const paymentId = crypto.randomUUID();
       await conn.query(
         `INSERT INTO purchase_payments (
-          id, invoice_id, payable_id, method, amount_ves, amount_usd,
+          id, invoice_id, payable_id, bank_account_id, method, amount_ves, amount_usd,
           exchange_rate, reference_number, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           paymentId,
           payable.invoice_id,
           payable.id,
+          data.bankAccountId || null,
           data.paymentMethod,
           paymentAmountVes,
           paymentAmountUsd,
@@ -239,7 +297,7 @@ export class PayablesService {
               crypto.randomUUID(),
               acc.id,
               userId,
-              withdrawalAmount,
+              -Math.abs(withdrawalAmount),
               newBal,
               refNum,
               concept,
@@ -253,7 +311,7 @@ export class PayablesService {
         const [pendingRows] = (await conn.query(
           `SELECT COUNT(*) as count FROM payables WHERE invoice_id = ? AND status <> 'PAID'`,
           [payable.invoice_id]
-        )) as any;
+        ) as any);
 
         if (pendingRows[0].count === 0) {
           await conn.query(
@@ -264,13 +322,16 @@ export class PayablesService {
       }
 
       // 5. Motor de Contabilización Automática de Pago a Proveedor
+      let accountingEntryId: string | undefined;
       try {
-        await AccountingAutoPostingService.postPayablePayment(conn, paymentId, userId);
+        const postRes = await AccountingAutoPostingService.postPayablePayment(conn, paymentId, userId);
+        accountingEntryId = postRes?.entryId;
       } catch (accErr: any) {
         console.error('[AutoPosting] Error contabilizando pago CxP:', accErr.message);
       }
 
       return {
+        id: paymentId,
         paymentId,
         payableId: payable.id,
         invoiceNumber: payable.invoice_number,
@@ -279,6 +340,7 @@ export class PayablesService {
         amountInCurrency: data.amount,
         remainingBalance: Math.max(0, newBalance),
         status: newStatus,
+        accountingEntryId,
       };
     });
   }
@@ -419,18 +481,18 @@ export class PayablesService {
    */
   static async getPaymentById(companyId: string, paymentId: string) {
     const rows = await query<any>(
-      `SELECT pp.*, pi.invoice_number, pi.total_amount_usd as invoice_total_usd,
+      `SELECT pp.*, pi.invoice_number, pi.control_number, pi.total_amount as invoice_total_usd,
+              b.name as branch_name,
               s.name as supplier_name, s.rif as supplier_rif,
               s.phone as supplier_phone, s.fiscal_address as supplier_address,
               p.amount_total, p.amount_paid as current_amount_paid,
-              COALESCE(bnk.name, ba.description) as bank_name
+              COALESCE(bnk.name, ba.description, 'Tesorería') as bank_name
        FROM purchase_payments pp
        INNER JOIN purchase_invoices pi ON pp.invoice_id = pi.id
        INNER JOIN suppliers s ON pi.supplier_id = s.id
        INNER JOIN branches b ON pi.branch_id = b.id
        LEFT JOIN payables p ON pp.payable_id = p.id
-       LEFT JOIN bank_movements bm ON bm.reference_number = pp.reference_number AND bm.movement_type = 'WITHDRAWAL'
-       LEFT JOIN bank_accounts ba ON bm.account_id = ba.id
+       LEFT JOIN bank_accounts ba ON pp.bank_account_id = ba.id
        LEFT JOIN banks bnk ON ba.bank_id = bnk.id
        WHERE pp.id = ? AND b.company_id = ?`,
       [paymentId, companyId]
@@ -442,22 +504,31 @@ export class PayablesService {
 
     const row = rows[0];
     const remainingBalance = row.amount_total ? Math.max(0, Number(row.amount_total) - Number(row.current_amount_paid)) : 0;
+    const paymentNumber = `PAG-${row.id.slice(0, 8).toUpperCase()}`;
 
     return {
-      receiptNumber: `PAG-${row.id.slice(0, 8).toUpperCase()}`,
+      id: row.id,
+      receiptNumber: paymentNumber,
+      paymentNumber,
       date: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
       supplierName: row.supplier_name,
       supplierRif: row.supplier_rif,
       supplierPhone: row.supplier_phone || undefined,
       supplierAddress: row.supplier_address || undefined,
+      branchName: row.branch_name || undefined,
       invoiceNumber: row.invoice_number,
+      controlNumber: row.control_number || undefined,
       invoiceTotalUSD: Number(row.invoice_total_usd || row.amount_total || 0),
       amountPaidUSD: Number(row.amount_usd || 0),
       amountPaidVES: Number(row.amount_ves || 0),
+      amountUSD: Number(row.amount_usd || 0),
+      amountVES: Number(row.amount_ves || 0),
       remainingBalanceUSD: Number(remainingBalance.toFixed(2)),
       paymentMethod: row.method,
+      method: row.method,
       referenceNumber: row.reference_number || undefined,
       bankName: row.bank_name || undefined,
+      bankAccountName: row.bank_name || undefined,
       notes: row.notes || undefined,
       exchangeRate: Number(row.exchange_rate || 1),
     };

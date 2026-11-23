@@ -1904,9 +1904,9 @@ bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border
 
                 {loadingInvoiceConfig ? (
                   <div className="space-y-3 py-4">
-                    <div className="h-4 bg-neutral-200 rounded-lg animate-pulse w-3/4"></div>
-                    <div className="h-8 bg-neutral-100 rounded-lg animate-pulse w-full"></div>
-                    <div className="h-8 bg-neutral-100 rounded-lg animate-pulse w-full"></div>
+                    <div className="h-4 bg-neutral-200/80 dark:bg-neutral-800 rounded-lg animate-pulse w-3/4"></div>
+                    <div className="h-8 bg-neutral-200/60 dark:bg-neutral-800/60 rounded-lg animate-pulse w-full"></div>
+                    <div className="h-8 bg-neutral-200/60 dark:bg-neutral-800/60 rounded-lg animate-pulse w-full"></div>
                   </div>
                 ) : (
                   <>

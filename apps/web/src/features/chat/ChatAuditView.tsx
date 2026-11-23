@@ -13,6 +13,10 @@ import {
   Eye,
   CheckCheck,
   Check,
+  Trash2,
+  Users,
+  AlertTriangle,
+  X,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 
@@ -28,8 +32,12 @@ interface ChatAuditUser {
 interface AuditConversation {
   id: string;
   company_id: string;
-  user1: ChatAuditUser;
-  user2: ChatAuditUser;
+  type: 'DIRECT' | 'GROUP';
+  title: string | null;
+  created_by?: string | null;
+  user1: ChatAuditUser | null;
+  user2: ChatAuditUser | null;
+  participant_names?: string | null;
   last_message: string | null;
   last_message_at: string;
   total_messages: number;
@@ -41,7 +49,7 @@ interface AuditMessageDetail {
   conversation_id: string;
   company_id: string;
   sender_id: string;
-  recipient_id: string;
+  recipient_id: string | null;
   message: string;
   is_read: number;
   read_at: string | null;
@@ -49,9 +57,9 @@ interface AuditMessageDetail {
   sender_name: string;
   sender_username: string;
   sender_role: string;
-  recipient_name: string;
-  recipient_username: string;
-  recipient_role: string;
+  recipient_name: string | null;
+  recipient_username: string | null;
+  recipient_role: string | null;
 }
 
 export const ChatAuditView: React.FC = () => {
@@ -70,6 +78,15 @@ export const ChatAuditView: React.FC = () => {
 
   const [isLoadingList, setIsLoadingList] = useState<boolean>(false);
   const [isLoadingTranscript, setIsLoadingTranscript] = useState<boolean>(false);
+
+  // Modal de Depuración por Rango de Fecha
+  const [isPurgeModalOpen, setIsPurgeModalOpen] = useState<boolean>(false);
+  const [purgeDateFrom, setPurgeDateFrom] = useState<string>('');
+  const [purgeDateTo, setPurgeDateTo] = useState<string>('');
+  const [purgeConfirmationText, setPurgeConfirmationText] = useState<string>('');
+  const [isPurging, setIsPurging] = useState<boolean>(false);
+  const [purgeNotification, setPurgeNotification] = useState<string | null>(null);
+  const [purgeErrorMessage, setPurgeErrorMessage] = useState<string | null>(null);
 
   // Cargar lista de usuarios para filtro
   useEffect(() => {
@@ -150,15 +167,22 @@ export const ChatAuditView: React.FC = () => {
     }
   };
 
-  // Exportar transcripción a formato texto / CSV
+  // Exportar transcripción a formato texto / archivo de bitácora
   const handleExportTranscript = () => {
     if (!selectedConversation || transcript.length === 0) return;
-    const header = `BITACORA DE CHAT - ERO ERP\nID Conversacion: ${selectedConversation.id}\nParticipantes: ${selectedConversation.user1.full_name} (@${selectedConversation.user1.username} - ${selectedConversation.user1.role_name}) y ${selectedConversation.user2.full_name} (@${selectedConversation.user2.username} - ${selectedConversation.user2.role_name})\nFecha Generacion: ${new Date().toLocaleString()}\nTotal Mensajes: ${transcript.length}\n${'='.repeat(70)}\n\n`;
+
+    const participantsText =
+      selectedConversation.type === 'GROUP'
+        ? `Grupo: ${selectedConversation.title || 'Grupo'} (Participantes: ${selectedConversation.participant_names || 'Varios'})`
+        : `Participantes: ${selectedConversation.user1?.full_name} (@${selectedConversation.user1?.username} - ${selectedConversation.user1?.role_name}) y ${selectedConversation.user2?.full_name} (@${selectedConversation.user2?.username} - ${selectedConversation.user2?.role_name})`;
+
+    const header = `BITACORA DE CHAT - ERO ERP\nID Conversacion: ${selectedConversation.id}\nTipo: ${selectedConversation.type}\n${participantsText}\nFecha Generacion: ${new Date().toLocaleString()}\nTotal Mensajes: ${transcript.length}\n${'='.repeat(70)}\n\n`;
 
     const lines = transcript.map((m) => {
       const dateStr = new Date(m.created_at).toLocaleString();
       const readStr = m.is_read ? `[Leido: ${new Date(m.read_at || m.created_at).toLocaleString()}]` : '[No leido]';
-      return `[${dateStr}] ${m.sender_name} (@${m.sender_username} - ${m.sender_role}) -> ${m.recipient_name}: \n"${m.message}" ${readStr}\n`;
+      const targetStr = m.recipient_name ? `-> ${m.recipient_name}` : '-> [Todos en el Grupo]';
+      return `[${dateStr}] ${m.sender_name} (@${m.sender_username} - ${m.sender_role}) ${targetStr}: \n"${m.message}" ${readStr}\n`;
     });
 
     const fullText = header + lines.join('\n');
@@ -166,14 +190,80 @@ export const ChatAuditView: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `bitacora_chat_${selectedConversation.user1.username}_${selectedConversation.user2.username}_${Date.now()}.txt`);
+    const filenamePrefix =
+      selectedConversation.type === 'GROUP'
+        ? `bitacora_grupo_${(selectedConversation.title || 'grupo').replace(/\s+/g, '_')}`
+        : `bitacora_chat_${selectedConversation.user1?.username || 'u1'}_${selectedConversation.user2?.username || 'u2'}`;
+    link.setAttribute('download', `${filenamePrefix}_${Date.now()}.txt`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
+  // Ejecutar depuración de mensajes por rango de fechas
+  const handleExecutePurge = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!purgeDateFrom || !purgeDateTo) {
+      setPurgeErrorMessage('Debe especificar tanto la fecha inicial como la fecha final.');
+      return;
+    }
+    if (purgeConfirmationText.trim().toUpperCase() !== 'ELIMINAR') {
+      setPurgeErrorMessage('Debe escribir exactamente ELIMINAR para confirmar la operación.');
+      return;
+    }
+
+    setIsPurging(true);
+    setPurgeErrorMessage(null);
+
+    try {
+      const res = await fetch('/api/chat/audit/range', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          dateFrom: purgeDateFrom,
+          dateTo: purgeDateTo,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setPurgeNotification(data.message || 'Depuración completada exitosamente.');
+        setIsPurgeModalOpen(false);
+        setPurgeConfirmationText('');
+        setPurgeDateFrom('');
+        setPurgeDateTo('');
+        setSelectedConversation(null);
+        setTranscript([]);
+        fetchAuditConversations();
+      } else {
+        setPurgeErrorMessage(data.error?.message || 'Error al depurar mensajes.');
+      }
+    } catch (err: any) {
+      setPurgeErrorMessage(err.message || 'Error de conexión al depurar mensajes.');
+    } finally {
+      setIsPurging(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
+      {/* Notificación de Depuración */}
+      {purgeNotification && (
+        <div className="p-3 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 rounded-lg flex items-center justify-between text-xs text-emerald-800 dark:text-emerald-200 animate-in fade-in">
+          <span>{purgeNotification}</span>
+          <button
+            type="button"
+            onClick={() => setPurgeNotification(null)}
+            className="p-1 text-emerald-600 hover:text-emerald-800 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Cabecera del Módulo */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-gray-200 dark:border-gray-800">
         <div>
@@ -186,18 +276,35 @@ export const ChatAuditView: React.FC = () => {
             </h1>
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Supervisión institucional, trazabilidad y auditoría de conversaciones internas entre usuarios del sistema.
+            Supervisión institucional, trazabilidad y auditoría de conversaciones directas y grupales entre colaboradores.
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => fetchAuditConversations()}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors shadow-2xs cursor-pointer"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isLoadingList ? 'animate-spin' : ''}`} />
-          <span>Actualizar</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Botón de Depuración por Rango de Fecha */}
+          <button
+            type="button"
+            onClick={() => {
+              setPurgeErrorMessage(null);
+              setPurgeConfirmationText('');
+              setIsPurgeModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/60 transition-colors shadow-2xs cursor-pointer"
+            title="Depurar o purgar mensajes de la bitácora por rango de fecha"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Depurar Bitácora</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => fetchAuditConversations()}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors shadow-2xs cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoadingList ? 'animate-spin' : ''}`} />
+            <span>Actualizar</span>
+          </button>
+        </div>
       </div>
 
       {/* Barra de Filtros */}
@@ -210,7 +317,7 @@ export const ChatAuditView: React.FC = () => {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar en mensajes o usuarios..."
+              placeholder="Buscar en mensajes, títulos o colaboradores..."
               className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-emerald-500"
             />
           </div>
@@ -314,6 +421,7 @@ export const ChatAuditView: React.FC = () => {
             {!isLoadingList &&
               conversations.map((c) => {
                 const isSelected = selectedConversation?.id === c.id;
+                const isGroup = c.type === 'GROUP';
                 return (
                   <button
                     key={c.id}
@@ -326,11 +434,24 @@ export const ChatAuditView: React.FC = () => {
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">
-                        <span className="truncate">{c.user1.full_name}</span>
-                        <ArrowRight className="w-3 h-3 text-gray-400 shrink-0" />
-                        <span className="truncate">{c.user2.full_name}</span>
-                      </div>
+                      {isGroup ? (
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">
+                          <span className="p-1 bg-sky-100 dark:bg-sky-900/60 text-sky-700 dark:text-sky-300 rounded shrink-0">
+                            <Users className="w-3 h-3" />
+                          </span>
+                          <span className="truncate">{c.title || 'Grupo de Chat'}</span>
+                          <span className="text-[10px] font-medium text-sky-600 dark:text-sky-400 shrink-0">
+                            [Grupo]
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">
+                          <span className="truncate">{c.user1?.full_name || 'Usuario'}</span>
+                          <ArrowRight className="w-3 h-3 text-gray-400 shrink-0" />
+                          <span className="truncate">{c.user2?.full_name || 'Usuario'}</span>
+                        </div>
+                      )}
+
                       <span className="text-[10px] text-gray-400 shrink-0 ml-2">
                         {new Date(c.last_message_at).toLocaleDateString([], {
                           day: '2-digit',
@@ -339,11 +460,17 @@ export const ChatAuditView: React.FC = () => {
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2 text-[10px] text-gray-400 mb-1">
-                      <span>{c.user1.role_name}</span>
-                      <span>•</span>
-                      <span>{c.user2.role_name}</span>
-                    </div>
+                    {isGroup ? (
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate mb-1">
+                        {c.participant_names || 'Participantes del grupo'}
+                      </p>
+                    ) : (
+                      <div className="flex items-center gap-2 text-[10px] text-gray-400 mb-1">
+                        <span>{c.user1?.role_name || 'Usuario'}</span>
+                        <span>•</span>
+                        <span>{c.user2?.role_name || 'Usuario'}</span>
+                      </div>
+                    )}
 
                     <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
                       <p className="truncate flex-1 pr-2 text-[11px]">
@@ -364,16 +491,26 @@ export const ChatAuditView: React.FC = () => {
           {selectedConversation ? (
             <>
               {/* Cabecera del Hilo Auditado */}
-              <div className="p-3 border-b border-gray-200 dark:border-gray-800  flex items-center justify-between shrink-0">
+              <div className="p-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between shrink-0">
                 <div>
-                  <h3 className="text-xs font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                    <span>{selectedConversation.user1.full_name}</span>
-                    <span className="text-gray-400 font-normal">y</span>
-                    <span>{selectedConversation.user2.full_name}</span>
-                  </h3>
-                  <p className="text-[10px] text-gray-500 dark:text-gray-400">
-                    ID Registro: {selectedConversation.id} • Iniciado:{' '}
+                  {selectedConversation.type === 'GROUP' ? (
+                    <h3 className="text-xs font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                      <Users className="w-4 h-4 text-sky-600" />
+                      <span>{selectedConversation.title || 'Grupo de Chat'}</span>
+                    </h3>
+                  ) : (
+                    <h3 className="text-xs font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                      <span>{selectedConversation.user1?.full_name || 'Usuario 1'}</span>
+                      <span className="text-gray-400 font-normal">y</span>
+                      <span>{selectedConversation.user2?.full_name || 'Usuario 2'}</span>
+                    </h3>
+                  )}
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
+                    ID Registro: {selectedConversation.id} • Creado:{' '}
                     {new Date(selectedConversation.created_at).toLocaleDateString()}
+                    {selectedConversation.participant_names && (
+                      <span> • Integrantes: {selectedConversation.participant_names}</span>
+                    )}
                   </p>
                 </div>
 
@@ -415,7 +552,7 @@ export const ChatAuditView: React.FC = () => {
                           </span>
                           <ArrowRight className="w-3 h-3 text-gray-400" />
                           <span className="text-gray-600 dark:text-gray-300">
-                            {msg.recipient_name}
+                            {msg.recipient_name || 'Grupo (Todos los integrantes)'}
                           </span>
                         </div>
 
@@ -472,7 +609,109 @@ export const ChatAuditView: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Modal de Confirmación para Depuración por Rango de Fecha */}
+      {isPurgeModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => !isPurging && setIsPurgeModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-md bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-2xl p-5 space-y-4 animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 rounded-lg shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                  Depurar Mensajes de Bitácora por Rango
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  Esta acción eliminará de forma irreversible todos los mensajes registrados dentro del rango de fechas especificado.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => !isPurging && setIsPurgeModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {purgeErrorMessage && (
+              <div className="p-2.5 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 rounded-lg text-xs text-rose-700 dark:text-rose-300">
+                {purgeErrorMessage}
+              </div>
+            )}
+
+            <form onSubmit={handleExecutePurge} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Fecha Inicial *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={purgeDateFrom}
+                    onChange={(e) => setPurgeDateFrom(e.target.value)}
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Fecha Final *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={purgeDateTo}
+                    onChange={(e) => setPurgeDateTo(e.target.value)}
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Escriba <span className="font-bold text-rose-600 dark:text-rose-400">ELIMINAR</span> para confirmar:
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="ELIMINAR"
+                  value={purgeConfirmationText}
+                  onChange={(e) => setPurgeConfirmationText(e.target.value)}
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-rose-500 uppercase"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+                <button
+                  type="button"
+                  disabled={isPurging}
+                  onClick={() => setIsPurgeModalOpen(false)}
+                  className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-750 rounded-lg transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isPurging || purgeConfirmationText.trim().toUpperCase() !== 'ELIMINAR' || !purgeDateFrom || !purgeDateTo}
+                  className="px-3 py-1.5 text-xs font-medium text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 rounded-lg transition-colors cursor-pointer shadow-xs"
+                >
+                  {isPurging ? 'Depurando...' : 'Confirmar Depuración'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+
 

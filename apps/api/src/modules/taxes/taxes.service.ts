@@ -975,7 +975,7 @@ export class TaxesService {
    * Exporta la Declaración Informativa SENIAT en formato oficial XML / TXT
    * REGLA ESTRICTA: Solo para Agentes de Retención
    */
-  static async exportSENIAT(companyId: string, period: string, type: 'ISLR' | 'IVA') {
+  static async exportSENIAT(companyId: string, period: string, type: 'ISLR' | 'IVA', fortnight: '1' | '2' | 'ALL' = 'ALL') {
     const [companyRows] = await query<any[]>(
       `SELECT rif, legal_name, is_special_taxpayer FROM companies WHERE id = ?`,
       [companyId]
@@ -1007,6 +1007,12 @@ export class TaxesService {
         [companyId, period]
       );
 
+      if (!rows || rows.length === 0) {
+        throw new Error(
+          `No se encontraron retenciones de ISLR registradas para el período ${period}. No se puede generar una declaración vacía.`
+        );
+      }
+
       let xml = `<?xml version="1.0" encoding="ISO-8859-1"?>\n`;
       xml += `<RelacionRetencionesISLR RifAgente="${cleanCompanyRif}" Periodo="${periodFormatted}">\n`;
 
@@ -1031,6 +1037,13 @@ export class TaxesService {
       };
     } else {
       // Formato TXT Oficial SENIAT para Retenciones de IVA (Providencia SNAT/2015/0049)
+      let fortnightFilter = '';
+      if (fortnight === '1') {
+        fortnightFilter = ' AND DAY(twi.invoice_date) <= 15';
+      } else if (fortnight === '2') {
+        fortnightFilter = ' AND DAY(twi.invoice_date) >= 16';
+      }
+
       const rows = await query<any>(
         `SELECT 
           s.rif as supplier_rif, twi.voucher_number, twi.invoice_number, twi.control_number,
@@ -1039,10 +1052,17 @@ export class TaxesService {
           twi.tax_rate
          FROM tax_withholdings_iva twi
          INNER JOIN suppliers s ON twi.supplier_id = s.id
-         WHERE twi.company_id = ? AND twi.tax_period = ? AND twi.status <> 'ANNULLED'
+         WHERE twi.company_id = ? AND twi.tax_period = ? AND twi.status <> 'ANNULLED'${fortnightFilter}
          ORDER BY twi.voucher_number ASC`,
         [companyId, period]
       );
+
+      if (!rows || rows.length === 0) {
+        const qLabel = fortnight === '1' ? ' (1ra Quincena)' : fortnight === '2' ? ' (2da Quincena)' : '';
+        throw new Error(
+          `No se encontraron retenciones de IVA registradas para el período ${period}${qLabel}. No se puede generar un archivo TXT vacío.`
+        );
+      }
 
       let txt = '';
       for (const r of rows) {
@@ -1070,9 +1090,10 @@ export class TaxesService {
         txt += line + '\n';
       }
 
+      const qSuffix = fortnight === '1' ? '_Q1' : fortnight === '2' ? '_Q2' : '';
       return {
         format: 'txt',
-        filename: `IVA_${cleanCompanyRif}_${periodFormatted}.txt`,
+        filename: `IVA_${cleanCompanyRif}_${periodFormatted}${qSuffix}.txt`,
         content: txt,
       };
     }

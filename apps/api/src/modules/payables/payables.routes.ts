@@ -16,8 +16,22 @@ payablesRouter.get('/', authenticate, authorize('payables', 'read'), async (c) =
   const branchId = c.req.query('branchId') || c.get('activeBranchId');
   const supplierId = c.req.query('supplierId');
   const status = c.req.query('status');
-  const data = await PayablesService.getPayables(user.companyId, branchId, supplierId, status);
+  const isVerifiedQuery = c.req.query('isVerified');
+  const isVerified = isVerifiedQuery !== undefined ? isVerifiedQuery === 'true' || isVerifiedQuery === '1' : undefined;
+  const data = await PayablesService.getPayables(user.companyId, branchId, supplierId, status, isVerified);
   return c.json({ success: true, data });
+});
+
+// PATCH /api/payables/:id/verify - Marcar cuenta por pagar como verificada para tesorería
+payablesRouter.patch('/:id/verify', authenticate, authorize(['payables.update', 'payables.read']), async (c) => {
+  const user = c.get('user');
+  const payableId = c.req.param('id')!;
+  try {
+    const data = await PayablesService.verifyPayable(user.companyId, payableId, user.sub);
+    return c.json({ success: true, data });
+  } catch (error: any) {
+    return c.json({ success: false, error: { code: 'VERIFICATION_FAILED', message: error.message } }, 400);
+  }
 });
 
 // GET /api/payables/aging - Reporte de Antigüedad de Saldos CxP

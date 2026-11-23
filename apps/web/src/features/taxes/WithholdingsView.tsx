@@ -119,6 +119,18 @@ export const WithholdingsView: React.FC = () => {
     title: '',
   });
 
+  const [exportModal, setExportModal] = useState<{
+    isOpen: boolean;
+    type: 'IVA' | 'ISLR';
+    fortnight: '1' | '2' | 'ALL';
+    isExporting: boolean;
+  }>({
+    isOpen: false,
+    type: 'IVA',
+    fortnight: 'ALL',
+    isExporting: false,
+  });
+
 
   // Emission Form State
   const [emitType, setEmitType] = useState<'IVA' | 'ISLR'>('IVA');
@@ -290,27 +302,41 @@ export const WithholdingsView: React.FC = () => {
     }
   };
 
-  const handleExportSENIAT = async (type: 'ISLR' | 'IVA') => {
+  const handleExportSENIAT = async (type: 'ISLR' | 'IVA', targetFortnight: '1' | '2' | 'ALL' = 'ALL') => {
     if (companyTaxStatus && !companyTaxStatus.isSpecialTaxpayer) {
       toast.error('Operación no permitida: Los Contribuyentes Ordinarios no generan ni presentan Declaraciones Informativas de Retenciones (SENIAT).');
       return;
     }
+    setExportModal((prev) => ({ ...prev, isExporting: true }));
     try {
-      const res = await fetch(`/api/taxes/export/seniat?period=${period}&type=${type}`, {
+      const res = await fetch(`/api/taxes/export/seniat?period=${period}&type=${type}&fortnight=${targetFortnight}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      if (!res.ok) throw new Error('Error al descargar archivo SENIAT');
+      if (!res.ok) {
+        const errorJson = await res.json().catch(() => null);
+        throw new Error(errorJson?.error?.message || 'Error al descargar archivo oficial SENIAT');
+      }
+
+      const disposition = res.headers.get('Content-Disposition');
+      let filename = type === 'ISLR' ? `ISLR_${period.replace('-', '')}.xml` : `IVA_${period.replace('-', '')}.txt`;
+      if (disposition && disposition.includes('filename="')) {
+        filename = disposition.split('filename="')[1].split('"')[0];
+      }
+
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = type === 'ISLR' ? `ISLR_${period.replace('-', '')}.xml` : `IVA_${period.replace('-', '')}.txt`;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
-      toast.success(`Archivo oficial SENIAT (${type}) descargado`);
+      toast.success(`Archivo oficial ${filename} generado y descargado`);
+      setExportModal((prev) => ({ ...prev, isOpen: false }));
     } catch (err: any) {
       toast.error(err.message || 'Error al exportar archivo SENIAT');
+    } finally {
+      setExportModal((prev) => ({ ...prev, isExporting: false }));
     }
   };
 
@@ -372,7 +398,7 @@ export const WithholdingsView: React.FC = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl font-bold text-neutral-400 dark:text-neutral-100 tracking-tight flex items-center gap-2">
+            <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100 tracking-tight flex items-center gap-2">
               <FileText className="w-5 h-5 text-sky-600" />
               Retenciones Tributarias SENIAT (IVA e ISLR)
             </h1>
@@ -392,23 +418,35 @@ export const WithholdingsView: React.FC = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => handleExportSENIAT("IVA")}
+            onClick={() => {
+              if (companyTaxStatus && !companyTaxStatus.isSpecialTaxpayer) {
+                toast.error('Operación no permitida: Los Contribuyentes Ordinarios no generan ni presentan Declaraciones Informativas de Retenciones (SENIAT).');
+                return;
+              }
+              setExportModal({ isOpen: true, type: 'IVA', fortnight: 'ALL', isExporting: false });
+            }}
             disabled={companyTaxStatus !== null && !companyTaxStatus.isSpecialTaxpayer}
             className="flex-1 sm:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
-            title={companyTaxStatus && !companyTaxStatus.isSpecialTaxpayer ? 'No habilitado: La empresa es Contribuyente Ordinario' : 'Exportar TXT Oficial SENIAT IVA'}
+            title={companyTaxStatus && !companyTaxStatus.isSpecialTaxpayer ? 'No habilitado: La empresa es Contribuyente Ordinario' : 'Exportar TXT Oficial SENIAT IVA (Providencia SNAT/2015/0049)'}
           >
-            <Download className="w-4 h-4 mr-1 text-neutral-600" />
+            <Download className="w-4 h-4 mr-1 text-neutral-600 dark:text-neutral-300" />
             TXT IVA
           </Button>
           <Button
             variant="outline"
             size="sm"
-            onClick={() => handleExportSENIAT("ISLR")}
+            onClick={() => {
+              if (companyTaxStatus && !companyTaxStatus.isSpecialTaxpayer) {
+                toast.error('Operación no permitida: Los Contribuyentes Ordinarios no generan ni presentan Declaraciones Informativas de Retenciones (SENIAT).');
+                return;
+              }
+              setExportModal({ isOpen: true, type: 'ISLR', fortnight: 'ALL', isExporting: false });
+            }}
             disabled={companyTaxStatus !== null && !companyTaxStatus.isSpecialTaxpayer}
             className="flex-1 sm:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
-            title={companyTaxStatus && !companyTaxStatus.isSpecialTaxpayer ? 'No habilitado: La empresa es Contribuyente Ordinario' : 'Exportar XML Oficial SENIAT ISLR'}
+            title={companyTaxStatus && !companyTaxStatus.isSpecialTaxpayer ? 'No habilitado: La empresa es Contribuyente Ordinario' : 'Exportar XML Oficial SENIAT ISLR (Decreto 1808)'}
           >
-            <Download className="w-4 h-4 mr-1 text-neutral-600" />
+            <Download className="w-4 h-4 mr-1 text-neutral-600 dark:text-neutral-300" />
             XML ISLR
           </Button>
           <Button
@@ -1135,6 +1173,110 @@ export const WithholdingsView: React.FC = () => {
         endpoint={pdfModal.endpoint}
         filename={pdfModal.filename}
       />
+
+      {/* Modal de Exportación Oficial SENIAT */}
+      <Modal
+        isOpen={exportModal.isOpen}
+        onClose={() => setExportModal((prev) => ({ ...prev, isOpen: false }))}
+        title={exportModal.type === 'IVA' ? 'Declaración Informativa IVA (TXT SENIAT)' : 'Declaración Informativa ISLR (XML SENIAT)'}
+        subtitle={`Generación de archivo oficial para el período fiscal ${period}`}
+        size="md"
+        footer={
+          <div className="flex justify-end gap-2 w-full">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setExportModal((prev) => ({ ...prev, isOpen: false }))}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={exportModal.isExporting}
+              onClick={() => handleExportSENIAT(exportModal.type, exportModal.fortnight)}
+            >
+              <Download className="w-4 h-4 mr-1.5" />
+              {exportModal.isExporting ? 'Generando Archivo...' : 'Generar y Descargar'}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4 text-xs">
+          <div className="p-3 bg-neutral-50 dark:bg-neutral-800/60 rounded-lg border border-neutral-200 dark:border-neutral-700/60 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-neutral-700 dark:text-neutral-300">Normativa Aplicable:</span>
+              <span className="font-mono text-neutral-600 dark:text-neutral-400">
+                {exportModal.type === 'IVA' ? 'Providencia SNAT/2015/0049' : 'Decreto Presidencial 1808'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-neutral-700 dark:text-neutral-300">Formato Resultante:</span>
+              <Badge variant="info" className="font-mono">
+                {exportModal.type === 'IVA' ? '.TXT Tabulado' : '.XML SENIAT'}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-neutral-700 dark:text-neutral-300">Período Seleccionado:</span>
+              <span className="font-mono font-bold text-sky-600 dark:text-sky-400">{period}</span>
+            </div>
+          </div>
+
+          {exportModal.type === 'IVA' && (
+            <div>
+              <label className="block font-semibold text-neutral-700 dark:text-neutral-300 mb-1.5">
+                Tramo Impositivo / Quincena
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setExportModal((prev) => ({ ...prev, fortnight: 'ALL' }))}
+                  className={`p-2.5 rounded-lg border text-center transition-all cursor-pointer ${
+                    exportModal.fortnight === 'ALL'
+                      ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 font-bold'
+                      : 'border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800'
+                  }`}
+                >
+                  <p className="font-medium">Mes Completo</p>
+                  <p className="text-[10px] text-neutral-500">Días 01 al 31</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExportModal((prev) => ({ ...prev, fortnight: '1' }))}
+                  className={`p-2.5 rounded-lg border text-center transition-all cursor-pointer ${
+                    exportModal.fortnight === '1'
+                      ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 font-bold'
+                      : 'border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800'
+                  }`}
+                >
+                  <p className="font-medium">1ra Quincena</p>
+                  <p className="text-[10px] text-neutral-500">Días 01 al 15</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExportModal((prev) => ({ ...prev, fortnight: '2' }))}
+                  className={`p-2.5 rounded-lg border text-center transition-all cursor-pointer ${
+                    exportModal.fortnight === '2'
+                      ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 font-bold'
+                      : 'border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800'
+                  }`}
+                >
+                  <p className="font-medium">2da Quincena</p>
+                  <p className="text-[10px] text-neutral-500">Días 16 al fin</p>
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800 text-[11px] text-amber-800 dark:text-amber-300 space-y-1">
+            <p className="font-bold">Recordatorio Tributario:</p>
+            <p>
+              El archivo descargado contiene la estructura requerida por el portal web del SENIAT. Ingrese con sus credenciales tributarias a <strong>seniat.gob.ve &gt; Menú Contribuyente Especial &gt; Retenciones</strong> y cargue el archivo correspondiente.
+            </p>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

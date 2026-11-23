@@ -39,7 +39,7 @@ export class InventoryService {
 
   static async getDepartments(companyId: string) {
     return await query<any>(
-      `SELECT d.id, d.code, d.name, d.description, d.is_active as isActive,
+      `SELECT d.id, d.code, d.name, d.description, d.profit_margin as profitMargin, d.is_active as isActive,
               (SELECT COUNT(g.id) FROM \`groups\` g WHERE g.department_id = d.id) AS groupsCount,
               (SELECT COUNT(p.id) FROM products p WHERE p.department_id = d.id AND p.is_active = 1) AS productsCount
        FROM departments d
@@ -51,10 +51,11 @@ export class InventoryService {
 
   static async createDepartment(input: DepartmentInput) {
     const id = input.id || crypto.randomUUID();
+    const margin = input.profitMargin !== undefined ? input.profitMargin : null;
     await query(
-      `INSERT INTO departments (id, company_id, code, name, description, is_active)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [id, input.companyId, input.code.trim().toUpperCase(), input.name.trim(), input.description || null, input.isActive ? 1 : 0]
+      `INSERT INTO departments (id, company_id, code, name, description, profit_margin, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [id, input.companyId, input.code.trim().toUpperCase(), input.name.trim(), input.description || null, margin, input.isActive ? 1 : 0]
     );
     return { id, ...input };
   }
@@ -66,13 +67,14 @@ export class InventoryService {
     const code = input.code !== undefined ? input.code.trim().toUpperCase() : cur.code;
     const name = input.name !== undefined ? input.name.trim() : cur.name;
     const description = input.description !== undefined ? input.description : cur.description;
+    const profitMargin = input.profitMargin !== undefined ? input.profitMargin : cur.profit_margin;
     const isActive = input.isActive !== undefined ? (input.isActive ? 1 : 0) : cur.is_active;
 
     await query(
-      `UPDATE departments SET code = ?, name = ?, description = ?, is_active = ? WHERE id = ?`,
-      [code, name, description, isActive, id]
+      `UPDATE departments SET code = ?, name = ?, description = ?, profit_margin = ?, is_active = ? WHERE id = ?`,
+      [code, name, description, profitMargin, isActive, id]
     );
-    return { id, code, name, description, isActive: Boolean(isActive) };
+    return { id, code, name, description, profitMargin, isActive: Boolean(isActive) };
   }
 
   static async deleteDepartment(id: string) {
@@ -101,8 +103,9 @@ export class InventoryService {
 
   static async getGroups(departmentId?: string) {
     return await query<any>(
-      `SELECT g.id, g.department_id as departmentId, g.code, g.name, g.description, g.is_active as isActive,
-              d.name as departmentName, d.code as departmentCode,
+      `SELECT g.id, g.department_id as departmentId, g.code, g.name, g.description, g.profit_margin as profitMargin, g.is_active as isActive,
+              d.name as departmentName, d.code as departmentCode, d.profit_margin as departmentMargin,
+              COALESCE(g.profit_margin, d.profit_margin) as effectiveMargin,
               (SELECT COUNT(sg.id) FROM subgroups sg WHERE sg.group_id = g.id) AS subgroupsCount,
               (SELECT COUNT(p.id) FROM products p WHERE p.group_id = g.id AND p.is_active = 1) AS productsCount
        FROM \`groups\` g
@@ -115,10 +118,11 @@ export class InventoryService {
 
   static async createGroup(input: GroupInput) {
     const id = input.id || crypto.randomUUID();
+    const margin = input.profitMargin !== undefined ? input.profitMargin : null;
     await query(
-      `INSERT INTO \`groups\` (id, department_id, code, name, description, is_active)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [id, input.departmentId, input.code.trim().toUpperCase(), input.name.trim(), input.description || null, input.isActive ? 1 : 0]
+      `INSERT INTO \`groups\` (id, department_id, code, name, description, profit_margin, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [id, input.departmentId, input.code.trim().toUpperCase(), input.name.trim(), input.description || null, margin, input.isActive ? 1 : 0]
     );
     return { id, ...input };
   }
@@ -131,13 +135,14 @@ export class InventoryService {
     const code = input.code !== undefined ? input.code.trim().toUpperCase() : cur.code;
     const name = input.name !== undefined ? input.name.trim() : cur.name;
     const description = input.description !== undefined ? input.description : cur.description;
+    const profitMargin = input.profitMargin !== undefined ? input.profitMargin : cur.profit_margin;
     const isActive = input.isActive !== undefined ? (input.isActive ? 1 : 0) : cur.is_active;
 
     await query(
-      `UPDATE \`groups\` SET department_id = ?, code = ?, name = ?, description = ?, is_active = ? WHERE id = ?`,
-      [departmentId, code, name, description, isActive, id]
+      `UPDATE \`groups\` SET department_id = ?, code = ?, name = ?, description = ?, profit_margin = ?, is_active = ? WHERE id = ?`,
+      [departmentId, code, name, description, profitMargin, isActive, id]
     );
-    return { id, departmentId, code, name, description, isActive: Boolean(isActive) };
+    return { id, departmentId, code, name, description, profitMargin, isActive: Boolean(isActive) };
   }
 
   static async deleteGroup(id: string) {
@@ -166,9 +171,10 @@ export class InventoryService {
 
   static async getSubgroups(groupId?: string) {
     return await query<any>(
-      `SELECT sg.id, sg.group_id as groupId, sg.code, sg.name, sg.description, sg.is_active as isActive,
-              g.name as groupName, g.code as groupCode,
-              d.id as departmentId, d.name as departmentName, d.code as departmentCode,
+      `SELECT sg.id, sg.group_id as groupId, sg.code, sg.name, sg.description, sg.profit_margin as profitMargin, sg.is_active as isActive,
+              g.name as groupName, g.code as groupCode, g.profit_margin as groupMargin,
+              d.id as departmentId, d.name as departmentName, d.code as departmentCode, d.profit_margin as departmentMargin,
+              COALESCE(sg.profit_margin, g.profit_margin, d.profit_margin) as effectiveMargin,
               (SELECT COUNT(p.id) FROM products p WHERE p.subgroup_id = sg.id AND p.is_active = 1) AS productsCount
        FROM subgroups sg
        INNER JOIN \`groups\` g ON sg.group_id = g.id
@@ -190,10 +196,11 @@ export class InventoryService {
 
   static async createSubgroup(input: SubgroupInput) {
     const id = input.id || crypto.randomUUID();
+    const margin = input.profitMargin !== undefined ? input.profitMargin : null;
     await query(
-      `INSERT INTO subgroups (id, group_id, code, name, description, is_active)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [id, input.groupId, input.code.trim().toUpperCase(), input.name.trim(), input.description || null, input.isActive ? 1 : 0]
+      `INSERT INTO subgroups (id, group_id, code, name, description, profit_margin, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [id, input.groupId, input.code.trim().toUpperCase(), input.name.trim(), input.description || null, margin, input.isActive ? 1 : 0]
     );
     return { id, ...input };
   }
@@ -206,13 +213,14 @@ export class InventoryService {
     const code = input.code !== undefined ? input.code.trim().toUpperCase() : cur.code;
     const name = input.name !== undefined ? input.name.trim() : cur.name;
     const description = input.description !== undefined ? input.description : cur.description;
+    const profitMargin = input.profitMargin !== undefined ? input.profitMargin : cur.profit_margin;
     const isActive = input.isActive !== undefined ? (input.isActive ? 1 : 0) : cur.is_active;
 
     await query(
-      `UPDATE subgroups SET group_id = ?, code = ?, name = ?, description = ?, is_active = ? WHERE id = ?`,
-      [groupId, code, name, description, isActive, id]
+      `UPDATE subgroups SET group_id = ?, code = ?, name = ?, description = ?, profit_margin = ?, is_active = ? WHERE id = ?`,
+      [groupId, code, name, description, profitMargin, isActive, id]
     );
-    return { id, groupId, code, name, description, isActive: Boolean(isActive) };
+    return { id, groupId, code, name, description, profitMargin, isActive: Boolean(isActive) };
   }
 
   static async deleteSubgroup(id: string) {
@@ -469,7 +477,13 @@ export class InventoryService {
               p.group_id as groupId, g.name as groupName,
               p.subgroup_id as subgroupId, sg.name as subgroupName,
               p.brand, p.unit_of_measure as unitOfMeasure,
-              p.cost_price as costPrice, p.base_price as basePrice, p.currency,
+              p.cost_price as costPrice, p.base_price as basePrice,
+              p.profit_margin as profitMargin,
+              COALESCE(p.profit_margin, sg.profit_margin, g.profit_margin, d.profit_margin, 0) as hierarchyMargin,
+              d.profit_margin as departmentMargin,
+              g.profit_margin as groupMargin,
+              sg.profit_margin as subgroupMargin,
+              p.currency,
               p.default_tax_rate_id as defaultTaxRateId, tr.name as taxRateName, COALESCE(tr.rate, 16.0) as taxRate,
               p.tax_inclusive as taxInclusive,
               p.min_stock as minStock, p.max_stock as maxStock, p.is_active as isActive,
@@ -538,6 +552,11 @@ export class InventoryService {
       ...r,
       costPrice: Number(r.costPrice || 0),
       basePrice: Number(r.basePrice || 0),
+      profitMargin: r.profitMargin !== null && r.profitMargin !== undefined ? Number(r.profitMargin) : null,
+      hierarchyMargin: Number(r.hierarchyMargin || 0),
+      departmentMargin: r.departmentMargin !== null && r.departmentMargin !== undefined ? Number(r.departmentMargin) : null,
+      groupMargin: r.groupMargin !== null && r.groupMargin !== undefined ? Number(r.groupMargin) : null,
+      subgroupMargin: r.subgroupMargin !== null && r.subgroupMargin !== undefined ? Number(r.subgroupMargin) : null,
       minStock: Number(r.minStock || 0),
       maxStock: Number(r.maxStock || 0),
       currentStock: Number(r.currentStock || 0),
@@ -566,13 +585,14 @@ export class InventoryService {
         `INSERT INTO products (
           id, company_id, sku, barcode, name, description, product_type, tracks_inventory,
           department_id, group_id, subgroup_id, supplier_id, brand, unit_of_measure,
-          cost_price, base_price, currency, default_tax_rate_id, tax_inclusive,
+          cost_price, base_price, profit_margin, currency, default_tax_rate_id, tax_inclusive,
           min_stock, max_stock, has_batches, has_serials, is_active
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id, input.companyId, input.sku.trim().toUpperCase(), input.barcode?.trim() || null, input.name.trim(), input.description || null, input.productType, tracksInventoryValue,
           input.departmentId || null, input.groupId || null, input.subgroupId || null, input.supplierId || null,
-          input.brand || null, input.unitOfMeasure, input.costPrice, input.basePrice, input.currency,
+          input.brand || null, input.unitOfMeasure, input.costPrice, input.basePrice,
+          input.profitMargin !== undefined ? input.profitMargin : null, input.currency,
           input.defaultTaxRateId || null, input.taxInclusive ? 1 : 0, input.minStock, input.maxStock,
           input.hasBatches ? 1 : 0, input.hasSerials ? 1 : 0, input.isActive ? 1 : 0,
         ]
@@ -682,7 +702,13 @@ export class InventoryService {
               p.group_id as groupId, g.name as groupName,
               p.subgroup_id as subgroupId, sg.name as subgroupName,
               p.brand, p.unit_of_measure as unitOfMeasure,
-              p.cost_price as costPrice, p.base_price as basePrice, p.currency,
+              p.cost_price as costPrice, p.base_price as basePrice,
+              p.profit_margin as profitMargin,
+              COALESCE(p.profit_margin, sg.profit_margin, g.profit_margin, d.profit_margin, 0) as hierarchyMargin,
+              d.profit_margin as departmentMargin,
+              g.profit_margin as groupMargin,
+              sg.profit_margin as subgroupMargin,
+              p.currency,
               p.default_tax_rate_id as defaultTaxRateId, tr.name as taxRateName, COALESCE(tr.rate, 16.0) as taxRate,
               p.tax_inclusive as taxInclusive,
               p.min_stock as minStock, p.max_stock as maxStock, p.is_active as isActive,
@@ -776,6 +802,7 @@ export class InventoryService {
     const unitOfMeasure = input.unitOfMeasure !== undefined ? input.unitOfMeasure : cur.unit_of_measure;
     const costPrice = input.costPrice !== undefined ? input.costPrice : cur.cost_price;
     const basePrice = input.basePrice !== undefined ? input.basePrice : cur.base_price;
+    const profitMargin = input.profitMargin !== undefined ? input.profitMargin : cur.profit_margin;
     const currency = input.currency !== undefined ? input.currency : cur.currency;
     const defaultTaxRateId = input.defaultTaxRateId !== undefined ? (input.defaultTaxRateId || null) : cur.default_tax_rate_id;
     const taxInclusive = input.taxInclusive !== undefined ? (input.taxInclusive ? 1 : 0) : cur.tax_inclusive;
@@ -793,14 +820,14 @@ export class InventoryService {
         `UPDATE products SET
            sku = ?, barcode = ?, name = ?, description = ?, product_type = ?, tracks_inventory = ?,
            department_id = ?, group_id = ?, subgroup_id = ?, supplier_id = ?, brand = ?,
-           unit_of_measure = ?, cost_price = ?, base_price = ?, currency = ?,
+           unit_of_measure = ?, cost_price = ?, base_price = ?, profit_margin = ?, currency = ?,
            default_tax_rate_id = ?, tax_inclusive = ?, min_stock = ?, max_stock = ?,
            has_batches = ?, has_serials = ?, is_active = ?, updated_at = NOW()
          WHERE id = ? AND company_id = ?`,
         [
           sku, barcode, name, description, productType, tracksInventory,
           departmentId, groupId, subgroupId, supplierId, brand,
-          unitOfMeasure, costPrice, basePrice, currency,
+          unitOfMeasure, costPrice, basePrice, profitMargin, currency,
           defaultTaxRateId, taxInclusive, minStock, maxStock,
           hasBatches, hasSerials, isActive,
           id, companyId

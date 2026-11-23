@@ -15,9 +15,37 @@ export const supplierSchema = z.object({
   creditLimit: z.number().min(0, 'El límite de crédito no puede ser negativo').default(0),
   paymentTermsDays: z.number().int().min(0).default(0),
   isActive: z.boolean().default(true),
+  // Datos bancarios
+  bankName: z.string().optional().or(z.literal('')).nullable(),
+  accountNumber: z.string().optional().or(z.literal('')).nullable(),
+  accountType: z.string().optional().or(z.literal('')).nullable(),
+  accountHolderName: z.string().optional().or(z.literal('')).nullable(),
+  accountHolderId: z.string().optional().or(z.literal('')).nullable(),
+  pagoMovilBank: z.string().optional().or(z.literal('')).nullable(),
+  pagoMovilPhone: z.string().optional().or(z.literal('')).nullable(),
+  pagoMovilId: z.string().optional().or(z.literal('')).nullable(),
+  zelleEmail: z.string().optional().or(z.literal('')).nullable(),
+  zelleHolderName: z.string().optional().or(z.literal('')).nullable(),
+  bankNotes: z.string().optional().or(z.literal('')).nullable(),
 });
 
 export type SupplierInput = z.infer<typeof supplierSchema>;
+
+export const supplierBankAccountSchema = z.object({
+  id: z.string().uuid().optional(),
+  supplierId: z.string().uuid(),
+  bankName: z.string().min(1, 'El nombre del banco es requerido'),
+  accountNumber: z.string().min(5, 'Número de cuenta inválido'),
+  accountType: z.string().default('CURRENT'),
+  currency: z.enum(['VES', 'USD']).default('VES'),
+  accountHolderName: z.string().optional().or(z.literal('')).nullable(),
+  accountHolderId: z.string().optional().or(z.literal('')).nullable(),
+  pagoMovilPhone: z.string().optional().or(z.literal('')).nullable(),
+  isPreferred: z.boolean().default(false),
+  notes: z.string().optional().or(z.literal('')).nullable(),
+});
+
+export type SupplierBankAccountInput = z.infer<typeof supplierBankAccountSchema>;
 
 export const supplierProductSchema = z.object({
   productId: z.string().uuid('ID de producto inválido'),

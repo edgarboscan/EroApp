@@ -22,6 +22,7 @@ export const departmentSchema = z.object({
   code: z.string().min(1).max(20),
   name: z.string().min(1).max(100),
   description: z.string().max(255).optional().nullable(),
+  profitMargin: z.number().min(0).max(999.99).optional().nullable(),
   isActive: z.boolean().default(true),
 });
 
@@ -36,6 +37,7 @@ export const groupSchema = z.object({
   code: z.string().min(1).max(20),
   name: z.string().min(1).max(100),
   description: z.string().max(255).optional().nullable(),
+  profitMargin: z.number().min(0).max(999.99).optional().nullable(),
   isActive: z.boolean().default(true),
 });
 
@@ -50,6 +52,7 @@ export const subgroupSchema = z.object({
   code: z.string().min(1).max(20),
   name: z.string().min(1).max(100),
   description: z.string().max(255).optional().nullable(),
+  profitMargin: z.number().min(0).max(999.99).optional().nullable(),
   isActive: z.boolean().default(true),
 });
 
@@ -114,6 +117,7 @@ export const productSchema = z.object({
   // Costos y Precios Base
   costPrice: coerceNumber(0),
   basePrice: coerceNumber(0),
+  profitMargin: coerceOptionalNumber,
   currency: z.enum(['USD', 'VES']).default('USD'),
   
   // Impuestos

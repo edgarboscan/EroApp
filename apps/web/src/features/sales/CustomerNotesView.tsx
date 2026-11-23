@@ -959,13 +959,13 @@ export const CustomerNotesView: React.FC = () => {
         {isLoading ? (
           <div className="p-8 space-y-4">
             {Array.from({ length: 5 }).map((_, idx) => (
-              <div key={idx} className="h-12 bg-neutral-100 rounded-lg animate-pulse" />
+              <div key={idx} className="h-12 bg-neutral-200/60 dark:bg-neutral-800/60 rounded-lg animate-pulse" />
             ))}
           </div>
         ) : filteredNotes.length === 0 ? (
           <div className="p-12 text-center">
-            <Receipt className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
-            <h3 className="text-sm font-semibold text-neutral-400 ">
+            <Receipt className="w-12 h-12 text-neutral-400 dark:text-neutral-600 mx-auto mb-3" />
+            <h3 className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">
               No se encontraron Notas de Crédito o Débito
             </h3>
             <p className="text-xs text-neutral-500 mt-1 max-w-sm mx-auto">

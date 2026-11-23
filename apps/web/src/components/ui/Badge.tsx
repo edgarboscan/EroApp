@@ -9,23 +9,23 @@ interface BadgeProps {
 export const Badge: React.FC<BadgeProps> = ({ variant = 'neutral', children, className = '' }) => {
   const variantStyles = {
     neutral:
-      'bg-gray-100 dark:bg-neutral-800/80 text-neutral-700 dark:text-neutral-300 border-gray-200 dark:border-gray-700',
+      'bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 border-neutral-300 dark:border-neutral-700 font-medium',
     success:
-      'bg-[#28A745]/10 dark:bg-[#4ADE80]/15 text-[#28A745] dark:text-[#4ADE80] border-[#28A745]/25 dark:border-[#4ADE80]/30',
+      'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 font-semibold',
     warning:
-      'bg-[#FFC107]/15 dark:bg-[#FBBF24]/15 text-[#b28500] dark:text-[#FBBF24] border-[#FFC107]/30 dark:border-[#FBBF24]/30',
+      'bg-amber-50 dark:bg-amber-950/50 text-amber-900 dark:text-amber-300 border-amber-300 dark:border-amber-800 font-semibold',
     danger:
-      'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800',
+      'bg-rose-50 dark:bg-rose-950/50 text-rose-800 dark:text-rose-300 border-rose-300 dark:border-rose-800 font-semibold',
     info:
-      'bg-[#17A2B8]/10 dark:bg-[#38C9DD]/15 text-[#17A2B8] dark:text-[#38C9DD] border-[#17A2B8]/25 dark:border-[#38C9DD]/30',
+      'bg-cyan-50 dark:bg-cyan-950/50 text-cyan-800 dark:text-cyan-300 border-cyan-300 dark:border-cyan-800 font-semibold',
     primary:
-      'bg-[#007BFF]/10 dark:bg-[#3D91FF]/15 text-[#007BFF] dark:text-[#3D91FF] border-[#007BFF]/25 dark:border-[#3D91FF]/30',
+      'bg-blue-50 dark:bg-blue-950/50 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-800 font-semibold',
     secondary:
-      'bg-[#17A2B8]/10 dark:bg-[#38C9DD]/15 text-[#17A2B8] dark:text-[#38C9DD] border-[#17A2B8]/25 dark:border-[#38C9DD]/30',
+      'bg-sky-50 dark:bg-sky-950/50 text-sky-800 dark:text-sky-300 border-sky-300 dark:border-sky-800 font-semibold',
   };
 
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium border ${variantStyles[variant]} ${className}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-xs border ${variantStyles[variant]} ${className}`}>
       {children}
     </span>
   );

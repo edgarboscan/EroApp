@@ -192,6 +192,7 @@ CREATE TABLE `departments` (
   `code` VARCHAR(20) NOT NULL,
   `name` VARCHAR(100) NOT NULL,
   `description` VARCHAR(255) DEFAULT NULL,
+  `profit_margin` DECIMAL(5,2) DEFAULT NULL,
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -208,6 +209,7 @@ CREATE TABLE `groups` (
   `code` VARCHAR(20) NOT NULL,
   `name` VARCHAR(100) NOT NULL,
   `description` VARCHAR(255) DEFAULT NULL,
+  `profit_margin` DECIMAL(5,2) DEFAULT NULL,
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -224,6 +226,7 @@ CREATE TABLE `subgroups` (
   `code` VARCHAR(20) NOT NULL,
   `name` VARCHAR(100) NOT NULL,
   `description` VARCHAR(255) DEFAULT NULL,
+  `profit_margin` DECIMAL(5,2) DEFAULT NULL,
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -374,6 +377,7 @@ CREATE TABLE `products` (
   -- Precios Base y Costo
   `cost_price` DECIMAL(14,4) NOT NULL DEFAULT 0.0000,
   `base_price` DECIMAL(14,4) NOT NULL DEFAULT 0.0000,
+  `profit_margin` DECIMAL(5,2) DEFAULT NULL,
   `currency` ENUM('USD', 'VES') NOT NULL DEFAULT 'USD',
   
   -- Reglas Tributarias
@@ -437,6 +441,7 @@ CREATE TABLE `product_presentations` (
   `multiplier` DECIMAL(12,4) NOT NULL DEFAULT 1.0000,
   `cost_price` DECIMAL(14,4) NOT NULL DEFAULT 0.0000,
   `base_price` DECIMAL(14,4) NOT NULL DEFAULT 0.0000,
+  `profit_margin` DECIMAL(5,2) DEFAULT NULL,
   `currency` ENUM('USD', 'VES') NOT NULL DEFAULT 'USD',
   `is_default` TINYINT(1) NOT NULL DEFAULT 0,
   `requires_authorization` TINYINT(1) NOT NULL DEFAULT 0,
@@ -1327,6 +1332,7 @@ CREATE TABLE `purchase_payments` (
   `id` CHAR(36) NOT NULL,
   `invoice_id` CHAR(36) NOT NULL,
   `payable_id` CHAR(36) DEFAULT NULL,
+  `bank_account_id` CHAR(36) DEFAULT NULL,
   `method` VARCHAR(30) NOT NULL,
   `amount_ves` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
   `amount_usd` DECIMAL(14,2) NOT NULL DEFAULT 0.00,

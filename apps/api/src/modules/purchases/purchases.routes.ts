@@ -197,6 +197,22 @@ purchasesRouter.get('/receipts/:id/pdf', authenticate, authorize('purchases', 'r
 });
 
 purchasesRouter.post(
+  '/receipts/check-cost-variations',
+  authenticate,
+  authorize('purchases', 'read'),
+  async (c) => {
+    const user = c.get('user');
+    const body = await c.req.json().catch(() => ({ items: [] }));
+    try {
+      const variations = await PurchasesService.checkCostVariations(user.companyId, body.items || []);
+      return c.json({ success: true, data: variations });
+    } catch (error: any) {
+      return c.json({ success: false, error: { code: 'COST_VARIATION_CHECK_FAILED', message: error.message } }, 400);
+    }
+  }
+);
+
+purchasesRouter.post(
   '/receipts',
   authenticate,
   authorize('purchases', 'create'),
@@ -255,6 +271,28 @@ purchasesRouter.post(
 
     try {
       const result = await PurchasesService.convertReceiptToInvoice(user.companyId, user.sub, body);
+      return c.json({ success: true, data: result }, 201);
+    } catch (error: any) {
+      return c.json({ success: false, error: { code: 'RECEIPT_INVOICE_CONVERSION_FAILED', message: error.message } }, 400);
+    }
+  }
+);
+
+// Alias directo por ID de recepción: POST /receipts/:id/invoice
+purchasesRouter.post(
+  '/receipts/:id/invoice',
+  authenticate,
+  authorize('purchases', 'create'),
+  async (c) => {
+    const user = c.get('user');
+    const receiptId = c.req.param('id');
+    const rawBody = await c.req.json().catch(() => ({}));
+
+    try {
+      const result = await PurchasesService.convertReceiptToInvoice(user.companyId, user.sub, {
+        ...rawBody,
+        receiptId: rawBody.receiptId || receiptId,
+      });
       return c.json({ success: true, data: result }, 201);
     } catch (error: any) {
       return c.json({ success: false, error: { code: 'RECEIPT_INVOICE_CONVERSION_FAILED', message: error.message } }, 400);

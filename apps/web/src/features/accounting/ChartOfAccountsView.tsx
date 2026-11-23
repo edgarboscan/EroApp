@@ -558,13 +558,13 @@ export const ChartOfAccountsView: React.FC = () => {
 
                       <td className="py-2.5 px-4 text-right font-mono text-xs text-[#333333] dark:text-[#E0E0E0]">
                         {acc.acceptsPostings || acc.balanceVes !== 0
-                          ? `${formatMoneyVES(acc.balanceVes)}`
+                          ? formatMoneyVES(acc.balanceVes)
                           : "-"}
                       </td>
 
-                      <td className="py-2.5 px-4 text-right font-mono text-xs text-gray-500 dark:text-gray-400">
+                      <td className="py-2.5 px-4 text-right font-mono text-xs text-neutral-700 dark:text-neutral-300 font-medium">
                         {acc.acceptsPostings || acc.balanceUsd !== 0
-                          ? `{formatMoneyUSD(acc.balanceUsd)}`
+                          ? formatMoneyUSD(acc.balanceUsd)
                           : "-"}
                       </td>
 

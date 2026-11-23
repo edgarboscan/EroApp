@@ -1,5 +1,5 @@
 import { query } from '../../db';
-import { CustomerInput } from '@ero/shared';
+import { CustomerInput, analyzeRif } from '@ero/shared';
 import crypto from 'crypto';
 
 export class CustomersService {
@@ -455,5 +455,149 @@ export class CustomersService {
       notes: history.notes,
       statistics: history.statistics,
     };
+  }
+
+  /**
+   * Consulta inteligente de RIF / Cédula de Cliente:
+   * 1. Valida el formato y calcula el dígito verificador oficial SENIAT (Módulo 11).
+   * 2. Determina el prefijo oficial (V, E, J, G, P, C) y tipo de persona.
+   * 3. Busca coincidencias en la base de datos de clientes.
+   * 4. Cruce comercial: Si no existe como cliente, busca en proveedores existentes (suppliers).
+   * 5. Si existe API externa configurada en .env, la consulta como fallback.
+   * 6. Retorna la información estructurada y enlace al portal del SENIAT.
+   */
+  static async lookupRif(companyId: string, rawRif: string) {
+    const analysis = analyzeRif(rawRif);
+
+    const result = {
+      ...analysis,
+      docType: analysis.prefix,
+      docNumber: analysis.number || (analysis.cleanRif.length > 1 ? analysis.cleanRif.slice(1) : ''),
+      foundInDatabase: false,
+      source: 'algorithmic' as 'existing_customer' | 'existing_supplier' | 'external_api' | 'algorithmic',
+      customer: {
+        docType: analysis.prefix,
+        docNumber: analysis.number || (analysis.cleanRif.length > 1 ? analysis.cleanRif.slice(1) : ''),
+        name: '',
+        address: '',
+        phone: '',
+        email: '',
+        isSpecialTaxpayer: analysis.prefix === 'G',
+      },
+    };
+
+    if (!analysis.cleanRif || analysis.cleanRif.length < 3) {
+      return result;
+    }
+
+    const clean = analysis.cleanRif;
+    const prefix = analysis.prefix;
+    const numVariants = [
+      analysis.number,
+      clean.slice(1),
+      clean.slice(1, -1),
+      rawRif.replace(/[^0-9]/g, ''),
+    ].filter(Boolean);
+
+    // 1. Buscar en clientes existentes
+    try {
+      const custRows = await query<any>(
+        `SELECT id, doc_type, doc_number, name, address, phone, email, is_special_taxpayer,
+                credit_enabled, credit_limit, payment_terms_days
+         FROM customers
+         WHERE company_id = ? AND doc_type = ? AND (
+           doc_number IN (?, ?, ?, ?) OR
+           doc_number = ?
+         )
+         LIMIT 1`,
+        [companyId, prefix, numVariants[0] || '', numVariants[1] || '', numVariants[2] || '', numVariants[3] || '', clean]
+      );
+
+      if (custRows.length > 0) {
+        const c = custRows[0];
+        result.foundInDatabase = true;
+        result.source = 'existing_customer';
+        result.customer = {
+          docType: c.doc_type,
+          docNumber: c.doc_number,
+          name: c.name,
+          address: c.address || '',
+          phone: c.phone || '',
+          email: c.email || '',
+          isSpecialTaxpayer: Boolean(c.is_special_taxpayer) || prefix === 'G',
+        };
+        return result;
+      }
+    } catch (e: any) {
+      console.warn('[CustomersService] lookupRif error al buscar en customers:', e.message);
+    }
+
+    // 2. Cruce comercial: Buscar en proveedores existentes (si la empresa ya le compra a esa entidad)
+    try {
+      const supVariants = [clean, analysis.formattedRif, rawRif.trim().toUpperCase()];
+      const supRows = await query<any>(
+        `SELECT id, rif, name, commercial_name, fiscal_address, phone, email, contact_name
+         FROM suppliers
+         WHERE company_id = ? AND (
+           rif IN (?, ?, ?) OR
+           REPLACE(REPLACE(rif, '-', ''), ' ', '') = ?
+         )
+         LIMIT 1`,
+        [companyId, supVariants[0], supVariants[1], supVariants[2], clean]
+      );
+
+      if (supRows.length > 0) {
+        const s = supRows[0];
+        result.foundInDatabase = true;
+        result.source = 'existing_supplier';
+        result.customer = {
+          docType: prefix,
+          docNumber: analysis.number || clean.slice(1),
+          name: s.name || s.commercial_name,
+          address: s.fiscal_address || '',
+          phone: s.phone || '',
+          email: s.email || '',
+          isSpecialTaxpayer: prefix === 'G',
+        };
+        return result;
+      }
+    } catch (e: any) {
+      console.warn('[CustomersService] lookupRif error al buscar en suppliers:', e.message);
+    }
+
+    // 3. Fallback a API externa de consulta RIF si está configurada en .env
+    const externalApiUrl = process.env.SENIAT_RIF_API_URL;
+    if (externalApiUrl) {
+      try {
+        const targetUrl = externalApiUrl.replace('{rif}', clean);
+        const headers: Record<string, string> = { 'Accept': 'application/json' };
+        if (process.env.SENIAT_RIF_API_KEY) {
+          headers['Authorization'] = `Bearer ${process.env.SENIAT_RIF_API_KEY}`;
+        }
+        const extRes = await fetch(targetUrl, { headers, signal: AbortSignal.timeout(3000) });
+        if (extRes.ok) {
+          const extJson = await extRes.json();
+          if (extJson && (extJson.name || extJson.razonSocial || extJson.razon_social)) {
+            const extName = extJson.name || extJson.razonSocial || extJson.razon_social;
+            const isSpecial = Boolean(extJson.isSpecialTaxpayer || extJson.contribuyenteEspecial || extJson.agenteRetencion);
+            result.foundInDatabase = true;
+            result.source = 'external_api';
+            result.customer = {
+              docType: prefix,
+              docNumber: analysis.number || clean.slice(1),
+              name: extName,
+              address: extJson.fiscalAddress || extJson.direccion || '',
+              phone: extJson.phone || extJson.telefono || '',
+              email: extJson.email || '',
+              isSpecialTaxpayer: isSpecial || prefix === 'G',
+            };
+          }
+        }
+      } catch (extErr: any) {
+        console.warn('[CustomersService] lookupRif error consultando API externa RIF:', extErr.message);
+      }
+    }
+
+    return result;
   }
 }

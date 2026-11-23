@@ -399,7 +399,7 @@ export class ReceivablesService {
    */
   static async getCollectionById(companyId: string, paymentId: string) {
     const rows = await query<any>(
-      `SELECT sp.*, si.invoice_number, si.total_amount_usd as invoice_total_usd,
+      `SELECT sp.*, si.invoice_number, si.total_amount as invoice_total_usd,
               c.name as customer_name, CONCAT(c.doc_type, '-', c.doc_number) as customer_rif,
               c.phone as customer_phone, c.address as customer_address,
               r.amount_total, r.amount_paid as current_amount_paid,

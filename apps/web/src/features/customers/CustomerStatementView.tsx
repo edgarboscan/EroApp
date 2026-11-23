@@ -51,12 +51,12 @@ export const CustomerStatementView: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex flex-col gap-6">
-        <div className="h-8 bg-neutral-200 rounded-lg w-48 animate-pulse" />
+        <div className="h-8 bg-neutral-200/80 dark:bg-neutral-800 rounded-lg w-48 animate-pulse" />
         <div className="grid grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, idx) => (
             <div
               key={idx}
-              className="h-24 bg-neutral-200 rounded-lg animate-pulse"
+              className="h-24 bg-neutral-200/60 dark:bg-neutral-800/60 rounded-lg animate-pulse"
             />
           ))}
         </div>
@@ -78,11 +78,11 @@ export const CustomerStatementView: React.FC = () => {
           </Button>
         </div>
         <Card className="p-12 text-center">
-          <FileText className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
-          <h2 className="text-sm font-semibold text-neutral-800">
+          <FileText className="w-12 h-12 text-neutral-400 dark:text-neutral-600 mx-auto mb-3" />
+          <h2 className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">
             Sin información
           </h2>
-          <p className="text-xs text-neutral-500 mt-1">
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
             No se encontró información o estado de cuenta para el cliente
             seleccionado.
           </p>
@@ -111,7 +111,7 @@ export const CustomerStatementView: React.FC = () => {
             Clientes
           </Button>
           <div>
-            <h1 className="text-xl font-bold text-neutral-400  dark:text-neutral-100 tracking-tight">
+            <h1 className="text-xl font-bold text-neutral-900 dark:text-neutral-100 tracking-tight">
               Estado de Cuenta: {customer.name}
             </h1>
             <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
@@ -237,7 +237,7 @@ export const CustomerStatementView: React.FC = () => {
             <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
               {invoices.length === 0 ? (
                 <tr className="border-b border-neutral-100 dark:border-neutral-800">
-                  <td colSpan={7} className="py-8 text-center text-neutral-400">
+                  <td colSpan={7} className="py-8 text-center text-neutral-500 dark:text-neutral-400">
                     No existen facturas asociadas a este cliente
                   </td>
                 </tr>
@@ -248,51 +248,51 @@ export const CustomerStatementView: React.FC = () => {
                     inv.receivable.daysOverdue > 0 &&
                     inv.status !== "PAID";
                   return (
-                    <tr key={inv.id} className="hover:bg-neutral-50/50">
+                    <tr key={inv.id} className="hover:bg-neutral-50/70 dark:hover:bg-neutral-800/40 transition-colors">
                       <td className="py-3 px-4">
-                        <div className="font-mono font-semibold text-neutral-400 ">
+                        <div className="font-mono font-semibold text-neutral-900 dark:text-neutral-100">
                           {inv.invoiceNumber}
                         </div>
                         {inv.controlNumber && (
-                          <div className="text-[10px] text-neutral-400 font-mono">
+                          <div className="text-[10px] text-neutral-500 dark:text-neutral-400 font-mono">
                             Control: {inv.controlNumber}
                           </div>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-neutral-600">
+                      <td className="py-3 px-4 text-neutral-700 dark:text-neutral-300 text-xs">
                         {new Date(inv.invoiceDate).toLocaleDateString("es-VE")}
                       </td>
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-4 text-xs">
                         {inv.receivable ? (
                           <div
                             className={
                               isOverdue
-                                ? "text-red-700 font-semibold"
-                                : "text-neutral-600"
+                                ? "text-red-600 dark:text-red-400 font-semibold"
+                                : "text-neutral-700 dark:text-neutral-300 font-mono"
                             }
                           >
                             {new Date(
                               inv.receivable.dueDate,
                             ).toLocaleDateString("es-VE")}
                             {isOverdue && (
-                              <span className="block text-[10px] text-red-600">
+                              <span className="block text-[10px] text-red-600 dark:text-red-400 font-bold">
                                 ({inv.receivable.daysOverdue} días vencido)
                               </span>
                             )}
                           </div>
                         ) : (
-                          <span className="text-neutral-400">Contado</span>
+                          <span className="text-neutral-500 dark:text-neutral-400">Contado</span>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-right font-medium text-neutral-400 ">
+                      <td className="py-3 px-4 text-right font-medium text-neutral-900 dark:text-neutral-100 font-mono">
                         {formatMoneyUSD(inv.totalAmount)}
                       </td>
-                      <td className="py-3 px-4 text-right text-emerald-700 font-medium">
+                      <td className="py-3 px-4 text-right text-emerald-600 dark:text-emerald-400 font-mono font-medium">
                         {formatMoneyUSD(
                           inv.receivable?.amountPaid ?? inv.totalAmount,
                         )}
                       </td>
-                      <td className="py-3 px-4 text-right font-mono font-bold text-neutral-400 ">
+                      <td className="py-3 px-4 text-right font-mono font-bold text-neutral-900 dark:text-neutral-100">
                         {formatMoneyUSD(inv.receivable?.amountBalance ?? 0)}
                       </td>
                       <td className="py-3 px-4 text-center">
@@ -322,22 +322,22 @@ export const CustomerStatementView: React.FC = () => {
       </Card>
 
       {/* Histórico de Notas de Crédito & Débito */}
-      <Card className="p-0 bg-sky-50/60 dark:bg-sky-950/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800 overflow-hidden">
-        <div className="p-4 border-b flex items-center justify-between">
+      <Card className="p-0 border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+        <div className="p-4 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <ArrowRightLeft className="w-4 h-4 text-neutral-500" />
-            <h2 className="text-xs font-semibold text-xl font-bold text-neutral-900 dark:text-neutral-100 tracking-tight uppercase tracking-wider">
+            <ArrowRightLeft className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+            <h2 className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">
               Notas de Crédito & Débito del Cliente
             </h2>
           </div>
-          <span className="text-xs text-neutral-500">
+          <span className="text-xs text-neutral-500 dark:text-neutral-400">
             {notes.length} documento(s)
           </span>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm border-collapse">
-            <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 uppercase tracking-wider border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
+            <thead className="bg-[#F4F6F9] dark:bg-[#18191A] text-neutral-700 dark:text-neutral-300 uppercase tracking-wider text-[10px] font-semibold border-b border-neutral-200 dark:border-neutral-800 sticky top-0 z-10">
               <tr>
                 <th className="py-2.5 px-4">Tipo</th>
                 <th className="py-2.5 px-4">Nº Nota / Control</th>
@@ -353,7 +353,7 @@ export const CustomerStatementView: React.FC = () => {
             <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
               {notes.length === 0 ? (
                 <tr className="border-b border-neutral-100 dark:border-neutral-800">
-                  <td colSpan={9} className="py-8 text-center text-neutral-400">
+                  <td colSpan={9} className="py-8 text-center text-neutral-500 dark:text-neutral-400">
                     No existen Notas de Crédito ni de Débito registradas para
                     este cliente
                   </td>
@@ -362,59 +362,59 @@ export const CustomerStatementView: React.FC = () => {
                 notes.map((note: any) => {
                   const isCredit = note.type === "CREDIT";
                   return (
-                    <tr key={note.id} className="hover:bg-neutral-50/50">
+                    <tr key={note.id} className="hover:bg-neutral-50/70 dark:hover:bg-neutral-800/40 transition-colors">
                       <td className="py-3 px-4">
                         <Badge variant={isCredit ? "success" : "info"}>
                           {isCredit ? "Crédito" : "Débito"}
                         </Badge>
                       </td>
                       <td className="py-3 px-4">
-                        <div className="font-mono font-semibold text-neutral-400 ">
+                        <div className="font-mono font-semibold text-neutral-900 dark:text-neutral-100">
                           {note.noteNumber}
                         </div>
                         {note.controlNumber && (
-                          <div className="text-[10px] text-neutral-400 font-mono">
+                          <div className="text-[10px] text-neutral-500 dark:text-neutral-400 font-mono">
                             Control: {note.controlNumber}
                           </div>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-neutral-600">
+                      <td className="py-3 px-4 text-neutral-700 dark:text-neutral-300 text-xs">
                         {new Date(note.issueDate).toLocaleDateString("es-VE")}
                       </td>
                       <td className="py-3 px-4">
                         {note.affectedInvoiceNumber ? (
-                          <span className="font-mono text-neutral-700 bg-neutral-100 px-2 py-0.5 rounded-lg text-[11px]">
+                          <span className="font-mono text-neutral-800 dark:text-neutral-200 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded-lg text-[11px] border border-neutral-200 dark:border-neutral-700">
                             {note.affectedInvoiceNumber}
                           </span>
                         ) : (
-                          <span className="text-neutral-400 italic text-[11px]">
+                          <span className="text-neutral-500 dark:text-neutral-400 italic text-[11px]">
                             General
                           </span>
                         )}
                       </td>
                       <td
-                        className="py-3 px-4 max-w-xs truncate text-neutral-700"
+                        className="py-3 px-4 max-w-xs truncate text-neutral-700 dark:text-neutral-300 text-xs"
                         title={note.reasonDescription}
                       >
                         {note.reasonDescription || note.reasonType}
                       </td>
-                      <td className="py-3 px-4 text-right font-medium text-neutral-400 ">
+                      <td className="py-3 px-4 text-right font-medium text-neutral-900 dark:text-neutral-100 font-mono">
                         {formatMoneyUSD(note.totalAmount)}
                       </td>
-                      <td className="py-3 px-4 text-right text-emerald-700 font-medium">
+                      <td className="py-3 px-4 text-right text-emerald-600 dark:text-emerald-400 font-mono font-medium">
                         {formatMoneyUSD(note.amountApplied)}
                       </td>
                       <td className="py-3 px-4 text-right font-mono font-bold">
                         {isCredit ? (
                           note.amountBalance > 0.005 ? (
-                            <span className="text-emerald-700">
+                            <span className="text-emerald-600 dark:text-emerald-400">
                               {formatMoneyUSD(note.amountBalance)}
                             </span>
                           ) : (
                             <span className="text-neutral-400">$0.00</span>
                           )
                         ) : (
-                          <span className="text-neutral-800">
+                          <span className="text-neutral-900 dark:text-neutral-100">
                             {formatMoneyUSD(
                               note.totalAmount - note.amountApplied,
                             )}

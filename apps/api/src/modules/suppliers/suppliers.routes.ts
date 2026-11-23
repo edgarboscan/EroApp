@@ -32,6 +32,12 @@ suppliersRouter.get('/lookup-rif/:rif', authenticate, authorize('suppliers', 're
   return c.json({ success: true, data });
 });
 
+// GET /api/suppliers/banks - Listado de bancos disponibles
+suppliersRouter.get('/banks', authenticate, async (c) => {
+  const data = await SuppliersService.getAvailableBanks();
+  return c.json({ success: true, data });
+});
+
 // GET /api/suppliers/:id - Detalle de un proveedor
 suppliersRouter.get('/:id', authenticate, authorize('suppliers', 'read'), async (c) => {
   const user = c.get('user');

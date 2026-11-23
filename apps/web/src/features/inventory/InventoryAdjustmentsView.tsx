@@ -465,9 +465,9 @@ export const InventoryAdjustmentsView: React.FC = () => {
       <Card className="p-4">
         {loading ? (
           <div className="space-y-3">
-            <div className="h-8 bg-neutral-200 rounded-lg animate-pulse" />
-            <div className="h-10 bg-neutral-100 rounded-lg animate-pulse" />
-            <div className="h-10 bg-neutral-100 rounded-lg animate-pulse" />
+            <div className="h-8 bg-neutral-200/80 dark:bg-neutral-800 rounded-lg animate-pulse" />
+            <div className="h-10 bg-neutral-200/60 dark:bg-neutral-800/60 rounded-lg animate-pulse" />
+            <div className="h-10 bg-neutral-200/60 dark:bg-neutral-800/60 rounded-lg animate-pulse" />
           </div>
         ) : (
           <DataTable

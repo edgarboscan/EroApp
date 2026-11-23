@@ -6,6 +6,7 @@ import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { Badge } from "../../components/ui/Badge";
 import { toast } from "sonner";
+import { useExchangeRateStore } from '../../stores/exchangeRateStore';
 import {
   Landmark,
   Plus,
@@ -23,6 +24,12 @@ import {
   Filter,
   Check,
   FileText,
+  Copy,
+  Smartphone,
+  Mail,
+  Truck,
+  Receipt,
+  Clock,
 } from "lucide-react";
 import {
   formatNumber,
@@ -32,6 +39,8 @@ import {
   parseFormattedNumber,
 } from "@ero/shared";
 import { Modal } from "../../components/ui/Modal";
+import { showConfirmQuestion } from "../../lib/sweetalert";
+import { PdfViewerModal } from "../../components/ui/PdfViewerModal";
 
 export interface BankAccount {
   id: string;
@@ -98,7 +107,7 @@ export interface BranchOption {
 export const TreasuryView: React.FC = () => {
   const navigate = useNavigate();
   const { token, hasPermission, activeBranchId } = useAuthStore();
-
+  const liveRate = useExchangeRateStore((state) => state.rate);
   const [branches, setBranches] = useState<BranchOption[]>([]);
   const [selectedBranchId, setSelectedBranchId] = useState<string>(
     activeBranchId || "all",
@@ -113,11 +122,49 @@ export const TreasuryView: React.FC = () => {
   const [filterReconciled, setFilterReconciled] = useState<
     "ALL" | "PENDING" | "RECONCILED"
   >("ALL");
+  const [currency, setCurrency] = useState<"USD" | "VES">("USD");
+  // Tabs: Movimientos vs Pagos a Proveedores por Procesar
+  const [treasuryTab, setTreasuryTab] = useState<"MOVEMENTS" | "PENDING_PAYMENTS">("MOVEMENTS");
+  const [pendingPayables, setPendingPayables] = useState<any[]>([]);
+  const [pendingPayablesLoading, setPendingPayablesLoading] = useState(false);
+  const [payablesSearch, setPayablesSearch] = useState("");
 
   // Modals
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [isMovementModalOpen, setIsMovementModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [isPayModalOpen, setIsPayModalOpen] = useState(false);
+  const [payableToPay, setPayableToPay] = useState<any | null>(null);
+  const [submittingPayment, setSubmittingPayment] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [pdfModal, setPdfModal] = useState<{
+    isOpen: boolean;
+    endpoint: string | null;
+    title: string;
+    filename?: string;
+  }>({
+    isOpen: false,
+    endpoint: null,
+    title: "",
+  });
+
+  const handleCopy = (text: string, key: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    toast.success("Copiado al portapapeles");
+    setTimeout(() => setCopiedKey(null), 2000);
+  };
+
+  // Form: Pago a Proveedor desde Tesorería
+  const [payForm, setPayForm] = useState({
+    bankAccountId: "",
+    currency: "USD" as "USD" | "VES",
+    exchangeRate: liveRate,
+    amount: 0,
+    paymentMethod: "TRANSFER_VES",
+    referenceNumber: "",
+    notes: "",
+  });
 
   // Form: Nueva Cuenta
   const [accountForm, setAccountForm] = useState({
@@ -144,7 +191,7 @@ export const TreasuryView: React.FC = () => {
     originAccountId: "",
     destinationAccountId: "",
     amount: 0,
-    exchangeRate: 36.5,
+    exchangeRate: liveRate,
     referenceNumber: "",
     concept: "",
   });
@@ -244,9 +291,155 @@ export const TreasuryView: React.FC = () => {
     }
   };
 
+  const fetchPendingPayables = async () => {
+    setPendingPayablesLoading(true);
+    try {
+      const branchParam =
+        selectedBranchId && selectedBranchId !== "all"
+          ? `&branchId=${encodeURIComponent(selectedBranchId)}`
+          : "";
+      const res = await fetch(`/api/payables?isVerified=true${branchParam}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setPendingPayables(Array.isArray(json.data) ? json.data : []);
+      }
+    } catch {
+      setPendingPayables([]);
+    } finally {
+      setPendingPayablesLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchTreasuryData();
+    fetchPendingPayables();
   }, [selectedBranchId, selectedAccountId]);
+
+  const handleOpenPayModal = (p: any) => {
+    setPayableToPay(p);
+    const initialCurrency: "USD" | "VES" = "USD";
+    const matchingAcc = accounts.find((a) => a.currency === initialCurrency) || accounts[0];
+    setPayForm({
+      bankAccountId: matchingAcc ? matchingAcc.id : "",
+      currency: initialCurrency,
+      exchangeRate: liveRate,
+      amount: Number(p.amountBalance || 0),
+      paymentMethod: "TRANSFER_USD",
+      referenceNumber: "",
+      notes: `Pago factura ${p.invoiceNumber} a ${p.supplierName}`,
+    });
+    setIsPayModalOpen(true);
+  };
+
+  const handleCurrencyChange = (newCurrency: "USD" | "VES") => {
+    if (!payableToPay) {
+      setPayForm((prev) => ({ ...prev, currency: newCurrency }));
+      return;
+    }
+    const balanceUSD = Number(payableToPay.amountBalance || 0);
+    const rate = payForm.exchangeRate > 0 ? payForm.exchangeRate : (liveRate || 1);
+    const newAmount = newCurrency === "USD" ? balanceUSD : Number((balanceUSD * rate).toFixed(2));
+
+    // Seleccionar cuenta bancaria acorde a la moneda seleccionada
+    const matchingAcc = accounts.find((a) => a.currency === newCurrency) || accounts[0];
+
+    // Adaptar método de pago acorde a la moneda
+    let newMethod = payForm.paymentMethod;
+    if (newCurrency === "USD" && (payForm.paymentMethod === "TRANSFER_VES" || payForm.paymentMethod === "PAGO_MOVIL")) {
+      newMethod = "TRANSFER_USD";
+    } else if (newCurrency === "VES" && payForm.paymentMethod === "TRANSFER_USD") {
+      newMethod = "TRANSFER_VES";
+    }
+
+    setPayForm((prev) => ({
+      ...prev,
+      currency: newCurrency,
+      amount: newAmount,
+      bankAccountId: matchingAcc ? matchingAcc.id : prev.bankAccountId,
+      paymentMethod: newMethod,
+    }));
+  };
+
+  const handleExchangeRateChange = (newRate: number) => {
+    setPayForm((prev) => {
+      const updated = { ...prev, exchangeRate: newRate };
+      if (prev.currency === "VES" && payableToPay) {
+        const balanceUSD = Number(payableToPay.amountBalance || 0);
+        updated.amount = Number((balanceUSD * (newRate > 0 ? newRate : 1)).toFixed(2));
+      }
+      return updated;
+    });
+  };
+
+  const handleExecuteTreasuryPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!payableToPay || payForm.amount <= 0) {
+      toast.error("Introduzca un monto válido a pagar");
+      return;
+    }
+
+    const isBankMethod = ["TRANSFER_VES", "TRANSFER_USD", "PAGO_MOVIL", "ZELLE"].includes(payForm.paymentMethod);
+    if (isBankMethod && !payForm.bankAccountId) {
+      toast.error("Seleccione la cuenta bancaria de la empresa para debitar el egreso");
+      return;
+    }
+
+    const confirmed = await showConfirmQuestion({
+      title: "¿Ejecutar pago desde Tesorería?",
+      text: `¿Confirma el débito por ${payForm.currency === 'USD' ? `$${payForm.amount.toFixed(2)}` : `Bs. ${payForm.amount.toFixed(2)}`} a favor de ${payableToPay.supplierName}?`,
+      confirmButtonText: "Sí, ejecutar y asentar pago",
+      cancelButtonText: "Cancelar",
+      icon: "question",
+    });
+    if (!confirmed) return;
+
+    setSubmittingPayment(true);
+    try {
+      const res = await fetch("/api/payables/payments", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          payableId: payableToPay.id,
+          amount: payForm.amount,
+          currency: payForm.currency,
+          exchangeRate: payForm.exchangeRate,
+          paymentMethod: payForm.paymentMethod,
+          bankAccountId: payForm.bankAccountId || undefined,
+          referenceNumber: payForm.referenceNumber || undefined,
+          notes: payForm.notes || undefined,
+        }),
+      });
+
+      const json = await res.json();
+      if (res.ok && json.success) {
+        toast.success("Pago procesado exitosamente. Se debitó la cuenta bancaria y se generó el asiento en contabilidad.");
+        setIsPayModalOpen(false);
+        fetchTreasuryData();
+        fetchPendingPayables();
+
+        const payId = json.data?.id || json.data?.paymentId;
+        if (payId) {
+          setPdfModal({
+            isOpen: true,
+            endpoint: `/api/payables/payments/${payId}/pdf`,
+            title: "Comprobante Oficial de Egreso / Pago a Proveedor",
+            filename: `recibo_pago_cxp_${payId}.pdf`,
+          });
+        }
+      } else {
+        toast.error(json.error?.message || "Error al procesar el pago");
+      }
+    } catch {
+      toast.error("Error de conexión al procesar el pago");
+    } finally {
+      setSubmittingPayment(false);
+    }
+  };
 
   const handleCreateAccount = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -495,7 +688,7 @@ export const TreasuryView: React.FC = () => {
                     originAccountId: accounts[0]?.id || "",
                     destinationAccountId: accounts[1]?.id || "",
                     amount: 0,
-                    exchangeRate: 36.5,
+                    exchangeRate: liveRate,
                     referenceNumber: "",
                     concept: "",
                   });
@@ -795,149 +988,399 @@ export const TreasuryView: React.FC = () => {
         </div>
       </div>
 
-      {/* Movements Table */}
-      <Card className="border-neutral-200 rounded-lg overflow-hidden">
-        <div className="p-4 border-b border-neutral-200 flex flex-col md:flex-row justify-between items-center gap-3">
-          <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
-            <div className="relative w-full sm:w-60">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-              <input
-                type="text"
-                placeholder="Buscar por concepto o ref..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
-              />
+      {/* Selector de Pestañas: Libro de Movimientos vs Pagos a Proveedores por Procesar */}
+      <div className="flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-2">
+        <button
+          type="button"
+          onClick={() => setTreasuryTab("MOVEMENTS")}
+          className={`px-3 py-2 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer ${
+            treasuryTab === "MOVEMENTS"
+              ? "bg-sky-600 text-white shadow-xs"
+              : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+          }`}
+        >
+          <ArrowRightLeft className="w-3.5 h-3.5" />
+          Libro de Movimientos Bancarios
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setTreasuryTab("PENDING_PAYMENTS");
+            fetchPendingPayables();
+          }}
+          className={`px-3 py-2 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer ${
+            treasuryTab === "PENDING_PAYMENTS"
+              ? "bg-sky-600 text-white shadow-xs"
+              : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+          }`}
+        >
+          <Receipt className="w-3.5 h-3.5" />
+          Pagos a Proveedores por Procesar
+          {pendingPayables.length > 0 && (
+            <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-red-500 text-white font-mono font-bold">
+              {pendingPayables.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {treasuryTab === "MOVEMENTS" ? (
+        /* Movements Table */
+        <Card className="border-neutral-200 dark:border-neutral-800 rounded-lg overflow-hidden">
+          <div className="p-4 border-b border-neutral-200 dark:border-neutral-800 flex flex-col md:flex-row justify-between items-center gap-3">
+            <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
+              <div className="relative w-full sm:w-60">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar por concepto o ref..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                />
+              </div>
+
+              <select
+                value={selectedAccountId}
+                onChange={(e) => setSelectedAccountId(e.target.value)}
+                className="text-xs h-8 px-2.5 text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              >
+                <option value="all">Todas las cuentas</option>
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.bankName} ({a.currency})
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={filterReconciled}
+                onChange={(e) => setFilterReconciled(e.target.value as any)}
+                className="text-xs h-8 px-2.5 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              >
+                <option value="ALL">Todos los Estados</option>
+                <option value="PENDING">Solo Pendientes</option>
+                <option value="RECONCILED">Solo Conciliados</option>
+              </select>
             </div>
 
-            <select
-              value={selectedAccountId}
-              onChange={(e) => setSelectedAccountId(e.target.value)}
-              className="text-xs h-8 px-2.5 text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
-            >
-              <option value="all">Todas las cuentas</option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.bankName} ({a.currency})
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={filterReconciled}
-              onChange={(e) => setFilterReconciled(e.target.value as any)}
-              className="text-xs h-8 px-2.5 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
-            >
-              <option value="ALL">Todos los Estados</option>
-              <option value="PENDING">Solo Pendientes</option>
-              <option value="RECONCILED">Solo Conciliados</option>
-            </select>
+            <span className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">
+              {filteredMovements.length} movimientos en libro
+            </span>
           </div>
 
-          <span className="text-xs text-neutral-500 font-medium">
-            {filteredMovements.length} movimientos en libro
-          </span>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm border-collapse">
-            <thead className="bg-[#F4F6F9] dark:bg-[#18191A] text-neutral-700 dark:text-neutral-300 uppercase font-semibold text-[10px] tracking-wider border-b border-gray-200 dark:border-gray-800 sticky top-0 z-10">
-              <tr>
-                <th className="py-2.5 px-3">Fecha y Hora</th>
-                <th className="py-2.5 px-3">Tipo Movimiento</th>
-                <th className="py-2.5 px-3">Referencia</th>
-                <th className="py-2.5 px-3">Concepto / Descripción</th>
-                <th className="py-2.5 px-3 text-right">Monto</th>
-                <th className="py-2.5 px-3 text-right">Saldo Posterior</th>
-                <th className="py-2.5 px-3 text-center">Conciliación</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800 ">
-              {loading ? (
-                Array.from({ length: 4 }).map((_, i) => (
-                  <tr
-                    key={i}
-                    className="border-b border-neutral-100 dark:border-neutral-800 hover:bg-neutral-600 animate-pulse
-                  "
-                  >
-                    <td colSpan={7} className="py-3 px-3">
-                      <div className="h-4 bg-neutral-100 rounded" />
-                    </td>
-                  </tr>
-                ))
-              ) : filteredMovements.length === 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm border-collapse">
+              <thead className="bg-[#F4F6F9] dark:bg-[#18191A] text-neutral-700 dark:text-neutral-300 uppercase font-semibold text-[10px] tracking-wider border-b border-neutral-200 dark:border-neutral-800 sticky top-0 z-10">
                 <tr>
-                  <td colSpan={7} className="text-center py-8 text-neutral-400">
-                    No se registran movimientos bancarios para el filtro
-                    aplicado.
-                  </td>
+                  <th className="py-2.5 px-3">Fecha y Hora</th>
+                  <th className="py-2.5 px-3">Tipo Movimiento</th>
+                  <th className="py-2.5 px-3">Referencia</th>
+                  <th className="py-2.5 px-3">Concepto / Descripción</th>
+                  <th className="py-2.5 px-3 text-right">Monto</th>
+                  <th className="py-2.5 px-3 text-right">Saldo Posterior</th>
+                  <th className="py-2.5 px-3 text-center">Conciliación</th>
                 </tr>
-              ) : (
-                filteredMovements.map((m) => {
-                  const isPositive = m.amount > 0;
-                  return (
+              </thead>
+              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                {loading ? (
+                  Array.from({ length: 4 }).map((_, i) => (
                     <tr
-                      key={m.id}
-                      className="border-b border-gray-100 dark:border-gray-800/80 hover:bg-[#F4F6F9] dark:hover:bg-neutral-800/50 transition-colors"
+                      key={i}
+                      className="border-b border-neutral-100 dark:border-neutral-800 animate-pulse"
                     >
-                      <td className="py-2.5 px-3 font-mono text-[#333333] dark:text-[#E0E0E0]">
-                        {new Date(m.movementDate).toLocaleDateString("es-VE")}{" "}
-                        <span className="text-neutral-400">
-                          {new Date(m.movementDate).toLocaleTimeString(
-                            "es-VE",
-                            {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            },
-                          )}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <span className="text-[10px] font-semibold uppercase text-neutral-500">
-                          {m.movementType}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 font-mono font-semibold text-neutral-700 dark:text-neutral-300">
-                        {m.referenceNumber || "—"}
-                      </td>
-                      <td className="py-2.5 px-3 text-[#333333] dark:text-[#E0E0E0] truncate max-w-xs">
-                        {m.concept}
-                      </td>
-                      <td
-                        className={`py-2.5 px-3 text-right font-mono font-semibold ${
-                          isPositive ? "text-emerald-600" : "text-red-600"
-                        }`}
-                      >
-                        {isPositive ? "+" : ""}
-                        {formatNumber(m.amount)}
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-mono text-[#333333] dark:text-[#E0E0E0]">
-                        {formatNumber(m.balanceAfter)}
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleToggleReconcile(m.id, m.isReconciled)
-                          }
-                          className="focus:outline-none"
-                          title="Haz clic para conciliar / desconciliar"
-                        >
-                          <Badge
-                            variant={m.isReconciled ? "success" : "warning"}
-                          >
-                            {m.isReconciled ? "Conciliado" : "Pendiente"}
-                          </Badge>
-                        </button>
+                      <td colSpan={7} className="py-3 px-3">
+                        <div className="h-4 bg-neutral-200/80 dark:bg-neutral-800 rounded" />
                       </td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+                  ))
+                ) : filteredMovements.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="text-center py-8 text-neutral-500 dark:text-neutral-400">
+                      No se registran movimientos bancarios para el filtro
+                      aplicado.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredMovements.map((m) => {
+                    const isPositive = m.amount > 0;
+                    return (
+                      <tr
+                        key={m.id}
+                        className="border-b border-gray-100 dark:border-gray-800/80 hover:bg-neutral-50/70 dark:hover:bg-neutral-800/50 transition-colors"
+                      >
+                        <td className="py-2.5 px-3 font-mono text-[#333333] dark:text-[#E0E0E0]">
+                          {new Date(m.movementDate).toLocaleDateString("es-VE")}{" "}
+                          <span className="text-neutral-500 dark:text-neutral-400">
+                            {new Date(m.movementDate).toLocaleTimeString(
+                              "es-VE",
+                              {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              },
+                            )}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span className="text-[10px] font-semibold uppercase text-neutral-600 dark:text-neutral-400">
+                            {m.movementType}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 font-mono font-semibold text-neutral-700 dark:text-neutral-300">
+                          {m.referenceNumber || "—"}
+                        </td>
+                        <td className="py-2.5 px-3 text-[#333333] dark:text-[#E0E0E0] truncate max-w-xs">
+                          {m.concept}
+                        </td>
+                        <td
+                          className={`py-2.5 px-3 text-right font-mono font-semibold ${
+                            isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+                          }`}
+                        >
+                          {isPositive ? "+" : ""}
+                          {formatNumber(m.amount)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono text-[#333333] dark:text-[#E0E0E0]">
+                          {formatNumber(m.balanceAfter)}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleToggleReconcile(m.id, m.isReconciled)
+                            }
+                            className="focus:outline-none cursor-pointer"
+                            title="Haz clic para conciliar / desconciliar"
+                          >
+                            <Badge
+                              variant={m.isReconciled ? "success" : "warning"}
+                            >
+                              {m.isReconciled ? "Conciliado" : "Pendiente"}
+                            </Badge>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ) : (
+        /* Pagos a Proveedores por Procesar */
+        <Card className="border-neutral-200 dark:border-neutral-800 rounded-lg overflow-hidden space-y-4">
+          <div className="p-4 border-b border-neutral-200 dark:border-neutral-800 flex flex-col md:flex-row justify-between items-center gap-3">
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              <div className="relative w-full sm:w-72">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar proveedor, RIF o factura..."
+                  value={payablesSearch}
+                  onChange={(e) => setPayablesSearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                />
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={fetchPendingPayables}
+                className="h-8 text-xs shrink-0"
+              >
+                Actualizar
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-3 text-xs">
+              <span className="text-neutral-500 dark:text-neutral-400">
+                Total por Desembolsar:
+              </span>
+              <span className="font-mono font-bold text-red-600 dark:text-red-400 text-sm">
+                {formatMoneyUSD(
+                  pendingPayables.reduce((acc, p) => acc + (Number(p.amountBalance) || 0), 0)
+                )}
+              </span>
+            </div>
+          </div>
+
+          <div className="px-4 py-2.5 bg-sky-50/70 dark:bg-sky-950/40 border-y border-sky-100 dark:border-sky-900/40 flex items-center justify-between gap-2 text-xs text-sky-800 dark:text-sky-300">
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+              Solo se muestran facturas previamente verificadas en Cuentas por Pagar (CxP) listas para ejecución de desembolso bancario.
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm border-collapse">
+              <thead className="bg-[#F4F6F9] dark:bg-[#18191A] text-neutral-700 dark:text-neutral-300 uppercase font-semibold text-[10px] tracking-wider border-b border-neutral-200 dark:border-neutral-800 sticky top-0 z-10">
+                <tr>
+                  <th className="py-2.5 px-3">Proveedor</th>
+                  <th className="py-2.5 px-3">Factura / Emisión</th>
+                  <th className="py-2.5 px-3">Vencimiento</th>
+                  <th className="py-2.5 px-3">Datos Bancarios del Proveedor</th>
+                  <th className="py-2.5 px-3 text-right">Saldo Pendiente</th>
+                  <th className="py-2.5 px-3 text-center">Acción</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                {pendingPayablesLoading ? (
+                  Array.from({ length: 4 }).map((_, i) => (
+                    <tr key={i} className="animate-pulse">
+                      <td colSpan={6} className="py-3 px-3">
+                        <div className="h-4 bg-neutral-200/80 dark:bg-neutral-800 rounded" />
+                      </td>
+                    </tr>
+                  ))
+                ) : pendingPayables.filter((p) => {
+                    if (!payablesSearch.trim()) return true;
+                    const q = payablesSearch.toLowerCase();
+                    return (
+                      p.supplierName?.toLowerCase().includes(q) ||
+                      p.supplierRif?.toLowerCase().includes(q) ||
+                      p.invoiceNumber?.toLowerCase().includes(q)
+                    );
+                  }).length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-10 text-neutral-500 dark:text-neutral-400">
+                      <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-500" />
+                      <p className="font-medium text-xs">No hay pagos a proveedores pendientes por procesar en esta sucursal.</p>
+                    </td>
+                  </tr>
+                ) : (
+                  pendingPayables
+                    .filter((p) => {
+                      if (!payablesSearch.trim()) return true;
+                      const q = payablesSearch.toLowerCase();
+                      return (
+                        p.supplierName?.toLowerCase().includes(q) ||
+                        p.supplierRif?.toLowerCase().includes(q) ||
+                        p.invoiceNumber?.toLowerCase().includes(q)
+                      );
+                    })
+                    .map((p) => (
+                      <tr
+                        key={p.id}
+                        className="hover:bg-neutral-50/70 dark:hover:bg-neutral-800/40 transition-colors"
+                      >
+                        <td className="py-3 px-3">
+                          <div className="font-semibold text-neutral-900 dark:text-neutral-100 text-xs">
+                            {p.supplierName}
+                          </div>
+                          <div className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400">
+                            {p.supplierRif}
+                          </div>
+                        </td>
+
+                        <td className="py-3 px-3">
+                          <div className="font-mono font-semibold text-neutral-800 dark:text-neutral-200 text-xs">
+                            {p.invoiceNumber}
+                          </div>
+                          <div className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                            {new Date(p.invoiceDate).toLocaleDateString("es-VE")}
+                          </div>
+                        </td>
+
+                        <td className="py-3 px-3 text-xs">
+                          <div className="font-mono text-neutral-700 dark:text-neutral-300">
+                            {p.dueDate ? new Date(p.dueDate).toLocaleDateString("es-VE") : "-"}
+                          </div>
+                          {p.daysOverdue > 0 && (
+                            <span className="text-[10px] font-bold text-red-600 dark:text-red-400">
+                              {p.daysOverdue} días vencido
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-3 px-3 text-xs">
+                          {p.accountNumber ? (
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-1.5 font-medium text-neutral-700 dark:text-neutral-300">
+                                <CreditCard className="w-3 h-3 text-sky-500" />
+                                <span>{p.bankName || "Banco"}</span>
+                              </div>
+                              <div className="flex items-center gap-1 font-mono text-[11px] text-neutral-600 dark:text-neutral-400">
+                                <span>{p.accountNumber}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopy(p.accountNumber, `table_acc_${p.id}`)}
+                                  className="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 cursor-pointer"
+                                  title="Copiar cuenta"
+                                >
+                                  {copiedKey === `table_acc_${p.id}` ? (
+                                    <Check className="w-3 h-3 text-emerald-500" />
+                                  ) : (
+                                    <Copy className="w-3 h-3" />
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          ) : p.pagoMovilPhone ? (
+                            <div className="flex items-center gap-1 font-mono text-[11px] text-neutral-700 dark:text-neutral-300">
+                              <Smartphone className="w-3 h-3 text-emerald-500" />
+                              <span>{p.pagoMovilPhone}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(p.pagoMovilPhone, `table_pm_${p.id}`)}
+                                className="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 cursor-pointer"
+                                title="Copiar teléfono"
+                              >
+                                {copiedKey === `table_pm_${p.id}` ? (
+                                  <Check className="w-3 h-3 text-emerald-500" />
+                                ) : (
+                                  <Copy className="w-3 h-3" />
+                                )}
+                              </button>
+                            </div>
+                          ) : p.zelleEmail ? (
+                            <div className="flex items-center gap-1 text-[11px] text-neutral-700 dark:text-neutral-300">
+                              <Mail className="w-3 h-3 text-purple-500" />
+                              <span className="font-mono">{p.zelleEmail}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(p.zelleEmail, `table_zelle_${p.id}`)}
+                                className="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 cursor-pointer"
+                                title="Copiar Zelle"
+                              >
+                                {copiedKey === `table_zelle_${p.id}` ? (
+                                  <Check className="w-3 h-3 text-emerald-500" />
+                                ) : (
+                                  <Copy className="w-3 h-3" />
+                                )}
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-neutral-400 text-[11px] italic">Sin datos bancarios</span>
+                          )}
+                        </td>
+
+                        <td className="py-3 px-3 text-right">
+                          <div className="font-mono font-bold text-red-600 dark:text-red-400 text-xs">
+                            {formatMoneyUSD(p.amountBalance)}
+                          </div>
+                          <div className="text-[10px] font-mono text-neutral-500 dark:text-neutral-400">
+                            Total: {formatMoneyUSD(p.amountTotal)}
+                          </div>
+                        </td>
+
+                        <td className="py-3 px-3 text-center">
+                          <Button
+                            size="sm"
+                            onClick={() => handleOpenPayModal(p)}
+                            className="h-7 text-xs shadow-xs"
+                          >
+                            <CreditCard className="w-3 h-3 mr-1" />
+                            Pagar
+                          </Button>
+                        </td>
+                      </tr>
+                    ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       {/* Modal: Crear Cuenta Bancaria */}
       <Modal
@@ -945,7 +1388,7 @@ export const TreasuryView: React.FC = () => {
         onClose={() => setIsAccountModalOpen(false)}
         title="Registrar Cuenta Bancaria"
         description="Gestión de cuentas corrientes, custodia y saldos por sucursal"
-        size="md"
+        size="xl"
         footer={
           <div className="flex items-center justify-end gap-2">
             <Button
@@ -1101,7 +1544,7 @@ export const TreasuryView: React.FC = () => {
         onClose={() => setIsMovementModalOpen(false)}
         title="Registrar Movimiento Bancario"
         description="Ingreso o egreso manual fuera de ventas/compras"
-        size="md"
+        size="xl"
         footer={
           <div className="flex items-center justify-end gap-2">
             <Button
@@ -1219,7 +1662,7 @@ export const TreasuryView: React.FC = () => {
         onClose={() => setIsTransferModalOpen(false)}
         title="Transferir entre Cuentas Propias"
         description="Traspaso de fondos interbancario o cambio de divisa"
-        size="md"
+        size="xl"
         footer={
           <div className="flex items-center justify-end gap-2">
             <Button
@@ -1349,6 +1792,264 @@ export const TreasuryView: React.FC = () => {
           />
         </form>
       </Modal>
+
+      {/* Modal: Ejecutar Pago a Proveedor desde Tesorería */}
+      <Modal
+        isOpen={isPayModalOpen}
+        onClose={() => setIsPayModalOpen(false)}
+        title="Ejecutar Pago a Proveedor desde Tesorería"
+        description="Emisión de egreso bancario con imputación a factura de compra y asiento contable automático"
+        size="3xl"
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              onClick={() => setIsPayModalOpen(false)}
+              disabled={submittingPayment}
+            >
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              type="submit"
+              form="form-treasury-payment"
+              isLoading={submittingPayment}
+              disabled={!payForm.amount || payForm.amount <= 0}
+            >
+              <CheckCircle2 className="w-4 h-4 mr-1.5" />
+              Confirmar y Ejecutar Pago
+            </Button>
+          </div>
+        }
+      >
+        <form
+          id="form-treasury-payment"
+          onSubmit={handleExecuteTreasuryPayment}
+          className="space-y-4"
+        >
+          {payableToPay && (
+            <div className="p-3 bg-sky-50/60 dark:bg-sky-950/30 rounded-lg border border-sky-200 dark:border-sky-800 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div>
+                <span className="text-neutral-500 dark:text-neutral-400 block font-medium">Proveedor:</span>
+                <span className="font-semibold text-neutral-900 dark:text-neutral-100">{payableToPay.supplierName}</span>
+                <span className="font-mono text-neutral-500 block text-[11px]">{payableToPay.supplierRif}</span>
+              </div>
+              <div>
+                <span className="text-neutral-500 dark:text-neutral-400 block font-medium">Factura:</span>
+                <span className="font-semibold font-mono text-neutral-900 dark:text-neutral-100">{payableToPay.invoiceNumber}</span>
+                <span className="text-neutral-500 block text-[11px]">Total: {formatMoneyUSD(payableToPay.amountTotal)}</span>
+              </div>
+              <div>
+                <span className="text-neutral-500 dark:text-neutral-400 block font-medium">Saldo Pendiente:</span>
+                <span className="font-bold font-mono text-red-600 dark:text-red-400 text-sm">
+                  {formatMoneyUSD(payableToPay.amountBalance)}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Coordenadas Bancarias del Proveedor */}
+          {payableToPay && (payableToPay.accountNumber || payableToPay.pagoMovilPhone || payableToPay.zelleEmail) && (
+            <div className="p-2.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/40 text-xs space-y-1.5">
+              <span className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider block">
+                Coordenadas de Pago del Proveedor:
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {payableToPay.accountNumber && (
+                  <div className="flex items-center justify-between bg-white dark:bg-neutral-800 p-2 rounded border border-neutral-200 dark:border-neutral-700">
+                    <div>
+                      <span className="font-medium text-neutral-700 dark:text-neutral-300 block text-[11px]">
+                        {payableToPay.bankName || "Banco"}:
+                      </span>
+                      <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100 text-xs">
+                        {payableToPay.accountNumber}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(payableToPay.accountNumber, "pay_modal_acc")}
+                      className="p-1 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded text-neutral-500 hover:text-neutral-800 transition-colors cursor-pointer"
+                      title="Copiar número de cuenta"
+                    >
+                      {copiedKey === "pay_modal_acc" ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-500" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
+                )}
+                {payableToPay.pagoMovilPhone && (
+                  <div className="flex items-center justify-between bg-white dark:bg-neutral-800 p-2 rounded border border-neutral-200 dark:border-neutral-700">
+                    <div>
+                      <span className="font-medium text-neutral-700 dark:text-neutral-300 block text-[11px]">
+                        Pago Móvil ({payableToPay.pagoMovilBank || "Banco"}):
+                      </span>
+                      <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100 text-xs">
+                        {payableToPay.pagoMovilPhone} (CI: {payableToPay.pagoMovilId || payableToPay.supplierRif})
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(payableToPay.pagoMovilPhone, "pay_modal_pm")}
+                      className="p-1 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded text-neutral-500 hover:text-neutral-800 transition-colors cursor-pointer"
+                      title="Copiar teléfono"
+                    >
+                      {copiedKey === "pay_modal_pm" ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-500" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
+                )}
+                {payableToPay.zelleEmail && (
+                  <div className="flex items-center justify-between bg-white dark:bg-neutral-800 p-2 rounded border border-neutral-200 dark:border-neutral-700">
+                    <div>
+                      <span className="font-medium text-neutral-700 dark:text-neutral-300 block text-[11px]">
+                        Zelle:
+                      </span>
+                      <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100 text-xs">
+                        {payableToPay.zelleEmail}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(payableToPay.zelleEmail, "pay_modal_zelle")}
+                      className="p-1 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded text-neutral-500 hover:text-neutral-800 transition-colors cursor-pointer"
+                      title="Copiar Zelle"
+                    >
+                      {copiedKey === "pay_modal_zelle" ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-500" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Selección de Cuenta Bancaria de Origen */}
+          <div>
+            <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              Cuenta Bancaria Emisora (Empresa / Tesorería)
+            </label>
+            <select
+              value={payForm.bankAccountId}
+              onChange={(e) => setPayForm({ ...payForm, bankAccountId: e.target.value })}
+              className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono"
+              required={["TRANSFER_VES", "TRANSFER_USD", "PAGO_MOVIL", "ZELLE"].includes(payForm.paymentMethod)}
+            >
+              <option value="">Seleccione cuenta bancaria...</option>
+              {accounts.map((acc) => (
+                <option key={acc.id} value={acc.id}>
+                  {acc.bankName} - {acc.accountNumber.slice(-4)} ({acc.currency}) | Saldo: {formatCurrency(acc.currentBalance, acc.currency)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Moneda y Tasa */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                Moneda de Pago
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleCurrencyChange("USD")}
+                  className={`h-10 text-xs font-bold rounded-lg border transition-colors ${
+                    payForm.currency === "USD"
+                      ? "bg-sky-600 text-white border-sky-600"
+                      : "text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                  }`}
+                >
+                  $ USD
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCurrencyChange("VES")}
+                  className={`h-10 text-xs font-bold rounded-lg border transition-colors ${
+                    payForm.currency === "VES"
+                      ? "bg-sky-600 text-white border-sky-600"
+                      : "text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                  }`}
+                >
+                  Bs. VES
+                </button>
+              </div>
+            </div>
+
+            <Input
+              label="Tasa de Cambio BCV"
+              type="number"
+              step="0.01"
+              value={payForm.exchangeRate}
+              onChange={(e) => handleExchangeRateChange(Number(e.target.value))}
+              required
+            />
+
+            <Input
+              label={`Monto a Pagar (${payForm.currency})`}
+              type="number"
+              step="0.01"
+              value={payForm.amount}
+              onChange={(e) => setPayForm({ ...payForm, amount: Number(e.target.value) })}
+              required
+            />
+          </div>
+
+          {/* Método y Referencia */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                Método de Pago
+              </label>
+              <select
+                value={payForm.paymentMethod}
+                onChange={(e) => setPayForm({ ...payForm, paymentMethod: e.target.value })}
+                className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-3 py-2 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono"
+              >
+                <option value="TRANSFER_VES">Transferencia Bancaria Nacional (VES)</option>
+                <option value="TRANSFER_USD">Transferencia / Cuenta Custodia (USD)</option>
+                <option value="PAGO_MOVIL">Pago Móvil Interbancario (VES)</option>
+                <option value="CASH_USD">Efectivo Divisas ($ USD)</option>
+                <option value="CASH_VES">Efectivo Bolívares (VES)</option>
+                <option value="ZELLE">Zelle / Transferencia Internacional</option>
+              </select>
+            </div>
+
+            <Input
+              label="Referencia de la Operación"
+              placeholder="Ej. REF-98765432"
+              value={payForm.referenceNumber}
+              onChange={(e) => setPayForm({ ...payForm, referenceNumber: e.target.value })}
+              required={["TRANSFER_VES", "TRANSFER_USD", "PAGO_MOVIL", "ZELLE"].includes(payForm.paymentMethod)}
+            />
+          </div>
+
+          <Input
+            label="Concepto o Notas"
+            placeholder="Ej. Liquidación factura de compra a proveedor"
+            value={payForm.notes}
+            onChange={(e) => setPayForm({ ...payForm, notes: e.target.value })}
+          />
+        </form>
+      </Modal>
+
+      {/* Modal Visor / Descarga PDF de Recibo de Pago CxP */}
+      <PdfViewerModal
+        isOpen={pdfModal.isOpen}
+        onClose={() => setPdfModal((prev) => ({ ...prev, isOpen: false }))}
+        title={pdfModal.title}
+        endpoint={pdfModal.endpoint}
+        filename={pdfModal.filename}
+      />
     </div>
   );
 };

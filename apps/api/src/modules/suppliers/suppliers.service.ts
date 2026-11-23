@@ -17,6 +17,8 @@ export class SuppliersService {
       SELECT s.id, s.company_id, s.rif, s.name, s.commercial_name, s.fiscal_address, s.contact_name,
              s.phone, s.email, s.is_person_natural, s.is_resident, s.islr_concept_code, s.credit_limit,
              s.payment_terms_days, s.is_active, s.created_at,
+             s.bank_name, s.account_number, s.account_type, s.account_holder_name, s.account_holder_id,
+             s.pago_movil_bank, s.pago_movil_phone, s.pago_movil_id, s.zelle_email, s.zelle_holder_name, s.bank_notes,
              COALESCE(pay.balance, 0) AS current_balance,
              COALESCE(pay.pending_count, 0) AS pending_payables_count,
              COALESCE(pur.total_amount, 0) AS total_purchases_amount,
@@ -93,6 +95,17 @@ export class SuppliersService {
       creditLimit: Number(r.credit_limit || 0),
       paymentTermsDays: Number(r.payment_terms_days || 0),
       isActive: Boolean(r.is_active),
+      bankName: r.bank_name || null,
+      accountNumber: r.account_number || null,
+      accountType: r.account_type || 'CURRENT',
+      accountHolderName: r.account_holder_name || null,
+      accountHolderId: r.account_holder_id || null,
+      pagoMovilBank: r.pago_movil_bank || null,
+      pagoMovilPhone: r.pago_movil_phone || null,
+      pagoMovilId: r.pago_movil_id || null,
+      zelleEmail: r.zelle_email || null,
+      zelleHolderName: r.zelle_holder_name || null,
+      bankNotes: r.bank_notes || null,
       createdAt: r.created_at,
       currentBalance: Number(r.current_balance),
       pendingPayablesCount: Number(r.pending_payables_count),
@@ -160,6 +173,17 @@ export class SuppliersService {
       creditLimit: Number(r.credit_limit || 0),
       paymentTermsDays: Number(r.payment_terms_days || 0),
       isActive: Boolean(r.is_active),
+      bankName: r.bank_name || null,
+      accountNumber: r.account_number || null,
+      accountType: r.account_type || 'CURRENT',
+      accountHolderName: r.account_holder_name || null,
+      accountHolderId: r.account_holder_id || null,
+      pagoMovilBank: r.pago_movil_bank || null,
+      pagoMovilPhone: r.pago_movil_phone || null,
+      pagoMovilId: r.pago_movil_id || null,
+      zelleEmail: r.zelle_email || null,
+      zelleHolderName: r.zelle_holder_name || null,
+      bankNotes: r.bank_notes || null,
       createdAt: r.created_at,
       currentBalance: Number(r.current_balance),
       pendingPayablesCount: Number(r.pending_payables_count),
@@ -186,8 +210,10 @@ export class SuppliersService {
       `INSERT INTO suppliers (
         id, company_id, rif, name, commercial_name, fiscal_address, contact_name, phone, email,
         is_person_natural, is_resident, islr_concept_code, credit_limit,
-        payment_terms_days, is_active
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        payment_terms_days, is_active,
+        bank_name, account_number, account_type, account_holder_name, account_holder_id,
+        pago_movil_bank, pago_movil_phone, pago_movil_id, zelle_email, zelle_holder_name, bank_notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         companyId,
@@ -204,6 +230,17 @@ export class SuppliersService {
         data.creditLimit || 0,
         data.paymentTermsDays || 0,
         data.isActive !== undefined ? (data.isActive ? 1 : 0) : 1,
+        data.bankName || null,
+        data.accountNumber || null,
+        data.accountType || 'CURRENT',
+        data.accountHolderName || null,
+        data.accountHolderId || null,
+        data.pagoMovilBank || null,
+        data.pagoMovilPhone || null,
+        data.pagoMovilId || null,
+        data.zelleEmail || null,
+        data.zelleHolderName || null,
+        data.bankNotes || null,
       ]
     );
 
@@ -268,6 +305,50 @@ export class SuppliersService {
       fields.push('is_active = ?');
       values.push(data.isActive ? 1 : 0);
     }
+    if (data.bankName !== undefined) {
+      fields.push('bank_name = ?');
+      values.push(data.bankName || null);
+    }
+    if (data.accountNumber !== undefined) {
+      fields.push('account_number = ?');
+      values.push(data.accountNumber || null);
+    }
+    if (data.accountType !== undefined) {
+      fields.push('account_type = ?');
+      values.push(data.accountType || 'CURRENT');
+    }
+    if (data.accountHolderName !== undefined) {
+      fields.push('account_holder_name = ?');
+      values.push(data.accountHolderName || null);
+    }
+    if (data.accountHolderId !== undefined) {
+      fields.push('account_holder_id = ?');
+      values.push(data.accountHolderId || null);
+    }
+    if (data.pagoMovilBank !== undefined) {
+      fields.push('pago_movil_bank = ?');
+      values.push(data.pagoMovilBank || null);
+    }
+    if (data.pagoMovilPhone !== undefined) {
+      fields.push('pago_movil_phone = ?');
+      values.push(data.pagoMovilPhone || null);
+    }
+    if (data.pagoMovilId !== undefined) {
+      fields.push('pago_movil_id = ?');
+      values.push(data.pagoMovilId || null);
+    }
+    if (data.zelleEmail !== undefined) {
+      fields.push('zelle_email = ?');
+      values.push(data.zelleEmail || null);
+    }
+    if (data.zelleHolderName !== undefined) {
+      fields.push('zelle_holder_name = ?');
+      values.push(data.zelleHolderName || null);
+    }
+    if (data.bankNotes !== undefined) {
+      fields.push('bank_notes = ?');
+      values.push(data.bankNotes || null);
+    }
 
     if (fields.length === 0) {
       return this.getSupplierById(id, companyId);
@@ -277,6 +358,10 @@ export class SuppliersService {
     await query(`UPDATE suppliers SET ${fields.join(', ')} WHERE id = ? AND company_id = ?`, values);
 
     return this.getSupplierById(id, companyId);
+  }
+
+  static async getAvailableBanks() {
+    return query<any>(`SELECT id, code, name FROM banks WHERE is_active = 1 ORDER BY name ASC`);
   }
 
   // --- PRODUCTOS POR PROVEEDOR ---
@@ -471,6 +556,7 @@ export class SuppliersService {
               pi.total_amount, pi.status, pi.is_credit,
               b.name as branch_name,
               p.id as payable_id, p.amount_paid, p.amount_balance, p.due_date,
+              p.is_verified, p.verified_at, p.verified_by,
               DATEDIFF(CURRENT_DATE(), p.due_date) as days_overdue
        FROM purchase_invoices pi
        INNER JOIN branches b ON pi.branch_id = b.id
@@ -508,6 +594,9 @@ export class SuppliersService {
         amountBalance: inv.amount_balance !== null ? Number(inv.amount_balance) : 0,
         dueDate: inv.due_date,
         daysOverdue: inv.days_overdue ? Number(inv.days_overdue) : 0,
+        isVerified: Boolean(inv.is_verified),
+        verifiedAt: inv.verified_at || undefined,
+        verifiedBy: inv.verified_by || undefined,
       })),
       payments: payments.map((p) => ({
         id: p.id,

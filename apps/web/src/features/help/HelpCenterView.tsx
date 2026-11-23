@@ -228,6 +228,36 @@ const USER_GUIDES: GuideItem[] = [
     ],
   },
   {
+    id: 'customer-rif-lookup',
+    category: 'Ventas & Puntos de Venta',
+    title: 'Registro y Validación Fiscal de Clientes con RIF SENIAT',
+    summary: 'Procedimiento de validación matemática por Módulo 11, autocompletado inteligente de datos fiscales (cruce con proveedores y clientes previos) y verificación oficial en el portal del SENIAT.',
+    steps: [
+      {
+        title: '1. Ingreso del Documento / RIF en la Ficha del Cliente',
+        description: 'En "Ventas & Puntos de Venta > Clientes", presione "+ Nuevo Cliente". Ingrese el RIF o Cédula con o sin guiones (ej. J-12345678-9 o V123456789). Al pegar el código completo, el sistema separa automáticamente el tipo de documento (J, V, E, G, P) y el número.',
+      },
+      {
+        title: '2. Autocompletado Inteligente y Cruce Comercial',
+        description: 'Al salir del campo o presionar "Autocompletar", el sistema busca en el histórico de clientes y en el directorio de proveedores (cruce comercial). Si el contribuyente ya existe en la empresa, autocompleta de inmediato la Razón Social, Dirección Fiscal, Teléfono, Correo y condición de Contribuyente Especial.',
+        tip: 'Si la empresa ya le compra a este contacto como proveedor, sus datos fiscales se aprovechan sin tener que escribirlos de nuevo.',
+      },
+      {
+        title: '3. Validación Matemática Oficial SENIAT (Módulo 11)',
+        description: 'El motor calcula el dígito verificador ponderado con el estándar del SENIAT. Identifica si corresponde a Persona Jurídica (J), Natural (V/E), Gubernamental (G) o Pasaporte (P), indicando mediante un banner si el dígito verificador es correcto.',
+      },
+      {
+        title: '4. Verificación en Portal Oficial SENIAT (1 Clic)',
+        description: 'Presione el botón "Portal SENIAT" junto al campo de documento para abrir la consulta del contribuyente en el portal web oficial con el RIF pre-cargado. Resuelva el código de seguridad gráfico para corroborar la razón social exacta y si es Contribuyente Especial SENIAT.',
+      },
+    ],
+    rules: [
+      'Validación Módulo 11: Garantiza que no se emitan facturas fiscales a clientes con RIFs ficticios o erróneos.',
+      'Contribuyente Especial: Permite marcar si el cliente retiene IVA en sus compras para calcular retenciones automáticas.',
+      'Soporte API Externa: Si la empresa configura SENIAT_RIF_API_URL en el servidor, la consulta de datos tributarios puede efectuarse de forma 100% automatizada.',
+    ],
+  },
+  {
     id: 'email-communications',
     category: 'Configuración & Auditoría',
     title: 'Envío Directo de Correos y Redactor Electrónico Integrado',
@@ -295,6 +325,87 @@ const USER_GUIDES: GuideItem[] = [
     ],
   },
   {
+    id: 'taxes-export-seniat',
+    category: 'Tributario & Fiscalidad SENIAT',
+    title: 'Generación y Descarga de Archivos TXT (IVA) y XML (ISLR) para el SENIAT',
+    summary: 'Procedimiento oficial para generar las Declaraciones Informativas de Retenciones exigidas por el SENIAT bajo Providencia SNAT/2015/0049 (IVA) y Decreto 1808 (ISLR).',
+    steps: [
+      {
+        title: '1. Acceder a Retenciones Tributarias',
+        description: 'En el menú lateral, diríjase a "Tributario & Fiscalidad SENIAT > Retenciones Tributarias". Verifique que el período fiscal activo corresponda al mes y año que desea declarar.',
+      },
+      {
+        title: '2. Selección de Modalidad y Quincena (IVA)',
+        description: 'Haga clic en el botón "TXT IVA". El sistema desplegará un asistente donde podrá elegir entre "Mes Completo", "1ra Quincena" (días 1 al 15) o "2da Quincena" (días 16 al último de mes) según el calendario de Sujetos Pasivos Especiales.',
+      },
+      {
+        title: '3. Generación y Validación Preventiva',
+        description: 'El sistema valida que existan comprobantes de retención activos para el período seleccionado. Si no hay registros, el sistema previene la generación de archivos vacíos que serían rechazados por el SENIAT.',
+      },
+      {
+        title: '4. Carga en el Portal Fiscal SENIAT',
+        description: 'El archivo resultante cumple con la estructura estricta del SENIAT (columnas tabuladas para IVA y esquema XML para ISLR). Acceda a contribuyente.seniat.gob.ve con su clave fiscal y cargue el archivo descargado.',
+      },
+    ],
+    rules: [
+      'Exclusivo para Sujetos Pasivos Especiales: Solo las empresas designadas como Agentes de Retención presentan declaraciones informativas de retenciones practicadas.',
+      'Períodos Quincenales: Las retenciones de IVA se declaran y enteran quincenalmente según el último dígito del RIF.',
+      'Sanciones Tributarias: La presentación extemporánea acarrea sanciones del Código Orgánico Tributario.',
+    ],
+  },
+  {
+    id: 'pos-cash-audit-closure',
+    category: 'Ventas & Puntos de Venta',
+    title: 'Control de Descuadres, Semáforo y Cierre de Turno de Caja (Arqueo)',
+    summary: 'Protocolo de seguridad para el conteo de efectivo al cerrar turno, advertencias por semáforo y justificación obligatoria en caso de descuadres.',
+    steps: [
+      {
+        title: '1. Iniciar Cierre de Turno',
+        description: 'En "Ventas & Puntos de Venta > Cajas & Turnos", presione "Cerrar Turno". El sistema solicitará el conteo físico de gaveta tanto en Dólares ($ USD) como en Bolívares (Bs. VES).',
+      },
+      {
+        title: '2. Semáforo Inteligente de Cuadre',
+        description: 'El sistema compara en tiempo real el conteo contra las ventas registradas: Verde si está cuadrado exactamente; Amarillo si hay una diferencia menor por redondeo; Rojo si existe un descuadre significativo (mayor a $1.00 o 50 Bs).',
+      },
+      {
+        title: '3. Justificación Obligatoria del Cajero',
+        description: 'Ante un descuadre significativo, el sistema bloquea la confirmación hasta que el operador redacte la justificación del motivo en el campo de observaciones (ej. billetes deteriorados, faltante por vuelto o error de caja).',
+      },
+      {
+        title: '4. Notificación y Reporte de Auditoría Inmediato',
+        description: 'Al confirmar un cierre con diferencia, el sistema genera automáticamente un Reporte de Auditoría con alerta para el personal supervisor en el módulo "Verificación de Arqueos".',
+      },
+    ],
+    rules: [
+      'Arqueo a Ciegas: El sistema fomenta que el cajero cuente el efectivo físico antes de comparar para evitar manipulaciones.',
+      'Trazabilidad en Bitácora: Todo descuadre queda asentado de forma indeleble en la auditoría del sistema.',
+    ],
+  },
+  {
+    id: 'pos-xml-electronic-invoice',
+    category: 'Ventas & Puntos de Venta',
+    title: 'Facturación Electrónica y Exportación XML de Comprobantes de Venta',
+    summary: 'Descarga de comprobantes de facturación en formato estándar XML con desglose de ítems, alícuotas de IVA, IGTF y tipo de cambio BCV.',
+    steps: [
+      {
+        title: '1. Emisión de la Factura en POS o Ventas',
+        description: 'Al procesar una venta en el Punto de Venta o facturar una cotización, se abre el visor del comprobante fiscal homologado.',
+      },
+      {
+        title: '2. Descarga del XML Fiscal',
+        description: 'En el pie del visor del comprobante, presione el botón "XML Fiscal". El sistema compilará y descargará el archivo .xml estructurado con el nombre Factura_[RIF]_[NUMERO].xml.',
+      },
+      {
+        title: '3. Estructura Compatible y Homologada',
+        description: 'El XML incluye datos del emisor, cliente, desglose de ítems con base imponible y exenta, impuesto IVA (16%), IGTF (3%) y formas de pago utilizadas.',
+      },
+    ],
+    rules: [
+      'Estándar Fiscal: El archivo XML es compatible con integración a sistemas contables y plataformas de facturación electrónica.',
+      'Validez Legal: El comprobante digital respalda la operación comercial junto con el ticket fiscal homologado.',
+    ],
+  },
+  {
     id: 'treasury-reconciliation',
     category: 'Tesorería & Bancos',
     title: 'Conciliación Bancaria y Registro de Depósitos de Arqueos',
@@ -318,19 +429,35 @@ const USER_GUIDES: GuideItem[] = [
     id: 'security-chat-audit',
     category: 'Configuración & Auditoría',
     title: 'Uso del Chat Interno entre Colaboradores y Bitácora de Auditoría',
-    summary: 'Mensajería institucional instantánea y supervisión de comunicaciones para control de calidad.',
+    summary: 'Mensajería institucional instantánea, control de presencia en línea y supervisión de comunicaciones.',
     steps: [
       {
         title: '1. Acceso al Chat en Barra Superior',
-        description: 'Haga clic en el ícono de mensaje en la barra superior. Verá sus conversaciones activas y el contador de mensajes no leídos.',
+        description: 'Haga clic en el ícono de mensaje en la barra superior. Verá sus conversaciones activas y el contador de mensajes no leídos en tiempo real.',
       },
       {
-        title: '2. Iniciar Chat y Enviar Emoticones',
-        description: 'Presione "Nuevo Chat" para buscar cualquier usuario de la empresa por nombre o cargo. Escriba mensajes e inserte emoticones desde el selector interactivo.',
+        title: '2. Presencia en Vivo y Estado Manual Personalizado',
+        description: 'El sistema detecta automáticamente si los colaboradores están conectados o desconectados mediante conexión activa en tiempo real. Adicionalmente, cada usuario puede hacer clic en su selector de estado en la cabecera del chat para fijar su disponibilidad (En línea, Ausente, Ocupado o Desconectado / Invisible) y establecer un mensaje de estado opcional (ej. "En atención al cliente", "Arqueo de caja").',
       },
       {
-        title: '3. Bitácora de Supervisión (chat.audit)',
+        title: '3. Iniciar Chat y Enviar Mensajes',
+        description: 'Presione "Nuevo Chat" para buscar cualquier usuario de la empresa por nombre o cargo con indicador visual de presencia. Escriba mensajes e inserte emoticones desde el selector interactivo.',
+      },
+      {
+        title: '4. Bitácora de Supervisión (chat.audit)',
         description: 'Los usuarios con rol administrativo o permiso de auditoría pueden acceder a "Configuración & Auditoría > Bitácora de Chat" para consultar el historial de conversaciones, filtrar por colaboradores y descargar reportes de auditoría en texto.',
+      },
+      {
+        title: '5. Grupos de Chat Institucionales',
+        description: 'Presione "Grupo" para crear una conversación grupal asignando un título y seleccionando múltiples colaboradores. Dentro del grupo, los mensajes indican el nombre y cargo de cada participante, y es posible ver la lista de integrantes o añadir nuevos miembros.',
+      },
+      {
+        title: '6. Eliminar o Ocultar Chat de la Bandeja Personal',
+        description: 'Cada usuario puede hacer clic en el botón de papelera en un chat o en la cabecera activa para eliminarlo de su lista personal. Esto oculta la conversación para dicho usuario sin afectar la vista de los demás colaboradores ni alterar el historial permanente en la bitácora institucional. Si llega un nuevo mensaje, la conversación vuelve a mostrarse automáticamente.',
+      },
+      {
+        title: '7. Depuración de la Bitácora por Rango de Fechas',
+        description: 'Desde la vista "Bitácora de Chat", los administradores autorizados pueden presionar el botón "Depurar Bitácora" e ingresar un rango de fechas (Desde / Hasta) junto con la palabra de confirmación ELIMINAR para purgar de forma controlada el historial de mensajes de dicho período.',
       },
     ],
   },

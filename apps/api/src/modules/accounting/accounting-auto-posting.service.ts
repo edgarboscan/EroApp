@@ -803,13 +803,17 @@ export class AccountingAutoPostingService {
   ): Promise<{ entryId?: string } | null> {
     const [payRows]: any = await connOrPool.query(
       `SELECT pp.*, b.company_id, p.branch_id, pi.invoice_number, 
-              s.name as supplier_name, ba.accounting_account_id as bank_acc_id
+              s.name as supplier_name, 
+              COALESCE(ba.currency, ba_bm.currency) as bank_currency,
+              COALESCE(ba.accounting_account_id, ba_bm.accounting_account_id) as bank_acc_id
        FROM purchase_payments pp
        INNER JOIN payables p ON pp.payable_id = p.id
        INNER JOIN branches b ON p.branch_id = b.id
        LEFT JOIN purchase_invoices pi ON p.invoice_id = pi.id
        LEFT JOIN suppliers s ON p.supplier_id = s.id
        LEFT JOIN bank_accounts ba ON pp.bank_account_id = ba.id
+       LEFT JOIN bank_movements bm ON pp.reference_number IS NOT NULL AND bm.reference_number = pp.reference_number AND bm.movement_type = 'WITHDRAWAL'
+       LEFT JOIN bank_accounts ba_bm ON bm.account_id = ba_bm.id
        WHERE pp.id = ?`,
       [paymentId]
     );
@@ -823,7 +827,7 @@ export class AccountingAutoPostingService {
       return null;
     }
 
-    const [accApVes, accApUsd, accBankVes, accBankUsd, accCashVes, accCashUsd, accVatWh, accIslrWh] =
+    const [accApVes, accApUsd, accBankVesRaw, accBankUsd, accCashVes, accCashUsd, accVatWh, accIslrWh] =
       await Promise.all([
         this.resolveAccount(connOrPool, companyId, 'AP_SUPPLIERS_VES', '2.1.01.01'),
         this.resolveAccount(connOrPool, companyId, 'AP_SUPPLIERS_USD', '2.1.01.02'),
@@ -834,6 +838,8 @@ export class AccountingAutoPostingService {
         this.resolveAccount(connOrPool, companyId, 'WITHHOLDING_VAT_ISSUED', '2.1.02.02'),
         this.resolveAccount(connOrPool, companyId, 'WITHHOLDING_ISLR_ISSUED', '2.1.02.03'),
       ]);
+
+    const accBankVes = accBankVesRaw || (await this.resolveAccount(connOrPool, companyId, 'BANK_DEFAULT', '1.1.01.04'));
 
     const rate = Number(pay.exchange_rate) || 1;
     const payDate = pay.created_at ? new Date(pay.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
@@ -859,8 +865,23 @@ export class AccountingAutoPostingService {
     let targetFund = accBankVes || accCashVes;
     if (pay.bank_acc_id) {
       targetFund = { id: pay.bank_acc_id, code: '', name: '' };
-    } else if (Number(pay.amount_usd) > 0 && Number(pay.amount_ves) === 0) {
-      targetFund = accBankUsd || accCashUsd;
+    } else {
+      const isUsd =
+        pay.bank_currency === 'USD' ||
+        pay.currency === 'USD' ||
+        ['TRANSFER_USD', 'CASH_USD', 'ZELLE'].includes(pay.method);
+
+      if (isUsd) {
+        targetFund =
+          ['TRANSFER_USD', 'ZELLE'].includes(pay.method) || pay.bank_account_id
+            ? (accBankUsd || accCashUsd)
+            : (accCashUsd || accBankUsd);
+      } else {
+        targetFund =
+          ['TRANSFER_VES', 'PAGO_MOVIL'].includes(pay.method) || pay.bank_account_id
+            ? (accBankVes || accCashVes)
+            : (accCashVes || accBankVes);
+      }
     }
 
     if (targetFund && amountVes > 0) {
