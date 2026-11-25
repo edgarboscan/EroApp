@@ -22,6 +22,7 @@ for (const envPath of candidateEnvPaths) {
 import { authRouter } from './modules/auth/auth.routes';
 import { dashboardsRouter } from './modules/dashboards/dashboards.routes';
 import { inventoryRouter } from './modules/inventory/inventory.routes';
+import { productionRouter } from './modules/production/production.routes';
 import { pricingRouter } from './modules/pricing/pricing.routes';
 import { posRouter } from './modules/pos/pos.routes';
 import { reportsRouter } from './modules/reports/reports.routes';
@@ -72,6 +73,7 @@ app.get('/health', (c) => {
 app.route('/api/auth', authRouter);
 app.route('/api/dashboards', dashboardsRouter);
 app.route('/api/inventory', inventoryRouter);
+app.route('/api/production', productionRouter);
 app.route('/api/pricing', pricingRouter);
 app.route('/api/pos', posRouter);
 app.route('/api/reports', reportsRouter);

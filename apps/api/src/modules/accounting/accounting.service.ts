@@ -386,8 +386,10 @@ export class AccountingService {
 
   static async createJournalEntry(companyId: string, userId: string, data: JournalEntryInput) {
     return await withTransaction(async (conn) => {
-      // 1. Obtener correlativo consecutivo por año
-      const entryYear = new Date(data.entryDate).getFullYear();
+      // 1. Obtener correlativo consecutivo por año (parseo seguro sin desfase UTC)
+      const dateStr = String(data.entryDate).split('T')[0];
+      const [yearPart, monthPart] = dateStr.split('-').map(Number);
+      const entryYear = yearPart || new Date(data.entryDate).getUTCFullYear();
       const [lastNumberRows]: any = await conn.query(
         `SELECT entry_number FROM accounting_journal_entries 
          WHERE company_id = ? AND entry_number LIKE ? 
@@ -407,7 +409,7 @@ export class AccountingService {
       const entryNumber = data.entryNumber || `AS-${entryYear}-${String(nextSeq).padStart(5, '0')}`;
 
       // 2. Asociar período fiscal abierto
-      const entryMonth = new Date(data.entryDate).getMonth() + 1;
+      const entryMonth = monthPart || (new Date(data.entryDate).getUTCMonth() + 1);
       const [periodRows]: any = await conn.query(
         `SELECT p.id, p.status 
          FROM accounting_fiscal_periods p

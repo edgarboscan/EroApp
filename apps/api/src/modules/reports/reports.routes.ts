@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { ReportsService } from './reports.service';
 import { ReportsPdfEngine } from './reports-pdf';
+import { generateUserManualPDF } from './user-manual-pdf';
 import { authenticate, AppEnv } from '../../middleware/auth';
 import { authorize } from '../../middleware/rbac';
 
@@ -1185,6 +1186,24 @@ reportsRouter.get('/payment-methods', authenticate, authorize('reports', 'sales'
     }
 
     return c.json({ success: true, data });
+  } catch (error: any) {
+    return c.json({ success: false, error: { message: error.message } }, 500);
+  }
+});
+
+// GET /api/reports/user-manual/pdf - Manual Oficial de Usuario en PDF para el Visor PDF
+reportsRouter.get('/user-manual/pdf', authenticate, async (c) => {
+  const user = c.get('user');
+  try {
+    const [company, userName] = await Promise.all([
+      ReportsService.getCompanyPdfInfo(user.companyId),
+      ReportsService.getUserFullName(user.sub),
+    ]);
+
+    const buffer = generateUserManualPDF(company, userName);
+    c.header('Content-Type', 'application/pdf');
+    c.header('Content-Disposition', 'inline; filename="Manual_Usuario_ERO_ERP.pdf"');
+    return c.body(new Uint8Array(buffer));
   } catch (error: any) {
     return c.json({ success: false, error: { message: error.message } }, 500);
   }

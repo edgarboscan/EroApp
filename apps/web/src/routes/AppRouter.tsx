@@ -28,6 +28,7 @@ import { KardexView } from '../features/inventory/KardexView';
 import { InventoryAdjustmentsView } from '../features/inventory/InventoryAdjustmentsView';
 import { InventoryTransfersView } from '../features/inventory/InventoryTransfersView';
 import { InventoryCountView } from '../features/inventory/InventoryCountView';
+import { ProductionView } from '../features/production/ProductionView';
 import { BulkPriceUpdateWizard } from '../features/pricing/BulkPriceUpdateWizard';
 import { TaxRatesView } from '../features/pricing/TaxRatesView';
 import { ReportsView } from '../features/reports/ReportsView';
@@ -500,6 +501,15 @@ export const AppRouter: React.FC = () => {
           element={
             <RequirePermission module="inventory" action="transfer">
               <InventoryTransfersView />
+            </RequirePermission>
+          }
+        />
+
+        <Route
+          path="/inventory/production"
+          element={
+            <RequirePermission module="inventory" action="read">
+              <ProductionView />
             </RequirePermission>
           }
         />

@@ -266,10 +266,11 @@ export class AccountingAutoPostingService {
       return { id: existing[0].id, entryNumber: existing[0].entry_number };
     }
 
-    // 2. Período Fiscal
-    const entryDateObj = new Date(entryDate);
-    const entryYear = entryDateObj.getFullYear();
-    const entryMonth = entryDateObj.getMonth() + 1;
+    // 2. Período Fiscal (parseo seguro sin desfase UTC)
+    const entryDateStr = String(entryDate).split('T')[0];
+    const [yPart, mPart] = entryDateStr.split('-').map(Number);
+    const entryYear = yPart || new Date(entryDate).getUTCFullYear();
+    const entryMonth = mPart || (new Date(entryDate).getUTCMonth() + 1);
 
     const [periodRows]: any = await conn.query(
       `SELECT p.id, p.status 
@@ -1421,6 +1422,124 @@ export class AccountingAutoPostingService {
       }
     }
 
+    // 4. Mermas de Inventario y Desposte (Merma directa o EQUAL_UNIT)
+    if (filter.originType === 'ALL' || filter.originType === 'INVENTORY_WASTE') {
+      const [wasteLogs]: any = await pool.query(
+        `SELECT pwl.id, pwl.branch_id, pwl.total_cost, p.name as product_name,
+                wr.name as reason_name, po.order_number
+         FROM production_waste_logs pwl
+         INNER JOIN products p ON pwl.product_id = p.id
+         INNER JOIN waste_reasons wr ON pwl.waste_reason_id = wr.id
+         LEFT JOIN production_orders po ON pwl.production_order_id = po.id
+         LEFT JOIN accounting_journal_entries e ON e.company_id = pwl.company_id
+           AND e.origin_type = 'INVENTORY_WASTE' AND e.origin_id = pwl.id AND e.status != 'ANNULLED'
+         WHERE pwl.company_id = ?
+           AND pwl.total_cost > 0
+           AND (pwl.production_order_id IS NULL OR po.cost_allocation_method = 'EQUAL_UNIT')
+           AND e.id IS NULL
+         ORDER BY pwl.created_at ASC LIMIT ?`,
+        [companyId, filter.limit]
+      );
+
+      for (const wl of wasteLogs) {
+        processed++;
+        try {
+          await withTransaction(async (conn) => {
+            await this.postInventoryWaste(conn, {
+              companyId,
+              branchId: wl.branch_id,
+              userId,
+              wasteLogId: wl.id,
+              productName: wl.product_name,
+              reasonName: wl.reason_name,
+              totalCostUsd: Number(wl.total_cost),
+              referenceDoc: wl.order_number || 'MERMA',
+            });
+          });
+          posted++;
+          details.push(`Merma ${wl.product_name} contabilizada exitosamente`);
+        } catch (err: any) {
+          errors++;
+          details.push(`Error en Merma ${wl.product_name}: ${err.message}`);
+        }
+      }
+    }
+
     return { processed, posted, errors, details };
+  }
+
+  // ==========================================================================
+  // 10. CONTABILIZACIÓN DE MERMA DE INVENTARIO Y DESPOSTE
+  // ==========================================================================
+
+  static async postInventoryWaste(
+    connOrPool: any,
+    params: {
+      companyId: string;
+      branchId: string;
+      userId: string;
+      wasteLogId: string;
+      productName: string;
+      reasonName: string;
+      totalCostUsd: number;
+      referenceDoc?: string;
+      entryDate?: string;
+    }
+  ): Promise<{ entryId?: string } | null> {
+    if (params.totalCostUsd <= 0.0001) return null;
+
+    const settings = await this.getSettings(params.companyId);
+    if (!settings.autoPostingEnabled || !settings.postInventoryAdjustments) {
+      return null;
+    }
+
+    const [accWasteExpense, accInventory] = await Promise.all([
+      this.resolveAccount(connOrPool, params.companyId, 'INVENTORY_ADJUST_EXPENSE', '5.1.01'),
+      this.resolveAccount(connOrPool, params.companyId, 'INVENTORY_MERCHANDISE', '1.1.04.01'),
+    ]);
+
+    if (!accWasteExpense || !accInventory) return null;
+
+    // Obtener tasa BCV vigente
+    const [rateRows]: any = await connOrPool.query(
+      `SELECT rate FROM exchange_rates ORDER BY effective_date DESC, created_at DESC LIMIT 1`
+    );
+    const rate = Number(rateRows[0]?.rate || 1);
+    const amountVes = Number((params.totalCostUsd * rate).toFixed(2));
+    if (amountVes <= 0.01) return null;
+
+    const entryDate = params.entryDate ? String(params.entryDate).split('T')[0] : new Date().toISOString().split('T')[0];
+
+    const entry = await this.createInternalEntry(connOrPool, {
+      companyId: params.companyId,
+      userId: params.userId,
+      branchId: params.branchId,
+      entryDate,
+      entryType: 'ADJUSTMENT',
+      concept: `Merma de Inventario: ${params.productName} (${params.reasonName})`,
+      currency: 'VES',
+      exchangeRate: rate,
+      originType: 'INVENTORY_WASTE',
+      originId: params.wasteLogId,
+      status: settings.defaultEntryStatus,
+      lines: [
+        {
+          accountId: accWasteExpense.id,
+          description: `Pérdida por Merma - ${params.reasonName} (${params.productName})`,
+          debitVes: amountVes,
+          creditVes: 0,
+          referenceDoc: params.referenceDoc || 'MERMA',
+        },
+        {
+          accountId: accInventory.id,
+          description: `Descargo Inventario por Merma - ${params.productName}`,
+          debitVes: 0,
+          creditVes: amountVes,
+          referenceDoc: params.referenceDoc || 'MERMA',
+        },
+      ],
+    });
+
+    return { entryId: entry?.id };
   }
 }

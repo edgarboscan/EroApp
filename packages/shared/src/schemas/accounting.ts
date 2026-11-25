@@ -198,6 +198,7 @@ export const batchPostingInputSchema = z.object({
     'AP_PAYMENT',
     'AR_PAYMENT',
     'INVENTORY_ADJUST',
+    'INVENTORY_WASTE',
     'BANK_MOVEMENT',
   ]).default('ALL'),
   startDate: z.string().optional(),

@@ -15,6 +15,7 @@ import {
 } from '@ero/shared';
 import { AccountingService } from './accounting.service';
 import { AccountingAutoPostingService } from './accounting-auto-posting.service';
+import { AccountingAudit7MonthsService } from './accounting-audit-7months.service';
 import { AccountingPdfEngine } from './accounting-pdf';
 import { AccountingExportService } from './accounting-export.service';
 import { ReportsService } from '../reports/reports.service';
@@ -710,6 +711,21 @@ accountingRouter.post(
     const body = c.req.valid('json');
     const data = await AccountingAutoPostingService.runBatchPosting(user.companyId, user.sub, body);
     return c.json({ success: true, data });
+  }
+);
+
+// POST /api/accounting/audit-7months - Simulación y auditoría multi-mes (Junio a Diciembre)
+accountingRouter.post(
+  '/audit-7months',
+  authenticate,
+  authorize('accounting', 'close'),
+  async (c) => {
+    try {
+      const report = await AccountingAudit7MonthsService.runFull7MonthSimulationAndAudit(true);
+      return c.json({ success: true, data: report });
+    } catch (error: any) {
+      return c.json({ success: false, error: { message: error.message } }, 500);
+    }
   }
 );
 

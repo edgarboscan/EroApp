@@ -53,6 +53,7 @@ import {
   Moon,
   MessageSquareText,
   HelpCircle,
+  Scissors,
 } from "lucide-react";
 import { useExchangeRateStore } from "../stores/exchangeRateStore";
 import { useThemeStore } from "../stores/themeStore";
@@ -536,6 +537,13 @@ export const MainLayout: React.FC = () => {
           icon: ArrowRightLeft,
           module: "inventory",
           action: "transfer",
+        },
+        {
+          label: "Producción, Desposte & Merma",
+          to: "/inventory/production",
+          icon: Scissors,
+          module: "inventory",
+          action: "read",
         },
       ],
     },
